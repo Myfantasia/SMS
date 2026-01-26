@@ -1,73 +1,134 @@
-<!DOCTYPE html>
 {% load static %}
-<html lang="en" dir="ltr">
-
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <title></title>
-
-  <style media="screen">
-    .jumbotron {
-      margin-top: 0px;
-      margin-bottom: 0px;
-      background-image: url('{% static "images/EmpClass.jpg" %}');
-      background-size: cover;
-      background-repeat: no-repeat;
-    }
-
-    .jumbotron h1 {
-      text-align: center;
-    }
-
-    .alert {
-      margin: 0px;
-    }
-
-
-
-    .glow {
-      font-size: 90px;
-      color: #ffffff;
-      text-align: center;
-      -webkit-animation: glow 1s ease-in-out infinite alternate;
-      -moz-animation: glow 1s ease-in-out infinite alternate;
-      animation: glow 1s ease-in-out infinite alternate;
-    }
-
-    
-  </style>
-
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MyFantasia | Smart School Ecosystem</title>
+    <link rel="stylesheet" href="{% static 'css/navbar.css' %}">
+    <link rel="stylesheet" href="{% static 'css/home.css' %}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
-
 <body>
-  {% include "school/navbar.html" %}
-  <br>
-  <br>
-  <div class="jumbotron" style="margin-bottom: 0px;margin-top: 0px;">
-    <br>
-    <h1 class="display-4 glow"><b>School Management System</b></h1>
 
-    <br><br>
-    <h3 class="text-center" style="color:white;">Built using Python Django</h3>
-    <br><br><br><br><br>
-    <p class="lead">
-      <a class="btn btn-danger btn-lg" href="/studentsignup" role="button">Sign Up as Student</a>
-    </p>
-    <br><br>
-  </div>
+    {% include "school/navbar.html" %}
 
-  <br>
-  <br>
-  <br><br>
+    <header class="hero-section">
+        <div class="hero-container">
+            <div class="hero-content">
+                <div class="announcement-pill">
+                    <span class="new-tag">UPDATED</span>
+                    <p>Academic Year 2026 Admissions Open</p>
+                </div>
+                <h1>The Heart of Your <span class="gradient-text">School's Daily Life</span></h1>
+                <p>Streamline administrative tasks, empower teachers, and connect parents with real-time student progress. One secure platform for the entire school community.</p>
+                
+                <div class="hero-btns">
+                    <a href="/adminclick" class="btn-primary">Access Management <i class="fas fa-arrow-right"></i></a>
+                    <a href="/aboutus" class="btn-secondary">School Information</a>
+                </div>
 
-  {% include "school/admin_teacher_student_card.html" %}
+                <div class="trust-row">
+                    <span><i class="fas fa-shield-alt"></i> Secure Data</span>
+                    <span><i class="fas fa-clock"></i> 99.9% Uptime</span>
+                    <span><i class="fas fa-users"></i> Parent Friendly</span>
+                </div>
+            </div>
 
-  <br><br>
-  <br>
-  <br>
-  <br>
-  <br>
-  {% include "school/footer.html" %}
+            <div class="hero-visual-container">
+                <div class="main-visual-box">
+                    <div class="floating-ui ui-1">
+                        <div class="ui-icon"><i class="fas fa-check"></i></div>
+                        <div>
+                            <strong>Attendance</strong>
+                            <small>Class 5B: Marked</small>
+                        </div>
+                    </div>
+                    
+                    <div class="floating-ui ui-2">
+                        <div class="ui-icon fee"><i class="fas fa-dollar-sign"></i></div>
+                        <div>
+                            <strong>Fees Collected</strong>
+                            <small>Updated Just Now</small>
+                        </div>
+                    </div>
+
+                    <div class="glass-card">
+                         <i class="fas fa-graduation-cap" style="font-size: 3rem; color: #818cf8; margin-bottom: 15px;"></i>
+                         <h3>MyFantasia</h3>
+                         <p>School Hub</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <section class="features-section">
+        <div class="section-header">
+            <h2>Select Your <span class="gradient-text">Portal</span></h2>
+            <p>Secure login gateways for administration, faculty, and families.</p>
+        </div>
+        
+        <div class="feature-grid">
+            <div class="feature-card">
+                <div class="card-glow red-glow"></div>
+                <div class="icon-box red"><i class="fas fa-user-shield"></i></div>
+                <h3>Administration</h3>
+                <p>Manage staff, approve admissions, and oversee school finances.</p>
+                <a href="/adminclick" class="card-link">Login <i class="fas fa-chevron-right"></i></a>
+            </div>
+
+            <div class="feature-card">
+                <div class="card-glow green-glow"></div>
+                <div class="icon-box green"><i class="fas fa-chalkboard-teacher"></i></div>
+                <h3>Teachers</h3>
+                <p>Mark attendance, upload grades, and assign homework digitally.</p>
+                <a href="/teacherclick" class="card-link">Login <i class="fas fa-chevron-right"></i></a>
+            </div>
+
+            <div class="feature-card">
+                <div class="card-glow yellow-glow"></div>
+                <div class="icon-box yellow"><i class="fas fa-user-friends"></i></div>
+                <h3>Parents</h3>
+                <p>View report cards, pay fees, and communicate with class teachers.</p>
+                <a href="/studentclick" class="card-link">Login <i class="fas fa-chevron-right"></i></a>
+            </div>
+
+            <div class="feature-card">
+                <div class="card-glow blue-glow"></div>
+                <div class="icon-box blue"><i class="fas fa-user-graduate"></i></div>
+                <h3>Students</h3>
+                <p>Check class schedules, download assignments, and view results.</p>
+                <a href="/studentclick" class="card-link">Login <i class="fas fa-chevron-right"></i></a>
+            </div>
+        </div>
+    </section>
+
+    <section class="info-section">
+        <div class="info-content">
+            <h2>Why Schools Trust <span class="gradient-text">MyFantasia</span></h2>
+            <div class="info-grid">
+                <div class="info-item">
+                    <i class="fas fa-bolt"></i>
+                    <h4>Instant Notifications</h4>
+                    <p>Parents get SMS/Email alerts for attendance and important notices instantly.</p>
+                </div>
+                <div class="info-item">
+                    <i class="fas fa-file-invoice-dollar"></i>
+                    <h4>Fee Management</h4>
+                    <p>Automated invoice generation and online payment tracking for the accounts department.</p>
+                </div>
+                <div class="info-item">
+                    <i class="fas fa-laptop-code"></i>
+                    <h4>Paperless Operations</h4>
+                    <p>Reduce paperwork by 80% with digital records for admissions and exams.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    {% include "school/footer.html" %}
+
+    <script src="{% static 'js/navbar.js' %}"></script>
 </body>
-
 </html>
