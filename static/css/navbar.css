@@ -1,0 +1,173 @@
+/* Universal Reset to prevent screen errors */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+:root {
+    --primary: #6366f1;
+    --nav-bg: #0f172a;
+    --text-white: #ffffff;
+    --text-dim: #cbd5e1;
+}
+
+.navbar-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 6%;
+    height: 80px;
+    position: fixed;
+    top: 0;
+    width: 100%;
+    z-index: 10000;
+    background: var(--nav-bg);
+    font-family: 'Outfit', sans-serif;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.brand-wrapper { display: flex; align-items: center; gap: 12px; text-decoration: none; min-width: 'fit-content'; }
+.logo-box { width: 42px; height: 42px; background: linear-gradient(135deg, var(--primary), #a855f7); border-radius: 10px; display: grid; place-items: center; color: white; font-weight: 800; font-size: 1.3rem; }
+.brand-logo { color: white; font-weight: 800; font-size: 1.4rem; }
+
+/* Desktop Menu - High Visibility */
+.nav-links-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    transition: all 0.3s ease-in-out;
+}
+
+.nav-item {
+    color: var(--text-dim);
+    text-decoration: none;
+    font-weight: 600;
+    padding: 10px 15px;
+    border-radius: 8px;
+    white-space: nowrap;
+}
+
+.nav-item:hover { color: white; background: rgba(255,255,255,0.1); }
+
+/* Portal System */
+.portal-trigger {
+    background: var(--primary);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 10px;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.dropdown-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    background: white;
+    width: 240px;
+    border-radius: 12px;
+    display: none;
+    padding: 10px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    z-index: 10001;
+}
+
+.portal-dropdown:hover .dropdown-menu { display: block; }
+.drop-item { display: flex; align-items: center; gap: 10px; padding: 12px; text-decoration: none; color: #0f172a; font-size: 0.9rem; font-weight: 700; border-radius: 8px; }
+.drop-item:hover { background: #f1f5f9; color: var(--primary); }
+
+/* Hamburger Button */
+.mobile-toggle {
+    display: none;
+    color: white;
+    font-size: 1.8rem;
+    cursor: pointer;
+    z-index: 10002;
+}
+
+/* TABLET & PHONE LOGIC */
+@media (max-width: 992px) {
+    .mobile-toggle { display: block; }
+
+    .nav-links-wrapper {
+        position: fixed;
+        top: 80px;
+        left: -100%; /* Hidden off-screen to the left */
+        width: 100%;
+        height: calc(100vh - 80px);
+        background: var(--nav-bg);
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 40px;
+        gap: 20px;
+        overflow-y: auto;
+        transition: 0.4s;
+    }
+
+    .nav-links-wrapper.active {
+        left: 0; /* Slides in */
+    }
+
+    .nav-item { font-size: 1.2rem; width: 100%; }
+
+    .portal-dropdown { width: 100%; }
+    .portal-trigger { width: 100%; padding: 15px; font-size: 1.1rem; }
+
+    /* On mobile, dropdown should not float; it should stack */
+    .dropdown-menu {
+        position: static;
+        width: 100%;
+        background: rgba(255,255,255,0.05);
+        box-shadow: none;
+        margin-top: 10px;
+    }
+    .drop-item { color: var(--text-dim); }
+    .drop-item:hover { background: rgba(255,255,255,0.1); color: white; }
+}
+
+/* --- Add these to your existing CSS --- */
+
+/* 1. Rotating Chevron Logic */
+.portal-trigger i {
+    transition: transform 0.3s ease;
+}
+
+/* We will apply this class via JS when open */
+.rotate-icon {
+    transform: rotate(180deg);
+}
+
+/* 2. Better Dropdown Animation */
+.dropdown-menu {
+    /* ... your existing styles ... */
+    opacity: 0;
+    transform: translateY(10px);
+    pointer-events: none; /* Prevents clicking while invisible */
+    transition: all 0.3s ease;
+    display: block !important; /* Change display:none to block so transition works */
+}
+
+/* Show state */
+.portal-dropdown:hover .dropdown-menu,
+.dropdown-menu.show {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+/* 3. Accessibility: Prevent body scroll when mobile menu is open */
+body.no-scroll {
+    overflow: hidden;
+}
+
+@media (max-width: 992px) {
+    /* Ensure the mobile drawer has a nice shadow when it slides in */
+    .nav-links-wrapper.active {
+        box-shadow: 10px 0 30px rgba(0,0,0,0.5);
+    }
+}

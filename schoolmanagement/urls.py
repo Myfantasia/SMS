@@ -80,4 +80,16 @@ urlpatterns = [
 
     path('aboutus', views.aboutus_view),
     path('contactus', views.contactus_view),
+
+path('parentclick', views.parentclick_view),
+path('parentsignup', views.parent_signup_view),
+path('parentlogin', LoginView.as_view(template_name='school/parentlogin.html'),name='parentlogin'),
+path('parent-dashboard', views.parent_dashboard_view, name='parent-dashboard'),
+
+    # Admin Parent Management (Add these!)
+    path('admin-parent-view', views.admin_parent_view, name='admin-parent'),
+    path('admin-approve-parent', views.admin_approve_parent_view, name='admin-approve-parent'),
+    path('approve-parent/<int:pk>', views.approve_parent_view, name='approve-parent'),
+    path('delete-parent/<int:pk>', views.delete_parent_view, name='delete-parent'),
+
 ]
