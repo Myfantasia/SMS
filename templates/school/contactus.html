@@ -1,36 +1,84 @@
 <!DOCTYPE html>
 {% load static %}
-<html lang="en" dir="ltr">
-
+<html lang="en">
 <head>
-  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-
-  <title>SMS - Django</title>
-
-
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contact Admissions | Myfantasia High School</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{% static 'css/home.css' %}">
+    <link rel="stylesheet" href="{% static 'css/contactus.css' %}">
 </head>
-
 <body>
 
-  {% include "school/navbar.html" %}
-  <br><br>
+    {% include "school/navbar.html" %}
 
-  <center>
-    <h3 class='alert alert-success'>Send Us Your Valuable Feedback !</h3>
+    <main class="contact-wrapper">
 
-    <form method="POST">
-      <!-- Very Important csrf Token -->
-      {% csrf_token %}
-      <div class="form-group">
-        <p>
-        <h3>{{ form.as_p }}</h3>
-        </p>
-        <br>
-        <input type="submit" value="Send Message" class='btn btn-primary btn-lg'>
-      </div>
-    </form>
-  </center>
-  {% include "school/footer.html" %}
+        {% if success_popup %}
+        <div class="modal-overlay" id="successModal">
+            <div class="modal-card">
+                <button class="close-btn" onclick="closeModal()">&times;</button>
+                <div class="check-icon"><i class="fas fa-check"></i></div>
+                <h2>Message Sent!</h2>
+                <p>Thank you for contacting Myfantasia High School. We will be in touch shortly.</p>
+                <button class="btn-okay" onclick="closeModal()">Okay, Got it</button>
+            </div>
+        </div>
+
+        <script>
+            function closeModal() {
+                document.getElementById('successModal').style.display = 'none';
+            }
+        </script>
+        {% endif %}
+        <div class="glass-hub">
+            <div class="hub-visual">
+                <div class="visual-content">
+                    <span class="hub-badge">NAIROBI CAMPUS</span>
+                    <h1>Let's Start a <br>Conversation</h1>
+                    <p>Whether you're a parent seeking admission or an alumni reconnecting, we are here.</p>
+
+                    <div class="quick-actions">
+                        <div class="action-row">
+                            <div class="icon-orb"><i class="fas fa-phone"></i></div>
+                            <div class="action-text"><small>Hotline</small><span>+254 712 345 678</span></div>
+                        </div>
+                        <div class="action-row">
+                            <div class="icon-orb"><i class="fas fa-map-pin"></i></div>
+                            <div class="action-text"><small>Visit Us</small><span>Karen Plains Rd, Nairobi</span></div>
+                        </div>
+                        <div class="action-row">
+                            <div class="icon-orb"><i class="fas fa-envelope"></i></div>
+                            <div class="action-text"><small>Email</small><span>info@myfantasia.sc.ke</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="hub-form">
+                <div class="form-header">
+                    <h2>Send a Message</h2>
+                    <p>We typically reply within 2 hours.</p>
+                </div>
+
+                <form method="POST">
+                    {% csrf_token %}
+                    <div class="custom-form-grid">
+                        {{ form.as_p }}
+                    </div>
+
+                    <button type="submit" class="submit-btn">
+                        <span>Send Message</span>
+                        <div class="btn-icon"><i class="fas fa-paper-plane"></i></div>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </main>
+
+    {% include "school/footer.html" %}
+
 </body>
-
 </html>

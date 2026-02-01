@@ -1,47 +1,134 @@
 <!DOCTYPE html>
 {% load static %}
-<html lang="en" dir="ltr">
-
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-  <title>SMS - Django</title>
-  <style media="screen">
-    .jumbotron {
-      margin-top: 0px;
-      margin-bottom: 0px;
-    }
-
-    .jumbotron h1 {
-      text-align: center;
-    }
-
-    .alert {
-      margin: 0px;
-    }
-  </style>
-
-  <title></title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Our Legacy | Myfantasia High School</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{% static 'css/home.css' %}">
+    <link rel="stylesheet" href="{% static 'css/aboutus.css' %}">
 </head>
-
 <body>
+    {% include "school/navbar.html" %}
 
-  {% include "school/navbar.html" %}
-  <br><br>
-  <center>
-    <h3 class='alert alert-success' style="margin-bottom:0px;">About Us !</h3>
-  </center>
-  <div class="jumbotron" style="margin-bottom: 0px;margin-top: 0px;">
-    <h1 class="display-4">TEXT TEXT</h1>
-    <p class="lead">TEXT TEXT TEXT TEXT TEXT TEXT TEXT TEXT TEXT TEXT TEXT TEXT TEXT TEXT TEXT TEXT TEXT TEXT</p>
-    <hr class="my-4">
-    <p>Explore our Website.</p>
-    <p class="lead">
-      <a class="btn btn-primary btn-lg" href="/" role="button">HOME</a>
-    </p>
-  </div>
+    <main class="about-page">
+        <section class="about-hero">
+            <div class="hero-bg-glow"></div>
+            <div class="hero-content">
+                <div class="announcement-pill">
+                    <span class="new-tag">EST. 1998</span>
+                    <p>Excellence in the Heart of Nairobi</p>
+                </div>
+                <h1 class="gradient-text">Moulding Character,<br>Inspiring Excellence.</h1>
+                <p>From the 8-4-4 legacy to the new CBC frontier, Myfantasia High School has remained a giant in Kenyan academic and co-curricular performance.</p>
+            </div>
+        </section>
 
-  {% include "school/footer.html" %}
+        <section class="performance-strip">
+            <div class="strip-container">
+                <div class="perf-item">
+                    <h2>10.2</h2>
+                    <span>KCSE Mean Score (2025)</span>
+                </div>
+                <div class="divider"></div>
+                <div class="perf-item">
+                    <h2>98%</h2>
+                    <span>University Transition (C+ & Above)</span>
+                </div>
+                <div class="divider"></div>
+                <div class="perf-item">
+                    <h2>Top 10</h2>
+                    <span>Nationally in Sciences</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="story-grid">
+            <div class="story-text">
+                <h2 class="section-title">A Tradition of <span class="highlight">Resilience</span></h2>
+                <div class="timeline-box">
+                    <div class="t-item">
+                        <div class="year">1998</div>
+                        <p>Founded along Ngong Road with a mission to offer holistic education beyond just passing exams.</p>
+                    </div>
+                    <div class="t-item">
+                        <div class="year">2012</div>
+                        <p>Crowned National Drama Festival Champions for the first time, cementing our place in the Arts.</p>
+                    </div>
+                    <div class="t-item">
+                        <div class="year">2024</div>
+                        <p>Opened the "Silicon Savannah" Coding Lab, partnering with major tech firms in Westlands.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="story-visual">
+                <div class="glass-card">
+                    <i class="fas fa-microscope icon-float"></i>
+                    <h3>Science Congress</h3>
+                    <p>Home to the 2024 National Chemistry Trophy.</p>
+                </div>
+                <div class="glass-card" style="margin-top: 20px;">
+                    <i class="fas fa-football-ball icon-float"></i>
+                    <h3>Rugby Excellence</h3>
+                    <p>Our "Fantasians" XV team are current regional champions.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="testimonials-section">
+            <h2 class="section-title center">Where Are They Now?</h2>
+            <p class="subtitle center">From Myfantasia to the World.</p>
+
+            <div class="testimonial-grid">
+                <div class="testi-card">
+                    <div class="quote-mark"><i class="fas fa-quote-left"></i></div>
+                    <p>"The discipline I learned here was different. It wasn't just about waking up at 4 AM; it was about ownership. Today, running my own Fintech startup in Kilimani, I still use the leadership skills I picked up as a School Captain."</p>
+                    <div class="user-profile">
+                        <div class="avatar-circle">KM</div>
+                        <div class="details">
+                            <h4>Kevin Maina</h4>
+                            <span>CEO, Pesaflow | Class of 2012</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="testi-card featured">
+                    <div class="quote-mark"><i class="fas fa-quote-left"></i></div>
+                    <p>"Myfantasia didn't force me to choose between Drama and Physics. I did both. That flexibility allowed me to pursue Medicine at UoN while keeping my creative side alive. I am a better doctor because of this school."</p>
+                    <div class="user-profile">
+                        <div class="avatar-circle">WA</div>
+                        <div class="details">
+                            <h4>Dr. Wanjiku Amina</h4>
+                            <span>Resident, Aga Khan Hospital | Class of 2015</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="testi-card">
+                    <div class="quote-mark"><i class="fas fa-quote-left"></i></div>
+                    <p>"Transitioning to an Ivy League university in the US was daunting, but the rigorous Maths department here prepared me for the global stage. I walked into my Engineering classes at MIT feeling ready."</p>
+                    <div class="user-profile">
+                        <div class="avatar-circle">DO</div>
+                        <div class="details">
+                            <h4>David Ochieng</h4>
+                            <span>Civil Engineer, Boston | Class of 2018</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="join-us-cta">
+            <div class="cta-content">
+                <h2>Join the Legacy</h2>
+                <p>Admissions for Form 1 and Transfer students are ongoing.</p>
+                <a href="/contactus" class="btn-primary">Book a School Tour</a>
+            </div>
+        </section>
+    </main>
+
+    {% include "school/footer.html" %}
 </body>
-
 </html>

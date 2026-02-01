@@ -1,0 +1,110 @@
+/* Inherits base font and variables from home.css, but enforces dark background */
+body {
+    background-color: #020617;
+    color: white;
+}
+
+.success-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 80vh;
+    padding-top: 80px; /* Offset for fixed navbar */
+    position: relative;
+    overflow: hidden;
+}
+
+/* Optional background glow for consistency with Contact page */
+.success-wrapper::before {
+    content: '';
+    position: absolute;
+    width: 500px;
+    height: 500px;
+    background: radial-gradient(circle, rgba(99, 102, 241, 0.15) 0%, transparent 70%);
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    z-index: 0;
+}
+
+.success-card {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(20px);
+    padding: 60px 40px;
+    border-radius: 30px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    max-width: 450px;
+    width: 90%;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    animation: fadeUp 0.6s ease-out;
+}
+
+.check-icon {
+    width: 80px;
+    height: 80px;
+    background: rgba(16, 185, 129, 0.15);
+    color: #10b981;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-size: 2.5rem;
+    margin: 0 auto 25px;
+    animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) 0.2s backwards;
+}
+
+.success-card h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 10px;
+    color: white;
+}
+
+.success-card p {
+    color: #94a3b8;
+    margin-bottom: 35px;
+    line-height: 1.6;
+    font-size: 1rem;
+}
+
+.btn-return {
+    display: inline-block;
+    background: #4f46e5;
+    color: white;
+    text-decoration: none;
+    padding: 14px 35px;
+    border-radius: 50px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    border: 1px solid transparent;
+}
+
+.btn-return:hover {
+    background: #4338ca;
+    box-shadow: 0 10px 20px rgba(79, 70, 229, 0.3);
+    transform: translateY(-2px);
+}
+
+/* Animations */
+@keyframes popIn {
+    0% { transform: scale(0); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes fadeUp {
+    0% { transform: translateY(20px); opacity: 0; }
+    100% { transform: translateY(0); opacity: 1; }
+}
+
+/* Mobile Adjustments */
+@media (max-width: 480px) {
+    .success-card {
+        padding: 40px 20px;
+    }
+    .success-card h1 {
+        font-size: 1.75rem;
+    }
+}
