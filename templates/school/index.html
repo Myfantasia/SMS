@@ -5,9 +5,27 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MyFantasia | Smart School Ecosystem</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{% static 'css/navbar.css' %}">
     <link rel="stylesheet" href="{% static 'css/home.css' %}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        /* Small extra CSS for the new News Section */
+        .news-section { padding: 80px 6%; background: rgba(255,255,255,0.02); }
+        .news-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 30px; margin-top: 40px; }
+        .news-card {
+            background: #0f172a; border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 16px; overflow: hidden; transition: 0.3s;
+        }
+        .news-card:hover { transform: translateY(-5px); border-color: #6366f1; }
+        .news-img { height: 180px; background: #1e1b4b; display: flex; align-items: center; justify-content: center; color: #6366f1; font-size: 3rem; }
+        .news-content { padding: 25px; }
+        .news-date { color: #94a3b8; font-size: 0.85rem; margin-bottom: 10px; display: block; }
+        .news-content h4 { color: white; font-size: 1.2rem; margin-bottom: 10px; }
+        .news-content p { color: #cbd5e1; font-size: 0.95rem; line-height: 1.5; }
+        .badge-cbc { background: #16a34a; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; vertical-align: middle; margin-left: 8px; }
+    </style>
 </head>
 <body>
 
@@ -17,46 +35,46 @@
         <div class="hero-container">
             <div class="hero-content">
                 <div class="announcement-pill">
-                    <span class="new-tag">UPDATED</span>
-                    <p>Academic Year 2026 Admissions Open</p>
+                    <span class="new-tag">NEMIS READY</span>
+                    <p>Form 1 Intake & CBC Grade 9 Admissions Open</p>
                 </div>
                 <h1>The Heart of Your <span class="gradient-text">School's Daily Life</span></h1>
-                <p>Streamline administrative tasks, empower teachers, and connect parents with real-time student progress. One secure platform for the entire school community.</p>
-                
+                <p>Streamline administrative tasks, empower teachers, and connect parents with real-time student progress. From the 8-4-4 legacy to the new CBC frontier, we offer one secure platform for the entire school community.</p>
+
                 <div class="hero-btns">
-                    <a href="/adminclick" class="btn-primary">Access Management <i class="fas fa-arrow-right"></i></a>
+                    <a href="/portal" class="btn-primary">Access Management <i class="fas fa-arrow-right"></i></a>
                     <a href="/aboutus" class="btn-secondary">School Information</a>
                 </div>
 
                 <div class="trust-row">
-                    <span><i class="fas fa-shield-alt"></i> Secure Data</span>
-                    <span><i class="fas fa-clock"></i> 99.9% Uptime</span>
-                    <span><i class="fas fa-users"></i> Parent Friendly</span>
+                    <span><i class="fas fa-check-circle"></i> KNEC Center</span>
+                    <span><i class="fas fa-wifi"></i> Smart Campus</span>
+                    <span><i class="fas fa-user-check"></i> TSC Compliant</span>
                 </div>
             </div>
 
             <div class="hero-visual-container">
                 <div class="main-visual-box">
                     <div class="floating-ui ui-1">
-                        <div class="ui-icon"><i class="fas fa-check"></i></div>
+                        <div class="ui-icon"><i class="fas fa-file-signature"></i></div>
                         <div>
-                            <strong>Attendance</strong>
-                            <small>Class 5B: Marked</small>
+                            <strong>Exam Results</strong>
+                            <small>Term 1 CATs Released</small>
                         </div>
                     </div>
-                    
+
                     <div class="floating-ui ui-2">
-                        <div class="ui-icon fee"><i class="fas fa-dollar-sign"></i></div>
+                        <div class="ui-icon fee"><i class="fas fa-mobile-alt"></i></div>
                         <div>
-                            <strong>Fees Collected</strong>
-                            <small>Updated Just Now</small>
+                            <strong>Fees Paid</strong>
+                            <small>via M-PESA</small>
                         </div>
                     </div>
 
                     <div class="glass-card">
                          <i class="fas fa-graduation-cap" style="font-size: 3rem; color: #818cf8; margin-bottom: 15px;"></i>
                          <h3>MyFantasia</h3>
-                         <p>School Hub</p>
+                         <p>Nairobi Campus</p>
                     </div>
                 </div>
             </div>
@@ -68,13 +86,13 @@
             <h2>Select Your <span class="gradient-text">Portal</span></h2>
             <p>Secure login gateways for administration, faculty, and families.</p>
         </div>
-        
+
         <div class="feature-grid">
             <div class="feature-card">
                 <div class="card-glow red-glow"></div>
                 <div class="icon-box red"><i class="fas fa-user-shield"></i></div>
                 <h3>Administration</h3>
-                <p>Manage staff, approve admissions, and oversee school finances.</p>
+                <p>Manage TSC staff records, NEMIS uploads, and school finances.</p>
                 <a href="/adminclick" class="card-link">Login <i class="fas fa-chevron-right"></i></a>
             </div>
 
@@ -82,7 +100,7 @@
                 <div class="card-glow green-glow"></div>
                 <div class="icon-box green"><i class="fas fa-chalkboard-teacher"></i></div>
                 <h3>Teachers</h3>
-                <p>Mark attendance, upload grades, and assign homework digitally.</p>
+                <p>Upload CBC assessment scores and manage daily class attendance.</p>
                 <a href="/teacherclick" class="card-link">Login <i class="fas fa-chevron-right"></i></a>
             </div>
 
@@ -90,38 +108,71 @@
                 <div class="card-glow yellow-glow"></div>
                 <div class="icon-box yellow"><i class="fas fa-user-friends"></i></div>
                 <h3>Parents</h3>
-                <p>View report cards, pay fees, and communicate with class teachers.</p>
-                <a href="/studentclick" class="card-link">Login <i class="fas fa-chevron-right"></i></a>
+                <p>View fee balances, download receipts, and check term dates.</p>
+                <a href="/parentclick" class="card-link">Login <i class="fas fa-chevron-right"></i></a>
             </div>
 
             <div class="feature-card">
                 <div class="card-glow blue-glow"></div>
                 <div class="icon-box blue"><i class="fas fa-user-graduate"></i></div>
                 <h3>Students</h3>
-                <p>Check class schedules, download assignments, and view results.</p>
+                <p>Access revision materials, library logs, and assignment portals.</p>
                 <a href="/studentclick" class="card-link">Login <i class="fas fa-chevron-right"></i></a>
+            </div>
+        </div>
+    </section>
+
+    <section class="news-section">
+        <div class="section-header">
+            <h2>Campus <span class="gradient-text">Pulse</span></h2>
+            <p>Keeping our community informed on the latest happenings.</p>
+        </div>
+        <div class="news-grid">
+            <div class="news-card">
+                <div class="news-img"><i class="fas fa-trophy"></i></div>
+                <div class="news-content">
+                    <span class="news-date">Feb 2, 2026</span>
+                    <h4>National Drama Festivals</h4>
+                    <p>Our French play "L'Avenir" has qualified for the Nationals in Mombasa. Congratulations to the creative team!</p>
+                </div>
+            </div>
+            <div class="news-card">
+                <div class="news-img"><i class="fas fa-flask"></i></div>
+                <div class="news-content">
+                    <span class="news-date">Jan 28, 2026</span>
+                    <h4>Science Congress Win</h4>
+                    <p>The Physics department took home gold at the Nairobi Regionals for their renewable energy project.</p>
+                </div>
+            </div>
+            <div class="news-card">
+                <div class="news-img"><i class="fas fa-bus"></i></div>
+                <div class="news-content">
+                    <span class="news-date">Jan 15, 2026</span>
+                    <h4>New School Fleet</h4>
+                    <p>We have added two new buses to our transport fleet to serve the Kitengela and Thika Road routes.</p>
+                </div>
             </div>
         </div>
     </section>
 
     <section class="info-section">
         <div class="info-content">
-            <h2>Why Schools Trust <span class="gradient-text">MyFantasia</span></h2>
+            <h2>Why Parents Trust <span class="gradient-text">MyFantasia</span></h2>
             <div class="info-grid">
                 <div class="info-item">
-                    <i class="fas fa-bolt"></i>
-                    <h4>Instant Notifications</h4>
-                    <p>Parents get SMS/Email alerts for attendance and important notices instantly.</p>
+                    <i class="fas fa-mobile-alt"></i>
+                    <h4>Real-time Updates</h4>
+                    <p>Receive SMS alerts for school entry/exit and term dates directly to your phone.</p>
                 </div>
                 <div class="info-item">
                     <i class="fas fa-file-invoice-dollar"></i>
-                    <h4>Fee Management</h4>
-                    <p>Automated invoice generation and online payment tracking for the accounts department.</p>
+                    <h4>M-PESA Integration</h4>
+                    <p>Pay school fees seamlessly via Paybill with instant receipt generation and balance updates.</p>
                 </div>
                 <div class="info-item">
-                    <i class="fas fa-laptop-code"></i>
-                    <h4>Paperless Operations</h4>
-                    <p>Reduce paperwork by 80% with digital records for admissions and exams.</p>
+                    <i class="fas fa-book-reader"></i>
+                    <h4>CBC Compliant</h4>
+                    <p>Full support for the Competency Based Curriculum assessment rubrics and reporting.</p>
                 </div>
             </div>
         </div>
