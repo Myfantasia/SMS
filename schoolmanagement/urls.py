@@ -20,9 +20,9 @@ urlpatterns = [
     path('adminsignup', views.admin_signup_view),
     path('studentsignup', views.student_signup_view,name='studentsignup'),
     path('teachersignup', views.teacher_signup_view),
-    path('adminlogin', LoginView.as_view(template_name='school/adminlogin.html')),
-    path('studentlogin', LoginView.as_view(template_name='school/studentlogin.html')),
-    path('teacherlogin', LoginView.as_view(template_name='school/teacherlogin.html')),
+    path('adminlogin', LoginView.as_view(template_name='school/admin/adminlogin.html')),
+    path('studentlogin', LoginView.as_view(template_name='school/students/studentlogin.html')),
+    path('teacherlogin', LoginView.as_view(template_name='school/teachers/teacherlogin.html')),
 
 
     path('afterlogin', views.afterlogin_view,name='afterlogin'),
@@ -76,10 +76,13 @@ urlpatterns = [
     path('student-attendance', views.student_attendance_view,name='student-attendance'),
 
 
-
+path('portal', views.portal_view, name='portal'),
 
     path('aboutus', views.aboutus_view),
     path('contactus', views.contactus_view),
+
+# --- ADD THIS PATH HERE ---
+    path('events/', views.events_view, name='events'),
 
 path('parentclick', views.parentclick_view),
 path('parentsignup', views.parent_signup_view),

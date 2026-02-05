@@ -1,0 +1,122 @@
+/* Inherits base styles from home.css */
+.portal-wrapper {
+    min-height: 100vh;
+    padding-top: 100px; /* Navbar offset */
+    background-color: #020617;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-bottom: 60px;
+}
+
+.portal-container {
+    max-width: 1200px;
+    width: 90%;
+    margin: 0 auto;
+}
+
+.portal-header {
+    text-align: center;
+    margin-bottom: 60px;
+}
+
+.portal-header h1 {
+    font-size: 3rem;
+    margin-bottom: 10px;
+    font-weight: 800;
+}
+
+.portal-header p {
+    color: #94a3b8;
+    font-size: 1.1rem;
+}
+
+/* Grid Layout */
+.roles-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 30px;
+}
+
+/* Role Cards */
+.role-card {
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(10px);
+    border-radius: 24px;
+    padding: 40px 30px;
+    text-decoration: none;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+/* Hover Effects */
+.role-card:hover {
+    transform: translateY(-10px);
+    border-color: rgba(99, 102, 241, 0.5);
+    background: rgba(30, 41, 59, 0.8);
+    box-shadow: 0 20px 40px -5px rgba(0, 0, 0, 0.4);
+}
+
+.icon-bubble {
+    width: 70px;
+    height: 70px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-size: 1.8rem;
+    margin-bottom: 25px;
+    transition: 0.3s;
+}
+
+.role-card:hover .icon-bubble {
+    transform: scale(1.1) rotate(5deg);
+}
+
+/* Specific Role Colors */
+.admin-card .icon-bubble { color: #f43f5e; }     /* Red */
+.teacher-card .icon-bubble { color: #10b981; }   /* Green */
+.student-card .icon-bubble { color: #3b82f6; }   /* Blue */
+.parent-card .icon-bubble { color: #f59e0b; }    /* Amber */
+
+.role-card h3 {
+    color: white;
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 10px;
+}
+
+.role-card p {
+    color: #94a3b8;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    margin-bottom: 30px;
+    flex-grow: 1;
+}
+
+.btn-text {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: #818cf8;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: 0.3s;
+}
+
+.role-card:hover .btn-text {
+    color: white;
+    gap: 12px;
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+    .portal-header h1 { font-size: 2.2rem; }
+    .roles-grid { grid-template-columns: 1fr; }
+}
