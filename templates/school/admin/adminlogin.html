@@ -1,106 +1,56 @@
 <!DOCTYPE html>
-{% load widget_tweaks %}
-<html lang="en" dir="ltr">
-
+{% load static %}
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-  <title>SMS - Django</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Login | MyFantasia</title>
 
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-  <style type="text/css">
-    body {
-      color: #aa082e;
-      background-color: #b6bde7;
-      font-family: 'Roboto', sans-serif;
-    }
-
-    a:link {
-      text-decoration: none;
-    }
-
-    .note {
-      text-align: center;
-      height: 80px;
-       background: -webkit-linear-gradient(left, #343a40, #607d8b);
-      color: #fff;
-      font-weight: bold;
-      line-height: 80px;
-    }
-
-    .form-content {
-      padding: 5%;
-      border: 1px solid #ced4da;
-      margin-bottom: 2%;
-    }
-
-    .form-control {
-      border-radius: 1.5rem;
-    }
-
-    .btnSubmit {
-      border: none;
-      border-radius: 1.5rem;
-      padding: 1%;
-      width: 20%;
-      cursor: pointer;
-      background: #4caf50;
-      color: #fff;
-    }
-  </style>
-
-
-
-
-
-
+    <link rel="stylesheet" href="{% static 'css/navbar.css' %}">
+    <link rel="stylesheet" href="{% static 'css/auth_style.css' %}">
 </head>
-
 <body>
-  {% include "school/navbar.html" %}
-  <br>
-  <br>
-  <br><br>
 
-  <!--- signup page for teacher by admin(sumit)  ---------->
-  <form method="post">
-    {% csrf_token %}
-    <div class="container register-form">
-      <div class="form">
-        <div class="note">
-          <p>Admin Login Page</p>
-        </div>
+    {% include "school/navbar.html" %}
 
-        <div class="form-content">
-          <div class="row">
-            <div class="col-md-6">
-
-              <div class="form-group">
-                {% render_field form.username class="form-control" placeholder="Username" %}
-              </div>
-
+    <div class="login-wrapper">
+        <div class="login-card">
+            <div class="login-header">
+                <i class="fas fa-user-shield" style="font-size: 3.5rem; color: #6366f1; margin-bottom: 15px;"></i>
+                <h2>Admin Portal</h2>
+                <p>Secure Access Gateway</p>
             </div>
-            <div class="col-md-6">
 
-              <div class="form-group">
-                {% render_field form.password class="form-control" placeholder="Password" %}
-              </div>
+            <form id="adminLoginForm">
+                <div class="form-group">
+                    <input type="email" id="email" class="form-control" placeholder="Email Address" required>
+                </div>
 
-            </div>
-          </div>
-          <button type="submit" class="btnSubmit">Login</button>
-          <div class="text-center">Don't have an account? <a href="adminsignup">SignUp here</a></div>
+                <div class="form-group">
+                    <input type="password" id="password" class="form-control" placeholder="Password" required>
+                </div>
+
+                <button type="submit" class="btn-login">Login</button>
+
+                <div id="errorMessage" class="error-message"></div>
+                <div id="successMessage" class="success-message"></div>
+
+                <div class="extra-links">
+                    <a href="#" id="forgotBtn" class="forgot-password">Forgot Password?</a>
+                    <span class="signup-link">New? <a href="/adminsignup">Sign Up</a></span>
+                </div>
+            </form>
         </div>
-      </div>
     </div>
 
-  </form>
+    {% include "school/footer.html" %}
 
-  <br><br><br>
-  <!--
-written By : sumit kumar
--->
-  {% include "school/footer.html" %}
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+
+    <script src="{% static 'js/admin_login.js' %}"></script>
 </body>
-
 </html>
