@@ -1,107 +1,89 @@
 <!DOCTYPE html>
-
-{% load widget_tweaks %}
-<html lang="en" dir="ltr">
-
+{% load static %}
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-  <title>SMS - Django</title>
-  <style type="text/css">
-    body {
-      color: #aa082e;
-      background-color: #b6bde7;
-      font-family: 'Roboto', sans-serif;
-    }
-
-    a:link {
-      text-decoration: none;
-    }
-
-    .note {
-      text-align: center;
-      height: 80px;
-       background: -webkit-linear-gradient(left, #343a40, #607d8b);
-      color: #fff;
-      font-weight: bold;
-      line-height: 80px;
-    }
-
-    .form-content {
-      padding: 5%;
-      border: 1px solid #ced4da;
-      margin-bottom: 2%;
-    }
-
-    .form-control {
-      border-radius: 1.5rem;
-    }
-
-    .btnSubmit {
-      border: none;
-      border-radius: 1.5rem;
-      padding: 1%;
-      width: 20%;
-      cursor: pointer;
-      background: #4caf50;
-      color: #fff;
-    }
-  </style>
-
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Registration | MyFantasia</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{% static 'css/navbar.css' %}">
+    <link rel="stylesheet" href="{% static 'css/auth_style.css' %}">
 </head>
-
-
 <body>
-  {% include "school/navbar.html" %}
-  <br>
-  <br>
-  <br>
-  <br>
+    {% include "school/navbar.html" %}
 
-
-
-
-  <!--- signup page for teacher by admin(sumit)  ---------->
-  <form method="post">
-    {% csrf_token %}
-    <div class="container register-form">
-      <div class="form">
-        <div class="note">
-          <p>Add New Admin To School</p>
-        </div>
-
-        <div class="form-content">
-          <div class="row">
-            <div class="col-md-6">
-              <div class="form-group">
-                {% render_field form.first_name class="form-control" placeholder="First Name" %}
-              </div>
-              <div class="form-group">
-                {% render_field form.username class="form-control" placeholder="Username" %}
-              </div>
-
+    <div class="login-wrapper">
+        <div class="login-card wide-card">
+            <div class="login-header">
+                <i class="fas fa-user-shield" style="font-size: 3rem; color: #6366f1; margin-bottom: 15px;"></i>
+                <h2>Admin Registration</h2>
+                <p>Register as a system administrator.</p>
             </div>
-            <div class="col-md-6">
-              <div class="form-group">
-                {% render_field form.last_name class="form-control" placeholder="Last Name" %}
-              </div>
-              <div class="form-group">
-                {% render_field form.password class="form-control" placeholder="Password" %}
-              </div>
 
-            </div>
-          </div>
-          <button type="submit" class="btnSubmit">Submit</button>
-          <div class="text-center">Already have an account? <a href="adminlogin">Login here</a></div>
+            <form id="adminSignupForm">
+                <div class="form-row">
+                    <div class="form-group col-half">
+                        <input type="text" id="first_name" class="form-control" placeholder="First Name" required>
+                    </div>
+                    <div class="form-group col-half">
+                        <input type="text" id="last_name" class="form-control" placeholder="Last Name" required>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group col-half">
+                        <input type="email" id="email" class="form-control" placeholder="Email Address" required>
+                    </div>
+                    <div class="form-group col-half phone-group">
+                        <select id="country_code" class="form-control code-select">
+                            <optgroup label="Africa">
+                                <option value="+254" selected>🇰🇪 Kenya (+254)</option>
+                                <option value="+255">🇹🇿 Tanzania (+255)</option>
+                                <option value="+256">🇺🇬 Uganda (+256)</option>
+                                <option value="+234">🇳🇬 Nigeria (+234)</option>
+                                <option value="+27">🇿🇦 S. Africa (+27)</option>
+                                <option value="+251">🇪🇹 Ethiopia (+251)</option>
+                                <option value="+250">🇷🇼 Rwanda (+250)</option>
+                                <option value="+233">🇬🇭 Ghana (+233)</option>
+                            </optgroup>
+                            <optgroup label="Global">
+                                <option value="+1">🇺🇸 USA (+1)</option>
+                                <option value="+44">🇬🇧 UK (+44)</option>
+                                <option value="+91">🇮🇳 India (+91)</option>
+                                <option value="+86">🇨🇳 China (+86)</option>
+                                <option value="+971">🇦🇪 UAE (+971)</option>
+                                <option value="+61">🇦🇺 Australia (+61)</option>
+                                <option value="+1">🇨🇦 Canada (+1)</option>
+                                <option value="+49">🇩🇪 Germany (+49)</option>
+                            </optgroup>
+                        </select>
+                        <input type="tel" id="mobile" class="form-control phone-input" placeholder="712 345 678" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <input type="text" id="address" class="form-control" placeholder="Address (Street, City, State)" required>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group col-half">
+                        <input type="password" id="pass1" class="form-control" placeholder="Password" required>
+                    </div>
+                    <div class="form-group col-half">
+                        <input type="password" id="pass2" class="form-control" placeholder="Confirm Password" required>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-login">Register & Access Dashboard</button>
+                <div id="errorMessage" class="error-message"></div>
+                <div class="signup-link"><p>Already an Admin? <a href="/adminlogin">Login here</a></p></div>
+            </form>
         </div>
-      </div>
     </div>
-
-  </form>
-
-
-
-  {% include "school/footer.html" %}
+    {% include "school/footer.html" %}
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+    <script src="{% static 'js/admin_signup.js' %}"></script>
 </body>
-
 </html>

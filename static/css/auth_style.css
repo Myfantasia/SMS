@@ -1,0 +1,289 @@
+/* static/css/auth_style.css */
+
+body {
+    background-color: #0f172a;
+    font-family: 'Outfit', 'Roboto', sans-serif;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    margin: 0;
+    overflow-x: hidden;
+}
+
+/* --- WRAPPER --- */
+.login-wrapper {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 16px 24px 16px;
+
+
+    /* Animated Background */
+    background: radial-gradient(circle at 50% 50%, rgba(99, 102, 241, 0.15) 0%, transparent 50%);
+    background-size: 200% 200%;
+    animation: gradientMove 15s ease infinite;
+}
+
+/* --- THE MAIN CARD --- */
+.login-card {
+    background: rgba(30, 41, 59, 0.7);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 20px;
+    padding: 50px;
+    width: 100%;
+
+    /* WIDTH SETTINGS (Wider on Desktop) */
+    max-width: 450px;
+
+    /* MARGIN TOP SETTING */
+    margin-top: 40px;
+
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    color: #fff;
+
+    /* Entrance Animation */
+    animation: fadeInUp 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@media (min-width: 992px) {
+    .login-card.wide-card {
+        max-width: 850px; /* Wider for registration */
+    }
+}
+
+
+/* --- HEADER & TEXT --- */
+.login-header {
+    text-align: center;
+    margin-bottom: 35px;
+}
+
+.login-header i {
+    filter: drop-shadow(0 0 10px rgba(99, 102, 241, 0.5));
+}
+
+.login-header h2 {
+    color: #fff;
+    font-weight: 700;
+    margin-bottom: 10px;
+    font-size: 2rem;
+}
+
+.login-header p {
+    color: #94a3b8;
+    font-size: 1rem;
+}
+
+/* --- FORMS & INPUTS --- */
+.form-group {
+    margin-bottom: 25px;
+    position: relative;
+}
+
+.form-control {
+    width: 100%;
+    padding: 15px 18px; /* Bigger touch target */
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid #334155;
+    border-radius: 10px;
+    color: #fff;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+    box-sizing: border-box;
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: #818cf8;
+    background: rgba(15, 23, 42, 0.9);
+    box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15);
+    transform: translateY(-1px);
+}
+
+/* --- BUTTONS --- */
+.btn-login {
+    width: 100%;
+    padding: 16px;
+    margin-top: 10px;
+    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+    border: none;
+    border-radius: 10px;
+    color: white;
+    font-weight: 600;
+    font-size: 1.1rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn-login:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px -5px rgba(79, 70, 229, 0.4);
+}
+
+/* --- GHOST BUTTON (For Click Pages) --- */
+.click-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 15px;
+    margin-bottom: 20px;
+    text-decoration: none;
+    padding: 18px;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 1.1rem;
+    transition: all 0.3s ease;
+    color: #fff;
+
+    /* FIX: Force width to 100% so they match */
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.btn-primary-ghost {
+    background: rgba(99, 102, 241, 0.1);
+    border: 1px solid rgba(99, 102, 241, 0.5);
+}
+
+.btn-primary-ghost:hover {
+    background: rgba(99, 102, 241, 0.25);
+    border-color: #818cf8;
+    transform: translateY(-2px);
+}
+
+/* --- FOOTER LINKS --- */
+.extra-links {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 25px;
+    font-size: 0.9rem;
+    color: #94a3b8;
+}
+
+.forgot-password {
+    color: #cbd5e1;
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+.forgot-password:hover {
+    color: #818cf8;
+}
+
+.signup-link {
+    text-align: center;
+    margin-top: 20px;
+    color: #94a3b8;
+}
+
+.signup-link a {
+    color: #818cf8;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+/* --- MESSAGES --- */
+.error-message, .success-message {
+    padding: 12px;
+    border-radius: 8px;
+    margin-top: 20px;
+    font-size: 0.9rem;
+    text-align: center;
+    display: none;
+    animation: fadeIn 0.3s ease;
+}
+
+.error-message {
+    background: rgba(220, 38, 38, 0.1);
+    border: 1px solid rgba(220, 38, 38, 0.2);
+    color: #f87171;
+}
+
+.success-message {
+    background: rgba(22, 163, 74, 0.1);
+    border: 1px solid rgba(22, 163, 74, 0.2);
+    color: #4ade80;
+}
+
+/* --- ANIMATIONS --- */
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(40px) scale(0.95); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes gradientMove {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+/* --- RESPONSIVE ADJUSTMENTS --- */
+@media (max-width: 768px) {
+    .login-card {
+        padding: 30px;
+        max-width: 100%; /* Full width on mobile */
+        margin-top: 20px;
+    }
+
+    .login-header h2 {
+        font-size: 1.75rem;
+    }
+}
+
+/* --- NEW FLEX FORM STYLES --- */
+
+/* 1. The Row Container */
+.form-row {
+    display: flex;
+    gap: 15px; /* Space between the two inputs */
+    width: 100%;
+}
+
+/* 2. Half-Width Columns */
+.col-half {
+    flex: 1; /* Takes exactly 50% of the space */
+    min-width: 0; /* Prevents overflow */
+}
+
+/* 3. Phone Input Group (Country Code + Number) */
+.phone-group {
+    display: flex;
+    gap: 7px;
+}
+
+.code-select {
+    width: 35% !important; /* The dropdown is smaller */
+    padding: 15px 5px !important;
+    text-align: center;
+    cursor: pointer;
+    background-color: rgba(15, 23, 42, 0.8);
+}
+
+.phone-input {
+    width: 65% !important; /* The number input is larger */
+}
+
+/* 4. Responsive: On mobile, stack them vertically */
+
+@media (max-width: 768px) {
+    .form-row { flex-direction: column; gap: 0; }
+    .login-card { padding: 30px; }
+}
+
+@media (max-width: 600px) {
+    .form-row {
+        flex-direction: column;
+        gap: 0;
+    }
+    .phone-group {
+        width: 100%;
+    }
+}
