@@ -1,0 +1,28 @@
+/* static/css/spinner.css */
+
+/* 1. Style the spinner icon (hidden by default) */
+.btn-spinner {
+    display: none;
+    margin-left: 10px;
+}
+
+/* 2. When the button is in 'loading' state... */
+.btn-login.is-loading {
+    pointer-events: none; /* Disable clicking while processing */
+    opacity: 0.8;
+}
+
+/* 3. Show the spinner only when loading */
+.btn-login.is-loading .btn-spinner {
+    display: inline-block;
+}
+
+/* 4. Optional: Animation for the spinner */
+.fa-spin {
+    animation: fa-spin 1s infinite linear;
+}
+
+@keyframes fa-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(359deg); }
+}

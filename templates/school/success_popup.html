@@ -1,0 +1,16 @@
+{% if messages %}
+    {% for message in messages %}
+        {% if 'signup_success' in message.tags %}
+        <div id="successModal" class="modal-overlay">
+            <div class="modal-card">
+                <div class="modal-icon">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+                <h3>Registration Successful!</h3>
+                <p>Welcome to the MyFantasia community. Your account has been created. Please log in to continue to your portal.</p>
+                <button onclick="closeSuccessModal()" class="modal-btn">Continue to Login</button>
+            </div>
+        </div>
+        {% endif %}
+    {% endfor %}
+{% endif %}

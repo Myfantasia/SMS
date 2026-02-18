@@ -16,7 +16,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 60px 16px 24px 16px;
+    padding: 20px 16px 18px 16px;
 
 
     /* Animated Background */
@@ -285,5 +285,235 @@ body {
     }
     .phone-group {
         width: 100%;
+    }
+}
+
+/* --- ADDED FOR KENYAN SMS FORMS --- */
+
+/* 1. Labels for inputs (makes it look cleaner) */
+.field-label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 0.85rem;
+    color: #cbd5e1; /* Light grey text */
+    font-weight: 500;
+    margin-left: 5px;
+}
+
+/* 2. Styling the Dropdown (Select) to match Inputs */
+select.form-control {
+    appearance: none; /* Removes default browser arrow */
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 15px center;
+    background-size: 15px;
+    cursor: pointer;
+}
+
+/* 3. Dropdown Options Background (Fix for dark mode) */
+select.form-control option {
+    background-color: #1e293b; /* Dark Blue Slate */
+    color: white;
+    padding: 10px;
+}
+
+/* 4. File Input Styling */
+input[type="file"].form-control {
+    line-height: 1;
+    color: #94a3b8;
+}
+
+/* 5. File input button color */
+input[type="file"]::file-selector-button {
+    background-color: #334155;
+    color: white;
+    border: none;
+    padding: 5px 10px;
+    border-radius: 5px;
+    margin-right: 15px;
+    cursor: pointer;
+    transition: background 0.3s;
+}
+
+input[type="file"]::file-selector-button:hover {
+    background-color: #475569;
+}
+
+/* --- DROPDOWN MENU STYLING --- */
+
+/* 1. The Category Headers (Junior/Senior High) */
+select.form-control optgroup {
+    background-color: #0f172a; /* Very dark blue (contrast) */
+    color: #818cf8; /* Indigo accent color */
+    font-weight: 700; /* Bold text */
+    font-style: normal; /* Remove default italics */
+    padding: 10px; /* Space around the header */
+}
+
+/* 2. The Individual Options (Grade 7, 8, etc.) */
+select.form-control option {
+    background-color: #1e293b; /* Matches your card background */
+    color: #f1f5f9; /* Bright white/grey text */
+    padding: 12px; /* Comfortable clicking area */
+    font-size: 1rem;
+    margin-bottom: 2px;
+}
+
+/* 3. Hover effect (Only works on some modern browsers like Chrome) */
+select.form-control option:hover {
+    background-color: #334155;
+    color: #fff;
+}
+
+/* --- CUSTOM FILE UPLOAD DESIGN --- */
+
+/* 1. The Container */
+.file-upload-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+/* 2. The Input Field (Dashed Look) */
+.file-input-styled {
+    padding: 12px;
+    height: auto; /* Allow height to adjust */
+    background: rgba(15, 23, 42, 0.4); /* Darker background */
+    border: 2px dashed #475569; /* Dashed border indicates "Upload Area" */
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.file-input-styled:hover {
+    border-color: #818cf8; /* Indigo border on hover */
+    background: rgba(30, 41, 59, 0.6);
+}
+
+/* 3. The 'Choose File' Button inside the input */
+.file-input-styled::file-selector-button {
+    background: #334155;
+    color: #f1f5f9;
+    border: 1px solid rgba(255,255,255,0.1);
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-family: inherit;
+    margin-right: 15px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.file-input-styled::file-selector-button:hover {
+    background: #4f46e5; /* Bright indigo on hover */
+    color: white;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+/* 4. The Disclaimer Text */
+.file-warning {
+    font-size: 0.85rem;
+    color: #fbbf24; /* Amber color for caution */
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 5px;
+    padding-left: 5px;
+}
+
+.file-warning i {
+    font-size: 0.9rem;
+}
+
+/* --- PASSWORD TOGGLE ICON --- */
+.password-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+.toggle-pass {
+    position: absolute;
+    right: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: pointer;
+    color: #94a3b8;
+    z-index: 10;
+    font-size: 1rem;
+    transition: color 0.3s;
+}
+
+.toggle-pass:hover {
+    color: #818cf8;
+}
+
+/* --- EMAIL INFO BOX --- */
+.email-info-box {
+    background: rgba(15, 23, 42, 0.4);
+    border: 1px dashed #475569;
+    border-radius: 10px;
+    padding: 12px 15px;
+    color: #94a3b8;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 52px; /* Matches height of other inputs */
+}
+
+.email-info-box i {
+    color: #818cf8;
+}
+
+/* --- FIELD LABEL & OPTIONAL SPAN --- */
+.field-label {
+    display: flex;
+    justify-content: flex-start; /* Keep label and (Optional) close together */
+    align-items: center;
+    width: 100%;
+    margin-bottom: 8px;
+    font-size: 0.85rem;
+    color: #cbd5e1;
+    font-weight: 500;
+}
+
+.optional-label {
+    font-size: 0.75rem;
+    color: #64748b;
+    font-weight: 400;
+    font-style: italic;
+    margin-left: 8px; /* Fixed gap */
+}
+
+/* --- MOBILE RESPONSIVE FIXES --- */
+@media (max-width: 768px) {
+    .form-row {
+        flex-direction: column;
+        gap: 0;
+    }
+
+    .login-card {
+        padding: 30px 20px; /* Reduced side padding for small phones */
+    }
+
+    .email-info-box {
+        margin-bottom: 10px;
+    }
+}
+
+@media (max-width: 480px) {
+    .field-label {
+        font-size: 0.8rem;
+    }
+
+    .optional-label {
+        font-size: 0.7rem;
+    }
+
+    .login-header h2 {
+        font-size: 1.5rem;
     }
 }

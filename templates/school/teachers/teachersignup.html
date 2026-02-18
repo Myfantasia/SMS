@@ -48,6 +48,8 @@
     }
   </style>
 
+  <link rel="stylesheet" href="{% static 'css/spinner.css' %}">
+
 </head>
 
 
@@ -64,6 +66,7 @@
   <!--- signup page for teacher by admin(sumit)  ---------->
   <form method="post">
     {% csrf_token %}
+    {% include "school/form_errors.html" %}
     <div class="container register-form">
       <div class="form">
         <div class="note">
@@ -112,7 +115,7 @@
         written By : sumit kumar
         -->
 
-
+<script src="{% static 'js/form_handler.js' %}"></script>
 
   {% include "school/footer.html" %}
 </body>

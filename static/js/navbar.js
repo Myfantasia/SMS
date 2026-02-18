@@ -1,13 +1,13 @@
 document.addEventListener('DOMContentLoaded', () => {
     const mobileBtn = document.getElementById('mobile-menu-btn');
     const navWrapper = document.getElementById('nav-links');
-
     const portalContainer = document.querySelector('.portal-dropdown');
     const dropdown = document.querySelector('.dropdown-menu');
     const portalBtn = document.querySelector('.portal-trigger');
 
     let closeTimer;
 
+    // 1. PORTAL DROPDOWN LOGIC (Desktop Hover)
     if (portalContainer && dropdown) {
         portalContainer.addEventListener('mouseenter', () => {
             clearTimeout(closeTimer);
@@ -29,6 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // 2. MOBILE MENU TOGGLE
     if (mobileBtn) {
         mobileBtn.addEventListener('click', () => {
             navWrapper.classList.toggle('active');
@@ -45,6 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // 3. PORTAL CLICK (Mobile view)
     if (portalBtn) {
         portalBtn.addEventListener('click', (e) => {
             if (window.innerWidth <= 992) {
@@ -54,8 +56,26 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    document.querySelectorAll('.nav-item').forEach(link => {
-        if (link.getAttribute('href') === window.location.pathname) {
+    // 4. ACTIVE LINK DETECTION (Improved)
+    const currentPath = window.location.pathname;
+
+    // We target links with .nav-item and also links inside the dropdown
+    const allLinks = document.querySelectorAll('.nav-item, .dropdown-item');
+
+    allLinks.forEach(link => {
+        const linkPath = link.getAttribute('href');
+
+        // Reset any existing active classes
+        link.classList.remove('active-link');
+
+        if (linkPath === currentPath) {
+            // Perfect match
+            link.classList.add('active-link');
+        } else if (linkPath !== '/' && currentPath.startsWith(linkPath)) {
+            // Matches sub-pages (e.g., if link is /student and path is /studentlogin)
+            link.classList.add('active-link');
+        } else if (currentPath === '/' && linkPath === '/') {
+            // Home page match
             link.classList.add('active-link');
         }
     });
