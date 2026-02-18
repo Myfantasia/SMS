@@ -11,10 +11,12 @@
 
     <link rel="stylesheet" href="{% static 'css/navbar.css' %}">
     <link rel="stylesheet" href="{% static 'css/auth_style.css' %}">
+    <link rel="stylesheet" href="{% static 'css/success_popup.css' %}">
 </head>
 <body>
 
     {% include "school/navbar.html" %}
+    {% include "school/success_popup.html" %}
 
     <div class="login-wrapper">
         <div class="login-card">
@@ -39,7 +41,7 @@
                 <div id="successMessage" class="success-message"></div>
 
                 <div class="extra-links">
-                    <a href="#" id="forgotBtn" class="forgot-password">Forgot Password?</a>
+                    <a href="{% url 'password_reset' %}" class="forgot-password">Forgot Password?</a>
                     <span class="signup-link">New? <a href="/adminsignup">Sign Up</a></span>
                 </div>
             </form>
@@ -52,5 +54,6 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
 
     <script src="{% static 'js/admin_login.js' %}"></script>
+<script src="{% static 'js/success_popup.js' %}"></script>
 </body>
 </html>

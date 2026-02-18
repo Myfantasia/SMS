@@ -10,6 +10,8 @@ from django.contrib.auth.views import LoginView,LogoutView
 
 from school import views
 
+from django.contrib.auth import views as auth_views
+
 urlpatterns = [
 
 path('api/firebase-login/', views.firebase_login_bridge, name='firebase-login'),
@@ -18,18 +20,17 @@ path('api/firebase-admin-signup/', views.firebase_admin_signup_bridge, name='fir
     path('admin/', admin.site.urls),
     path('',views.home_view,name=''),
 
-    path('adminclick', views.adminclick_view),
-    path('teacherclick', views.teacherclick_view),
-    path('studentclick', views.studentclick_view),
+    path('adminclick', views.adminclick_view, name='adminclick'),
+    path('teacherclick', views.teacherclick_view, name='teacherclick'),
+    path('studentclick', views.studentclick_view, name='studentclick'),
 
+    path('adminsignup', views.admin_signup_view, name='adminsignup'),
+    path('studentsignup', views.student_signup_view, name='studentsignup'),
+    path('teachersignup', views.teacher_signup_view, name='teachersignup'),
 
-    path('adminsignup', views.admin_signup_view),
-    path('studentsignup', views.student_signup_view,name='studentsignup'),
-    path('teachersignup', views.teacher_signup_view),
-    path('adminlogin', LoginView.as_view(template_name='school/admin/adminlogin.html')),
-    path('studentlogin', LoginView.as_view(template_name='school/students/studentlogin.html')),
-    path('teacherlogin', LoginView.as_view(template_name='school/teachers/teacherlogin.html')),
-
+    path('adminlogin', LoginView.as_view(template_name='school/admin/adminlogin.html'), name='adminlogin'),
+    path('studentlogin', LoginView.as_view(template_name='school/students/studentlogin.html'), name='studentlogin'),
+    path('teacherlogin', LoginView.as_view(template_name='school/teachers/teacherlogin.html'), name='teacherlogin'),
 
     path('afterlogin', views.afterlogin_view,name='afterlogin'),
     path('logout', LogoutView.as_view(template_name='school/index.html'),name='logout'),
@@ -101,4 +102,25 @@ path('parent-dashboard', views.parent_dashboard_view, name='parent-dashboard'),
     path('approve-parent/<int:pk>', views.approve_parent_view, name='approve-parent'),
     path('delete-parent/<int:pk>', views.delete_parent_view, name='delete-parent'),
 
+
+# --- PASSWORD RESET PATHS ---
+    path('password-reset/',
+         auth_views.PasswordResetView.as_view(template_name='school/password_reset/password_reset.html'),
+         name='password_reset'),
+
+    path('password-reset/done/',
+         auth_views.PasswordResetDoneView.as_view(template_name='school/password_reset/password_reset_done.html'),
+         name='password_reset_done'),
+
+    path('password-reset-confirm/<uidb64>/<token>/',
+         auth_views.PasswordResetConfirmView.as_view(template_name='school/password_reset/password_reset_confirm.html'),
+         name='password_reset_confirm'),
+
+    path('password-reset-complete/',
+         auth_views.PasswordResetCompleteView.as_view(template_name='school/password_reset/password_reset_complete.html'),
+         name='password_reset_complete'),
+
+# all logout
+# student logout
+    path('logout/', LogoutView.as_view(next_page='studentlogin'), name='logout'),
 ]

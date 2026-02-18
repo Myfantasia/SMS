@@ -176,3 +176,29 @@ body.no-scroll {
         box-shadow: 10px 0 30px rgba(0,0,0,0.5);
     }
 }
+
+/* Update your CSS to include this if it's not already there */
+.nav-item.active-link,
+.dropdown-item.active-link {
+    color: #fbbf24 !important; /* Gold/Amber active color */
+    font-weight: 700;
+}
+
+/* Optional: Add a dot under the active nav item for desktop */
+@media (min-width: 993px) {
+    .nav-item.active-link {
+        position: relative;
+    }
+    .nav-item.active-link::after {
+        content: '';
+        position: absolute;
+        bottom: -5px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 5px;
+        height: 5px;
+        background: #fbbf24;
+        border-radius: 50%;
+        box-shadow: 0 0 8px #fbbf24;
+    }
+}

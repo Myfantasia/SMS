@@ -3,6 +3,8 @@ Django settings for schoolmanagement project.
 """
 
 import os
+import firebase_admin
+from firebase_admin import credentials
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -99,8 +101,7 @@ EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 # --------------------------------------------------------
 # FIREBASE CONFIGURATION (Must be at the bottom)
 # --------------------------------------------------------
-import firebase_admin
-from firebase_admin import credentials
+
 
 # CHECK: Ensure the file inside your project folder is named exactly 'serviceKey.json'
 # If you renamed it to 'serviceAccountKey.json', update the name below.
@@ -111,3 +112,5 @@ if os.path.exists(firebase_cred_path):
     firebase_admin.initialize_app(cred)
 else:
     print("WARNING: Firebase JSON key not found at:", firebase_cred_path)
+
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
