@@ -35,12 +35,54 @@
       color: black;
     }
 
+    /* ADD THIS FOR THE ALERT BOX */
+    .action-alert {
+      margin-left: 25%;
+      margin-right: 25%;
+      padding: 15px;
+      background-color: #ff9800; /* Orange for Action */
+      color: white;
+      border-radius: 5px;
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2);
+    }
+    .action-btn {
+      background-color: white;
+      color: #ff9800;
+      border: none;
+      padding: 8px 16px;
+      text-decoration: none;
+      font-weight: bold;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .action-btn:hover {
+      background-color: #eee;
+    }
+
 
   </style>
   <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
 
 </head>
 <br>
+
+{% if pendingstudentcount > 0 %}
+<div class="action-alert">
+  <span>
+    <i class="fa fa-exclamation-circle"></i>
+    Action Required: <strong>{{ pendingstudentcount }}</strong> students waiting for approval.
+  </span>
+  <a href="{% url 'admin-approve-student' %}" class="action-btn">Review Now</a>
+</div>
+{% endif %}
+{%include 'school/admin/admin_dashboard_cards.html' %}
+
+<br><br>
+{% endblock content %}
 
 {%include 'school/admin/admin_dashboard_cards.html' %}
 
