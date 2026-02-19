@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Parent Portal | MyFantasia</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{% static 'css/navbar.css' %}">
+    <link rel="stylesheet" href="{% static 'css/auth_style.css' %}">
+</head>
+<body>
+    {% include "school/navbar.html" %}
+
+    <div class="login-wrapper">
+        <div class="login-card">
+            <div class="login-header">
+                <i class="fas fa-user-friends" style="font-size: 3.5rem; color: #6366f1; margin-bottom: 15px;"></i>
+                <h2>Parent Portal</h2>
+                <p>Welcome! Please choose an option below to continue to your dashboard.</p>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 15px; margin-top: 25px;">
+                <a href="/parentlogin" class="btn-login" style="text-decoration: none; text-align: center; display: flex; justify-content: center; align-items: center;">
+                    <span class="btn-text">Parent Login</span>
+                    <i class="fas fa-sign-in-alt btn-icon"></i>
+                </a>
+
+                <a href="/parentsignup" class="btn-login" style="text-decoration: none; text-align: center; background: #ffffff; color: #4f46e5; border: 2px solid #4f46e5; display: flex; justify-content: center; align-items: center;">
+                    <span class="btn-text">New Parent? Register Here</span>
+                    <i class="fas fa-user-plus btn-icon" style="color: #4f46e5;"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    {% include "school/footer.html" %}
+</body>
+</html>

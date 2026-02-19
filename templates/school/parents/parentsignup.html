@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+{% load static %}
+{% load widget_tweaks %}
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Parent Registration | MyFantasia</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{% static 'css/navbar.css' %}">
+    <link rel="stylesheet" href="{% static 'css/auth_style.css' %}">
+</head>
+<body>
+    {% include "school/navbar.html" %}
+
+    <div class="login-wrapper">
+        <div class="login-card wide-card">
+            <div class="login-header">
+                <i class="fas fa-user-friends" style="font-size: 3rem; color: #6366f1; margin-bottom: 15px;"></i>
+                <h2>Parent Registration</h2>
+                <p>Link your account to your child's profile.</p>
+            </div>
+
+            <form method="post">
+                {% csrf_token %}
+
+                {% if messages %}
+                    {% for message in messages %}
+                        <div class="alert alert-danger" style="background: #fee2e2; color: #b91c1c; padding: 10px; border-radius: 8px; margin-bottom: 15px; text-align: center;">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+
+                <h4 style="color: #4f46e5; margin-bottom: 10px; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px;">Parent Details</h4>
+                <div class="form-row">
+                    <div class="form-group col-half">
+                        <label class="field-label">Your First Name</label>
+                        {% render_field form1.first_name class="form-control" placeholder="Parent First Name" %}
+                    </div>
+                    <div class="form-group col-half">
+                        <label class="field-label">Your Last Name</label>
+                        {% render_field form1.last_name class="form-control" placeholder="Parent Last Name" %}
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group col-half">
+                        <label class="field-label">Username</label>
+                        {% render_field form1.username class="form-control" placeholder="Create Username" %}
+                    </div>
+                    <div class="form-group col-half">
+                        <label class="field-label">Password</label>
+                        {% render_field form1.password class="form-control" placeholder="Create Password" %}
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="field-label">Mobile Number</label>
+                    {% render_field form2.mobile class="form-control" placeholder="Your Contact Number" %}
+                </div>
+
+                <div style="margin-top: 25px; padding-top: 20px; border-top: 1px dashed #ccc;">
+                    <h4 style="color: #4f46e5; margin-bottom: 10px; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px;">Child Verification</h4>
+                    <p style="font-size: 0.8rem; color: #666; margin-bottom: 15px;">Please enter your child's details exactly as registered.</p>
+
+                    <div class="form-group">
+                        <label class="field-label">Child's Admission No.</label>
+                        {% render_field form2.child_roll class="form-control" placeholder="e.g. ADM-001" %}
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group col-half">
+                            <label class="field-label">Child's First Name</label>
+                            {% render_field form2.child_first_name class="form-control" %}
+                        </div>
+                        <div class="form-group col-half">
+                            <label class="field-label">Child's Last Name</label>
+                            {% render_field form2.child_last_name class="form-control" %}
+                        </div>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-login" style="margin-top: 20px;">
+                    <span class="btn-text">Register Account</span>
+                </button>
+
+                <div class="signup-link"><p>Already have an account? <a href="/parentlogin">Login here</a></p></div>
+            </form>
+        </div>
+    </div>
+
+    {% include "school/footer.html" %}
+</body>
+</html>
