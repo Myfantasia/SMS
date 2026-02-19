@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 {% load static %}
-{% load widget_tweaks %}
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,6 +8,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="{% static 'css/navbar.css' %}">
     <link rel="stylesheet" href="{% static 'css/auth_style.css' %}">
+    <link rel="stylesheet" href="{% static 'css/spinner.css' %}">
 </head>
 <body>
     {% include "school/navbar.html" %}
@@ -21,75 +21,76 @@
                 <p>Link your account to your child's profile.</p>
             </div>
 
-            <form method="post">
+            <form method="post" action="/parentsignup">
                 {% csrf_token %}
 
                 {% if messages %}
                     {% for message in messages %}
-                        <div class="alert alert-danger" style="background: #fee2e2; color: #b91c1c; padding: 10px; border-radius: 8px; margin-bottom: 15px; text-align: center;">
+                        <div class="error-message" style="display: block; margin-bottom: 15px;">
                             {{ message }}
                         </div>
                     {% endfor %}
                 {% endif %}
 
-                <h4 style="color: #4f46e5; margin-bottom: 10px; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px;">Parent Details</h4>
                 <div class="form-row">
                     <div class="form-group col-half">
                         <label class="field-label">Your First Name</label>
-                        {% render_field form1.first_name class="form-control" placeholder="Parent First Name" %}
+                        <input type="text" name="first_name" class="form-control" placeholder="e.g. John" required>
                     </div>
                     <div class="form-group col-half">
                         <label class="field-label">Your Last Name</label>
-                        {% render_field form1.last_name class="form-control" placeholder="Parent Last Name" %}
+                        <input type="text" name="last_name" class="form-control" placeholder="e.g. Doe" required>
                     </div>
                 </div>
 
                 <div class="form-row">
                     <div class="form-group col-half">
-                        <label class="field-label">Username</label>
-                        {% render_field form1.username class="form-control" placeholder="Create Username" %}
+                        <label class="field-label">Create Username</label>
+                        <input type="text" name="username" class="form-control" placeholder="e.g. johndoe_parent" required>
                     </div>
                     <div class="form-group col-half">
-                        <label class="field-label">Password</label>
-                        {% render_field form1.password class="form-control" placeholder="Create Password" %}
+                        <label class="field-label">Create Password</label>
+                        <input type="password" name="password" class="form-control" placeholder="Create a strong password" required>
                     </div>
                 </div>
 
                 <div class="form-group">
-                    <label class="field-label">Mobile Number</label>
-                    {% render_field form2.mobile class="form-control" placeholder="Your Contact Number" %}
+                    <label class="field-label">Parent Mobile Number</label>
+                    <input type="text" name="mobile" class="form-control" placeholder="e.g. 0722 000 000" required>
                 </div>
 
-                <div style="margin-top: 25px; padding-top: 20px; border-top: 1px dashed #ccc;">
-                    <h4 style="color: #4f46e5; margin-bottom: 10px; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px;">Child Verification</h4>
-                    <p style="font-size: 0.8rem; color: #666; margin-bottom: 15px;">Please enter your child's details exactly as registered.</p>
+                <div style="margin-top: 25px; padding-top: 20px; border-top: 1px dashed rgba(255, 255, 255, 0.2);">
+                    <h4 style="color: #818cf8; margin-bottom: 10px; font-size: 1rem;">Child Verification</h4>
+                    <p style="font-size: 0.85rem; color: #cbd5e1; margin-bottom: 15px;">Please enter your child's details exactly as registered.</p>
 
                     <div class="form-group">
                         <label class="field-label">Child's Admission No.</label>
-                        {% render_field form2.child_roll class="form-control" placeholder="e.g. ADM-001" %}
+                        <input type="text" name="child_roll" class="form-control" placeholder="e.g. ADM-2026001" required>
                     </div>
 
                     <div class="form-row">
                         <div class="form-group col-half">
                             <label class="field-label">Child's First Name</label>
-                            {% render_field form2.child_first_name class="form-control" %}
+                            <input type="text" name="child_first_name" class="form-control" placeholder="e.g. Kamau" required>
                         </div>
                         <div class="form-group col-half">
                             <label class="field-label">Child's Last Name</label>
-                            {% render_field form2.child_last_name class="form-control" %}
+                            <input type="text" name="child_last_name" class="form-control" placeholder="e.g. Ochieng" required>
                         </div>
                     </div>
                 </div>
 
-                <button type="submit" class="btn-login" style="margin-top: 20px;">
+                <button type="submit" class="btn-login">
                     <span class="btn-text">Register Account</span>
+                    <i class="fas fa-circle-notch fa-spin btn-spinner" style="display: none;"></i>
                 </button>
 
-                <div class="signup-link"><p>Already have an account? <a href="/parentlogin">Login here</a></p></div>
+                <div class="signup-link"><p>Already registered? <a href="/parentlogin">Access Portal</a></p></div>
             </form>
         </div>
     </div>
 
+    <script src="{% static 'js/form_handler.js' %}"></script>
     {% include "school/footer.html" %}
 </body>
 </html>
