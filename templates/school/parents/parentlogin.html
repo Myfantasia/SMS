@@ -1,13 +1,65 @@
 <!DOCTYPE html>
+{% load static %}
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Title</title>
-  <link rel="stylesheet" href="{% static 'css/success_popup.css' %}">
+    <title>Parent Portal | Login</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{% static 'css/navbar.css' %}">
+    <link rel="stylesheet" href="{% static 'css/auth_style.css' %}">
+    <link rel="stylesheet" href="{% static 'css/success_popup.css' %}">
 </head>
 <body>
-{% include "school/success_popup.html" %}
+    {% include "school/navbar.html" %}
+    {% include "school/success_popup.html" %}
 
-<script src="{% static 'js/success_popup.js' %}"></script>
+    <div class="login-wrapper">
+        <div class="login-card">
+            <div class="login-header">
+                <i class="fas fa-user-friends" style="font-size: 3rem; color: #6366f1; margin-bottom: 15px;"></i>
+                <h2>Parent Login</h2>
+                <p>Welcome back to the parent portal.</p>
+            </div>
+
+            <form method="post" action="{% url 'login' %}">
+                {% csrf_token %}
+
+                {% if form.errors %}
+                <div class="alert alert-danger" style="color: red; text-align: center; margin-bottom: 10px;">
+                    Invalid Username or Password
+                </div>
+                {% endif %}
+
+                <div class="form-group">
+                    <label class="field-label">Username</label>
+                    <div class="input-with-icon">
+                        <i class="fas fa-user input-icon"></i>
+                        <input type="text" name="username" class="form-control" placeholder="Enter username" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="field-label">Password</label>
+                    <div class="input-with-icon">
+                        <i class="fas fa-lock input-icon"></i>
+                        <input type="password" name="password" class="form-control" placeholder="Enter password" required>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-login">
+                    <span class="btn-text">Sign In</span>
+                    <i class="fas fa-arrow-right btn-icon"></i>
+                </button>
+
+                <div class="signup-link">
+                    <p>New Parent? <a href="/parentsignup">Link your child here</a></p>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {% include "school/footer.html" %}
+    <script src="{% static 'js/success_popup.js' %}"></script>
 </body>
 </html>

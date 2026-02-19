@@ -23,14 +23,17 @@ path('api/firebase-admin-signup/', views.firebase_admin_signup_bridge, name='fir
     path('adminclick', views.adminclick_view, name='adminclick'),
     path('teacherclick', views.teacherclick_view, name='teacherclick'),
     path('studentclick', views.studentclick_view, name='studentclick'),
+    path('parentclick', views.parentclick_view, name='parentclick'),
 
     path('adminsignup', views.admin_signup_view, name='adminsignup'),
     path('studentsignup', views.student_signup_view, name='studentsignup'),
     path('teachersignup', views.teacher_signup_view, name='teachersignup'),
+    path('parentsignup', views.parent_signup_view, name='parentsignup'),
 
     path('adminlogin', LoginView.as_view(template_name='school/admin/adminlogin.html'), name='adminlogin'),
     path('studentlogin', LoginView.as_view(template_name='school/students/studentlogin.html'), name='studentlogin'),
     path('teacherlogin', LoginView.as_view(template_name='school/teachers/teacherlogin.html'), name='teacherlogin'),
+    path('parentlogin', LoginView.as_view(template_name='school/parents/parentlogin.html'), name='parentlogin'),
 
     path('afterlogin', views.afterlogin_view,name='afterlogin'),
     path('logout', LogoutView.as_view(template_name='school/index.html'),name='logout'),
@@ -85,7 +88,7 @@ path('api/firebase-admin-signup/', views.firebase_admin_signup_bridge, name='fir
     path('student-attendance', views.student_attendance_view,name='student-attendance'),
 
 
-path('portal', views.portal_view, name='portal'),
+    path('portal', views.portal_view, name='portal'),
 
     path('aboutus', views.aboutus_view),
     path('contactus', views.contactus_view),
@@ -93,13 +96,12 @@ path('portal', views.portal_view, name='portal'),
 # --- ADD THIS PATH HERE ---
     path('events/', views.events_view, name='events'),
 
-path('parentclick', views.parentclick_view),
-path('parentsignup', views.parent_signup_view),
-path('parentlogin', LoginView.as_view(template_name='school/parentlogin.html'),name='parentlogin'),
-path('parent-dashboard', views.parent_dashboard_view, name='parent-dashboard'),
+
+    path('parent-dashboard', views.parent_dashboard_view, name='parent-dashboard'),
 
     # Admin Parent Management (Add these!)
-    path('admin-parent-view', views.admin_parent_view, name='admin-parent'),
+    # --- Admin Parent Management ---
+    path('admin-parent-view', views.admin_parent_view, name='admin-parent-view'),
     path('admin-approve-parent', views.admin_approve_parent_view, name='admin-approve-parent'),
     path('approve-parent/<int:pk>', views.approve_parent_view, name='approve-parent'),
     path('delete-parent/<int:pk>', views.delete_parent_view, name='delete-parent'),
@@ -125,4 +127,6 @@ path('parent-dashboard', views.parent_dashboard_view, name='parent-dashboard'),
 # all logout
 # student logout
     path('logout/', LogoutView.as_view(next_page='studentlogin'), name='logout'),
+
+path('api/dashboard-stats/', views.dashboard_stats, name='dashboard_stats'),
 ]
