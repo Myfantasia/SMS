@@ -128,5 +128,11 @@ path('api/firebase-admin-signup/', views.firebase_admin_signup_bridge, name='fir
 # student logout
     path('logout/', LogoutView.as_view(next_page='studentlogin'), name='logout'),
 
-path('api/dashboard-stats/', views.dashboard_stats, name='dashboard_stats'),
+    path('api/dashboard-stats/', views.dashboard_stats, name='dashboard_stats'),
+
+
+# Parent Approval URLs
+    path('admin-approve-parent', views.admin_approve_parent_view, name='admin-approve-parent'),
+    path('approve-parent/<int:pk>', views.approve_parent_view, name='approve-parent'),
+    path('reject-parent/<int:pk>', views.reject_parent_view, name='reject-parent'),
 ]

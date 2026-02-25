@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Pending Approval | MyFantasia</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{% static 'css/navbar.css' %}">
+    <link rel="stylesheet" href="{% static 'css/auth_style.css' %}">
+    <link rel="stylesheet" href="{% static 'css/approval.css' %}">
+</head>
+<body>
+    {% include "school/navbar.html" %}
+
+    <div class="login-wrapper">
+        <div class="approval-card">
+            <div class="approval-icon"><i class="fas fa-user-shield"></i></div>
+
+            <h2>Hello, {{ request.user.first_name }}!</h2>
+
+            <div style="background: rgba(251, 191, 36, 0.1); border-left: 4px solid #fbbf24; padding: 15px; text-align: left; margin: 20px 0; border-radius: 4px;">
+                <h4 style="color: #fbbf24; margin: 0 0 5px 0;">Status: Verification in Progress</h4>
+                <p style="color: #cbd5e1; font-size: 0.9rem; margin: 0;">Child details verified. Waiting for Admin approval.</p>
+            </div>
+
+            <p class="info-text">
+                An Administrator needs to review your connection to ensure student security.
+                <br><strong>Please check back later.</strong>
+            </p>
+
+            <a href="{% url 'logout' %}" class="btn-logout-ghost">
+                <i class="fas fa-sign-out-alt"></i> Logout & Check Later
+            </a>
+        </div>
+    </div>
+
+    {% include "school/footer.html" %}
+</body>
+</html>
