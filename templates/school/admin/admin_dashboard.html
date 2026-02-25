@@ -1,9 +1,6 @@
 {% extends 'school/admin/adminbase.html' %}
 {% load static %}
 
-
-
-
 {% block content %}
 
 <head>
@@ -35,12 +32,11 @@
       color: black;
     }
 
-    /* ADD THIS FOR THE ALERT BOX */
     .action-alert {
       margin-left: 25%;
       margin-right: 25%;
       padding: 15px;
-      background-color: #ff9800; /* Orange for Action */
+      background-color: #ff9800;
       color: white;
       border-radius: 5px;
       margin-bottom: 20px;
@@ -49,6 +45,7 @@
       align-items: center;
       box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2);
     }
+
     .action-btn {
       background-color: white;
       color: #ff9800;
@@ -59,15 +56,14 @@
       border-radius: 4px;
       cursor: pointer;
     }
+
     .action-btn:hover {
       background-color: #eee;
     }
-
-
   </style>
   <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
-
 </head>
+
 <br>
 
 {% if pendingstudentcount > 0 %}
@@ -79,24 +75,21 @@
   <a href="{% url 'admin-approve-student' %}" class="action-btn">Review Now</a>
 </div>
 {% endif %}
-{%include 'school/admin/admin_dashboard_cards.html' %}
+
+{% include 'school/admin/admin_dashboard_cards.html' %}
 
 <br><br>
-{% endblock content %}
 
-{%include 'school/admin/admin_dashboard_cards.html' %}
-
-<br><br>
 <div class="w3-panel w3-black">
   <p>Notice Board</p>
-</div><br>
-{%for n in notice%}
+</div>
+<br>
+
+{% for n in notice %}
 <div class="alert">
   <span class="closebtn" onclick="this.parentElement.style.display='none';">&times;</span>
-  <strong>Posted on {{n.date}} </strong><br><b>By : {{n.by}}</b><br> {{n.message}}
+  <strong>Posted on {{ n.date }} </strong><br><b>By : {{ n.by }}</b><br> {{ n.message }}
 </div>
-{%endfor%}
-
-
+{% endfor %}
 
 {% endblock content %}

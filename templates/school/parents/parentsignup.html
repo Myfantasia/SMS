@@ -16,7 +16,7 @@
     <div class="login-wrapper">
         <div class="login-card wide-card">
             <div class="login-header">
-                <i class="fas fa-user-friends" style="font-size: 3rem; color: #6366f1; margin-bottom: 15px;"></i>
+                <i class="fas fa-user-friends"></i>
                 <h2>Parent Registration</h2>
                 <p>Link your account to your child's profile.</p>
             </div>
@@ -24,10 +24,12 @@
             <form method="post" action="/parentsignup">
                 {% csrf_token %}
 
+                {% include "school/form_errors.html" %}
+
                 {% if messages %}
                     {% for message in messages %}
-                        <div class="error-message" style="display: block; margin-bottom: 15px;">
-                            {{ message }}
+                        <div class="error-message">
+                            <i class="fas fa-exclamation-triangle"></i> {{ message }}
                         </div>
                     {% endfor %}
                 {% endif %}
@@ -46,22 +48,41 @@
                 <div class="form-row">
                     <div class="form-group col-half">
                         <label class="field-label">Create Username</label>
-                        <input type="text" name="username" class="form-control" placeholder="e.g. johndoe_parent" required>
+                        <input type="text" name="username" class="form-control" placeholder="e.g. (studentname)_parent" required>
                     </div>
+                    <div class="form-group col-half">
+                        <label class="field-label">Email Address</label>
+                        <input type="email" name="email" class="form-control" placeholder="e.g. john@example.com" required>
+                    </div>
+                </div>
+
+                <div class="form-row">
                     <div class="form-group col-half">
                         <label class="field-label">Create Password</label>
                         <input type="password" name="password" class="form-control" placeholder="Create a strong password" required>
                     </div>
+                    <div class="form-group col-half">
+                        <label class="field-label">Parent Mobile Number</label>
+                        <input type="text" name="mobile" class="form-control" placeholder="e.g. 0722 000 000" required>
+                    </div>
                 </div>
 
-                <div class="form-group">
-                    <label class="field-label">Parent Mobile Number</label>
-                    <input type="text" name="mobile" class="form-control" placeholder="e.g. 0722 000 000" required>
+                <div class="form-row">
+                    <div class="form-group col-half">
+                        <label class="field-label">Relationship to Child</label>
+                        <select name="relationship" class="form-control" required style="height: 48px; border: 2px solid #e2e8f0; border-radius: 8px; width: 100%; padding: 0 15px; font-family: 'Outfit', sans-serif;">
+                            <option value="" disabled selected>Select relationship...</option>
+                            <option value="Father">Father</option>
+                            <option value="Mother">Mother</option>
+                            <option value="Guardian">Guardian</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
                 </div>
 
-                <div style="margin-top: 25px; padding-top: 20px; border-top: 1px dashed rgba(255, 255, 255, 0.2);">
-                    <h4 style="color: #818cf8; margin-bottom: 10px; font-size: 1rem;">Child Verification</h4>
-                    <p style="font-size: 0.85rem; color: #cbd5e1; margin-bottom: 15px;">Please enter your child's details exactly as registered.</p>
+                <div class="verification-section">
+                    <h4>Child Verification</h4>
+                    <p>Please enter your child's details exactly as registered.</p>
 
                     <div class="form-group">
                         <label class="field-label">Child's Admission No.</label>
@@ -81,7 +102,7 @@
                 </div>
 
                 <button type="submit" class="btn-login">
-                    <span class="btn-text">Register Account</span>
+                    <span class="btn-text">Register & Verify</span>
                     <i class="fas fa-circle-notch fa-spin btn-spinner" style="display: none;"></i>
                 </button>
 

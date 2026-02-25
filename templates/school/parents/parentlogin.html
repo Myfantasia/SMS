@@ -27,14 +27,14 @@
 
                 {% if form.errors %}
                 <div class="alert alert-danger" style="color: red; text-align: center; margin-bottom: 10px;">
-                    Invalid Email or Password
+                    Invalid Username or Password
                 </div>
                 {% endif %}
 
                 <div class="form-group">
-                    <label class="field-label">Email</label>
+                    <label class="field-label">Username</label>
                     <div class="input-with-icon">
-                        <input type="text" name="email" class="form-control" placeholder="Enter email" required>
+                        <input type="text" name="username" class="form-control" placeholder="Enter username" required>
                     </div>
                 </div>
 
@@ -43,6 +43,10 @@
                     <div class="input-with-icon">
                         <input type="password" name="password" class="form-control" placeholder="Enter password" required>
                     </div>
+                </div>
+
+                <div style="text-align: right; margin-top: -10px; margin-bottom: 20px;">
+                    <a href="{% url 'password_reset' %}" style="color: #6366f1; text-decoration: none; font-size: 0.9rem; font-weight: 600;">Forgot Password?</a>
                 </div>
 
                 <button type="submit" class="btn-login">
