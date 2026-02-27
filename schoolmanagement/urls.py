@@ -5,7 +5,8 @@ written by fb.com/sumit.luv
 """
 from django.contrib import admin
 from django.urls import path
-from school import views
+from django.conf import settings
+from django.conf.urls.static import static
 from django.contrib.auth.views import LoginView,LogoutView
 
 from school import views
@@ -136,3 +137,6 @@ path('api/firebase-admin-signup/', views.firebase_admin_signup_bridge, name='fir
     path('approve-parent/<int:pk>', views.approve_parent_view, name='approve-parent'),
     path('reject-parent/<int:pk>', views.reject_parent_view, name='reject-parent'),
 ]
+
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

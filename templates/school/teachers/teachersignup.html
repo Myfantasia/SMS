@@ -1,123 +1,120 @@
 <!DOCTYPE html>
-
-{% load widget_tweaks %}
+{% load static %}
 <html lang="en" dir="ltr">
 
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-  <title>SMS - Django</title>
-  <style type="text/css">
-    body {
-      color: #aa082e;
-      background-color: #b6bde7;
-      font-family: 'Roboto', sans-serif;
-    }
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>Teacher Application | SMS</title>
 
-    a:link {
-      text-decoration: none;
-    }
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-    .note {
-      text-align: center;
-      height: 80px;
-       background: -webkit-linear-gradient(left, #343a40, #607d8b);
-      color: #fff;
-      font-weight: bold;
-      line-height: 80px;
-    }
-
-    .form-content {
-      padding: 5%;
-      border: 1px solid #ced4da;
-      margin-bottom: 2%;
-    }
-
-    .form-control {
-      border-radius: 1.5rem;
-    }
-
-    .btnSubmit {
-      border: none;
-      border-radius: 1.5rem;
-      padding: 1%;
-      width: 20%;
-      cursor: pointer;
-      background: #4caf50;
-      color: #fff;
-    }
-  </style>
-
-  <link rel="stylesheet" href="{% static 'css/spinner.css' %}">
-
+    <link rel="stylesheet" href="{% static 'css/auth_style.css' %}">
+    <link rel="stylesheet" href="{% static 'css/spinner.css' %}">
 </head>
 
-
 <body>
-  {% include "school/navbar.html" %}
-  <br>
-  <br>
-  <br>
-  <br>
+    {% include "school/navbar.html" %}
 
-
-
-
-  <!--- signup page for teacher by admin(sumit)  ---------->
-  <form method="post">
-    {% csrf_token %}
-    {% include "school/form_errors.html" %}
-    <div class="container register-form">
-      <div class="form">
-        <div class="note">
-          <p>Apply For Teacher Job </p>
-        </div>
-
-        <div class="form-content">
-          <div class="row">
-            <div class="col-md-6">
-              <div class="form-group">
-                {% render_field form1.first_name class="form-control" placeholder="First Name" %}
-              </div>
-              <div class="form-group">
-                {% render_field form1.username class="form-control" placeholder="Username" %}
-              </div>
-              <div class="form-group">
-                {% render_field form2.mobile class="form-control" placeholder="Contact" %}
-              </div>
-
+    <div class="login-wrapper">
+        <div class="login-card wide-card">
+            <div class="login-header">
+                <i class="fas fa-chalkboard-teacher fa-3x" style="color: #6366f1; margin-bottom: 15px;"></i>
+                <h2>Teacher Application</h2>
+                <p>Join our esteemed faculty. Fill in your details below for Admin approval.</p>
             </div>
-            <div class="col-md-6">
-              <div class="form-group">
-                {% render_field form1.last_name class="form-control" placeholder="Last Name" %}
-              </div>
-              <div class="form-group">
-                {% render_field form1.password class="form-control" type="password" placeholder="Password" %}
-              </div>
-              <div class="form-group">
-                {% render_field form2.salary class="form-control" placeholder="Salary ($)" %}
-              </div>
 
-            </div>
-          </div>
-          <button type="submit" class="btnSubmit">Apply</button>
-          <div class="text-center">Already have an account? <a href="teacherlogin">Login here</a></div>
+            <form method="post" action="{% url 'teachersignup' %}" enctype="multipart/form-data">
+                {% csrf_token %}
+                {% include "school/form_errors.html" %}
+
+                <div class="form-row">
+                    <div class="col-half">
+                        <div class="form-group">
+                            <label class="field-label" for="first_name">First Name</label>
+                            <input type="text" name="first_name" id="first_name" class="form-control" placeholder="e.g. John" required>
+                        </div>
+                    </div>
+                    <div class="col-half">
+                        <div class="form-group">
+                            <label class="field-label" for="last_name">Last Name</label>
+                            <input type="text" name="last_name" id="last_name" class="form-control" placeholder="e.g. Ochieng" required>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="col-half">
+                        <div class="form-group">
+                            <label class="field-label" for="id_number">National ID Number</label>
+                            <input type="number" name="id_number" id="id_number" class="form-control" placeholder="e.g. 12345678" required>
+                        </div>
+                    </div>
+                    <div class="col-half">
+                        <div class="form-group">
+                            <label class="field-label" for="email">Email Address</label>
+                            <input type="email" name="email" id="email" class="form-control" placeholder="e.g. mwalimu@example.com" required>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="col-half">
+                        <div class="form-group">
+                            <label class="field-label" for="username">Username (TSC No. / Alias)</label>
+                            <input type="text" name="username" id="username" class="form-control" placeholder="name_teacher" required>
+                        </div>
+                    </div>
+                    <div class="col-half">
+                        <div class="form-group">
+                            <label class="field-label" for="password">Password</label>
+                            <div class="password-wrapper">
+                                <input type="password" name="password" id="password" class="form-control" placeholder="Create a strong password" required>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="col-half">
+                        <div class="form-group">
+                            <label class="field-label" for="mobile">Mobile Number</label>
+                            <div class="phone-group">
+                                <select class="form-control code-select" disabled>
+                                    <option>+254</option>
+                                </select>
+                                <input type="text" name="mobile" id="mobile" class="form-control phone-input" placeholder="712 345 678" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-half">
+                        <div class="form-group">
+                            <label class="field-label" for="address">Home Address</label>
+                            <input type="text" name="address" id="address" class="form-control" placeholder="e.g. Buruburu, Nairobi" required>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="field-label" for="profile_pic">Teacher's Photo</label>
+                    <div class="file-upload-wrapper">
+                        <input type="file" name="profile_pic" id="profile_pic" class="form-control file-input-styled" accept="image/*" required>
+                        <span class="file-warning"><i class="fas fa-info-circle"></i> Please upload a clear passport-sized photo</span>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-login">Submit Application</button>
+
+                <div class="signup-link">
+                    Already approved? <a href="teacherlogin">Login Here</a>
+                </div>
+            </form>
         </div>
-      </div>
     </div>
 
-  </form>
-
-
-
-
-  <!--
-        written By : sumit kumar
-        -->
-
-<script src="{% static 'js/form_handler.js' %}"></script>
-
-  {% include "school/footer.html" %}
+    <script src="{% static 'js/form_handler.js' %}"></script>
+    {% include "school/footer.html" %}
 </body>
 
 </html>
