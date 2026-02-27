@@ -121,4 +121,5 @@ if os.path.exists(firebase_cred_path):
 else:
     print("WARNING: Firebase JSON key not found at:", firebase_cred_path)
 
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')

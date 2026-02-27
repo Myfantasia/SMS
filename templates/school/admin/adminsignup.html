@@ -36,30 +36,16 @@
                     <div class="form-group col-half">
                         <input type="email" id="email" class="form-control" placeholder="Email Address" required>
                     </div>
-                    <div class="form-group col-half phone-group">
-                        <select id="country_code" class="form-control code-select">
-                            <optgroup label="Africa">
-                                <option value="+254" selected>🇰🇪 Kenya (+254)</option>
-                                <option value="+255">🇹🇿 Tanzania (+255)</option>
-                                <option value="+256">🇺🇬 Uganda (+256)</option>
-                                <option value="+234">🇳🇬 Nigeria (+234)</option>
-                                <option value="+27">🇿🇦 S. Africa (+27)</option>
-                                <option value="+251">🇪🇹 Ethiopia (+251)</option>
-                                <option value="+250">🇷🇼 Rwanda (+250)</option>
-                                <option value="+233">🇬🇭 Ghana (+233)</option>
-                            </optgroup>
-                            <optgroup label="Global">
-                                <option value="+1">🇺🇸 USA (+1)</option>
-                                <option value="+44">🇬🇧 UK (+44)</option>
-                                <option value="+91">🇮🇳 India (+91)</option>
-                                <option value="+86">🇨🇳 China (+86)</option>
-                                <option value="+971">🇦🇪 UAE (+971)</option>
-                                <option value="+61">🇦🇺 Australia (+61)</option>
-                                <option value="+1">🇨🇦 Canada (+1)</option>
-                                <option value="+49">🇩🇪 Germany (+49)</option>
-                            </optgroup>
-                        </select>
-                        <input type="tel" id="mobile" class="form-control phone-input" placeholder="712 345 678" required>
+                    <div class="col-half">
+                        <div class="form-group">
+                            <label class="field-label" for="mobile">Mobile Number</label>
+                            <div class="phone-group">
+                                <select class="form-control code-select" disabled>
+                                    <option>+254</option>
+                                </select>
+                                <input type="tel" id="mobile" class="form-control phone-input" placeholder="712 345 678" required>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
