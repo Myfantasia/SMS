@@ -1,25 +1,18 @@
-"""
-by sumit kumar
-written by fb.com/sumit.luv
-
-"""
 from django.contrib import admin
 from django.urls import path
 from django.conf import settings
 from django.conf.urls.static import static
-from django.contrib.auth.views import LoginView,LogoutView
+from django.contrib.auth.views import LoginView, LogoutView
+from django.contrib.auth import views as auth_views
 
 from school import views
 
-from django.contrib.auth import views as auth_views
-
 urlpatterns = [
+    path('api/firebase-login/', views.firebase_login_bridge, name='firebase-login'),
+    path('api/firebase-admin-signup/', views.firebase_admin_signup_bridge, name='firebase-admin-signup'),
 
-path('api/firebase-login/', views.firebase_login_bridge, name='firebase-login'),
-
-path('api/firebase-admin-signup/', views.firebase_admin_signup_bridge, name='firebase-admin-signup'),
     path('admin/', admin.site.urls),
-    path('',views.home_view,name=''),
+    path('', views.home_view, name=''),
 
     path('adminclick', views.adminclick_view, name='adminclick'),
     path('teacherclick', views.teacherclick_view, name='teacherclick'),
@@ -36,106 +29,80 @@ path('api/firebase-admin-signup/', views.firebase_admin_signup_bridge, name='fir
     path('teacherlogin', LoginView.as_view(template_name='school/teachers/teacherlogin.html'), name='teacherlogin'),
     path('parentlogin', LoginView.as_view(template_name='school/parents/parentlogin.html'), name='parentlogin'),
 
-    path('afterlogin', views.afterlogin_view,name='afterlogin'),
-    path('logout', LogoutView.as_view(template_name='school/index.html'),name='logout'),
+    path('afterlogin', views.afterlogin_view, name='afterlogin'),
 
+    # logout
+    # Purpose: Catches the request from React and triggers our custom logout function
+    path('logout', views.custom_logout_view, name='logout'),
+    path('logout/', views.custom_logout_view, name='logout_with_slash'),
 
-    path('admin-dashboard', views.admin_dashboard_view,name='admin-dashboard'),
+    path('admin-dashboard', views.admin_dashboard_view, name='admin-dashboard'),
 
+    path('admin-teacher', views.admin_teacher_view, name='admin-teacher'),
+    path('admin-add-teacher', views.admin_add_teacher_view, name='admin-add-teacher'),
+    path('admin-view-teacher', views.admin_view_teacher_view, name='admin-view-teacher'),
 
-    path('admin-teacher', views.admin_teacher_view,name='admin-teacher'),
-    path('admin-add-teacher', views.admin_add_teacher_view,name='admin-add-teacher'),
-    path('admin-view-teacher', views.admin_view_teacher_view,name='admin-view-teacher'),
-    path('admin-approve-teacher', views.admin_approve_teacher_view,name='admin-approve-teacher'),
-    path('approve-teacher/<int:pk>', views.approve_teacher_view,name='approve-teacher'),
-    path('delete-teacher/<int:pk>', views.delete_teacher_view,name='delete-teacher'),
-    path('delete-teacher-from-school/<int:pk>', views.delete_teacher_from_school_view,name='delete-teacher-from-school'),
-    path('update-teacher/<int:pk>', views.update_teacher_view,name='update-teacher'),
-    path('admin-view-teacher-salary', views.admin_view_teacher_salary_view,name='admin-view-teacher-salary'),
+    # Teacher approval
+    path('admin-approve-teacher', views.admin_approve_teacher_view, name='admin-approve-teacher'),
+    path('approve-teacher/<int:pk>', views.approve_teacher_view, name='approve-teacher'),
+    path('reject-teacher/<int:pk>', views.reject_teacher_view, name='reject-teacher'),
+    path('delete-teacher-from-school/<int:pk>', views.delete_teacher_from_school_view, name='delete-teacher-from-school'),
+    path('update-teacher/<int:pk>', views.update_teacher_view, name='update-teacher'),
+    path('admin-view-teacher-salary', views.admin_view_teacher_salary_view, name='admin-view-teacher-salary'),
 
+    path('admin-student', views.admin_student_view, name='admin-student'),
+    path('admin-add-student', views.admin_add_student_view, name='admin-add-student'),
+    path('admin-view-student', views.admin_view_student_view, name='admin-view-student'),
 
-    path('admin-student', views.admin_student_view,name='admin-student'),
-    path('admin-add-student', views.admin_add_student_view,name='admin-add-student'),
-    path('admin-view-student', views.admin_view_student_view,name='admin-view-student'),
+    path('delete-student-from-school/<int:pk>', views.delete_student_from_school_view, name='delete-student-from-school'),
+    path('delete-student/<int:pk>', views.delete_student_view, name='delete-student'),
+    path('update-student/<int:pk>', views.update_student_view, name='update-student'),
 
-    path('delete-student-from-school/<int:pk>', views.delete_student_from_school_view,name='delete-student-from-school'),
-    path('delete-student/<int:pk>', views.delete_student_view,name='delete-student'),
-    path('update-student/<int:pk>', views.update_student_view,name='update-student'),
-    path('admin-approve-student', views.admin_approve_student_view,name='admin-approve-student'),
-    path('approve-student/<int:pk>', views.approve_student_view,name='approve-student'),
-    path('reject-student/<int:pk>', views.reject_student_view,name='reject-student'),
-    path('admin-view-student-fee', views.admin_view_student_fee_view,name='admin-view-student-fee'),
+    # Student approval
+    path('admin-approve-student', views.admin_approve_student_view, name='admin-approve-student'),
+    path('approve-student/<int:pk>', views.approve_student_view, name='approve-student'),
+    path('reject-student/<int:pk>', views.reject_student_view, name='reject-student'),
+    path('admin-view-student-fee', views.admin_view_student_fee_view, name='admin-view-student-fee'),
 
+    path('admin-attendance', views.admin_attendance_view, name='admin-attendance'),
+    path('admin-take-attendance/<str:cl>', views.admin_take_attendance_view, name='admin-take-attendance'),
+    path('admin-view-attendance/<str:cl>', views.admin_view_attendance_view, name='admin-view-attendance'),
 
-    path('admin-attendance', views.admin_attendance_view,name='admin-attendance'),
-    path('admin-take-attendance/<str:cl>', views.admin_take_attendance_view,name='admin-take-attendance'),
-    path('admin-view-attendance/<str:cl>', views.admin_view_attendance_view,name='admin-view-attendance'),
+    path('admin-fee', views.admin_fee_view, name='admin-fee'),
+    path('admin-view-fee/<str:cl>', views.admin_view_fee_view, name='admin-view-fee'),
+    path('admin-notice', views.admin_notice_view, name='admin-notice'),
 
+    path('teacher-dashboard', views.teacher_dashboard_view, name='teacher-dashboard'),
+    path('teacher-attendance', views.teacher_attendance_view, name='teacher-attendance'),
+    path('teacher-take-attendance/<str:cl>', views.teacher_take_attendance_view, name='teacher-take-attendance'),
+    path('teacher-view-attendance/<str:cl>', views.teacher_view_attendance_view, name='teacher-view-attendance'),
+    path('teacher-notice', views.teacher_notice_view, name='teacher-notice'),
 
-    path('admin-fee', views.admin_fee_view,name='admin-fee'),
-    path('admin-view-fee/<str:cl>', views.admin_view_fee_view,name='admin-view-fee'),
-
-    path('admin-notice', views.admin_notice_view,name='admin-notice'),
-
-
-
-    path('teacher-dashboard', views.teacher_dashboard_view,name='teacher-dashboard'),
-    path('teacher-attendance', views.teacher_attendance_view,name='teacher-attendance'),
-    path('teacher-take-attendance/<str:cl>', views.teacher_take_attendance_view,name='teacher-take-attendance'),
-    path('teacher-view-attendance/<str:cl>', views.teacher_view_attendance_view,name='teacher-view-attendance'),
-    path('teacher-notice', views.teacher_notice_view,name='teacher-notice'),
-
-    path('student-dashboard', views.student_dashboard_view,name='student-dashboard'),
-    path('student-attendance', views.student_attendance_view,name='student-attendance'),
-
+    path('student-dashboard', views.student_dashboard_view, name='student-dashboard'),
+    path('student-attendance', views.student_attendance_view, name='student-attendance'),
 
     path('portal', views.portal_view, name='portal'),
-
     path('aboutus', views.aboutus_view),
     path('contactus', views.contactus_view),
-
-# --- ADD THIS PATH HERE ---
     path('events/', views.events_view, name='events'),
-
-
     path('parent-dashboard', views.parent_dashboard_view, name='parent-dashboard'),
 
-    # Admin Parent Management (Add these!)
-    # --- Admin Parent Management ---
+    # Admin Parent Management
     path('admin-parent-view', views.admin_parent_view, name='admin-parent-view'),
     path('admin-approve-parent', views.admin_approve_parent_view, name='admin-approve-parent'),
     path('approve-parent/<int:pk>', views.approve_parent_view, name='approve-parent'),
-    path('delete-parent/<int:pk>', views.delete_parent_view, name='delete-parent'),
+    path('delete-parent/<int:pk>', views.reject_parent_view, name='reject-parent'),
+
+    # Password Reset Paths
+    path('password-reset/', auth_views.PasswordResetView.as_view(template_name='school/password_reset/password_reset.html'), name='password_reset'),
+    path('password-reset/done/', auth_views.PasswordResetDoneView.as_view(template_name='school/password_reset/password_reset_done.html'), name='password_reset_done'),
+    path('password-reset-confirm/<uidb64>/<token>/', auth_views.PasswordResetConfirmView.as_view(template_name='school/password_reset/password_reset_confirm.html'), name='password_reset_confirm'),
+    path('password-reset-complete/', auth_views.PasswordResetCompleteView.as_view(template_name='school/password_reset/password_reset_complete.html'), name='password_reset_complete'),
 
 
-# --- PASSWORD RESET PATHS ---
-    path('password-reset/',
-         auth_views.PasswordResetView.as_view(template_name='school/password_reset/password_reset.html'),
-         name='password_reset'),
-
-    path('password-reset/done/',
-         auth_views.PasswordResetDoneView.as_view(template_name='school/password_reset/password_reset_done.html'),
-         name='password_reset_done'),
-
-    path('password-reset-confirm/<uidb64>/<token>/',
-         auth_views.PasswordResetConfirmView.as_view(template_name='school/password_reset/password_reset_confirm.html'),
-         name='password_reset_confirm'),
-
-    path('password-reset-complete/',
-         auth_views.PasswordResetCompleteView.as_view(template_name='school/password_reset/password_reset_complete.html'),
-         name='password_reset_complete'),
-
-# all logout
-# student logout
-    path('logout/', LogoutView.as_view(next_page='studentlogin'), name='logout'),
-
+    # --- NEW: API ENDPOINTS FOR REACT FRONTEND ---
     path('api/dashboard-stats/', views.dashboard_stats, name='dashboard_stats'),
-
-
-# Parent Approval URLs
-    path('admin-approve-parent', views.admin_approve_parent_view, name='admin-approve-parent'),
-    path('approve-parent/<int:pk>', views.approve_parent_view, name='approve-parent'),
-    path('reject-parent/<int:pk>', views.reject_parent_view, name='reject-parent'),
+    path('api/pending-approvals/', views.pending_approvals_api, name='pending_approvals_api'),
 ]
 
 if settings.DEBUG:

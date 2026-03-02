@@ -1,1 +1,21 @@
 @import "tailwindcss";
+
+.react-calendar {
+  width: 100% !important;
+  max-width: 100% !important;
+  background: white !important;
+  border: none !important;
+  font-family: inherit !important;
+}
+
+/* Adjusts the padding on mobile devices so the days fit nicely */
+.react-calendar__tile {
+  padding: 0.75em 0.5em !important;
+}
+
+/* Fixes the navigation buttons from collapsing too much */
+.react-calendar__navigation button {
+  min-width: 44px;
+  background: none;
+  font-weight: 600;
+}
