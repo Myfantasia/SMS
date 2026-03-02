@@ -1,69 +1,32 @@
-// frontend/src/App.tsx
-import React, { useEffect, useState } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import DashboardLayout from './layouts/DashboardLayouts';
+import AdminDashboard from './pages/admin/AdminDashboard';
+// import TeacherDashboard from './pages/teacher/TeacherDashboard';
 
-// Define the shape of the data we expect from Django
-interface DashboardData {
-  student_count: number;
-  teacher_count: number;
-  message: string;
-}
-
-function App() {
-  const [data, setData] = useState<DashboardData | null>(null);
-
-  useEffect(() => {
-    // Fetch data from the Django API
-    fetch('/api/dashboard-stats/')
-      .then(response => response.json())
-      .then(data => setData(data))
-      .catch(error => console.error("Error fetching data:", error));
-  }, []);
-
+export default function App() {
   return (
-    <div style={{ padding: '40px', fontFamily: 'sans-serif', textAlign: 'center' }}>
-      <h1>School Management System</h1>
-      <h2 style={{ color: '#555' }}>Integration Test</h2>
+    <BrowserRouter>
+      <Routes>
+        {/* Redirect root access to the admin dashboard by default */}
+        <Route path="/" element={<Navigate to="/admin-dashboard" replace />} />
+        
+        {/* Admin Route Group wrapped in the Layout */}
+        <Route path="/admin-dashboard/*" element={<DashboardLayout role="admin" />}>
+          <Route index element={<AdminDashboard />} />
+          {/* Future routes based on your Django URLs will be added here */}
+          {/* <Route path="teachers" element={<AdminTeacherList />} /> */}
+          {/* <Route path="students" element={<AdminStudentList />} /> */}
+          {/* <Route path="parents" element={<AdminParentList />} /> */}
+        </Route>
 
-      {data ? (
-        <div style={{ marginTop: '30px' }}>
+        {/* Teacher Route Group (Ready for future integration) */}
+        {/* <Route path="/teacher-dashboard/*" element={<DashboardLayout role="teacher" />}>
+          <Route index element={<TeacherDashboard />} />
+        </Route> */}
 
-          {/* Stats Container */}
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '20px' }}>
-
-            {/* Student Card */}
-            <div style={{
-              border: '1px solid #ddd', padding: '20px', borderRadius: '10px',
-              boxShadow: '0 4px 8px rgba(0,0,0,0.1)', width: '200px'
-            }}>
-              <h3>Students</h3>
-              <p style={{ fontSize: '32px', fontWeight: 'bold', color: '#2c3e50', margin: 0 }}>
-                {data.student_count}
-              </p>
-            </div>
-
-            {/* Teacher Card */}
-            <div style={{
-              border: '1px solid #ddd', padding: '20px', borderRadius: '10px',
-              boxShadow: '0 4px 8px rgba(0,0,0,0.1)', width: '200px'
-            }}>
-              <h3>Teachers</h3>
-              <p style={{ fontSize: '32px', fontWeight: 'bold', color: '#2c3e50', margin: 0 }}>
-                {data.teacher_count}
-              </p>
-            </div>
-
-          </div>
-
-          <p style={{ marginTop: '30px', color: 'green', fontWeight: 'bold' }}>
-            {data.message}
-          </p>
-
-        </div>
-      ) : (
-        <p>Loading data from Django...</p>
-      )}
-    </div>
+        {/* Catch-all route to prevent 404 errors */}
+        <Route path="*" element={<Navigate to="/admin-dashboard" replace />} />
+      </Routes>
+    </BrowserRouter>
   );
 }
-
-export default App;
