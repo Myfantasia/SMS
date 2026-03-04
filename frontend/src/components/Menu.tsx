@@ -57,16 +57,16 @@ const menuItems = [
   {
     title: "APPROVALS",
     items: [
-      { icon: UserPlus, label: "Pending Teachers", href: "/admin-dashboard/approve-teachers", visible: ["admin"] },
-      { icon: UserPlus, label: "Pending Students", href: "/admin-dashboard/approve-students", visible: ["admin"] },
-      { icon: UserPlus, label: "Pending Parents", href: "/admin-dashboard/approve-parents", visible: ["admin"] },
+      { icon: UserPlus, label: "Pending Teachers", href: "/admin-dashboard/approvals/teachers", visible: ["admin"] },
+      { icon: UserPlus, label: "Pending Students", href: "/admin-dashboard/approvals/students", visible: ["admin"] },
+      { icon: UserPlus, label: "Pending Parents", href: "/admin-dashboard/approvals/parents", visible: ["admin"] },
     ],
   },
   {
     title: "USER",
     items: [
-      { icon: User, label: "Profile", href: "/profile", visible: ["admin", "teacher", "student", "parent"] },
-      { icon: LogOut, label: "Logout", href: "/logout", visible: ["admin", "teacher", "student", "parent"] },
+      { icon: User, label: "Profile", href: "/admin-dashboard/profile", visible: ["admin", "teacher", "student", "parent"] },
+      { icon: LogOut, label: "Logout", href: "http://localhost:8000/logout", visible: ["admin", "teacher", "student", "parent"] },
     ],
   },
 ];
@@ -80,7 +80,7 @@ export default function Menu({ userRole }: MenuProps) {
         // Filter out items that the current user role is not allowed to see
         const visibleItems = section.items.filter(item => item.visible.includes(userRole));
         
-        // If the entire section (like APPROVALS) is empty for a student, don't render the title at all
+        // If the entire section (like APPROVALS) is empty for a user, don't render the title at all
         if (visibleItems.length === 0) return null;
 
         return (
@@ -89,12 +89,34 @@ export default function Menu({ userRole }: MenuProps) {
               {section.title}
             </span>
             {visibleItems.map((item) => {
-              const isActive = location.pathname === item.href;
+              
+              // 1. Force the logout link to use a standard 'a' tag to hit Django backend
+              if (item.label === "Logout") {
+                return (
+                  <a
+                    href={item.href}
+                    key={item.label}
+                    className="flex items-center justify-center lg:justify-start gap-4 py-2 md:px-2 rounded-md transition-colors text-red-500 hover:bg-red-50 hover:text-red-700 font-medium"
+                  >
+                    <item.icon className="w-5 h-5" />
+                    <span className="hidden lg:block">{item.label}</span>
+                  </a>
+                );
+              }
+
+              // 2. UNIVERSAL DASHBOARD ROUTING
+              // This dynamically converts "/admin-dashboard/..." to "/teacher-dashboard/...", "/student-dashboard/...", etc.
+              let dynamicHref = item.href;
+              if (dynamicHref.startsWith("/admin-dashboard")) {
+                dynamicHref = dynamicHref.replace("/admin-dashboard", `/${userRole}-dashboard`);
+              }
+
+              const isActive = location.pathname === dynamicHref;
               const IconComponent = item.icon; 
               
               return (
                 <Link
-                  to={item.href}
+                  to={dynamicHref}
                   key={item.label}
                   className={`flex items-center justify-center lg:justify-start gap-4 py-2 md:px-2 rounded-md transition-colors ${
                     isActive ? "bg-blue-100 text-blue-700 font-semibold" : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"

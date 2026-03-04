@@ -1,0 +1,127 @@
+/* Custom Multi-Select Wrapper */
+.multi-select-container {
+    position: relative;
+    width: 100%;
+    font-family: 'Outfit', sans-serif;
+}
+
+/* The main input box */
+.multi-select-input {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    min-height: 48px;
+    height: auto;
+    padding: 8px 12px;
+    cursor: pointer;
+    background-color: rgba(15, 23, 42, 0.6); /* Matches your dark inputs */
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+.multi-select-input:hover {
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.multi-select-input.active {
+    border-color: #6366f1; /* Your theme purple */
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+    background-color: rgba(15, 23, 42, 0.8);
+}
+
+/* Container for the selected items */
+.chips-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+}
+
+.placeholder-text {
+    color: #94a3b8;
+    font-size: 14px;
+}
+
+/* The individual selected subject tag */
+.subject-chip {
+    background-color: #6366f1;
+    color: #ffffff;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    animation: fadeIn 0.2s ease-in-out;
+}
+
+.subject-chip i {
+    cursor: pointer;
+    font-size: 12px;
+    opacity: 0.8;
+    transition: opacity 0.2s;
+}
+
+.subject-chip i:hover {
+    opacity: 1;
+    color: #ff4757; /* Red on hover to indicate delete */
+}
+
+/* The dropdown menu */
+.multi-select-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin-top: 5px;
+    background-color: rgba(30, 41, 59, 0.95); /* Glassmorphism dark */
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    max-height: 220px;
+    overflow-y: auto;
+    z-index: 1000;
+    display: none;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+}
+
+.multi-select-dropdown.show {
+    display: block;
+}
+
+/* Individual options inside the dropdown */
+.dropdown-option {
+    padding: 10px 15px;
+    color: #e2e8f0;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.dropdown-option:hover {
+    background-color: rgba(99, 102, 241, 0.2);
+}
+
+/* When an option is selected */
+.dropdown-option.selected {
+    background-color: rgba(99, 102, 241, 0.4);
+    font-weight: 500;
+    color: #ffffff;
+    border-left: 3px solid #6366f1;
+}
+
+.toggle-icon {
+    color: #94a3b8;
+    transition: transform 0.3s ease;
+    margin-left: 10px;
+}
+
+.multi-select-input.active .toggle-icon {
+    transform: rotate(180deg);
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+}

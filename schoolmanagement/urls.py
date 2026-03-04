@@ -103,6 +103,22 @@ urlpatterns = [
     # --- NEW: API ENDPOINTS FOR REACT FRONTEND ---
     path('api/dashboard-stats/', views.dashboard_stats, name='dashboard_stats'),
     path('api/pending-approvals/', views.pending_approvals_api, name='pending_approvals_api'),
+
+# API endpoints for React Approvals Integration
+    path('api/pending-users/<str:user_type>/', views.api_get_pending_users, name='api_pending_users'),
+    path('api/process-approval/', views.api_process_approval, name='api_process_approval'),
+
+# API endpoints for React Directories
+    path('api/approved-users/<str:user_type>/', views.api_get_approved_users, name='api_approved_users'),
+    path('api/delete-user/', views.api_delete_user, name='api_delete_user'),
+
+# API endpoint for viewing a single user profile
+    path('api/user/<str:user_type>/<int:user_id>/', views.api_get_single_user, name='api_get_single_user'),
+
+# API endpoint for editing a user profile
+    path('api/user/<str:user_type>/<int:user_id>/edit/', views.api_edit_single_user, name='api_edit_single_user'),
+
+    path('api/my-profile/', views.api_my_profile, name='api_my_profile'),
 ]
 
 if settings.DEBUG:

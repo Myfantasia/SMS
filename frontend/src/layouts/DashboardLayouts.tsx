@@ -13,7 +13,9 @@ export default function DashboardLayout({ role }: LayoutProps) {
 
   // Fetch the logged-in user's name from Django when the layout loads
   useEffect(() => {
-    fetch('http://localhost:8000/api/dashboard-stats/')
+    fetch('http://localhost:8000/api/dashboard-stats/', {
+      credentials: 'include'
+    })
       .then((res) => res.json())
       .then((data) => {
         if (data.admin_name) {

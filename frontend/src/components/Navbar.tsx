@@ -32,7 +32,9 @@ export default function Navbar({ role, userName = "Admin" }: NavbarProps) {
 
   // Fetch the pending approvals when the Navbar loads
   useEffect(() => {
-    fetch('http://localhost:8000/api/pending-approvals/')
+    fetch('http://localhost:8000/api/pending-approvals/', {
+      credentials: 'include'
+    })
       .then((res) => res.json())
       .then((data) => {
         setPendingData(data);
@@ -74,7 +76,7 @@ export default function Navbar({ role, userName = "Admin" }: NavbarProps) {
         
         {/* 2. FUNCTIONAL MESSAGE HUB LINK */}
         <Link 
-          to="/admin-dashboard/messages" 
+          to={`/${role}-dashboard/messages`}
           title="Communication Hub"
           className="bg-slate-100 hover:bg-slate-200 transition-colors rounded-full w-9 h-9 flex items-center justify-center cursor-pointer"
         >
@@ -102,7 +104,7 @@ export default function Navbar({ role, userName = "Admin" }: NavbarProps) {
               
               {/* Teacher Approvals Alert */}
               {pendingData.pending_teachers > 0 && (
-                <Link to="/admin-dashboard/approve-teachers" className="px-4 py-3 border-b border-slate-50 hover:bg-slate-50 transition-colors flex items-start gap-3">
+                <Link to="/admin-dashboard/approvals/teachers" className="px-4 py-3 border-b border-slate-50 hover:bg-slate-50 transition-colors flex items-start gap-3">
                   <div className="bg-blue-100 p-2 rounded-full mt-1">
                     <UserPlus className="w-4 h-4 text-blue-600" />
                   </div>
@@ -115,7 +117,7 @@ export default function Navbar({ role, userName = "Admin" }: NavbarProps) {
 
               {/* Student Approvals Alert */}
               {pendingData.pending_students > 0 && (
-                <Link to="/admin-dashboard/approve-students" className="px-4 py-3 border-b border-slate-50 hover:bg-slate-50 transition-colors flex items-start gap-3">
+                <Link to="/admin-dashboard/approvals/students" className="px-4 py-3 border-b border-slate-50 hover:bg-slate-50 transition-colors flex items-start gap-3">
                   <div className="bg-emerald-100 p-2 rounded-full mt-1">
                     <UserPlus className="w-4 h-4 text-emerald-600" />
                   </div>
@@ -128,7 +130,7 @@ export default function Navbar({ role, userName = "Admin" }: NavbarProps) {
 
               {/* Parent Approvals Alert */}
               {pendingData.pending_parents > 0 && (
-                <Link to="/admin-dashboard/approve-parents" className="px-4 py-3 hover:bg-slate-50 transition-colors flex items-start gap-3">
+                <Link to="/admin-dashboard/approvals/parents" className="px-4 py-3 hover:bg-slate-50 transition-colors flex items-start gap-3">
                   <div className="bg-purple-100 p-2 rounded-full mt-1">
                     <Users className="w-4 h-4 text-purple-600" />
                   </div>
@@ -156,16 +158,22 @@ export default function Navbar({ role, userName = "Admin" }: NavbarProps) {
           <span className="text-[10px] text-slate-500 mt-1 capitalize">{role}</span>
         </div>
 
-        {/* 4. FUNCTIONAL PROFILE DROPDOWN WITH DYNAMIC INITIAL */}
+        {/* 4. FUNCTIONAL PROFILE DROPDOWN WITH DELAY */}
         <div className="group relative flex items-center justify-center">
           
           {/* Dynamic First-Letter Avatar */}
-          <div className="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold cursor-pointer hover:bg-blue-700 transition-colors shadow-sm">
+          <div className="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold cursor-pointer hover:bg-blue-700 transition-colors shadow-sm relative z-10">
             {firstLetter}
           </div>
           
-          <div className="absolute top-10 right-0 w-48 bg-white border border-slate-200 shadow-xl rounded-xl hidden group-hover:flex flex-col z-50 py-2">
-            <Link to="/admin-dashboard/profile" className="flex items-center gap-3 px-4 py-2 hover:bg-slate-50 text-slate-700 transition-colors text-sm font-medium">
+          {/* Transparent bridge so the mouse doesn't lose hover state */}
+          <div className="absolute top-9 right-0 w-48 h-4 bg-transparent z-0"></div>
+
+          {/* Smooth Fade-in Dropdown */}
+          <div className="absolute top-11 right-0 w-48 bg-white border border-slate-200 shadow-xl rounded-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 delay-100 flex flex-col z-50 py-2">
+            
+            {/* Dynamic Link based on Role */}
+            <Link to={`/${role}-dashboard/profile`} className="flex items-center gap-3 px-4 py-2 hover:bg-slate-50 text-slate-700 transition-colors text-sm font-medium">
               <User className="w-4 h-4 text-slate-400" />
               My Profile
             </Link>

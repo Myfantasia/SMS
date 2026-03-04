@@ -1,7 +1,3 @@
-"""
-Django settings for schoolmanagement project.
-"""
-
 import os
 import firebase_admin
 from firebase_admin import credentials
@@ -46,6 +42,12 @@ MIDDLEWARE = [
 ]
 
 CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+]
+
+CORS_ALLOW_CREDENTIALS = True
+
+CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
 ]
 

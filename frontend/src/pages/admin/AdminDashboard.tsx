@@ -63,7 +63,9 @@ export default function AdminDashboard() {
   ];
 
   useEffect(() => {
-    fetch('http://localhost:8000/api/dashboard-stats/') 
+    fetch('http://localhost:8000/api/dashboard-stats/', {
+      credentials: 'include'
+    }) 
       .then((res) => res.json())
       .then((data) => {
         setMetrics(data);
@@ -105,7 +107,7 @@ export default function AdminDashboard() {
               Welcome back, {userName}! 👋
             </h2>
             <p className="text-blue-100 font-medium text-sm md:text-base">
-              {metrics?.message || "Here is what's happening in your institution today."}
+              Here is what's happening in your institution today.
             </p>
           </div>
           <div className="hidden md:block relative z-10">
