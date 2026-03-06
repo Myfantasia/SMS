@@ -6,6 +6,7 @@ import UserDirectory from './pages/admin/UserDirectory';
 import ViewProfile from './pages/admin/ViewProfile';
 import EditProfile from './pages/admin/EditProfile';
 import AdminProfile from './pages/admin/AdminProfile';
+import SearchResults from './components/SearchResults';
 // import TeacherDashboard from './pages/teacher/TeacherDashboard';
 
 export default function App() {
@@ -18,6 +19,8 @@ export default function App() {
         {/* Admin Route Group wrapped in the Layout */}
         <Route path="/admin-dashboard/*" element={<DashboardLayout role="admin" />}>
           <Route index element={<AdminDashboard />} />
+
+          <Route path="search" element={<SearchResults />} />
 
           {/* Existing Approvals Route */}
           <Route path="approvals/:userType" element={<PendingApprovals />} />
