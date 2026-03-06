@@ -5,13 +5,14 @@ export default function AdminProfile() {
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   
+  // Added currentPassword state
+  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
 
   useEffect(() => {
-    // Fetch logged in user details using session cookies
     fetch('http://localhost:8000/api/my-profile/', { credentials: 'include' })
       .then(res => res.json())
       .then(data => {
@@ -29,7 +30,7 @@ export default function AdminProfile() {
     e.preventDefault();
     
     if (newPassword !== confirmPassword) {
-      setMessage({ type: 'error', text: 'Passwords do not match!' });
+      setMessage({ type: 'error', text: 'New passwords do not match!' });
       return;
     }
 
@@ -41,13 +42,19 @@ export default function AdminProfile() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ new_password: newPassword })
+        // Send BOTH the current password and the new password to Django
+        body: JSON.stringify({ 
+          current_password: currentPassword, 
+          new_password: newPassword 
+        })
       });
       const data = await response.json();
       
       if (data.status === 'success') {
         alert('Password successfully updated! You can now use it on your next login.');
         setMessage({ type: 'success', text: 'Password successfully updated! You can now use it on your next login.' });
+        // Clear all fields on success
+        setCurrentPassword('');
         setNewPassword('');
         setConfirmPassword('');
       } else {
@@ -62,7 +69,6 @@ export default function AdminProfile() {
   if (loading) return <div className="p-6 text-gray-500 animate-pulse">Loading your profile...</div>;
   if (!profile) return <div className="p-6 text-red-500">Failed to load profile data. Make sure you are logged in.</div>;
 
-  // SAFE FALLBACK: If first_name is empty, use username, otherwise use 'U'
   const displayInitial = profile.first_name ? profile.first_name.charAt(0) : (profile.username ? profile.username.charAt(0) : 'U');
 
   return (
@@ -112,6 +118,25 @@ export default function AdminProfile() {
           </div>
 
           <form onSubmit={handlePasswordChange} className="space-y-5 max-w-md">
+            
+            {/* NEW: Current Password Field */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <KeyRound className="w-4 h-4 text-gray-400" />
+                </div>
+                <input 
+                  type="password" 
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  className="pl-10 w-full p-2.5 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" 
+                  placeholder="Enter current password"
+                  required
+                />
+              </div>
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
               <div className="relative">

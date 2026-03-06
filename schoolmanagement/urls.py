@@ -119,6 +119,8 @@ urlpatterns = [
     path('api/user/<str:user_type>/<int:user_id>/edit/', views.api_edit_single_user, name='api_edit_single_user'),
 
     path('api/my-profile/', views.api_my_profile, name='api_my_profile'),
+
+    path('api/search/', views.api_global_search, name='api_global_search'),
 ]
 
 if settings.DEBUG:

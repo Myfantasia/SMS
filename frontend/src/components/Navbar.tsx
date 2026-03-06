@@ -48,7 +48,7 @@ export default function Navbar({ role, userName = "Admin" }: NavbarProps) {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
-      navigate(`/admin-dashboard/search?q=${encodeURIComponent(searchQuery)}`);
+      navigate(`/${role}-dashboard/search?q=${encodeURIComponent(searchQuery)}`);
       setSearchQuery(""); 
     }
   };
