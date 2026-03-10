@@ -84,18 +84,25 @@ export default function Navbar({ role, userName = "Admin" }: NavbarProps) {
         </Link>
 
         {/* 3. FUNCTIONAL NOTIFICATION DROPDOWN */}
-        <div className="group relative bg-slate-100 hover:bg-slate-200 transition-colors rounded-full w-9 h-9 flex items-center justify-center cursor-pointer">
-          <Bell className="w-4 h-4 text-slate-600" />
+        <div className="group relative flex items-center justify-center">
           
-          {/* Notification Badge - Only shows if there is actually something pending! */}
-          {pendingData.total_pending > 0 && (
-            <div className="absolute -top-1 -right-1 w-5 h-5 flex items-center justify-center bg-red-500 text-white rounded-full text-[10px] font-bold border-2 border-white shadow-sm">
-              {pendingData.total_pending}
-            </div>
-          )}
+          {/* Bell Icon Container */}
+          <div className="bg-slate-100 hover:bg-slate-200 transition-colors rounded-full w-9 h-9 flex items-center justify-center cursor-pointer relative z-10">
+            <Bell className="w-4 h-4 text-slate-600" />
+            
+            {/* Notification Badge - Now opaque and pulsing */}
+            {pendingData.total_pending > 0 && (
+              <div className="absolute -top-1 -right-1 w-5 h-5 flex items-center justify-center bg-red-500 text-white rounded-full text-[10px] font-bold border-2 border-white shadow-sm animate-pulse opacity-100">
+                {pendingData.total_pending}
+              </div>
+            )}
+          </div>
 
-          {/* Notification Alert Panel */}
-          <div className="absolute top-10 right-0 w-72 bg-white border border-slate-200 shadow-xl rounded-xl hidden group-hover:flex flex-col z-50 overflow-hidden">
+          {/* Invisible hover bridge to prevent the menu from disappearing */}
+          <div className="absolute top-9 right-0 w-24 h-4 bg-transparent z-0"></div>
+
+          {/* Notification Alert Panel - Smooth Fade-In */}
+          <div className="absolute top-12 right-0 w-72 bg-white border border-slate-200 shadow-xl rounded-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 flex flex-col z-50 overflow-hidden">
             <div className="bg-slate-50 px-4 py-3 border-b border-slate-100 flex justify-between items-center">
               <span className="font-bold text-slate-700 text-sm">Action Required</span>
             </div>

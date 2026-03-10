@@ -121,6 +121,22 @@ urlpatterns = [
     path('api/my-profile/', views.api_my_profile, name='api_my_profile'),
 
     path('api/search/', views.api_global_search, name='api_global_search'),
+
+    path('api/academic-hub/', views.api_academic_hub_data, name='api_academic_hub'),
+
+    path('api/academic-hub/add-subject/', views.api_add_subject, name='api_add_subject'),
+    path('api/academic-hub/add-grade/', views.api_add_grade_with_streams, name='api_add_grade'),
+
+# NEW ROUTES FOR SPECIFIC OPERATIONS
+    path('api/manage-classes/', views.api_manage_classes, name='api_manage_classes'),
+    path('api/manage-subjects/', views.api_manage_subjects, name='api_manage_subjects'),
+
+    # ... inside your urlpatterns list ...
+    path('api/academic-hub/edit-stream/<int:pk>/', views.api_edit_stream, name='api_edit_stream'),
+    path('api/academic-hub/delete-stream/<int:pk>/', views.api_delete_stream, name='api_delete_stream'),
+
+    path('api/academic-hub/edit-subject/<int:pk>/', views.api_edit_subject, name='api_edit_subject'),
+    path('api/academic-hub/delete-subject/<int:pk>/', views.api_delete_subject, name='api_delete_subject'),
 ]
 
 if settings.DEBUG:

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Eye, Edit, Trash2, AlertTriangle, X } from 'lucide-react'; // Added AlertTriangle and X
+import { toast } from 'react-hot-toast';
 
 interface DirectoryUser {
   id: number;
@@ -64,15 +65,17 @@ export default function UserDirectoryTable({ userType }: UserDirectoryTableProps
       const data = await response.json();
       
       if (data.status === 'success') {
+        toast.success('User permanently deleted.');
         // Remove from UI
         setUsers(users.filter(user => user.id !== userToDelete.id));
         // Close modal
         setIsModalOpen(false);
       } else {
-        alert("Deletion failed: " + data.message);
+        toast.error("Deletion failed: " + data.message);
       }
     } catch (error) {
       console.error("Failed to delete user", error);
+      toast.error("An error occurred while deleting the user.");
     }
     
     setIsDeleting(false);
