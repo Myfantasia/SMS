@@ -60,30 +60,18 @@
                 </div>
 
                 <div class="form-row">
-                   <div class="form-group col-half">
-    <label class="field-label">Current Grade / Stream</label>
-    <select name="cl" class="form-control" required>
-        <option value="" disabled selected>Select Class Stream</option>
+                    <div class="form-group col-half">
+                        <label class="field-label">Current Grade / Stream</label>
 
-        <optgroup label="Junior High School">
-            <option value="Grade 7A">Grade 7A</option>
-            <option value="Grade 7B">Grade 7B</option>
-            <option value="Grade 8A">Grade 8A</option>
-            <option value="Grade 8B">Grade 8B</option>
-            <option value="Grade 9A">Grade 9A</option>
-            <option value="Grade 9B">Grade 9B</option>
-        </optgroup>
+                        <select name="cl" class="form-control" required>
+                            <option value="" disabled selected>Select Class / Stream</option>
 
-        <optgroup label="Senior High School">
-            <option value="Grade 10A">Grade 10A</option>
-            <option value="Grade 10B">Grade 10B</option>
-            <option value="Grade 11A">Grade 11A</option>
-            <option value="Grade 11B">Grade 11B</option>
-            <option value="Grade 12A">Grade 12A</option>
-            <option value="Grade 12B">Grade 12B</option>
-        </optgroup>
-    </select>
-</div>
+                            {% for stream in form2.cl.field.queryset %}
+                                <option value="{{ stream.id }}">{{ stream }}</option>
+                            {% endfor %}
+
+                        </select>
+                        </div>
                     <div class="form-group col-half">
                         <label class="field-label">Mobile <span>(Optional)</span></label>
                         <input type="text" name="mobile" class="form-control" placeholder="e.g. 0712 345 678">
@@ -91,37 +79,37 @@
                 </div>
 
                 <div class="form-row">
-    <div class="form-group col-half">
-        <label class="field-label">Home Address</label>
-        <input type="text" name="address" class="form-control" placeholder="e.g. Plot 45, Buruburu" required>
-    </div>
+                    <div class="form-group col-half">
+                        <label class="field-label">Home Address</label>
+                        <input type="text" name="address" class="form-control" placeholder="e.g. Plot 45, Buruburu" required>
+                    </div>
 
-    <div class="form-group col-half">
-            <label class="field-label">Official School Email</label>
-            <div class="email-info-box">
-                <i class="fas fa-magic"></i>
-                <span>Assigning <strong>@student.myfantasia.com</strong> automatically.</span>
-            </div>
-        </div>
-</div>
+                    <div class="form-group col-half">
+                        <label class="field-label">Official School Email</label>
+                        <div class="email-info-box">
+                            <i class="fas fa-magic"></i>
+                            <span>Assigning <strong>@student.myfantasia.com</strong> automatically.</span>
+                        </div>
+                    </div>
+                </div>
 
                 <div class="form-group">
-    <label class="field-label">Student Photo (Passport Size)</label>
+                    <label class="field-label">Student Photo (Passport Size)</label>
 
-    <div class="file-upload-wrapper">
-        <input type="file" name="profile_pic" class="form-control file-input-styled" accept="image/png, image/jpeg, image/jpg">
+                    <div class="file-upload-wrapper">
+                        <input type="file" name="profile_pic" class="form-control file-input-styled" accept="image/png, image/jpeg, image/jpg">
 
-        <div class="file-warning">
-            <i class="fas fa-exclamation-triangle"></i>
-            <span>Must be a clear JPG/PNG image. <strong>Max size: 3MB</strong>.</span>
-        </div>
-    </div>
-</div>
+                        <div class="file-warning">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <span>Must be a clear JPG/PNG image. <strong>Max size: 3MB</strong>.</span>
+                        </div>
+                    </div>
+                </div>
 
                 <button type="submit" class="btn-login">
-    <span class="btn-text">Submit Application</span>
-    <i class="fas fa-circle-notch fa-spin btn-spinner"></i>
-</button>
+                    <span class="btn-text">Submit Application</span>
+                    <i class="fas fa-circle-notch fa-spin btn-spinner"></i>
+                </button>
                 <div class="signup-link"><p>Already admitted? <a href="/studentlogin">Access Portal</a></p></div>
             </form>
         </div>

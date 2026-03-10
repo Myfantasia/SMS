@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Save } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 export default function EditProfile() {
   const { userType, id } = useParams();
@@ -70,14 +71,14 @@ export default function EditProfile() {
       const data = await response.json();
       
       if (data.status === 'success') {
-        alert('Profile updated successfully!');
+        toast.success('Profile updated successfully!');
         navigate(`/admin-dashboard/${userType}`); 
       } else {
-        alert('Failed to update: ' + data.message);
+        toast.error('Failed to update profile: ' + data.message);
       }
     } catch (error) {
       console.error('Error saving profile', error);
-      alert('An error occurred while saving.');
+      toast.error('An error occurred while saving the profile.');
     }
     setSaving(false);
   };

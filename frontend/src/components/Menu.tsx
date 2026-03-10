@@ -10,6 +10,7 @@ import {
   UserPlus, 
   User, 
   LogOut,
+  Library,       // <-- NEW: For the Academics Hub
   Layers,        // For Classes
   BookOpen,      // For Subjects
   Presentation,  // For Lessons
@@ -36,6 +37,7 @@ const menuItems = [
       { icon: UserSquare2, label: "Parents", href: "/admin-dashboard/parents", visible: ["admin", "teacher"] },
       
       // Academic Structure (Teachers & Admins build this)
+      { icon: Library, label: "Academics", href: "/admin-dashboard/academics", visible: ["admin", "teacher"] }, // <-- UPDATED ICON
       { icon: Layers, label: "Classes", href: "/admin-dashboard/classes", visible: ["admin", "teacher"] },
       { icon: BookOpen, label: "Subjects", href: "/admin-dashboard/subjects", visible: ["admin", "teacher", "student"] },
       { icon: Presentation, label: "Lessons", href: "/admin-dashboard/lessons", visible: ["admin", "teacher", "student"] },
@@ -105,7 +107,6 @@ export default function Menu({ userRole }: MenuProps) {
               }
 
               // 2. UNIVERSAL DASHBOARD ROUTING
-              // This dynamically converts "/admin-dashboard/..." to "/teacher-dashboard/...", "/student-dashboard/...", etc.
               let dynamicHref = item.href;
               if (dynamicHref.startsWith("/admin-dashboard")) {
                 dynamicHref = dynamicHref.replace("/admin-dashboard", `/${userRole}-dashboard`);

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
 
 // Updated to include the new backend fields
 interface PendingUser {
@@ -27,7 +28,9 @@ export default function ApprovalTable({ userType }: ApprovalTableProps) {
     const fetchPendingUsers = async () => {
       setLoading(true);
       try {
-        const response = await fetch(`http://127.0.0.1:8000/api/pending-users/${userType}/`);
+        const response = await fetch(`http://127.0.0.1:8000/api/pending-users/${userType}/`, {
+          credentials: 'include'
+        });
         const data = await response.json();
         if (data.status === 'success') {
           setUsers(data.data);
@@ -51,10 +54,11 @@ export default function ApprovalTable({ userType }: ApprovalTableProps) {
       const data = await response.json();
       
       if (data.status === 'success') {
+        toast.success(`User successfully ${action}ed.`);
         // Instantly remove the user from the UI without reloading
         setUsers(users.filter(user => user.id !== id));
       } else {
-        alert("Action failed: " + data.message);
+        toast.error("Action failed: " + data.message);
       }
     } catch (error) {
       console.error(`Failed to ${action} user`, error);
