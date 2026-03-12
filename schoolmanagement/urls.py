@@ -6,6 +6,7 @@ from django.contrib.auth.views import LoginView, LogoutView
 from django.contrib.auth import views as auth_views
 
 from school import views
+from school import views_timetable
 
 urlpatterns = [
     path('api/firebase-login/', views.firebase_login_bridge, name='firebase-login'),
@@ -137,6 +138,22 @@ urlpatterns = [
 
     path('api/academic-hub/edit-subject/<int:pk>/', views.api_edit_subject, name='api_edit_subject'),
     path('api/academic-hub/delete-subject/<int:pk>/', views.api_delete_subject, name='api_delete_subject'),
+
+# ==========================================
+    # TIMETABLE ENGINE API ROUTES
+    # ==========================================
+    path('api/timetable/grid/', views_timetable.api_get_global_grid, name='api_get_global_grid'),
+    path('api/timetable/buckets/<int:stream_id>/<int:timetable_id>/', views_timetable.api_get_dynamic_buckets, name='api_get_dynamic_buckets'),
+
+    path('api/timetable/save-lesson/', views_timetable.api_save_lesson, name='api_save_lesson'),
+    path('api/timetable/remove-lesson/<int:allocation_id>/', views_timetable.api_remove_lesson, name='api_remove_lesson'),
+    path('api/timetable/class-lessons/<int:stream_id>/<int:timetable_id>/', views_timetable.api_get_class_lessons),
+
+    path('api/timetable/manage-containers/', views_timetable.api_manage_timetables, name='api_manage_timetables'),
+    path('api/timetable/manage-slots/', views_timetable.api_manage_timeslots, name='api_manage_timeslots'),
+    path('api/timetable/manage-quotas/', views_timetable.api_manage_quotas, name='api_manage_quotas'),
+
+    path('api/timetable/teachers-by-subject/<int:subject_id>/', views_timetable.api_get_teachers_by_subject, name='teachers_by_subject'),
 ]
 
 if settings.DEBUG:

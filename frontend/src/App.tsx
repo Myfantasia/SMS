@@ -15,6 +15,7 @@ import ViewSubject from './components/action routes/ViewSubject';
 import ViewClass from './components/action routes/ViewClass';
 import EditSubject from './components/action routes/EditSubject';
 import EditClass from './components/action routes/EditClass';
+import TimetableManager from './components/timetable/TimetableManager';
 // import TeacherDashboard from './pages/teacher/TeacherDashboard';
 
 export default function App() {
@@ -72,6 +73,9 @@ export default function App() {
 
           <Route path="classes/edit/:id" element={<EditClass />} />
           <Route path="subjects/edit/:id" element={<EditSubject />} />
+
+          {/* ADD THE TIMETABLE ROUTE */}
+          <Route path="timetable" element={<TimetableManager />} />
 
           
         </Route>
