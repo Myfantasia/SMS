@@ -1,3 +1,4 @@
+// ApprovalTable.tsx
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 
@@ -80,7 +81,6 @@ export default function ApprovalTable({ userType }: ApprovalTableProps) {
               <tr className="bg-gray-50 text-gray-700 uppercase text-sm">
                 <th className="py-3 px-4 border-b">Name</th>
                 <th className="py-3 px-4 border-b">Username / ID</th>
-                {/* Always show email now */}
                 <th className="py-3 px-4 border-b">Email</th>
                 
                 {/* Dynamically show the 4th column based on role */}
@@ -103,19 +103,22 @@ export default function ApprovalTable({ userType }: ApprovalTableProps) {
                   {userType === 'teachers' && <td className="py-3 px-4 border-b text-gray-600">{user.subjects || user.extra_info}</td>}
                   {userType === 'parents' && <td className="py-3 px-4 border-b text-gray-600">{user.children || user.extra_info}</td>}
 
-                  <td className="py-3 px-4 border-b text-right space-x-2">
-                    <button 
-                      onClick={() => handleAction(user.id, 'approve')}
-                      className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded text-sm font-medium transition"
-                    >
-                      Approve
-                    </button>
-                    <button 
-                      onClick={() => handleAction(user.id, 'reject')}
-                      className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded text-sm font-medium transition"
-                    >
-                      Reject
-                    </button>
+                  {/* FIX: Replaced text-right and space-x-2 with a Flexbox container */}
+                  <td className="py-3 px-4 border-b">
+                    <div className="flex items-center justify-end gap-2">
+                      <button 
+                        onClick={() => handleAction(user.id, 'approve')}
+                        className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded text-sm font-medium transition whitespace-nowrap"
+                      >
+                        Approve
+                      </button>
+                      <button 
+                        onClick={() => handleAction(user.id, 'reject')}
+                        className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded text-sm font-medium transition whitespace-nowrap"
+                      >
+                        Reject
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

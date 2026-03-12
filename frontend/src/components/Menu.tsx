@@ -13,11 +13,11 @@ import {
   Library,       // <-- NEW: For the Academics Hub
   Layers,        // For Classes
   BookOpen,      // For Subjects
-  Presentation,  // For Lessons
   FileSignature, // For Exams
   FileEdit,      // For Assignments
   Award,         // For Results
-  Calendar       // For Events
+  Calendar,       // For Events
+  CalendarDays
 } from 'lucide-react';
 
 interface MenuProps {
@@ -40,7 +40,7 @@ const menuItems = [
       { icon: Library, label: "Academics", href: "/admin-dashboard/academics", visible: ["admin", "teacher"] }, // <-- UPDATED ICON
       { icon: Layers, label: "Classes", href: "/admin-dashboard/classes", visible: ["admin", "teacher"] },
       { icon: BookOpen, label: "Subjects", href: "/admin-dashboard/subjects", visible: ["admin", "teacher", "student"] },
-      { icon: Presentation, label: "Lessons", href: "/admin-dashboard/lessons", visible: ["admin", "teacher", "student"] },
+      { icon: CalendarDays, label: "Timetable", href: "/admin-dashboard/timetable", visible: ["admin", "teacher", "student"] },
       
       // Assessment & Evaluation (Students take them, Parents view them)
       { icon: FileSignature, label: "Exams", href: "/admin-dashboard/exams", visible: ["admin", "teacher", "student"] },
