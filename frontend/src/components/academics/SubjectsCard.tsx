@@ -31,6 +31,7 @@ export default function SubjectsCard({ subjects, onRefresh }: SubjectsCardProps)
       case 'Languages': return 'bg-indigo-100 text-indigo-700 border-indigo-200';
       case 'Mathematics': return 'bg-rose-100 text-rose-700 border-rose-200';
       case 'Humanities': return 'bg-amber-100 text-amber-700 border-amber-200';
+      case 'None': return 'bg-slate-100 text-slate-600 border-slate-300';
       default: return 'bg-slate-100 text-slate-700 border-slate-200';
     }
   };
@@ -229,11 +230,12 @@ export default function SubjectsCard({ subjects, onRefresh }: SubjectsCardProps)
                 <div className="space-y-2">
                   <label htmlFor="department-select" className="text-sm font-medium text-slate-700">Department</label>
                   <select id="department-select" value={editDept} onChange={(e) => setEditDept(e.target.value)} className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-emerald-500 outline-none">
-                    <option>Languages</option>
-                    <option>Mathematics</option>
-                    <option>Sciences</option>
-                    <option>Humanities</option>
-                    <option>Technical</option>
+                    <option value="None">None / Unassigned</option>
+                    <option value="Languages">Languages</option>
+                    <option value="Mathematics">Mathematics</option>
+                    <option value="Sciences">Sciences</option>
+                    <option value="Humanities">Humanities</option>
+                    <option value="Technical">Technical</option>
                   </select>
                 </div>
                 <button type="button" onClick={handleEditSubmit} disabled={isSubmitting} className="w-full bg-emerald-600 text-white font-medium py-2 rounded-md hover:bg-emerald-700 mt-4 disabled:bg-emerald-400">

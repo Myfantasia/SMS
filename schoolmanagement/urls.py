@@ -8,7 +8,23 @@ from django.contrib.auth import views as auth_views
 from school import views
 from school import views_timetable
 
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from school.attendance_views import SubmitBatchAttendanceView, EventViewSet, NoticeViewSet, NotificationViewSet
+
+
+router = DefaultRouter()
+router.register(r'events', EventViewSet, basename='event')
+router.register(r'notices', NoticeViewSet, basename='notice')
+router.register(r'notifications', NotificationViewSet, basename='notification')
+
 urlpatterns = [
+
+    path('api/core/', include(router.urls)),
+
+    path('attendance/submit/', SubmitBatchAttendanceView.as_view(), name='submit_batch_attendance'),
+
+
     path('api/firebase-login/', views.firebase_login_bridge, name='firebase-login'),
     path('api/firebase-admin-signup/', views.firebase_admin_signup_bridge, name='firebase-admin-signup'),
 
@@ -154,7 +170,17 @@ urlpatterns = [
     path('api/timetable/manage-quotas/', views_timetable.api_manage_quotas, name='api_manage_quotas'),
 
     path('api/timetable/teachers-by-subject/<int:subject_id>/', views_timetable.api_get_teachers_by_subject, name='teachers_by_subject'),
-]
 
+# --- NEW: AUTO GENERATE ROUTE ---
+    path('api/timetable/auto-generate/<int:timetable_id>/', views_timetable.api_auto_generate_timetable, name='api_auto_generate_timetable'),
+
+    path('api/timetable/auto-generate-quotas/', views_timetable.api_auto_generate_quotas, name='api_auto_generate_quotas'),
+
+
+# --- NEW: RESET ROUTES ---
+    path('api/timetable/clear-grid/<int:timetable_id>/', views_timetable.api_clear_grid, name='api_clear_grid'),
+    path('api/timetable/clear-quotas/', views_timetable.api_clear_quotas, name='api_clear_quotas'),
+
+]
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

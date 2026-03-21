@@ -10,7 +10,7 @@ interface AddSubjectModalProps {
 
 export default function AddSubjectModal({ isOpen, onClose, onSuccess }: AddSubjectModalProps) {
   const [formData, setFormData] = useState({
-    code: '', name: '', department: 'Languages', is_core: true
+    code: '', name: '', department: 'None', is_core: true
   });
   const [loading, setLoading] = useState(false);
 
@@ -68,7 +68,8 @@ export default function AddSubjectModal({ isOpen, onClose, onSuccess }: AddSubje
             <div className="col-span-1">
               <label htmlFor="department" className="block text-slate-600 font-medium mb-1">Department</label>
               <select id="department" className="w-full border border-slate-200 rounded-md p-2 outline-none focus:ring-2 focus:ring-emerald-500"
-                onChange={(e) => setFormData({...formData, department: e.target.value})}>
+                onChange={(e) => setFormData({...formData, department: e.target.value})} defaultValue="None">
+                <option value="None">None / Unassigned</option>
                 <option value="Languages">Languages</option>
                 <option value="Mathematics">Mathematics</option>
                 <option value="Sciences">Sciences</option>
