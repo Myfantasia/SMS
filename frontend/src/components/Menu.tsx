@@ -68,7 +68,7 @@ const menuItems = [
     title: "USER",
     items: [
       { icon: User, label: "Profile", href: "/admin-dashboard/profile", visible: ["admin", "teacher", "student", "parent"] },
-      { icon: LogOut, label: "Logout", href: "http://localhost:8000/logout", visible: ["admin", "teacher", "student", "parent"] },
+      { icon: LogOut, label: "Logout", href: "http://localhost:8000/logout/", visible: ["admin", "teacher", "student", "parent"] },
     ],
   },
 ];

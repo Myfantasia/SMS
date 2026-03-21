@@ -16,6 +16,10 @@ import ViewClass from './components/action routes/ViewClass';
 import EditSubject from './components/action routes/EditSubject';
 import EditClass from './components/action routes/EditClass';
 import TimetableManager from './components/timetable/TimetableManager';
+import AttendanceHub from './components/attendaces/AttendanceHub';
+import EventsHub from './components/events/EventsHub';
+import NoticesHub from './components/notices/NoticesHub';
+
 // import TeacherDashboard from './pages/teacher/TeacherDashboard';
 
 export default function App() {
@@ -77,7 +81,12 @@ export default function App() {
           {/* ADD THE TIMETABLE ROUTE */}
           <Route path="timetable" element={<TimetableManager />} />
 
-          
+          {/* --- ADD THE ATTENDANCE ROUTE HERE --- */}
+          <Route path="attendance" element={<AttendanceHub  role='admin'/>} />
+
+          <Route path="events" element={<EventsHub role="admin" />} />
+
+          <Route path="notices" element={<NoticesHub role="admin" />} />
         </Route>
 
         {/* Teacher Route Group (Ready for future integration) */}
