@@ -1,0 +1,284 @@
+import React, { useState, useEffect } from 'react';
+import type { FormEvent, ChangeEvent } from 'react'; 
+import { Save, AlertCircle, CheckCircle2 } from 'lucide-react';
+import toast from 'react-hot-toast';
+import axios from 'axios'; // <-- Added Axios
+
+// --- Interfaces mapping to our Django Serializers ---
+interface StudentInfo {
+  id: string;
+  roll: string;
+  student_name: string;
+}
+
+interface MarkEntry {
+  marks: string; 
+  remarks: string;
+}
+
+interface SelectionOption {
+  id: string | number;
+  name: string;
+}
+
+const RapidMarksEntry: React.FC = () => {
+  // Selection State
+  const [selectedClass, setSelectedClass] = useState('');
+  const [selectedSubject, setSelectedSubject] = useState('');
+  const [selectedExam, setSelectedExam] = useState('');
+
+  // Dropdown Data State (Fetched from Backend)
+  const [availableClasses, setAvailableClasses] = useState<SelectionOption[]>([]);
+  const [availableSubjects, setAvailableSubjects] = useState<SelectionOption[]>([]);
+  const [availableExams, setAvailableExams] = useState<SelectionOption[]>([]);
+
+  // Data State
+  const [students, setStudents] = useState<StudentInfo[]>([]);
+  const [marksData, setMarksData] = useState<Record<string, MarkEntry>>({});
+  const [isSaving, setIsSaving] = useState(false);
+
+  // --- 1. FETCH DROPDOWN SELECTIONS ON MOUNT ---
+  useEffect(() => {
+    const fetchSelectionData = async () => {
+      try {
+        const response = await axios.get('http://localhost:8000/api/exams/selection-data/');
+        setAvailableClasses(response.data.classes);
+        setAvailableSubjects(response.data.subjects);
+        setAvailableExams(response.data.exams);
+      } catch (error) {
+        console.error("Error fetching selection data:", error);
+        toast.error("Failed to load dropdown data.");
+      }
+    };
+    fetchSelectionData();
+  }, []);
+
+  // --- 2. FETCH ROSTER & EXISTING MARKS ---
+  useEffect(() => {
+    const fetchRosterAndMarks = async () => {
+      // Only run the fetch if ALL three dropdowns have a value selected
+      if (selectedClass && selectedSubject && selectedExam) {
+        try {
+          const response = await axios.get('http://localhost:8000/api/exams/rapid-entry/', {
+            params: {
+              class_id: selectedClass,
+              subject_id: selectedSubject,
+              exam_id: selectedExam
+            }
+          });
+
+          const fetchedStudents: StudentInfo[] = response.data.students;
+          const existingMarks = response.data.existing_marks; // Marks saved previously
+
+          setStudents(fetchedStudents);
+
+          // Initialize the input state dictionary and pre-fill any existing drafts
+          const initialMarks: Record<string, MarkEntry> = {};
+          fetchedStudents.forEach(student => {
+            // Check if this student already has a mark saved in the database
+            const existing = existingMarks.find((em: any) => em.student === student.id);
+            
+            initialMarks[student.id] = { 
+              marks: existing ? existing.marks_obtained : '', 
+              remarks: existing ? (existing.teacher_remarks || '') : '' 
+            };
+          });
+          
+          setMarksData(initialMarks);
+
+        } catch (error) {
+          console.error("Error fetching roster:", error);
+          toast.error("Failed to load student roster.");
+          setStudents([]);
+          setMarksData({});
+        }
+      }
+    };
+
+    fetchRosterAndMarks();
+  }, [selectedClass, selectedSubject, selectedExam]);
+
+  // --- HANDLERS ---
+
+  const handleDropdownChange = (
+    setter: React.Dispatch<React.SetStateAction<string>>, 
+    e: ChangeEvent<HTMLSelectElement>
+  ) => {
+    setter(e.target.value);
+    // Immediately clear the grid when a selection changes so old data isn't displayed
+    // while waiting for the new data to fetch (or if they select an empty option).
+    setStudents([]);
+    setMarksData({});
+  };
+
+  const handleMarkChange = (studentId: string, value: string) => {
+    setMarksData(prev => ({
+      ...prev,
+      [studentId]: { ...prev[studentId], marks: value }
+    }));
+  };
+
+  const handleRemarkChange = (studentId: string, value: string) => {
+    setMarksData(prev => ({
+      ...prev,
+      [studentId]: { ...prev[studentId], remarks: value }
+    }));
+  };
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setIsSaving(true);
+
+    const payload = {
+      exam_id: selectedExam,
+      subject_id: selectedSubject,
+      results: Object.entries(marksData)
+        .filter(([ _, data]) => data.marks !== '') // Only send rows with actual marks
+        .map(([studentId, data]) => ({
+          student_id: studentId,
+          marks: data.marks,
+          remarks: data.remarks
+        }))
+    };
+
+    try {
+      // Post the data to Django
+      await axios.post('http://localhost:8000/api/exams/rapid-entry/', payload);
+      toast.success('Results saved successfully as Draft.');
+    } catch (error) {
+      console.error("Error saving marks:", error);
+      toast.error('Failed to save results. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6 animate-in fade-in duration-500">
+      
+      {/* Configuration Bar */}
+      <div className="bg-slate-50 border border-slate-200 p-5 rounded-lg grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Class Stream</label>
+          <select 
+            className="w-full p-2.5 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+            value={selectedClass}
+            onChange={(e) => handleDropdownChange(setSelectedClass, e)}
+          >
+            <option value="">-- Select Class --</option>
+            {availableClasses.map((cls) => (
+              <option key={cls.id} value={cls.id}>{cls.name}</option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Subject</label>
+          <select 
+            className="w-full p-2.5 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+            value={selectedSubject}
+            onChange={(e) => handleDropdownChange(setSelectedSubject, e)}
+          >
+            <option value="">-- Select Subject --</option>
+            {availableSubjects.map((sub) => (
+              <option key={sub.id} value={sub.id}>{sub.name}</option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Assessment</label>
+          <select 
+            className="w-full p-2.5 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+            value={selectedExam}
+            onChange={(e) => handleDropdownChange(setSelectedExam, e)}
+          >
+            <option value="">-- Select Exam --</option>
+            {availableExams.map((exam) => (
+              <option key={exam.id} value={exam.id}>{exam.name}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* Spreadsheet Grid */}
+      {students.length > 0 ? (
+        <form onSubmit={handleSubmit} className="border border-slate-200 rounded-lg shadow-sm bg-white overflow-hidden">
+          <div className="bg-slate-50 border-b border-slate-200 p-4 flex justify-between items-center">
+            <h3 className="font-semibold text-slate-800">
+              Entering marks for {students.length} students
+            </h3>
+            <span className="text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded-full font-medium flex items-center gap-1">
+              <AlertCircle className="w-3 h-3" /> Draft Mode
+            </span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm whitespace-nowrap">
+              <thead>
+                <tr className="bg-white border-b border-slate-200 text-slate-600">
+                  <th className="py-3 px-4 font-semibold w-32">Adm Number</th>
+                  <th className="py-3 px-4 font-semibold">Student Name</th>
+                  <th className="py-3 px-4 font-semibold w-40">Score</th>
+                  <th className="py-3 px-4 font-semibold">Teacher Remarks (Optional)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {students.map((student) => (
+                  <tr key={student.id} className="border-b last:border-0 border-slate-100 hover:bg-slate-50 transition-colors">
+                    <td className="py-2 px-4 text-slate-500 font-mono text-xs">{student.roll}</td>
+                    <td className="py-2 px-4 font-medium text-slate-800">{student.student_name}</td>
+                    <td className="py-2 px-4">
+                      <input
+                        type="number"
+                        min="0"
+                        max="100" 
+                        className="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                        placeholder="0-100"
+                        value={marksData[student.id]?.marks || ''}
+                        onChange={(e) => handleMarkChange(student.id, e.target.value)}
+                      />
+                    </td>
+                    <td className="py-2 px-4">
+                      <input
+                        type="text"
+                        className="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                        placeholder="e.g., Excellent progress"
+                        value={marksData[student.id]?.remarks || ''}
+                        onChange={(e) => handleRemarkChange(student.id, e.target.value)}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          
+          <div className="bg-slate-50 p-4 border-t border-slate-200 flex justify-end">
+            <button
+              type="submit"
+              disabled={isSaving}
+              className="bg-blue-600 text-white px-6 py-2.5 rounded-md hover:bg-blue-700 font-medium flex items-center gap-2 transition-colors disabled:opacity-70"
+            >
+              {isSaving ? (
+                <>Saving...</>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" /> Save Draft Results
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+      ) : (
+        <div className="border-2 border-dashed border-slate-200 rounded-lg p-12 flex flex-col items-center justify-center text-slate-500 bg-slate-50">
+          <CheckCircle2 className="w-12 h-12 text-slate-300 mb-3" />
+          <p className="text-lg font-medium text-slate-600">No Roster Selected</p>
+          <p className="text-sm">Please select a class, subject, and assessment above to begin entering marks.</p>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default RapidMarksEntry;
