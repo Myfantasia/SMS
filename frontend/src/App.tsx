@@ -19,6 +19,7 @@ import TimetableManager from './components/timetable/TimetableManager';
 import AttendanceHub from './components/attendaces/AttendanceHub';
 import EventsHub from './components/events/EventsHub';
 import NoticesHub from './components/notices/NoticesHub';
+import ExamsHub from './components/exams/ExamsHub';
 
 // import TeacherDashboard from './pages/teacher/TeacherDashboard';
 
@@ -87,6 +88,8 @@ export default function App() {
           <Route path="events" element={<EventsHub role="admin" />} />
 
           <Route path="notices" element={<NoticesHub role="admin" />} />
+
+          <Route path="exams" element={<ExamsHub role="admin" />} />
         </Route>
 
         {/* Teacher Route Group (Ready for future integration) */}

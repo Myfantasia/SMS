@@ -43,7 +43,7 @@ const menuItems = [
       { icon: CalendarDays, label: "Timetable", href: "/admin-dashboard/timetable", visible: ["admin", "teacher", "student"] },
       
       // Assessment & Evaluation (Students take them, Parents view them)
-      { icon: FileSignature, label: "Exams", href: "/admin-dashboard/exams", visible: ["admin", "teacher", "student"] },
+      { icon: FileSignature, label: "Exams", href: "/admin-dashboard/exams", visible: ["admin", "teacher", "student", "parent"] },
       { icon: FileEdit, label: "Assignments", href: "/admin-dashboard/assignments", visible: ["admin", "teacher", "student", "parent"] },
       { icon: Award, label: "Results", href: "/admin-dashboard/results", visible: ["admin", "teacher", "student", "parent"] },
       

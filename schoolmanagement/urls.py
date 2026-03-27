@@ -8,6 +8,10 @@ from django.contrib.auth import views as auth_views
 from school import views
 from school import views_timetable
 
+from school.exams_views import RapidMarksEntryView, BroadsheetGeneratorView, ExamSelectionDataView, ExamSetupDataView, \
+    AddExamTermView, AddExamEventView, GradingRulesView, ActivateTermView, UpdateTermView, DeleteTermView, \
+    UpdateExamEventView, DeleteExamEventView
+
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from school.attendance_views import SubmitBatchAttendanceView, EventViewSet, NoticeViewSet, NotificationViewSet
@@ -21,6 +25,19 @@ router.register(r'notifications', NotificationViewSet, basename='notification')
 urlpatterns = [
 
     path('api/core/', include(router.urls)),
+
+    path('api/exams/rapid-entry/', RapidMarksEntryView.as_view(), name='rapid-marks-entry'),
+    path('api/exams/broadsheet/', BroadsheetGeneratorView.as_view(), name='generate-broadsheet'),
+    path('api/exams/selection-data/', ExamSelectionDataView.as_view(), name='exam-selection-data'),
+
+    # Setup Dashboard
+    path('api/exams/setup-data/', ExamSetupDataView.as_view(), name='exam-setup-data'),
+    path('api/exams/terms/add/', AddExamTermView.as_view(), name='add-exam-term'),
+    path('api/exams/events/add/', AddExamEventView.as_view(), name='add-exam-event'),
+    path('api/exams/terms/activate/<int:pk>/', ActivateTermView.as_view(), name='activate-term'),
+
+    # Grading Rules Engine
+    path('api/exams/grading-rules/', GradingRulesView.as_view(), name='grading-rules'),
 
     path('attendance/submit/', SubmitBatchAttendanceView.as_view(), name='submit_batch_attendance'),
 
@@ -180,6 +197,14 @@ urlpatterns = [
 # --- NEW: RESET ROUTES ---
     path('api/timetable/clear-grid/<int:timetable_id>/', views_timetable.api_clear_grid, name='api_clear_grid'),
     path('api/timetable/clear-quotas/', views_timetable.api_clear_quotas, name='api_clear_quotas'),
+
+    # Term Edit & Delete routes
+    path('api/exams/terms/<int:pk>/update/', UpdateTermView.as_view(), name='update-term'),
+    path('api/exams/terms/<int:pk>/delete/', DeleteTermView.as_view(), name='delete-term'),
+
+    # Exam Edit & Delete routes
+    path('api/exams/events/<int:pk>/update/', UpdateExamEventView.as_view(), name='update-exam'),
+    path('api/exams/events/<int:pk>/delete/', DeleteExamEventView.as_view(), name='delete-exam'),
 
 ]
 if settings.DEBUG:
