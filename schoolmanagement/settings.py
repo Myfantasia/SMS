@@ -53,6 +53,12 @@ CSRF_TRUSTED_ORIGINS = [
     "http://127.0.0.1:5173",
 ]
 
+# Ensure CSRF cookie is readable by JavaScript across ports
+CSRF_COOKIE_HTTPONLY = False
+CSRF_COOKIE_SAMESITE = 'Lax'
+SESSION_COOKIE_SAMESITE = 'Lax'
+SESSION_COOKIE_SECURE = False  # False for local dev, True in production
+
 
 ROOT_URLCONF = 'schoolmanagement.urls'
 
@@ -85,6 +91,13 @@ DATABASES = {
         'PASSWORD': 'jordan123', # Your Postgres password
         'HOST': 'localhost',
         'PORT': '5433',
+    }
+}
+
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
+        'LOCATION': 'auth_token_cache',
     }
 }
 
@@ -131,3 +144,16 @@ else:
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# --------------------------------------------------------
+# DJANGO REST FRAMEWORK CONFIGURATION
+# --------------------------------------------------------
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        # Tells Django to check Firebase tokens first using our new file
+        'schoolmanagement.firebase_auth.FirebaseAuthentication',
+
+        # Fallback to standard session authentication (useful for the Django Admin panel)
+        'rest_framework.authentication.SessionAuthentication',
+    ),
+}

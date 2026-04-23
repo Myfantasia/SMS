@@ -17,7 +17,8 @@ import {
   FileEdit,      // For Assignments
   Award,         // For Results
   Calendar,       // For Events
-  CalendarDays
+  CalendarDays,
+  ClipboardList
 } from 'lucide-react';
 
 interface MenuProps {
@@ -40,6 +41,7 @@ const menuItems = [
       { icon: Library, label: "Academics", href: "/admin-dashboard/academics", visible: ["admin", "teacher"] }, // <-- UPDATED ICON
       { icon: Layers, label: "Classes", href: "/admin-dashboard/classes", visible: ["admin", "teacher"] },
       { icon: BookOpen, label: "Subjects", href: "/admin-dashboard/subjects", visible: ["admin", "teacher", "student"] },
+      { icon: ClipboardList, label: "Allocations", href: "/admin-dashboard/allocations", visible: ["admin"] },
       { icon: CalendarDays, label: "Timetable", href: "/admin-dashboard/timetable", visible: ["admin", "teacher", "student"] },
       
       // Assessment & Evaluation (Students take them, Parents view them)

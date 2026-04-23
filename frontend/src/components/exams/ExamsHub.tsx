@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Settings, FileEdit, BarChart3, AlertCircle } from 'lucide-react';
+import { Settings, FileEdit, BarChart3, AlertCircle, FileText } from 'lucide-react'; // Added FileText for the new tab
 import ExamSetupTab from './ExamSetupTab';
 import RapidMarksEntry from './RapidMarksEntry';
 import ResultsBroadsheet from './ResultsBroadSheet';
+import ReportCardsTab from './ReportCardTab'; // NEW IMPORT
 
 interface ExamsHubProps {
   role: 'admin' | 'teacher' | 'student' | 'parent';
@@ -21,6 +22,7 @@ const ExamsHub: React.FC<ExamsHubProps> = ({ role }) => {
     ),
     { id: 'entry', label: 'Rapid Marks Entry', icon: FileEdit },
     { id: 'reports', label: 'Broadsheets & Analytics', icon: BarChart3 },
+    { id: 'reportcards', label: 'Report Cards', icon: FileText }, // NEW TAB
   ];
 
   // Restrict access for students and parents immediately 
@@ -76,24 +78,31 @@ const ExamsHub: React.FC<ExamsHubProps> = ({ role }) => {
         {activeTab === 'setup' && (
           <div className="p-6">
             <h2 className="text-lg font-semibold text-slate-700 mb-4">Exam Setup Module (Admin Only)</h2>
-            <p className="text-slate-500">The ExamSetupTab component will load here, allowing creation of Terms and CATs.</p>
-            {<ExamSetupTab />}
+            <p className="text-slate-500 mb-4">The ExamSetupTab component will load here, allowing creation of Terms and CATs.</p>
+            <ExamSetupTab />
           </div>
         )}
 
         {activeTab === 'entry' && (
           <div className="p-6">
             <h2 className="text-lg font-semibold text-slate-700 mb-4">Rapid Marks Entry Grid</h2>
-            <p className="text-slate-500">The RapidMarksEntry spreadsheet component will load here for data entry.</p>
-            {<RapidMarksEntry />}
+            <p className="text-slate-500 mb-4">The RapidMarksEntry spreadsheet component will load here for data entry.</p>
+            <RapidMarksEntry />
           </div>
         )}
 
         {activeTab === 'reports' && (
           <div className="p-6">
             <h2 className="text-lg font-semibold text-slate-700 mb-4">Broadsheets & Analytics</h2>
-            <p className="text-slate-500">The ResultsBroadsheet component will load here, displaying final aggregated ranks and CBC rubrics.</p>
-            {<ResultsBroadsheet />}
+            <p className="text-slate-500 mb-4">The ResultsBroadsheet component will load here, displaying final aggregated ranks and CBC rubrics.</p>
+            <ResultsBroadsheet />
+          </div>
+        )}
+
+        {/* NEW ACTIVE TAB CONTENT */}
+        {activeTab === 'reportcards' && (
+          <div className="p-6">
+            <ReportCardsTab />
           </div>
         )}
       </div>

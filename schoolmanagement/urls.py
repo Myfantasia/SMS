@@ -1,21 +1,26 @@
 from django.contrib import admin
-from django.urls import path
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib.auth.views import LoginView, LogoutView
 from django.contrib.auth import views as auth_views
+from school.views import views
+from school.views import views_timetable
 
-from school import views
-from school import views_timetable
-
-from school.exams_views import RapidMarksEntryView, BroadsheetGeneratorView, ExamSelectionDataView, ExamSetupDataView, \
+from school.views.exams_views import RapidMarksEntryView, BroadsheetGeneratorView, ExamSelectionDataView, \
+    ExamSetupDataView, \
     AddExamTermView, AddExamEventView, GradingRulesView, ActivateTermView, UpdateTermView, DeleteTermView, \
-    UpdateExamEventView, DeleteExamEventView
+    UpdateExamEventView, DeleteExamEventView, StudentReportCardView, PublishExamEventView, RevertExamEventView
 
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from school.attendance_views import SubmitBatchAttendanceView, EventViewSet, NoticeViewSet, NotificationViewSet
+from school.views.attendance_views import SubmitBatchAttendanceView, EventViewSet, NoticeViewSet, NotificationViewSet
 
+from school.views.results_views import GenerateTermResultsAPIView, ClassPerformanceSummaryAPIView, \
+    StudentReportCardAPIView, SchoolAnalyticsAPIView, ResultsFilterOptionsAPIView, StudentPerformanceAnalyticsAPIView, \
+    TermImprovementAnalyticsAPIView, SubjectMatrixAnalyticsAPIView
+
+from school.views.teacherAllocation_view import AllocationMatrixAPIView, RolloverAllocationsAPIView, \
+    AutoAllocateDraftAPIView
 
 router = DefaultRouter()
 router.register(r'events', EventViewSet, basename='event')
@@ -202,10 +207,28 @@ urlpatterns = [
     path('api/exams/terms/<int:pk>/update/', UpdateTermView.as_view(), name='update-term'),
     path('api/exams/terms/<int:pk>/delete/', DeleteTermView.as_view(), name='delete-term'),
 
+    path('api/exams/events/<int:pk>/publish/', PublishExamEventView.as_view(), name='publish-exam'),
+    path('api/exams/events/<int:pk>/revert/', RevertExamEventView.as_view(), name='revert-exam'),
+
     # Exam Edit & Delete routes
     path('api/exams/events/<int:pk>/update/', UpdateExamEventView.as_view(), name='update-exam'),
     path('api/exams/events/<int:pk>/delete/', DeleteExamEventView.as_view(), name='delete-exam'),
+    path('api/exams/report-card/<int:exam_id>/<int:student_id>/', StudentReportCardView.as_view(), name='student-report-card'),
 
+    #Results
+    path('api/results/generate/', GenerateTermResultsAPIView.as_view(), name='generate_term_results'),
+    path('api/results/class-summary/', ClassPerformanceSummaryAPIView.as_view(), name='class_summary'),
+    path('api/results/report-card/', StudentReportCardAPIView.as_view(), name='student_report_card'),
+    path('api/results/school-analytics/', SchoolAnalyticsAPIView.as_view(), name='school_analytics'),
+    path('api/results/filter-options/', ResultsFilterOptionsAPIView.as_view(), name='result_filter_options'),
+    path('api/results/student-analytics/', StudentPerformanceAnalyticsAPIView.as_view(), name='student_analytics'),
+    path('api/results/improvement-analytics/', TermImprovementAnalyticsAPIView.as_view(), name='improvement-analytics'),
+    path('api/results/subject-matrix-analytics/', SubjectMatrixAnalyticsAPIView.as_view(), name='subject-matrix-analytics'),
+
+    #Teacher allocations
+    path('api/allocations/matrix/', AllocationMatrixAPIView.as_view(), name='allocation_matrix'),
+    path('api/allocations/rollover/', RolloverAllocationsAPIView.as_view(), name='allocation_rollover'),
+    path('api/allocations/auto-draft/', AutoAllocateDraftAPIView.as_view(), name='auto_allocate_draft'),
 ]
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
