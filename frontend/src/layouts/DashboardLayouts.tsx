@@ -3,6 +3,7 @@ import { Outlet } from 'react-router-dom';
 import { School } from 'lucide-react';
 import Menu from '../components/Menu';
 import Navbar from '../components/Navbar';
+import axios from 'axios';
 
 interface LayoutProps {
   role: 'admin' | 'teacher' | 'student' | 'parent';
@@ -13,13 +14,10 @@ export default function DashboardLayout({ role }: LayoutProps) {
 
   // Fetch the logged-in user's name from Django when the layout loads
   useEffect(() => {
-    fetch('http://localhost:8000/api/dashboard-stats/', {
-      credentials: 'include'
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.admin_name) {
-          setUserName(data.admin_name);
+    axios.get('http://127.0.0.1:8000/api/dashboard-stats/')
+      .then((res) => {
+        if (res.data && res.data.admin_name) {
+          setUserName(res.data.admin_name);
         } else {
           setUserName("Admin");
         }

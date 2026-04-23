@@ -19,3 +19,25 @@
   background: none;
   font-weight: 600;
 }
+
+@media print {
+  /* Hides everything on the screen by default during printing */
+  body * {
+    visibility: hidden;
+  }
+  
+  /* ONLY makes the report card section visible */
+  #printable-report-card, #printable-report-card * {
+    visibility: visible;
+  }
+  
+  /* Moves the report card to the absolute top-left of the A4 paper */
+  #printable-report-card {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+  }
+}

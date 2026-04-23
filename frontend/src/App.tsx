@@ -20,10 +20,69 @@ import AttendanceHub from './components/attendaces/AttendanceHub';
 import EventsHub from './components/events/EventsHub';
 import NoticesHub from './components/notices/NoticesHub';
 import ExamsHub from './components/exams/ExamsHub';
-
+import ResultsHub from './components/results/ResultsHub';
+import axios from 'axios';
+import { auth } from './firebaseConfig';
+import { useEffect, useState } from 'react';
+import { onAuthStateChanged } from 'firebase/auth';
+import AllocationDashboard from './components/subjectAllocations/AllocationDashboard';
 // import TeacherDashboard from './pages/teacher/TeacherDashboard';
 
+// 1. CATCH THE URL TOKEN AND SAVE TO LOCAL STORAGE
+const urlParams = new URLSearchParams(window.location.search);
+const tokenFromUrl = urlParams.get('token');
+if (tokenFromUrl) {
+  localStorage.setItem('firebase_dev_token', tokenFromUrl);
+  window.history.replaceState({}, document.title, window.location.pathname);
+}
+
+// 2. AXIOS USES LOCAL STORAGE NOW
+axios.interceptors.request.use(
+  async (config) => {
+    const user = auth.currentUser;
+
+    if (user) {
+      const token = await user.getIdToken();
+      config.headers['Authorization'] = `Bearer ${token}`;
+    } else {
+      const devToken = localStorage.getItem('firebase_dev_token');
+      if (devToken) {
+        config.headers['Authorization'] = `Bearer ${devToken}`;
+      }
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
 export default function App() {
+
+  const [isAuthReady, setIsAuthReady] = useState(false);
+
+  useEffect(() => {
+    // This listener actively waits for Firebase to check the browser's memory
+    // Once Firebase confirms whether a user exists OR is definitely null, it fires.
+    const unsubscribe = onAuthStateChanged(auth, () => {
+      setIsAuthReady(true); // Tell React it's safe to render the app now!
+    });
+
+    // Cleanup listener on unmount
+    return () => unsubscribe();
+  }, []);
+
+  // Show a clean loading screen while Firebase is checking the session
+  if (!isAuthReady) {
+    return (
+      <div className="h-screen w-screen flex flex-col items-center justify-center bg-slate-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+        <p className="text-slate-500 font-medium">Restoring secure session...</p>
+      </div>
+    );
+  }
+
+
   return (
     <BrowserRouter>
       <Toaster 
@@ -79,6 +138,8 @@ export default function App() {
           <Route path="classes/edit/:id" element={<EditClass />} />
           <Route path="subjects/edit/:id" element={<EditSubject />} />
 
+          <Route path="allocations" element={<AllocationDashboard />} />
+
           {/* ADD THE TIMETABLE ROUTE */}
           <Route path="timetable" element={<TimetableManager />} />
 
@@ -90,6 +151,8 @@ export default function App() {
           <Route path="notices" element={<NoticesHub role="admin" />} />
 
           <Route path="exams" element={<ExamsHub role="admin" />} />
+
+          <Route path="results" element={<ResultsHub role="admin" />} />
         </Route>
 
         {/* Teacher Route Group (Ready for future integration) */}
