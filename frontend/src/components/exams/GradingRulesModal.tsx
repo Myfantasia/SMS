@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Plus, Save, Settings, AlertCircle, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import axios from 'axios';
+import api from '../../libs/axiosInstance';
 
 interface GradingRulesModalProps {
   isOpen: boolean;
@@ -30,7 +30,7 @@ const GradingRulesModal: React.FC<GradingRulesModalProps> = ({ isOpen, onClose }
   const fetchRules = async () => {
     setIsLoading(true);
     try {
-      const response = await axios.get(`http://localhost:8000/api/exams/grading-rules/`, {
+      const response = await api.get('/api/exams/grading-rules/', {
         params: { curriculum: activeCurriculum }
       });
       setRules(response.data || []);
@@ -89,7 +89,7 @@ const GradingRulesModal: React.FC<GradingRulesModalProps> = ({ isOpen, onClose }
         }))
       };
 
-      await axios.post('http://localhost:8000/api/exams/grading-rules/', payload);
+      await api.post('/api/exams/grading-rules/', payload);
       toast.success(`${activeCurriculum} Grading Rules saved successfully.`);
       fetchRules(); // Refresh to convert 'temp' IDs to real database IDs
     } catch (error) {

@@ -28,6 +28,7 @@ export default function AdminDashboard() {
 
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [firstName, setFirstName] = useState<string>("");
   
   // State to control the Calendar and Event List
   const [selectedDate, setSelectedDate] = useState<Value>(new Date());
@@ -77,6 +78,20 @@ export default function AdminDashboard() {
       });
   }, []);
 
+  useEffect(() => {
+    fetch('http://localhost:8000/api/my-profile/', {
+      credentials: 'include'
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.status === 'success') {
+          // Use first_name only for the welcome banner (friendlier)
+          setFirstName(data.data.first_name || userName);
+        }
+      })
+      .catch(err => console.error("Failed to fetch profile", err));
+  }, []);
+
   // Logic to filter events based on calendar click
   // Ensure selectedDate is a single Date object before formatting
   const formattedSelectedDate = selectedDate instanceof Date 
@@ -104,7 +119,7 @@ export default function AdminDashboard() {
           <div className="relative z-10">
             {/* UPDATED: Now dynamically using the context userName passed from Layout */}
             <h2 className="text-3xl font-extrabold mb-1">
-              Welcome back, {userName}! 👋
+              Welcome back, {firstName || userName}! 👋
             </h2>
             <p className="text-blue-100 font-medium text-sm md:text-base">
               Here is what's happening in your institution today.

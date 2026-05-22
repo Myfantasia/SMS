@@ -1,7 +1,6 @@
 // src/components/subjectAllocations/AllocationDashboard.tsx
 
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import toast from 'react-hot-toast'; // Consistent with your Toaster in App.tsx
 import type { MatrixRow } from '../../libs/types';
 
@@ -9,6 +8,7 @@ import type { MatrixRow } from '../../libs/types';
 import ContextFilters from './ContextFilters';
 import MatrixTable from './MatrixTable';
 import ActionButtons from './ActionButtons'; // <-- Uncommented
+import api from '../../libs/axiosInstance';
 
 const AllocationDashboard: React.FC = () => {
   // --- 1. THE STATE ---
@@ -33,7 +33,7 @@ const AllocationDashboard: React.FC = () => {
 
       setIsLoading(true);
       try {
-        const response = await axios.get(`/api/allocations/matrix/`, {
+        const response = await api.get(`/api/allocations/matrix/`, {
           params: {
             class_id: classId,
             term_id: termId,

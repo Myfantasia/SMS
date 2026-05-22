@@ -1,10 +1,10 @@
 // src/components/subjectAllocations/ActionButtons.tsx
 
 import React, { useState } from 'react';
-import axios from 'axios';
 import toast from 'react-hot-toast';
 import { Save, Wand2, Copy, Loader2, X, Eraser, RotateCcw } from 'lucide-react';
 import type { MatrixRow } from '../../libs/types';
+import api from '../../libs/axiosInstance';
 
 interface ActionButtonsProps {
   yearId: string;
@@ -47,7 +47,7 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
 
     setIsSaving(true);
     try {
-      const response = await axios.post('/api/allocations/matrix/', {
+      const response = await api.post('/api/allocations/matrix/', {
         class_id: classId,
         term_id: termId,
         year_id: yearId,
@@ -70,7 +70,7 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
 
     setIsAutoAllocating(true);
     try {
-      const response = await axios.get('/api/allocations/auto-draft/', {
+      const response = await api.get('/api/allocations/auto-draft/', {
         params: { class_id: classId, term_id: termId, year_id: yearId }
       });
 
@@ -120,7 +120,7 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
   const fetchTermsForRollover = async () => {
     try {
         const token = localStorage.getItem('firebase_dev_token');
-        const response = await axios.get('http://127.0.0.1:8000/api/results/filter-options/', {
+        const response = await api.get('/api/results/filter-options/', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         
@@ -144,7 +144,7 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
 
     setIsRollingOver(true);
     try {
-        const response = await axios.post('/api/allocations/rollover/', {
+        const response = await api.post('/api/allocations/rollover/', {
             source_term_id: sourceTermId,
             target_term_id: termId,
             year_id: yearId

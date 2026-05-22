@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { X, Calendar as CalendarIcon, Clock, Type, AlignLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
-import axios from 'axios';
 import type { SchoolEvent } from './EventsHub';
+import api from '../../libs/axiosInstance';
 
 
 interface EventFormModalProps {
@@ -58,11 +58,11 @@ export default function EventFormModal({ isOpen, onClose, onSuccess, initialData
     try {
       if (initialData) {
         // UPDATE Existing Event
-        await axios.put(`http://localhost:8000/api/core/events/${initialData.id}/`, formData);
+        await api.put(`/api/core/events/${initialData.id}/`, formData);
         toast.success('Event successfully updated!');
       } else {
         // CREATE New Event
-        await axios.post('http://localhost:8000/api/core/events/', formData);
+        await api.post('/api/core/events/', formData);
         toast.success('Event successfully published to the public website!');
       }
       

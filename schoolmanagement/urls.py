@@ -3,8 +3,14 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib.auth.views import LoginView, LogoutView
 from django.contrib.auth import views as auth_views
-from school.views import views
+from django.http import JsonResponse
+
+from school.views import views, chat_views
 from school.views import views_timetable
+from school.views.assignment_views import TeacherAssignmentAPIView, TeacherGradingAPIView, \
+    StudentAssignmentBoardAPIView, QuizStartAPIView, SubmitAssignmentAPIView, SubmissionReviewAPIView, \
+    ParentMonitoringAPIView, SubmissionsRosterAPIView, BulkReleaseGradesAPIView, GradeStudentAPIView, \
+    TeacherAssignmentDetailAPIView, TeacherSubmissionDetailAPIView, TeacherGradingSaveAPIView
 
 from school.views.exams_views import RapidMarksEntryView, BroadsheetGeneratorView, ExamSelectionDataView, \
     ExamSetupDataView, \
@@ -21,6 +27,8 @@ from school.views.results_views import GenerateTermResultsAPIView, ClassPerforma
 
 from school.views.teacherAllocation_view import AllocationMatrixAPIView, RolloverAllocationsAPIView, \
     AutoAllocateDraftAPIView
+
+from school.views.chat_views import GetFirebaseAuthTokenAPI, ClassParentsAPI
 
 router = DefaultRouter()
 router.register(r'events', EventViewSet, basename='event')
@@ -229,6 +237,42 @@ urlpatterns = [
     path('api/allocations/matrix/', AllocationMatrixAPIView.as_view(), name='allocation_matrix'),
     path('api/allocations/rollover/', RolloverAllocationsAPIView.as_view(), name='allocation_rollover'),
     path('api/allocations/auto-draft/', AutoAllocateDraftAPIView.as_view(), name='auto_allocate_draft'),
+
+
+# ==========================================
+    # CHAT & MESSAGING API ROUTES
+    # ==========================================
+    path('api/chat/search/', chat_views.UserSearchAPI.as_view(), name='chat-user-search'),
+    path('api/chat/direct/', chat_views.GetOrCreateDirectThreadAPI.as_view(), name='chat-direct-create'),
+    path('api/chat/inbox/', chat_views.UserInboxAPI.as_view(), name='chat-user-inbox'),
+    path('api/chat/read/<uuid:thread_id>/', chat_views.MarkThreadReadAPI.as_view(), name='chat-mark-read'),
+    path('api/chat/admin/group/', chat_views.CreateAdminGroupThreadAPI.as_view(), name='chat-admin-group'),
+    path('api/chat/admin/audit/<uuid:thread_id>/', chat_views.AdminAuditLogAPI.as_view(), name='chat-admin-audit'),
+    path('api/chat/firebase-token/', GetFirebaseAuthTokenAPI.as_view(), name='firebase_token'),
+    path('api/chat/class-parents/<int:stream_id>/', ClassParentsAPI.as_view(), name='chat-class-parents'),
+
+
+# ==========================================
+    # ASSIGNMENT & ASSESSMENT ENGINE API ROUTES
+    # ==========================================
+    path('api/assignments/teacher/', TeacherAssignmentAPIView.as_view(), name='teacher_assignments'),
+    path('api/assignments/teacher/grading/', TeacherGradingAPIView.as_view(), name='teacher_grading'),
+    path('api/assignments/student/board/', StudentAssignmentBoardAPIView.as_view(), name='student_board'),
+    path('api/assignments/student/quiz/start/', QuizStartAPIView.as_view(), name='quiz_start'),
+    path('api/assignments/student/submit/', SubmitAssignmentAPIView.as_view(), name='student_submit'),
+    path('api/assignments/review/', SubmissionReviewAPIView.as_view(), name='submission_review'),
+    path('api/assignments/parent/monitoring/', ParentMonitoringAPIView.as_view(), name='parent_monitoring'),
+    path('api/assignments/<int:assignment_id>/submissions-roster/', SubmissionsRosterAPIView.as_view(), name='api-submissions-roster'),
+    path('api/assignments/<int:assignment_id>/bulk-release/', BulkReleaseGradesAPIView.as_view(), name='api-bulk-release'),
+    path('api/assignments/<int:assignment_id>/grade-student/', GradeStudentAPIView.as_view(), name='api-grade-student'),
+    path('api/assignments/teacher/<int:pk>/', TeacherAssignmentDetailAPIView.as_view(), name='teacher_assignment_detail'),
+    path('api/assignments/<int:assignment_id>/grade/<int:student_id>/', TeacherSubmissionDetailAPIView.as_view(),
+         name='teacher_submission_detail'),
+    path('api/assignments/grade/save/<int:submission_id>/', TeacherGradingSaveAPIView.as_view(),
+         name='teacher_grading_save'),
+
+
+    path('.well-known/appspecific/com.chrome.devtools.json',lambda r: JsonResponse({})),
 ]
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

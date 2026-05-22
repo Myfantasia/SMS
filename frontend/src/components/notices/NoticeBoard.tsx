@@ -1,7 +1,7 @@
 import { Trash2, Paperclip, Download, Edit, AlertCircle, AlertTriangle } from 'lucide-react';
-import axios from 'axios';
 import toast from 'react-hot-toast';
 import type { SchoolNotice } from './NoticesHub';
+import api from '../../libs/axiosInstance';
 
 interface NoticeBoardProps {
   role: 'admin' | 'teacher' | 'student' | 'parent';
@@ -16,10 +16,11 @@ export default function NoticeBoard({ role, notices, onRefresh, onEdit }: Notice
   const executeDelete = async (id: number) => {
     const loadingToast = toast.loading("Processing deletion...");
     try {
-      await axios.delete(`http://localhost:8000/api/core/notices/${id}/`);
+      await api.delete(`/api/core/notices/${id}/`);
       toast.success("Notice permanently removed from database.", { id: loadingToast });
       onRefresh(); 
     } catch (error) {
+      console.error("Django Error Details:", error);
       toast.error("Critical: Could not complete deletion request.", { id: loadingToast });
     }
   };
@@ -34,7 +35,7 @@ export default function NoticeBoard({ role, notices, onRefresh, onEdit }: Notice
       >
         <div className="flex-1 w-0 p-4">
           <div className="flex items-start">
-            <div className="flex-shrink-0 pt-0.5">
+            <div className="shrink-0 pt-0.5">
               <div className="p-2 bg-red-100 rounded-full">
                 <AlertTriangle className="h-6 w-6 text-red-600" />
               </div>

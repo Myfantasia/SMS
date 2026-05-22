@@ -21,12 +21,17 @@ import EventsHub from './components/events/EventsHub';
 import NoticesHub from './components/notices/NoticesHub';
 import ExamsHub from './components/exams/ExamsHub';
 import ResultsHub from './components/results/ResultsHub';
-import axios from 'axios';
 import { auth } from './firebaseConfig';
 import { useEffect, useState } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import AllocationDashboard from './components/subjectAllocations/AllocationDashboard';
-// import TeacherDashboard from './pages/teacher/TeacherDashboard';
+import { ChatProvider } from './components/chats/ChatProvider';
+import AssignmentsHub from './components/assignments/AssignmentsHub';
+import AdminChatDashboard from './components/chats/AdminChatDashboard';
+import AssignmentCreator from './components/assignments/AssignmentCreator';
+import SubmissionManager from './components/assignments/SubmissionManager';
+import EditAssignment from './components/assignments/EditAssignments';
+
 
 // 1. CATCH THE URL TOKEN AND SAVE TO LOCAL STORAGE
 const urlParams = new URLSearchParams(window.location.search);
@@ -35,27 +40,6 @@ if (tokenFromUrl) {
   localStorage.setItem('firebase_dev_token', tokenFromUrl);
   window.history.replaceState({}, document.title, window.location.pathname);
 }
-
-// 2. AXIOS USES LOCAL STORAGE NOW
-axios.interceptors.request.use(
-  async (config) => {
-    const user = auth.currentUser;
-
-    if (user) {
-      const token = await user.getIdToken();
-      config.headers['Authorization'] = `Bearer ${token}`;
-    } else {
-      const devToken = localStorage.getItem('firebase_dev_token');
-      if (devToken) {
-        config.headers['Authorization'] = `Bearer ${devToken}`;
-      }
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
 
 export default function App() {
 
@@ -101,68 +85,80 @@ export default function App() {
           },
         }}
       />
-      <Routes>
-        {/* Redirect root access to the admin dashboard by default */}
-        <Route path="/" element={<Navigate to="/admin-dashboard" replace />} />
-        
-        {/* Admin Route Group wrapped in the Layout */}
-        <Route path="/admin-dashboard/*" element={<DashboardLayout role="admin" />}>
-          <Route index element={<AdminDashboard />} />
+      {/* --- NEW: WRAP ALL ROUTES IN THE CHAT PROVIDER --- */}
+      {/* This ensures every page (including the Navbar) has access to chat data */}
+      <ChatProvider>
+        <Routes>
+          {/* Redirect root access to the admin dashboard by default */}
+          <Route path="/" element={<Navigate to="/admin-dashboard" replace />} />
+          
+          {/* Admin Route Group wrapped in the Layout */}
+          <Route path="/admin-dashboard/*" element={<DashboardLayout role="admin" />}>
+            <Route index element={<AdminDashboard />} />
 
-          <Route path="search" element={<SearchResults />} />
+            <Route path="search" element={<SearchResults />} />
 
-          {/* Existing Approvals Route */}
-          <Route path="approvals/:userType" element={<PendingApprovals />} />
+            {/* Existing Approvals Route */}
+            <Route path="approvals/:userType" element={<PendingApprovals />} />
 
-          {/* User Directory Routes */}
-          <Route path="teachers" element={<UserDirectory userType="teachers" />} />
-          <Route path="students" element={<UserDirectory userType="students" />} />
-          <Route path="parents" element={<UserDirectory userType="parents" />} />
+            {/* User Directory Routes */}
+            <Route path="teachers" element={<UserDirectory userType="teachers" />} />
+            <Route path="students" element={<UserDirectory userType="students" />} />
+            <Route path="parents" element={<UserDirectory userType="parents" />} />
 
-          <Route path="academics" element={<AcademicHub />} />
-          <Route path="classes" element={<ClassesPage />} />
-          <Route path="subjects" element={<SubjectsPage />} />
+            <Route path="academics" element={<AcademicHub />} />
+            <Route path="classes" element={<ClassesPage />} />
+            <Route path="subjects" element={<SubjectsPage />} />
 
-          {/* Admin Profile Route */}
-          <Route path="profile" element={<AdminProfile />} />
+            {/* Admin Profile Route */}
+            <Route path="profile" element={<AdminProfile />} />
 
-          {/* action routes for user*/}
+            {/* action routes for user*/}
 
-          <Route path=":userType/view/:id" element={<ViewProfile />} />
-          <Route path=":userType/edit/:id" element={<EditProfile />} />
+            <Route path=":userType/view/:id" element={<ViewProfile />} />
+            <Route path=":userType/edit/:id" element={<EditProfile />} />
 
 
-          <Route path="classes/view/:id" element={<ViewClass />} />
-          <Route path="subjects/view/:id" element={<ViewSubject />} />
+            <Route path="classes/view/:id" element={<ViewClass />} />
+            <Route path="subjects/view/:id" element={<ViewSubject />} />
 
-          <Route path="classes/edit/:id" element={<EditClass />} />
-          <Route path="subjects/edit/:id" element={<EditSubject />} />
+            <Route path="classes/edit/:id" element={<EditClass />} />
+            <Route path="subjects/edit/:id" element={<EditSubject />} />
 
-          <Route path="allocations" element={<AllocationDashboard />} />
+            <Route path="allocations" element={<AllocationDashboard />} />
 
-          {/* ADD THE TIMETABLE ROUTE */}
-          <Route path="timetable" element={<TimetableManager />} />
+            {/* ADD THE TIMETABLE ROUTE */}
+            <Route path="timetable" element={<TimetableManager />} />
 
-          {/* --- ADD THE ATTENDANCE ROUTE HERE --- */}
-          <Route path="attendance" element={<AttendanceHub  role='admin'/>} />
+            {/* --- ADD THE ATTENDANCE ROUTE HERE --- */}
+            <Route path="attendance" element={<AttendanceHub  role='admin'/>} />
 
-          <Route path="events" element={<EventsHub role="admin" />} />
+            <Route path="events" element={<EventsHub role="admin" />} />
 
-          <Route path="notices" element={<NoticesHub role="admin" />} />
+            <Route path="notices" element={<NoticesHub role="admin" />} />
 
-          <Route path="exams" element={<ExamsHub role="admin" />} />
+            <Route path="exams" element={<ExamsHub role="admin" />} />
 
-          <Route path="results" element={<ResultsHub role="admin" />} />
-        </Route>
+            <Route path="results" element={<ResultsHub role="admin" />} />
 
-        {/* Teacher Route Group (Ready for future integration) */}
-        {/* <Route path="/teacher-dashboard/*" element={<DashboardLayout role="teacher" />}>
+            <Route path="assignments" element={<AssignmentsHub role="admin" />} />
+            <Route path="assignments/create" element={<AssignmentCreator role="admin" />} />
+            <Route path="assignments/:id/submissions" element={<SubmissionManager role="admin" />} />
+            <Route path="assignments/edit/:id" element={<EditAssignment role="admin" />} />
+
+            {/* --- NEW: MESSAGING ROUTE --- */}
+            <Route path="messages" element={<AdminChatDashboard />} />
+          </Route>
+
+          {/* Teacher Route Group (Ready for future integration) */}
+          {/* <Route path="/teacher-dashboard/*" element={<DashboardLayout role="teacher" />}>
           <Route index element={<TeacherDashboard />} />
-        </Route> */}
+           </Route> */}
 
-        {/* Catch-all route to prevent 404 errors */}
-        <Route path="*" element={<Navigate to="/admin-dashboard" replace />} />
-      </Routes>
+          {/* Catch-all route to prevent 404 errors */}
+          <Route path="*" element={<Navigate to="/admin-dashboard" replace />} />
+        </Routes>
+      </ChatProvider>
     </BrowserRouter>
   );
 }

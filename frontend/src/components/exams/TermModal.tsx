@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import toast from 'react-hot-toast';
-import axios from 'axios';
+import api from '../../libs/axiosInstance';
 
 interface AcademicYear {
   id: string | number;
@@ -43,10 +43,10 @@ const TermModal: React.FC<TermModalProps> = ({ isOpen, onClose, onSuccess, acade
     try {
       if (editData) {
         // Future Django Edit Endpoint
-        await axios.put(`http://localhost:8000/api/exams/terms/${editData.id}/update/`, termForm);
+        await api.put(`/api/exams/terms/${editData.id}/update/`, termForm);
         toast.success('Term updated successfully!');
       } else {
-        await axios.post('http://localhost:8000/api/exams/terms/add/', termForm);
+        await api.post('/api/exams/terms/add/', termForm);
         toast.success('Term created successfully!');
       }
       onSuccess();

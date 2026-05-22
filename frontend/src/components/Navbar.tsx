@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Search, MessageCircle, Bell, User, LogOut, UserPlus, Users } from 'lucide-react';
+import { useChat } from './chats/ChatProvider';
 
 interface NavbarProps {
   role: string;
@@ -18,6 +19,10 @@ interface PendingApprovals {
 export default function Navbar({ role, userName = "Admin" }: NavbarProps) {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
+  const [realUserName, setRealUserName] = useState(userName);
+  
+  // --- NEW: PULL THE UNREAD COUNT FROM OUR GLOBAL PROVIDER ---
+  const { unreadCount } = useChat();
   
   // State to hold the live data from Django
   const [pendingData, setPendingData] = useState<PendingApprovals>({
@@ -28,7 +33,7 @@ export default function Navbar({ role, userName = "Admin" }: NavbarProps) {
   });
 
   // Extract the first letter of the user's name for the dynamic avatar
-  const firstLetter = userName !== "Loading..." && userName ? userName.charAt(0).toUpperCase() : "";
+  const firstLetter = realUserName !== "Loading..." && realUserName ? realUserName.charAt(0).toUpperCase() : "";
 
   // Fetch the pending approvals when the Navbar loads
   useEffect(() => {
@@ -42,6 +47,20 @@ export default function Navbar({ role, userName = "Admin" }: NavbarProps) {
       .catch((err) => {
         console.error("Failed to fetch pending approvals", err);
       });
+  }, []);
+
+  useEffect(() => {
+    fetch('http://localhost:8000/api/my-profile/', {
+      credentials: 'include'
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.status === 'success') {
+          const fullName = `${data.data.first_name} ${data.data.last_name}`.trim();
+          setRealUserName(fullName || data.data.username);
+        }
+      })
+      .catch(err => console.error("Failed to fetch user profile", err));
   }, []);
 
   // Handles the search bar submission
@@ -74,13 +93,21 @@ export default function Navbar({ role, userName = "Admin" }: NavbarProps) {
       {/* Icons and User Details */}
       <div className="flex items-center gap-6 justify-end w-full">
         
-        {/* 2. FUNCTIONAL MESSAGE HUB LINK */}
+        {/* 2. FUNCTIONAL MESSAGE HUB LINK (NOW WITH UNREAD BADGE!) */}
         <Link 
           to={`/${role}-dashboard/messages`}
           title="Communication Hub"
-          className="bg-slate-100 hover:bg-slate-200 transition-colors rounded-full w-9 h-9 flex items-center justify-center cursor-pointer"
+          // Added 'relative' so the absolute badge positions correctly
+          className="bg-slate-100 hover:bg-slate-200 transition-colors rounded-full w-9 h-9 flex items-center justify-center cursor-pointer relative"
         >
           <MessageCircle className="w-4 h-4 text-slate-600" />
+          
+          {/* --- NEW: THE RED UNREAD DOT --- */}
+          {unreadCount > 0 && (
+            <div className="absolute -top-1 -right-1 w-4 h-4 flex items-center justify-center bg-blue-500 text-white rounded-full text-[10px] font-bold border border-white shadow-sm">
+              {unreadCount}
+            </div>
+          )}
         </Link>
 
         {/* 3. FUNCTIONAL NOTIFICATION DROPDOWN */}
@@ -161,7 +188,7 @@ export default function Navbar({ role, userName = "Admin" }: NavbarProps) {
 
         {/* User Name & Role */}
         <div className="flex flex-col text-right">
-          <span className="text-xs leading-3 font-bold text-slate-700">{userName}</span>
+          <span className="text-xs leading-3 font-bold text-slate-700">{realUserName}</span>
           <span className="text-[10px] text-slate-500 mt-1 capitalize">{role}</span>
         </div>
 

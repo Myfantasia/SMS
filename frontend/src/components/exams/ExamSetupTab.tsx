@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Plus, BookOpen, Settings, CheckCircle2, Edit, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import axios from 'axios';
 import GradingRulesModal from './GradingRulesModal'; 
 import TermModal from './TermModal'; // NEW: Imported your separated modal
 import ExamModal from './ExamModal'; // NEW: Imported your separated modal
+import api from '../../libs/axiosInstance';
 
 // --- Interfaces ---
 interface Term {
@@ -53,7 +53,7 @@ const ExamSetupTab: React.FC = () => {
   const fetchSetupData = async () => {
     setIsLoading(true);
     try {
-      const response = await axios.get('http://localhost:8000/api/exams/setup-data/');
+      const response = await api.get('/api/exams/setup-data/');
       setActiveYear(response.data.active_year || 'No Active Year');
       setActiveTerm(response.data.active_term || 'No Active Term');
       setTerms(response.data.terms || []);
@@ -75,10 +75,11 @@ const ExamSetupTab: React.FC = () => {
   const handleActivateTerm = async (id: string | number) => {
     const toastId = toast.loading('Updating active term...');
     try {
-      await axios.post(`http://localhost:8000/api/exams/terms/activate/${id}/`);
+      await api.post(`/api/exams/terms/activate/${id}/`);
       toast.success('Active term updated!', { id: toastId });
       fetchSetupData(); 
     } catch (error) {
+      console.error("Failed to activate term", error);
       toast.error('Failed to change active term.', { id: toastId });
     }
   };
@@ -101,11 +102,12 @@ const ExamSetupTab: React.FC = () => {
             onClick={async () => {
               toast.dismiss(t.id);
               try {
-                await axios.delete(`http://localhost:8000/api/exams/terms/${id}/delete/`);
+                await api.delete(`/api/exams/terms/${id}/delete/`);
                 toast.success('Term deleted successfully!');
                 fetchSetupData();
               } catch (error) {
                 toast.error('Failed to delete term.');
+                console.error("Failed to delete term", error);
               }
             }} 
             className="px-3 py-1 text-xs font-medium bg-red-600 hover:bg-red-700 text-white rounded transition"
@@ -134,11 +136,12 @@ const ExamSetupTab: React.FC = () => {
             onClick={async () => {
               toast.dismiss(t.id);
               try {
-                await axios.delete(`http://localhost:8000/api/exams/events/${id}/delete/`);
+                await api.delete(`/api/exams/events/${id}/delete/`);
                 toast.success('Exam deleted successfully!');
                 fetchSetupData();
               } catch (error) {
                 toast.error('Failed to delete exam.');
+                console.error("Failed to delete exam", error);
               }
             }} 
             className="px-3 py-1 text-xs font-medium bg-red-600 hover:bg-red-700 text-white rounded transition"

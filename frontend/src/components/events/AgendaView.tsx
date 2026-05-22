@@ -1,7 +1,7 @@
 import { Clock, Edit, Trash2, AlertTriangle } from 'lucide-react';
-import axios from 'axios';
 import toast from 'react-hot-toast';
 import type { SchoolEvent } from './EventsHub';
+import api from '../../libs/axiosInstance';
 
 
 interface AgendaViewProps {
@@ -27,7 +27,7 @@ export default function AgendaView({ role, events, onRefresh, onEdit }: AgendaVi
   const executeDelete = async (id: number) => {
     const loadingToast = toast.loading("Purging event from records...");
     try {
-      await axios.delete(`http://localhost:8000/api/core/events/${id}/`);
+      await api.delete(`/api/core/events/${id}/`);
       toast.success("Event permanently deleted.", { id: loadingToast });
       onRefresh(); // Refresh the feed automatically
     } catch (error) {
@@ -46,7 +46,7 @@ export default function AgendaView({ role, events, onRefresh, onEdit }: AgendaVi
       >
         <div className="flex-1 w-0 p-4">
           <div className="flex items-start">
-            <div className="flex-shrink-0 pt-0.5">
+            <div className="shrink-0 pt-0.5">
               <div className="p-2 bg-red-100 rounded-full">
                 <AlertTriangle className="h-6 w-6 text-red-600" />
               </div>
