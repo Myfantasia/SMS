@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Type, AlignLeft, UploadCloud, FileText, Users } from 'lucide-react';
-import axios from 'axios';
 import toast from 'react-hot-toast';
 import type { SchoolNotice } from './NoticesHub';
+import api from '../../libs/axiosInstance';
 
 
 interface NoticeFormModalProps {
@@ -78,13 +78,13 @@ export default function NoticeFormModal({ isOpen, onClose, onSuccess, initialDat
     try {
       if (initialData) {
         // UPDATE Existing Notice
-        await axios.put(`http://localhost:8000/api/core/notices/${initialData.id}/`, formData, {
+        await api.put(`/api/core/notices/${initialData.id}/`, formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
         });
         toast.success('Notice updated successfully!');
       } else {
         // CREATE New Notice
-        await axios.post('http://localhost:8000/api/core/notices/', formData, {
+        await api.post('/api/core/notices/', formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
         });
         toast.success('Notice published successfully!');

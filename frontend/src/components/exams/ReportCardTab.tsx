@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Printer, Save, User, FileText, QrCode } from 'lucide-react';
 import toast from 'react-hot-toast';
-import axios from 'axios';
+import api from '../../libs/axiosInstance';
 
 // --- Interfaces ---
 interface SelectionOption {
@@ -47,7 +47,7 @@ const ReportCardsTab: React.FC = () => {
   useEffect(() => {
     const fetchSelectionData = async () => {
       try {
-        const response = await axios.get('http://localhost:8000/api/exams/selection-data/');
+        const response = await api.get('/api/exams/selection-data/');
         setAvailableClasses(response.data.classes);
         setAvailableExams(response.data.exams);
         if (response.data.classes.length > 0) setSelectedClass(response.data.classes[0].id.toString());
@@ -66,7 +66,7 @@ const ReportCardsTab: React.FC = () => {
       if (!selectedClass) return;
       try {
         // Reusing the rapid-entry endpoint to cleanly fetch the class roster
-        const response = await axios.get('http://localhost:8000/api/exams/rapid-entry/', {
+        const response = await api.get('/api/exams/rapid-entry/', {
           params: { class_id: selectedClass }
         });
         setStudents(response.data.students);
@@ -86,7 +86,7 @@ const ReportCardsTab: React.FC = () => {
       if (!selectedStudent || !selectedExam) return;
       setIsLoading(true);
       try {
-        const response = await axios.get(`http://localhost:8000/api/exams/report-card/${selectedExam}/${selectedStudent}/`);
+        const response = await api.get(`/api/exams/report-card/${selectedExam}/${selectedStudent}/`);
         setReportData(response.data);
         // Pre-fill the textboxes with existing remarks (if any)
         setCtRemark(response.data.summary.class_teacher_remark);
@@ -107,7 +107,7 @@ const ReportCardsTab: React.FC = () => {
     if (!selectedStudent || !selectedExam) return;
     setIsSaving(true);
     try {
-      await axios.post('http://localhost:8000/api/exams/report-card/save-summary/', {
+      await api.post('/api/exams/report-card/save-summary/', {
         student_id: selectedStudent,
         exam_id: selectedExam,
         class_teacher_remark: ctRemark,

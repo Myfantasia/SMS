@@ -1,7 +1,7 @@
 // src/components/subjectAllocations/ContextFilters.tsx
 
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../../libs/axiosInstance';
 
 // --- 1. TYPES FOR INCOMING API DATA ---
 interface AcademicYear {
@@ -54,7 +54,7 @@ const ContextFilters: React.FC<ContextFiltersProps> = ({
       setIsLoading(true);
       try {
         const token = localStorage.getItem('firebase_dev_token');
-        const response = await axios.get('http://127.0.0.1:8000/api/results/filter-options/', {
+        const response = await api.get('/api/results/filter-options/', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
 

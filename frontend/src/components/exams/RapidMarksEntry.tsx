@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import type { FormEvent, ChangeEvent } from 'react'; 
 import { Save, AlertCircle, CheckCircle2 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import axios from 'axios'; // <-- Added Axios
+import api from '../../libs/axiosInstance';
 
 // --- Interfaces mapping to our Django Serializers ---
 interface StudentInfo {
@@ -41,7 +41,7 @@ const RapidMarksEntry: React.FC = () => {
   useEffect(() => {
     const fetchSelectionData = async () => {
       try {
-        const response = await axios.get('http://localhost:8000/api/exams/selection-data/');
+        const response = await api.get('/api/exams/selection-data/');
         setAvailableClasses(response.data.classes);
         setAvailableSubjects(response.data.subjects);
         setAvailableExams(response.data.exams);
@@ -59,7 +59,7 @@ const RapidMarksEntry: React.FC = () => {
       // Only run the fetch if ALL three dropdowns have a value selected
       if (selectedClass && selectedSubject && selectedExam) {
         try {
-          const response = await axios.get('http://localhost:8000/api/exams/rapid-entry/', {
+          const response = await api.get('/api/exams/rapid-entry/', {
             params: {
               class_id: selectedClass,
               subject_id: selectedSubject,
@@ -143,7 +143,7 @@ const RapidMarksEntry: React.FC = () => {
 
     try {
       // Post the data to Django
-      await axios.post('http://localhost:8000/api/exams/rapid-entry/', payload);
+      await api.post('/api/exams/rapid-entry/', payload);
       toast.success('Results saved successfully as Draft.');
     } catch (error) {
       console.error("Error saving marks:", error);

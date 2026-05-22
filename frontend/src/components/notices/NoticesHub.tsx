@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Megaphone, Plus, Loader2 } from 'lucide-react';
-import axios from 'axios';
 import toast from 'react-hot-toast';
 import NoticeBoard from './NoticeBoard';
 import NoticeFormModal from './NoticeFormModal';
+import api from '../../libs/axiosInstance';
 
 interface NoticesHubProps {
   role: 'admin' | 'teacher' | 'student' | 'parent';
@@ -32,7 +32,7 @@ export default function NoticesHub({ role }: NoticesHubProps) {
   const fetchNotices = async () => {
     setIsLoading(true);
     try {
-      const response = await axios.get('http://localhost:8000/api/core/notices/');
+      const response = await api.get('/api/core/notices/');
       setNotices(response.data);
     } catch (error) {
       console.error("Error fetching notices:", error);

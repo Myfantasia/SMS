@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Download, UploadCloud, Filter, TrendingUp, Award, RotateCcw, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
-import axios from 'axios';
+import api from '../../libs/axiosInstance';
 
 // --- Interfaces matching Django JSON Response ---
 interface StudentResult {
@@ -40,7 +40,7 @@ const ResultsBroadsheet: React.FC = () => {
   useEffect(() => {
     const fetchSelectionData = async () => {
       try {
-        const response = await axios.get('http://localhost:8000/api/exams/selection-data/');
+        const response = await api.get('/api/exams/selection-data/');
         setAvailableClasses(response.data.classes);
         setAvailableExams(response.data.exams);
         
@@ -61,7 +61,7 @@ const ResultsBroadsheet: React.FC = () => {
 
       setIsLoading(true);
       try {
-        const response = await axios.get('http://localhost:8000/api/exams/broadsheet/', {
+        const response = await api.get('/api/exams/broadsheet/', {
           params: { class_id: selectedClass, exam_id: selectedExam }
         });
 
@@ -154,7 +154,7 @@ const getAuthConfig = () => {
               setIsPublishing(true);
               try {
                 const config = getAuthConfig();
-                await axios.post(`http://localhost:8000/api/exams/events/${selectedExam}/publish/`, { class_id: selectedClass }, config);
+                await api.post(`/api/exams/events/${selectedExam}/publish/`, { class_id: selectedClass }, config);
                 toast.success('This class has been published successfully!');
                 setClassPublishStatus('Published');
               } catch (error: any) {
@@ -175,7 +175,7 @@ const getAuthConfig = () => {
               setIsPublishing(true);
               try {
                 const config = getAuthConfig();
-                await axios.post(`http://localhost:8000/api/exams/events/${selectedExam}/publish/`, { class_id: 'ALL' }, config);
+                await api.post(`/api/exams/events/${selectedExam}/publish/`, { class_id: 'ALL' }, config);
                 toast.success('Entire school published successfully!');
                 setClassPublishStatus('Published');
               } catch (error: any) {
@@ -228,7 +228,7 @@ const getAuthConfig = () => {
               toast.dismiss(t.id);
               try {
                 const config = getAuthConfig();
-                await axios.post(`http://localhost:8000/api/exams/events/${selectedExam}/revert/`, { class_id: selectedClass }, config);
+                await api.post(`/api/exams/events/${selectedExam}/revert/`, { class_id: selectedClass }, config);
                 toast.success('Class reversed to Draft!');
                 setClassPublishStatus('Draft');
               } catch (error: any) {
@@ -246,7 +246,7 @@ const getAuthConfig = () => {
               toast.dismiss(t.id);
               try {
                 const config = getAuthConfig();
-                await axios.post(`http://localhost:8000/api/exams/events/${selectedExam}/revert/`, { class_id: 'ALL' }, config);
+                await api.post(`/api/exams/events/${selectedExam}/revert/`, { class_id: 'ALL' }, config);
                 toast.success('Entire school reversed to Draft!');
                 setClassPublishStatus('Draft');
               } catch (error: any) {

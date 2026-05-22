@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Calendar as CalendarIcon, List, Plus, Loader2 } from 'lucide-react';
-import axios from 'axios';
 import toast from 'react-hot-toast';
 import AgendaView from './AgendaView';
 import EventFormModal from './EventFormModal';
 import CalendarView from './CalendarView';
+import api from '../../libs/axiosInstance';
 
 interface EventsHubProps {
   role: 'admin' | 'teacher' | 'student' | 'parent';
@@ -36,7 +36,7 @@ export default function EventsHub({ role }: EventsHubProps) {
   const fetchEvents = async () => {
     setIsLoading(true);
     try {
-      const response = await axios.get('http://localhost:8000/api/core/events/');
+      const response = await api.get('/api/core/events/');
       setEvents(response.data);
     } catch (error) {
       console.error("Error fetching events:", error);

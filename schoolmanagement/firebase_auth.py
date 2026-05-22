@@ -1,3 +1,4 @@
+import hashlib
 from rest_framework import authentication
 from rest_framework import exceptions
 from firebase_admin import auth
@@ -25,7 +26,12 @@ class FirebaseAuthentication(authentication.BaseAuthentication):
 
         id_token = parts[1]
 
-        email = cache.get(f'session_{id_token}')
+        # FIX: Hash the token to keep the cache key under 250 characters.
+        # The raw JWT is ~900 chars and breaks memcached-compatible cache backends.
+        token_hash = hashlib.sha256(id_token.encode()).hexdigest()
+        cache_key = f'firebase_auth_{token_hash}'
+
+        email = cache.get(cache_key)
         if email:
             user = User.objects.filter(email=email).order_by('-is_superuser', '-is_staff').first()
             if not user:
@@ -51,5 +57,8 @@ class FirebaseAuthentication(authentication.BaseAuthentication):
         except User.DoesNotExist:
             raise exceptions.AuthenticationFailed(f'No Django user found matching the email: {email}')
 
-        # 6. Success! Hand the user to Django
+        # 6. Cache the result using the hashed key (tokens expire after 1 hour)
+        cache.set(cache_key, email, timeout=3600)
+
+        # 7. Success! Hand the user to Django
         return (user, None)
