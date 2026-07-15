@@ -1,0 +1,156 @@
+import { useEffect, useState } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, CheckCircle2, XCircle, Download, MessageSquare, Clock } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { studentAssignmentService } from '../../libs/studentAssignmentService';
+import { parentAssignmentService } from '../../libs/parentAssignmentService';
+import type { ReviewData } from '../../libs/assignments';
+
+interface AssignmentReviewProps {
+  role: 'student' | 'parent';
+}
+
+export default function AssignmentReview({ role }: AssignmentReviewProps) {
+  const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
+  const studentId = searchParams.get('student_id');
+  const navigate = useNavigate();
+
+  const [review, setReview] = useState<ReviewData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchReview = async () => {
+      if (!id) return;
+      try {
+        setLoading(true);
+        const data = role === 'parent' && studentId
+          ? await parentAssignmentService.getReview(studentId, id)
+          : await studentAssignmentService.getReview(id);
+        setReview(data);
+      } catch (error: any) {
+        console.error("Error loading review:", error);
+        toast.error(error.response?.data?.error || "Failed to load this review.");
+        navigate('..');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchReview();
+  }, [id, role, studentId]);
+
+  if (loading) {
+    return (
+      <div className="max-w-4xl mx-auto space-y-6 animate-pulse">
+        <div className="h-14 bg-slate-200 rounded-2xl"></div>
+        <div className="h-32 bg-slate-200 rounded-2xl"></div>
+        <div className="h-56 bg-slate-200 rounded-2xl"></div>
+      </div>
+    );
+  }
+
+  if (!review) return null;
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-6 pb-20">
+      <button onClick={() => navigate('..')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 transition-colors text-sm font-medium">
+        <ArrowLeft className="w-4 h-4" /> Back to Assignments
+      </button>
+
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800">{review.assignment_title}</h1>
+          <p className="flex items-center gap-1.5 mt-1 text-sm text-slate-500">
+            <Clock className="w-4 h-4" /> Submitted: {review.submitted_at ? new Date(review.submitted_at).toLocaleString() : 'N/A'}
+            {review.is_late && <span className="ml-2 text-[10px] font-black bg-red-100 text-red-700 px-2 py-0.5 rounded border border-red-200 uppercase">Late</span>}
+          </p>
+        </div>
+        <div className="bg-blue-50 border border-blue-100 rounded-xl px-5 py-3 text-center">
+          <p className="text-xs font-bold text-blue-700 uppercase tracking-wider">Final Score</p>
+          <p className="text-2xl font-black text-blue-700">{review.total_awarded_score} <span className="text-sm text-slate-400 font-bold">/ {review.total_max_score}</span></p>
+        </div>
+      </div>
+
+      {review.overall_feedback && (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 space-y-2">
+          <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
+            <MessageSquare className="w-4 h-4" /> Teacher's Overall Feedback
+          </h3>
+          <p className="text-sm text-slate-600 whitespace-pre-wrap">{review.overall_feedback}</p>
+        </div>
+      )}
+
+      {(review.student_attachment || review.teacher_returned_file) && (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex flex-wrap gap-4">
+          {review.student_attachment && (
+            <a href={review.student_attachment} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-200 transition-colors">
+              <Download className="w-4 h-4" /> Your Submitted File
+            </a>
+          )}
+          {review.teacher_returned_file && (
+            <a href={review.teacher_returned_file} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-200 rounded-lg text-sm font-medium text-emerald-700 hover:bg-emerald-100 transition-colors">
+              <Download className="w-4 h-4" /> Teacher's Annotated Return
+            </a>
+          )}
+        </div>
+      )}
+
+      <div className="space-y-5">
+        {review.detailed_answers.map((ans, index) => (
+          <div key={index} className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+            <div className="bg-slate-50 px-6 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
+              <span className="font-semibold text-slate-800">Question {index + 1}</span>
+              <div className="flex items-center gap-2">
+                {ans.correct_answer !== null && (
+                  ans.awarded_score >= ans.max_score
+                    ? <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded"><CheckCircle2 className="w-3.5 h-3.5" /> Correct</span>
+                    : <span className="inline-flex items-center gap-1 text-xs font-bold text-red-700 bg-red-50 border border-red-200 px-2 py-1 rounded"><XCircle className="w-3.5 h-3.5" /> Incorrect</span>
+                )}
+                <span className="text-sm font-bold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-md">{ans.awarded_score} / {ans.max_score}</span>
+              </div>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-slate-700 whitespace-pre-wrap">{ans.question_text}</p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Your Answer</p>
+                  <p className="text-sm text-slate-700">
+                    {ans.student_selected_options.length > 0
+                      ? ans.student_selected_options.join(', ')
+                      : (ans.teacher_corrected_text || ans.student_text_answer || <span className="italic text-slate-400">No answer provided</span>)}
+                  </p>
+                </div>
+                {ans.correct_answer && (
+                  <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-200">
+                    <p className="text-xs font-bold text-emerald-700 uppercase tracking-wider mb-1.5">Correct Answer</p>
+                    <p className="text-sm text-emerald-900">{ans.correct_answer}</p>
+                  </div>
+                )}
+              </div>
+
+              {ans.criterion_scores.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-xs font-bold text-purple-700 uppercase tracking-wider">Rubric Breakdown</p>
+                  {ans.criterion_scores.map((cs, ci) => (
+                    <div key={ci} className="flex items-center justify-between text-sm bg-purple-50 border border-purple-200 rounded-lg px-3 py-1.5">
+                      <span className="text-purple-800">{cs.criterion_text}</span>
+                      <span className="font-bold text-purple-700">{cs.score} / {cs.max_points}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {ans.teacher_comment && (
+                <div className="flex items-start gap-2 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <MessageSquare className="w-4 h-4 text-blue-600 mt-0.5 shrink-0" />
+                  <p className="text-sm text-blue-800">{ans.teacher_comment}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
