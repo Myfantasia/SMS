@@ -1,45 +1,6 @@
-import { Clock, Plus, Trash2, Eye } from 'lucide-react';
-import type { ClassStream, Lesson, TimeSlot } from '../../libs/types';
-
-// --- FRONTEND HELPER FUNCTIONS ---
-const isTechSubject = (subjectName: string, gradeName: string) => {
-  const nameUpper = subjectName.toUpperCase();
-  const gradeNum = parseInt(gradeName.replace(/\D/g, '')) || 0;
-  
-  if (nameUpper === "TECHNICAL BLOCK") return true;
-  
-  const techKeywords = ["TECHNICAL", "PRE-TECH", "HOME SCIENCE", "COMPUTER", "AGRICULTURE", "ART", "MUSIC"];
-  if (techKeywords.some(kw => nameUpper.includes(kw))) return true;
-  
-  if (nameUpper.includes("BUSINESS")) return gradeNum >= 10;
-  
-  return false;
-};
-
-const isRelSubject = (subjectName: string) => {
-  const nameUpper = subjectName.toUpperCase();
-  return ['CRE', 'IRE', 'HRE', 'CHRISTIAN', 'ISLAM', 'HINDU', 'RELIGIOUS'].some(kw => nameUpper.includes(kw));
-};
-
-const isHumSubject = (subjectName: string, gradeName: string) => {
-  const nameUpper = subjectName.toUpperCase();
-  const gradeNum = parseInt(gradeName.replace(/\D/g, '')) || 0;
-  
-  if (gradeNum >= 10) {
-    if (nameUpper.includes("HISTORY")) return false; // History is excluded
-    return ['GEOGRAPHY', 'CRE', 'IRE', 'HRE', 'CHRISTIAN', 'ISLAM', 'HINDU', 'RELIGIOUS'].some(kw => nameUpper.includes(kw));
-  }
-  return false;
-};
-
-const getSubjectColor = (subjectName: string) => {
-  const colors = [
-    'bg-blue-50 text-blue-700 border-blue-200', 'bg-purple-50 text-purple-700 border-purple-200',
-    'bg-emerald-50 text-emerald-700 border-emerald-200', 'bg-amber-50 text-amber-700 border-amber-200',
-    'bg-rose-50 text-rose-700 border-rose-200',
-  ];
-  return colors[subjectName.length % colors.length];
-};
+import { Clock, Plus, Trash2, Eye, UserCheck, Info } from 'lucide-react';
+import type { ClassStream, DailyCoverEntry, Lesson, TimeSlot } from '../../libs/types';
+import { getSubjectColor } from './subjectColors';
 
 interface GridProps {
   viewType: 'Weekdays' | 'Weekends';
@@ -50,9 +11,20 @@ interface GridProps {
   setActiveSlotId: (id: number) => void;
   setLessonToDelete: (id: number) => void;
   setViewBlockLessons: (lessons: Lesson[]) => void;
+  role?: string;
+
+  // --- PHASE 5: DAILY REASSIGNMENT PARITY FLAGS ---
+  isDailyCoverMode?: boolean;
+  setCoverAllocationId?: (id: number) => void;
+  dailyCovers?: DailyCoverEntry[];
 }
 
-export default function TimetableGrid({ viewType, slots, lessons, classes, selectedClassId, setActiveSlotId, setLessonToDelete, setViewBlockLessons }: GridProps) {
+export default function TimetableGrid({
+  viewType, slots, lessons, classes, selectedClassId,
+  setActiveSlotId, setLessonToDelete, setViewBlockLessons, role,
+  isDailyCoverMode = false, setCoverAllocationId, dailyCovers = []
+}: GridProps) {
+  const isAdmin = role === 'admin';
   const activeDays = viewType === 'Weekdays' ? ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'] : ['Saturday', 'Sunday'];
   const gridColClass = viewType === 'Weekdays' ? "grid-cols-[90px_repeat(5,minmax(0,1fr))]" : "grid-cols-[90px_repeat(2,minmax(0,1fr))]";
   const uniqueTimes = Array.from(new Set(slots.filter(s => activeDays.includes(s.day)).map(s => `${s.start_time} - ${s.end_time}`))).sort();
@@ -89,7 +61,7 @@ export default function TimetableGrid({ viewType, slots, lessons, classes, selec
                     
                     if (slot.is_global) return (
                       <div key={slot.id} className="p-2 border-r border-slate-100 flex items-center justify-center">
-                        <div className="w-full h-full min-h-[60px] bg-slate-100 rounded-lg flex items-center justify-center text-slate-400 font-bold text-sm tracking-wide border border-dashed border-slate-300 p-2 text-center leading-tight break-words">
+                        <div className="w-full h-full min-h-15 bg-slate-100 rounded-lg flex items-center justify-center text-slate-400 font-bold text-sm tracking-wide border border-dashed border-slate-300 p-2 text-center leading-tight wrap-break-word">
                           {slot.global_label}
                         </div>
                       </div>
@@ -99,16 +71,27 @@ export default function TimetableGrid({ viewType, slots, lessons, classes, selec
                     const lesson = slotLessons[0];
                     
                     if (lesson) {
-                      const currentClass = classes.find(c => c.id === selectedClassId);
-                      const gradeName = currentClass ? currentClass.grade_name : '';
+                      // --- PURE RELATIONAL PARSING ENGINE ---
+                      // We look strictly at whether the lesson template contains a database block index
+                      const isOptionBlock = lesson.subject_block_id !== null && lesson.subject_block_id !== undefined;
+                      const blockLabel = String(lesson.subject_block_name || 'Elective Option Block');
                       
-                      const isTech = slotLessons.some(l => isTechSubject(l.subject_name, gradeName));
-                      const isReligious = slotLessons.some(l => isRelSubject(l.subject_name));
-                      const isHum = slotLessons.some(l => isHumSubject(l.subject_name, gradeName));
-                      
-                      const allowStacking = isTech || isReligious || isHum;
-                      
-                      const colors = isTech ? 'bg-slate-800 text-white border-slate-700' : getSubjectColor(lesson.subject_name);
+                      // Stacking is permitted if the cell is predefined as an administrative Option Block container
+                      const allowStacking = isOptionBlock;
+
+                      // If a substitute has been assigned for this exact lesson on the selected date,
+                      // surface it directly on the cell instead of silently keeping the absent teacher's name.
+                      const activeCover = isDailyCoverMode
+                        ? dailyCovers.find(c => c.target_lesson_id === lesson.id)
+                        : undefined;
+
+                      // Cover mode changes the layout background to amber to indicate override rules are active;
+                      // once a substitute is actually assigned, switch to green so it reads as "resolved."
+                      const colors = isDailyCoverMode
+                        ? (activeCover
+                            ? 'bg-emerald-50/60 text-emerald-900 border-emerald-300 shadow-inner'
+                            : 'bg-amber-50/60 text-amber-900 border-amber-300 shadow-inner')
+                        : (isOptionBlock ? 'bg-slate-800 text-white border-slate-700' : getSubjectColor(lesson.subject_name));
 
                       let isFirstHalf = false;
                       let isSecondHalf = false;
@@ -125,70 +108,85 @@ export default function TimetableGrid({ viewType, slots, lessons, classes, selec
                          if (nextLesson && !isSecondHalf) isFirstHalf = true;
                       }
 
-                      if (isSecondHalf) return <div key={slot.id} className="p-2 border-r border-slate-100 relative"><div className="w-full min-h-[80px]"></div></div>;
-
-                      // --- DYNAMIC BLOCK LABEL LOGIC ---
-                      let blockLabel = '';
-                      if (isTech) {
-                        blockLabel = 'Technical Block';
-                      } else if (isHum) {
-                        blockLabel = 'Geo/Religious Block';
-                      } else {
-                        blockLabel = 'CRE/IRE Block';
-                      }
+                      if (isSecondHalf) return <div key={slot.id} className="p-2 border-r border-slate-100 relative"><div className="w-full min-h-20"></div></div>;
 
                       return (
                         <div key={slot.id} className="p-2 border-r border-slate-100 relative">
-                          {isFirstHalf && <div className="w-full min-h-[80px]"></div>}
+                          {isFirstHalf && <div className="w-full min-h-20"></div>}
                           <div 
-                            className={`${isFirstHalf ? 'absolute top-2 left-2 right-2 z-20 shadow-lg' : 'w-full h-full min-h-[80px] relative'} rounded-xl border p-3 flex flex-col justify-between group/card hover:shadow-md min-w-0 transition-all ${colors}`}
+                            className={`${isFirstHalf ? 'absolute top-2 left-2 right-2 z-20 shadow-lg' : 'w-full h-full min-h-20 relative'} rounded-xl border p-3 flex flex-col justify-between group/card hover:shadow-md min-w-0 transition-all ${colors}`}
                             style={isFirstHalf ? { height: 'calc(200% - 15px)' } : {}}
                           >
                             <div className="min-w-0 w-full flex-1 flex flex-col">
-                              {/* --- GROUPED BLOCK DISPLAY --- */}
                               {slotLessons.length > 1 ? (
                                 <>
                                   <div className="min-w-0">
-                                    <p className="font-bold text-sm leading-tight break-words">{blockLabel} {isFirstHalf && '(Double)'}</p>
-                                    <p className={`text-xs mt-1 font-medium truncate ${isTech ? 'text-slate-300' : 'opacity-80'}`}>{slotLessons.length} Subjects</p>
+                                    <p className="font-bold text-sm leading-tight wrap-break-word">{blockLabel} {isFirstHalf && '(Double)'}</p>
+                                    <p className={`text-xs mt-1 font-medium truncate ${isOptionBlock && !isDailyCoverMode ? 'text-slate-300' : 'opacity-80'}`}>{slotLessons.length} Subjects</p>
                                   </div>
                                   <button
                                     onClick={(e) => { e.stopPropagation(); setViewBlockLessons(slotLessons); }}
                                     title="View subjects"
-                                    className={`absolute bottom-2 right-2 p-1.5 rounded-md transition-colors ${isTech ? 'hover:bg-slate-700 text-slate-300 hover:text-white' : 'hover:bg-white/50 text-slate-600'}`}
+                                    aria-label={`View ${slotLessons.length} subjects in ${blockLabel}`}
+                                    className={`absolute bottom-2 right-2 p-1.5 rounded-md transition-colors ${isOptionBlock && !isDailyCoverMode ? 'hover:bg-slate-700 text-slate-300 hover:text-white' : 'hover:bg-white/50 text-slate-600'}`}
                                   >
                                     <Eye className="w-4 h-4" />
                                   </button>
                                 </>
                               ) : (
                                 <div className="min-w-0">
-                                  <p className="font-bold text-sm leading-tight break-words">{lesson.subject_name} {isFirstHalf && '(Double)'}</p>
-                                  <p className={`text-xs mt-1 font-medium truncate ${isTech ? 'text-slate-300' : 'opacity-80'}`}>{lesson.teacher_name}</p>
+                                  <p className="font-bold text-sm leading-tight wrap-break-word">{lesson.subject_name} {isFirstHalf && '(Double)'}</p>
+                                  {activeCover ? (
+                                    <p className="text-xs mt-1 font-medium truncate opacity-80">
+                                      <span className="line-through opacity-60">{lesson.teacher_name}</span>
+                                      {' → '}
+                                      <span className="font-bold">{activeCover.covering_teacher_name}</span>
+                                    </p>
+                                  ) : (
+                                    <p className={`text-xs mt-1 font-medium truncate ${isOptionBlock && !isDailyCoverMode ? 'text-slate-300' : 'opacity-80'}`}>{lesson.teacher_name}</p>
+                                  )}
                                 </div>
                               )}
                             </div>
                             
-                            <div className="absolute top-2 right-2 flex gap-1 z-30 opacity-0 group-hover/card:opacity-100 transition-opacity">
-                              {allowStacking && (
-                                <button 
-                                  onClick={(e) => { e.stopPropagation(); setActiveSlotId(slot.id); }} 
-                                  title="Add concurrent subject" 
-                                  className={`p-1.5 rounded-md text-white shadow-sm transition-colors ${isTech ? 'bg-slate-600 hover:bg-slate-500' : 'bg-blue-600 hover:bg-blue-500'}`}
-                                >
-                                  <Plus className="w-4 h-4" />
-                                </button>
-                              )}
-                              {/* Global Trash button is only shown if there is just 1 subject in the slot */}
-                              {slotLessons.length === 1 && (
-                                <button 
-                                  onClick={(e) => { e.stopPropagation(); setLessonToDelete(lesson.id); }} 
-                                  title="Remove lesson" 
-                                  className={`p-1.5 rounded-md transition-colors ${isTech ? 'bg-red-500 hover:bg-red-600 text-white shadow-sm' : 'bg-white hover:bg-red-50 text-red-500 shadow-sm border border-slate-200 hover:border-red-200'}`}
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              )}
-                            </div>
+                            {/* --- PHASE 5: AD-HOC SUBSTITUTION COVER TRIGGER INTERCEPTOR --- */}
+                            {isAdmin && (
+                              <div className="absolute top-2 right-2 flex gap-1 z-30 opacity-0 group-hover/card:opacity-100 transition-opacity">
+                                {isDailyCoverMode ? (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); setCoverAllocationId?.(lesson.id); }}
+                                    title={activeCover ? "Change substitute covering teacher" : "Assign substitute covering teacher"}
+                                    aria-label={activeCover ? "Change substitute covering teacher" : "Assign substitute covering teacher"}
+                                    className={`p-1.5 rounded-md text-white shadow-md animate-fade-in flex items-center justify-center ${activeCover ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-amber-600 hover:bg-amber-700'}`}
+                                  >
+                                    <UserCheck className="w-4 h-4" />
+                                  </button>
+                                ) : (
+                                  <>
+                                    {allowStacking && (
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); setActiveSlotId(slot.id); }}
+                                        title="Add concurrent subject"
+                                        aria-label={`Add concurrent subject to ${blockLabel}`}
+                                        className={`p-1.5 rounded-md text-white shadow-sm transition-colors ${isOptionBlock ? 'bg-slate-600 hover:bg-slate-500' : 'bg-blue-600 hover:bg-blue-500'}`}
+                                      >
+                                        <Plus className="w-4 h-4" />
+                                      </button>
+                                    )}
+                                    {slotLessons.length === 1 && (
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); setLessonToDelete(lesson.id); }}
+                                        title="Remove lesson"
+                                        aria-label={`Remove ${lesson.subject_name} lesson`}
+                                        className={`p-1.5 rounded-md transition-colors ${isOptionBlock ? 'bg-red-500 hover:bg-red-600 text-white shadow-sm' : 'bg-white hover:bg-red-50 text-red-500 shadow-sm border border-slate-200'}`}
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                            )}
 
                           </div>
                         </div>
@@ -196,10 +194,17 @@ export default function TimetableGrid({ viewType, slots, lessons, classes, selec
                     }
 
                     return (
-                      <div key={slot.id} className={`p-2 border-r border-slate-100 cursor-pointer transition flex items-center justify-center min-h-[80px] ${slot.is_remedial ? 'bg-purple-50/30 hover:bg-purple-100/50' : 'hover:bg-blue-50/50'}`}>
-                        <button onClick={(e) => { e.stopPropagation(); setActiveSlotId(slot.id); }} className="w-8 h-8 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-blue-100 hover:text-blue-600 shadow-sm">
-                          <Plus className="w-4 h-4" />
-                        </button>
+                      <div key={slot.id} className={`p-2 border-r border-slate-100 transition flex items-center justify-center min-h-20 ${isAdmin && !isDailyCoverMode ? 'cursor-pointer' : ''} ${slot.is_remedial ? 'bg-purple-50/30 hover:bg-purple-100/50' : 'hover:bg-blue-50/50'}`}>
+                        {isAdmin && !isDailyCoverMode && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setActiveSlotId(slot.id); }}
+                            title="Schedule a lesson in this slot"
+                            aria-label={`Schedule a lesson on ${day} ${timeStr}`}
+                            className="w-9 h-9 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center opacity-0 group-hover:opacity-100 focus:opacity-100 focus-visible:ring-2 focus-visible:ring-blue-400 outline-none transition-opacity hover:bg-blue-100 hover:text-blue-600 shadow-sm"
+                          >
+                            <Plus className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     );
                   })}
@@ -208,6 +213,19 @@ export default function TimetableGrid({ viewType, slots, lessons, classes, selec
             )}
           </div>
         </div>
+      </div>
+
+      {/* Legend — explains cell coloring/icons that aren't otherwise self-evident */}
+      <div className="shrink-0 border-t border-slate-100 px-4 py-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 bg-slate-50/60 text-[11px] font-medium text-slate-500">
+        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-purple-100 border border-purple-200 shrink-0"></span> Remedial period</span>
+        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-slate-800 shrink-0"></span> Elective option block</span>
+        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-amber-100 border border-amber-300 shrink-0"></span> Cover needed</span>
+        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-100 border border-emerald-300 shrink-0"></span> Cover assigned</span>
+        {isAdmin && !isDailyCoverMode && (
+          <span className="flex items-center gap-1.5 ml-auto text-slate-400">
+            <Info className="w-3 h-3" /> Hover an empty slot and click <Plus className="w-3 h-3 inline" /> to schedule a lesson
+          </span>
+        )}
       </div>
     </div>
   );

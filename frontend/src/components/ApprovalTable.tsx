@@ -1,6 +1,8 @@
 // ApprovalTable.tsx
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
+import { CheckCircle2, XCircle, UserPlus } from 'lucide-react';
+import api from '../libs/axiosInstance';
 
 // Updated to include the new backend fields
 interface PendingUser {
@@ -13,26 +15,31 @@ interface PendingUser {
   subjects?: string;
   children?: string;
   // Kept extra_info as a fallback just in case
-  extra_info?: string; 
+  extra_info?: string;
 }
 
 interface ApprovalTableProps {
   userType: 'students' | 'teachers' | 'parents';
 }
 
+const AVATAR_COLOR: Record<ApprovalTableProps['userType'], string> = {
+  teachers: 'bg-purple-100 text-purple-700',
+  students: 'bg-blue-100 text-blue-700',
+  parents: 'bg-emerald-100 text-emerald-700',
+};
+
 export default function ApprovalTable({ userType }: ApprovalTableProps) {
   const [users, setUsers] = useState<PendingUser[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [busyId, setBusyId] = useState<number | null>(null);
 
-  // Fetch users when the component loads or when userType changes
   useEffect(() => {
     const fetchPendingUsers = async () => {
       setLoading(true);
       try {
-        const response = await fetch(`http://127.0.0.1:8000/api/pending-users/${userType}/`, {
-          credentials: 'include'
-        });
-        const data = await response.json();
+        const response = await api.get(`/api/pending-users/${userType}/`);
+        const data = response.data;
+
         if (data.status === 'success') {
           setUsers(data.data);
         }
@@ -41,82 +48,104 @@ export default function ApprovalTable({ userType }: ApprovalTableProps) {
       }
       setLoading(false);
     };
-  
+
     fetchPendingUsers();
   }, [userType]);
 
   const handleAction = async (id: number, action: 'approve' | 'reject') => {
+    setBusyId(id);
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/process-approval/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_type: userType, id, action })
+      const response = await api.post('/api/process-approval/', {
+        user_type: userType,
+        id,
+        action
       });
-      const data = await response.json();
-      
+
+      const data = response.data;
+
       if (data.status === 'success') {
         toast.success(`User successfully ${action}ed.`);
-        // Instantly remove the user from the UI without reloading
         setUsers(users.filter(user => user.id !== id));
       } else {
         toast.error("Action failed: " + data.message);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(`Failed to ${action} user`, error);
+      const errMsg = error.response?.data?.message || `Failed to complete action. Ensure you are signed in as an administrator.`;
+      toast.error(errMsg);
+    } finally {
+      setBusyId(null);
     }
   };
 
-  if (loading) return <div className="p-4 text-gray-500 animate-pulse">Loading {userType}...</div>;
+  const secondaryColumnLabel = userType === 'students' ? 'Class' : userType === 'teachers' ? 'Subjects' : 'Linked Students';
+
+  if (loading) {
+    return (
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 animate-pulse space-y-4">
+        <div className="h-8 w-56 bg-slate-200 rounded-lg"></div>
+        {[1, 2, 3].map((i) => <div key={i} className="h-14 bg-slate-100 rounded-xl"></div>)}
+      </div>
+    );
+  }
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow-md border border-gray-100">
-      <h2 className="text-xl font-semibold mb-4 capitalize">Pending {userType} Approvals</h2>
-      
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+      <div className="p-5 border-b border-slate-100 flex items-center gap-2">
+        <h2 className="text-base font-bold text-slate-800 capitalize">Pending {userType}</h2>
+        <span className="bg-amber-100 text-amber-700 text-xs font-bold px-2.5 py-1 rounded-full">{users.length}</span>
+      </div>
+
       {users.length === 0 ? (
-        <div className="text-gray-500 py-4">No pending {userType} requiring approval at this time.</div>
+        <div className="flex flex-col items-center justify-center py-16 text-slate-400 gap-3">
+          <UserPlus className="w-12 h-12 text-slate-300" />
+          <p className="text-sm font-medium">No pending {userType} requiring approval at this time.</p>
+        </div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-gray-50 text-gray-700 uppercase text-sm">
-                <th className="py-3 px-4 border-b">Name</th>
-                <th className="py-3 px-4 border-b">Username / ID</th>
-                <th className="py-3 px-4 border-b">Email</th>
-                
-                {/* Dynamically show the 4th column based on role */}
-                {userType === 'students' && <th className="py-3 px-4 border-b">Class</th>}
-                {userType === 'teachers' && <th className="py-3 px-4 border-b">Subjects</th>}
-                {userType === 'parents' && <th className="py-3 px-4 border-b">Linked Students</th>}
-
-                <th className="py-3 px-4 border-b text-right">Actions</th>
+              <tr className="bg-slate-50 text-slate-400 uppercase text-[11px] tracking-wider">
+                <th className="py-3 px-5 font-bold">Name</th>
+                <th className="py-3 px-5 font-bold">Username / ID</th>
+                <th className="py-3 px-5 font-bold">Email</th>
+                <th className="py-3 px-5 font-bold">{secondaryColumnLabel}</th>
+                <th className="py-3 px-5 font-bold text-right">Actions</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-slate-50">
               {users.map((user) => (
-                <tr key={user.id} className="hover:bg-gray-50 transition">
-                  <td className="py-3 px-4 border-b font-medium text-gray-800">{user.name}</td>
-                  <td className="py-3 px-4 border-b text-gray-600">{user.username}</td>
-                  <td className="py-3 px-4 border-b text-gray-600">{user.email}</td>
-                  
-                  {/* Dynamically render the 4th column data */}
-                  {userType === 'students' && <td className="py-3 px-4 border-b text-gray-600">{user.class || user.extra_info}</td>}
-                  {userType === 'teachers' && <td className="py-3 px-4 border-b text-gray-600">{user.subjects || user.extra_info}</td>}
-                  {userType === 'parents' && <td className="py-3 px-4 border-b text-gray-600">{user.children || user.extra_info}</td>}
-
-                  {/* FIX: Replaced text-right and space-x-2 with a Flexbox container */}
-                  <td className="py-3 px-4 border-b">
+                <tr key={user.id} className="hover:bg-slate-50/70 transition-colors">
+                  <td className="py-3 px-5">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${AVATAR_COLOR[userType]}`}>
+                        {user.name.charAt(0).toUpperCase()}
+                      </div>
+                      <span className="font-semibold text-slate-800">{user.name}</span>
+                    </div>
+                  </td>
+                  <td className="py-3 px-5 text-slate-500">{user.username}</td>
+                  <td className="py-3 px-5 text-slate-500">{user.email}</td>
+                  <td className="py-3 px-5 text-slate-500 text-sm">
+                    {userType === 'students' && (user.class || user.extra_info || <span className="text-slate-300 italic">N/A</span>)}
+                    {userType === 'teachers' && (user.subjects || user.extra_info || <span className="text-slate-300 italic">None listed</span>)}
+                    {userType === 'parents' && (user.children || user.extra_info || <span className="text-slate-300 italic">No children linked</span>)}
+                  </td>
+                  <td className="py-3 px-5 text-right">
                     <div className="flex items-center justify-end gap-2">
-                      <button 
+                      <button
+                        disabled={busyId === user.id}
                         onClick={() => handleAction(user.id, 'approve')}
-                        className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded text-sm font-medium transition whitespace-nowrap"
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-xs font-bold transition-colors disabled:opacity-60 whitespace-nowrap"
                       >
-                        Approve
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Approve
                       </button>
-                      <button 
+                      <button
+                        disabled={busyId === user.id}
                         onClick={() => handleAction(user.id, 'reject')}
-                        className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded text-sm font-medium transition whitespace-nowrap"
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg text-xs font-bold transition-colors disabled:opacity-60 whitespace-nowrap"
                       >
-                        Reject
+                        <XCircle className="w-3.5 h-3.5" /> Reject
                       </button>
                     </div>
                   </td>

@@ -18,7 +18,7 @@
       <sourceFolder url="file://$MODULE_DIR$/school" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/environments" />
     </content>
-    <orderEntry type="jdk" jdkName="Python 3.14" jdkType="Python SDK" />
+    <orderEntry type="jdk" jdkName="Python 3.12 (PyCharmMiscProject)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="library" name="Django Lib" level="project" />
   </component>

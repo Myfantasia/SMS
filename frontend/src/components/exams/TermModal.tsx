@@ -72,27 +72,27 @@ const TermModal: React.FC<TermModalProps> = ({ isOpen, onClose, onSuccess, acade
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4 text-sm">
           <div>
-            <label className="block text-slate-600 font-medium mb-1">Select Academic Year</label>
-            <select required className="w-full border border-slate-200 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+            <label htmlFor="academicYear" className="block text-slate-600 font-medium mb-1">Select Academic Year</label>
+            <select id="academicYear" required className="w-full border border-slate-200 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none bg-white"
               value={termForm.academic_year_id} onChange={(e) => setTermForm({...termForm, academic_year_id: e.target.value})}>
               <option value="">-- Choose Year --</option>
               {academicYears.map(y => <option key={y.id} value={String(y.id)}>{y.year}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-slate-600 font-medium mb-1">Term Name</label>
-            <input required type="text" placeholder="e.g. Term 1" className="w-full border border-slate-200 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none" 
+            <label htmlFor="termName" className="block text-slate-600 font-medium mb-1">Term Name</label>
+            <input id="termName" required type="text" placeholder="e.g. Term 1" className="w-full border border-slate-200 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none" 
               value={termForm.name} onChange={(e) => setTermForm({...termForm, name: e.target.value})} />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-slate-600 font-medium mb-1">Start Date</label>
-              <input required type="date" className="w-full border border-slate-200 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none" 
+              <label htmlFor="startDate" className="block text-slate-600 font-medium mb-1">Start Date</label>
+              <input id="startDate" aria-label="Start Date" required type="date" className="w-full border border-slate-200 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none" 
                 value={termForm.startDate} onChange={(e) => setTermForm({...termForm, startDate: e.target.value})} />
             </div>
             <div>
-              <label className="block text-slate-600 font-medium mb-1">End Date</label>
-              <input required type="date" className="w-full border border-slate-200 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none" 
+              <label htmlFor="endDate" className="block text-slate-600 font-medium mb-1">End Date</label>
+              <input id="endDate" aria-label="End Date" required type="date" className="w-full border border-slate-200 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none" 
                 value={termForm.endDate} onChange={(e) => setTermForm({...termForm, endDate: e.target.value})} />
             </div>
           </div>

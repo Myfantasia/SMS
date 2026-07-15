@@ -1,16 +1,18 @@
 import React from 'react';
-import { 
-  Plus, 
-  Trash2, 
-  CheckCircle2, 
+import {
+  Plus,
+  Trash2,
+  CheckCircle2,
   Circle,
-  CheckSquare,  // <-- NEW: Added for Checkbox UI
-  Square,       // <-- NEW: Added for Checkbox UI
-  GripVertical,
+  CheckSquare,
+  Square,
+  ChevronUp,
+  ChevronDown,
   AlertCircle,
-  UploadCloud   // <-- NEW: Added for File Upload visual
+  UploadCloud,
+  ClipboardList
 } from 'lucide-react';
-import toast from 'react-hot-toast'; // <-- NEW: Added to trigger the Max 3 warning
+import toast from 'react-hot-toast';
 import type { Question } from '../../libs/assignments';
 
 interface QuestionBuilderProps {
@@ -36,19 +38,59 @@ export default function QuestionBuilder({ questions, setQuestions }: QuestionBui
   };
 
   const removeQuestion = (indexToRemove: number) => {
-    setQuestions(questions.filter((_, index) => index !== indexToRemove));
+    const question = questions[indexToRemove];
+    const hasContent = question.question_text.trim() || question.options?.some(o => o.option_text.trim());
+
+    const doRemove = () => setQuestions(questions.filter((_, index) => index !== indexToRemove));
+
+    if (!hasContent) {
+      doRemove();
+      return;
+    }
+
+    // Confirm before discarding a question with real content — mirrors the confirm
+    // pattern already used for deleting assignments in AssignmentsHub.
+    toast((t) => (
+      <div className="flex flex-col gap-3 max-w-sm">
+        <p className="text-sm font-medium text-slate-800 leading-relaxed">
+          Remove Question {indexToRemove + 1}? All its text and options will be discarded.
+        </p>
+        <div className="flex justify-end gap-2 mt-2">
+          <button
+            onClick={() => toast.dismiss(t.id)}
+            className="px-3 py-1.5 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-md transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => { toast.dismiss(t.id); doRemove(); }}
+            className="px-4 py-1.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors shadow-sm"
+          >
+            Remove
+          </button>
+        </div>
+      </div>
+    ), { duration: Infinity, position: 'top-center', style: { minWidth: '320px' } });
+  };
+
+  const moveQuestion = (index: number, direction: -1 | 1) => {
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= questions.length) return;
+    const updated = [...questions];
+    [updated[index], updated[targetIndex]] = [updated[targetIndex], updated[index]];
+    setQuestions(updated);
   };
 
   const updateQuestion = (index: number, field: keyof Question, value: any) => {
     const updatedQuestions = [...questions];
     updatedQuestions[index] = { ...updatedQuestions[index], [field]: value };
-    
+
     // Auto-update the 'is_auto_graded' flag based on the selected type
     if (field === 'question_type') {
       // <-- NEW: Added CHECKBOX to the auto-graded check
       const isAuto = value === 'MCQ' || value === 'SHORT_ANSWER' || value === 'CHECKBOX';
       updatedQuestions[index].is_auto_graded = isAuto;
-      
+
       // If switching to MCQ or CHECKBOX and options are missing, initialize them
       if ((value === 'MCQ' || value === 'CHECKBOX') && !updatedQuestions[index].options) {
         updatedQuestions[index].options = [
@@ -56,20 +98,21 @@ export default function QuestionBuilder({ questions, setQuestions }: QuestionBui
           { option_text: '', is_correct: false }
         ];
       }
-      
+
       // Default to requiring 2 answers if they switch to multiple response
       if (value === 'CHECKBOX') {
         updatedQuestions[index].required_answers = 2;
       }
     }
-    
+
     setQuestions(updatedQuestions);
   };
 
   // --- 2. OPTION HANDLERS ---
   const addOption = (qIndex: number) => {
-    const updatedQuestions = [...questions];
-    updatedQuestions[qIndex].options?.push({ option_text: '', is_correct: false });
+    const updatedQuestions = questions.map((q, i) =>
+      i === qIndex ? { ...q, options: [...(q.options || []), { option_text: '', is_correct: false }] } : q
+    );
     setQuestions(updatedQuestions);
   };
 
@@ -97,7 +140,7 @@ export default function QuestionBuilder({ questions, setQuestions }: QuestionBui
       // --- NEW: Handle CHECKBOX vs MCQ logic ---
       if (q.question_type === 'CHECKBOX') {
         const isCurrentlyCorrect = q.options[correctOptIndex].is_correct;
-        
+
         // If they are trying to check a NEW box, validate the limit
         if (!isCurrentlyCorrect) {
           const currentCorrectCount = q.options.filter(opt => opt.is_correct).length;
@@ -120,23 +163,74 @@ export default function QuestionBuilder({ questions, setQuestions }: QuestionBui
     setQuestions(updatedQuestions);
   };
 
+  // --- 3. RUBRIC CRITERIA HANDLERS ---
+  const addCriterion = (qIndex: number) => {
+    const updatedQuestions = questions.map((q, i) => {
+      if (i !== qIndex) return q;
+      const criteria = [...(q.rubric_criteria || []), { criterion_text: '', max_points: 1 }];
+      return { ...q, rubric_criteria: criteria, max_score: criteria.reduce((sum, c) => sum + (c.max_points || 0), 0) };
+    });
+    setQuestions(updatedQuestions);
+  };
+
+  const removeCriterion = (qIndex: number, cIndex: number) => {
+    const updatedQuestions = questions.map((q, i) => {
+      if (i !== qIndex) return q;
+      const criteria = (q.rubric_criteria || []).filter((_, ci) => ci !== cIndex);
+      const nextScore = criteria.length > 0 ? criteria.reduce((sum, c) => sum + (c.max_points || 0), 0) : q.max_score;
+      return { ...q, rubric_criteria: criteria, max_score: nextScore };
+    });
+    setQuestions(updatedQuestions);
+  };
+
+  const updateCriterion = (qIndex: number, cIndex: number, field: 'criterion_text' | 'max_points', value: string | number) => {
+    const updatedQuestions = questions.map((q, i) => {
+      if (i !== qIndex) return q;
+      const criteria = (q.rubric_criteria || []).map((c, ci) => ci === cIndex ? { ...c, [field]: value } : c);
+      return { ...q, rubric_criteria: criteria, max_score: criteria.reduce((sum, c) => sum + (Number(c.max_points) || 0), 0) };
+    });
+    setQuestions(updatedQuestions);
+  };
+
   return (
     <div className="space-y-6">
-      
+
       {questions.map((q, qIndex) => (
-        <div key={qIndex} className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300">
-          
+        <div key={qIndex} className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300">
+
           {/* Question Header */}
           <div className="bg-slate-50 border-b border-slate-200 p-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <GripVertical className="w-5 h-5 text-slate-400 cursor-grab active:cursor-grabbing" />
+            <div className="flex items-center gap-2">
+              <div className="flex flex-col -my-1">
+                <button
+                  type="button"
+                  onClick={() => moveQuestion(qIndex, -1)}
+                  disabled={qIndex === 0}
+                  title="Move question up"
+                  aria-label="Move question up"
+                  className="text-slate-400 hover:text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  <ChevronUp className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => moveQuestion(qIndex, 1)}
+                  disabled={qIndex === questions.length - 1}
+                  title="Move question down"
+                  aria-label="Move question down"
+                  className="text-slate-400 hover:text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </button>
+              </div>
               <h4 className="font-semibold text-slate-700">Question {qIndex + 1}</h4>
             </div>
-            <button 
-              type="button" 
+            <button
+              type="button"
               onClick={() => removeQuestion(qIndex)}
               className="text-slate-400 hover:text-red-600 transition-colors p-1"
               title="Remove question"
+              aria-label={`Remove question ${qIndex + 1}`}
             >
               <Trash2 className="w-4 h-4" />
             </button>
@@ -146,23 +240,23 @@ export default function QuestionBuilder({ questions, setQuestions }: QuestionBui
             {/* Question Text & Core Settings */}
             <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
               <div className="md:col-span-8">
-                <label className="block text-sm font-medium text-slate-700 mb-1">Question Prompt</label>
-                <textarea 
+                <label htmlFor={`question_text_${qIndex}`} className="block text-sm font-medium text-slate-700 mb-1">Question Prompt</label>
+                <textarea
+                  id={`question_text_${qIndex}`}
                   rows={2}
                   value={q.question_text}
                   onChange={(e) => updateQuestion(qIndex, 'question_text', e.target.value)}
                   placeholder="Type your question here..."
-                  title="Question Prompt"
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all resize-y"
                 />
               </div>
-              
+
               <div className="md:col-span-3">
-                <label className="block text-sm font-medium text-slate-700 mb-1">Type</label>
-                <select 
+                <label htmlFor={`question_type_${qIndex}`} className="block text-sm font-medium text-slate-700 mb-1">Type</label>
+                <select
+                  id={`question_type_${qIndex}`}
                   value={q.question_type}
                   onChange={(e) => updateQuestion(qIndex, 'question_type', e.target.value)}
-                  title="Type"
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
                 >
                   <option value="MCQ">Multiple Choice</option>
@@ -174,25 +268,75 @@ export default function QuestionBuilder({ questions, setQuestions }: QuestionBui
               </div>
 
               <div className="md:col-span-1">
-                <label className="block text-sm font-medium text-slate-700 mb-1">Points</label>
-                <input 
+                <label htmlFor={`max_score_${qIndex}`} className="block text-sm font-medium text-slate-700 mb-1">Points</label>
+                <input
                   id={`max_score_${qIndex}`}
-                  type="number" 
-                  min="1"
+                  type="number"
+                  min="0.5"
+                  step="0.5"
                   value={q.max_score}
-                  title="Points"
-                  onChange={(e) => updateQuestion(qIndex, 'max_score', parseInt(e.target.value) || 0)}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white outline-none text-center"
+                  disabled={(q.rubric_criteria?.length || 0) > 0}
+                  title={(q.rubric_criteria?.length || 0) > 0 ? "Derived from rubric criteria below" : undefined}
+                  onChange={(e) => updateQuestion(qIndex, 'max_score', parseFloat(e.target.value) || 0)}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white outline-none text-center disabled:opacity-60 disabled:cursor-not-allowed"
                 />
               </div>
             </div>
 
+            {/* Optional Grading Rubric — mainly useful for manually-graded question types */}
+            {(q.question_type === 'ESSAY' || q.question_type === 'FILE_UPLOAD') && (
+              <div className="pl-4 border-l-2 border-purple-200 mt-4 bg-purple-50/40 p-4 rounded-r-lg space-y-2">
+                <div className="flex items-center gap-2 mb-1">
+                  <ClipboardList className="w-4 h-4 text-purple-600" />
+                  <label className="block text-xs font-bold text-purple-700 uppercase tracking-wider">Grading Rubric (Optional)</label>
+                </div>
+                <p className="text-xs text-purple-600/80 mb-2">
+                  Break this question into scored criteria. When used, the Points field above is auto-summed from these.
+                </p>
+                {(q.rubric_criteria || []).map((c, cIndex) => (
+                  <div key={cIndex} className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={c.criterion_text}
+                      onChange={(e) => updateCriterion(qIndex, cIndex, 'criterion_text', e.target.value)}
+                      placeholder={`Criterion ${cIndex + 1}, e.g. "Clarity of argument"`}
+                      className="flex-1 p-2 bg-white border border-purple-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+                    />
+                    <input
+                      type="number"
+                      min="0.5"
+                      step="0.5"
+                      value={c.max_points}
+                      onChange={(e) => updateCriterion(qIndex, cIndex, 'max_points', parseFloat(e.target.value) || 0)}
+                      className="w-20 p-2 bg-white border border-purple-200 rounded-lg text-sm outline-none text-center"
+                      aria-label={`Points for criterion ${cIndex + 1}`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeCriterion(qIndex, cIndex)}
+                      className="text-purple-400 hover:text-red-500 p-1.5"
+                      aria-label={`Remove criterion ${cIndex + 1}`}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => addCriterion(qIndex)}
+                  className="mt-1 text-sm font-medium text-purple-700 hover:text-purple-900 flex items-center gap-1 p-1 rounded transition-colors"
+                >
+                  <Plus className="w-4 h-4" /> Add Criterion
+                </button>
+              </div>
+            )}
+
             {/* --- CONDITIONAL RENDERING BASED ON QUESTION TYPE --- */}
-            
+
             {/* 1. Multiple Choice & Multiple Response (Checkboxes) Logic */}
             {(q.question_type === 'MCQ' || q.question_type === 'CHECKBOX') && (
               <div className="pl-4 border-l-2 border-blue-200 space-y-3 mt-4">
-                
+
                 {/* Header for Options */}
                 <div className="flex items-center justify-between mb-2">
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
@@ -202,13 +346,13 @@ export default function QuestionBuilder({ questions, setQuestions }: QuestionBui
                   {/* Limit Setter for Checkboxes */}
                   {q.question_type === 'CHECKBOX' && (
                     <div className="flex items-center gap-2 text-xs">
-                      <span className="text-slate-600 font-medium">Required Answers:</span>
-                      <input 
+                      <label htmlFor={`required_answers_${qIndex}`} className="text-slate-600 font-medium">Required Answers:</label>
+                      <input
+                        id={`required_answers_${qIndex}`}
                         type="number"
                         min="1"
                         max="3"
                         value={q.required_answers || 2}
-                        title="Required Answers"
                         onChange={(e) => {
                           let val = parseInt(e.target.value);
                           if (val > 3) val = 3;
@@ -220,12 +364,12 @@ export default function QuestionBuilder({ questions, setQuestions }: QuestionBui
                     </div>
                   )}
                 </div>
-                
+
                 {/* Options List */}
                 {q.options?.map((opt, optIndex) => (
                   <div key={optIndex} className="flex items-center gap-3">
                     {/* The Correct Answer Selector */}
-                    <button 
+                    <button
                       type="button"
                       onClick={() => setCorrectOption(qIndex, optIndex)}
                       className="shrink-0 focus:outline-none transition-transform active:scale-95"
@@ -238,16 +382,16 @@ export default function QuestionBuilder({ questions, setQuestions }: QuestionBui
                         opt.is_correct ? <CheckSquare className="w-6 h-6 text-blue-600" /> : <Square className="w-6 h-6 text-slate-300 hover:text-blue-400" />
                       )}
                     </button>
-                    
-                    <input 
-                      type="text" 
+
+                    <input
+                      type="text"
                       value={opt.option_text}
                       onChange={(e) => updateOptionText(qIndex, optIndex, e.target.value)}
                       placeholder={`Option ${optIndex + 1}`}
                       className={`flex-1 p-2 bg-slate-50 border rounded-lg text-sm outline-none transition-all ${opt.is_correct ? (q.question_type === 'MCQ' ? 'border-emerald-300 bg-emerald-50/30' : 'border-blue-300 bg-blue-50/30') : 'border-slate-200 focus:bg-white focus:border-blue-500'}`}
                     />
-                    
-                    <button 
+
+                    <button
                       type="button"
                       onClick={() => removeOption(qIndex, optIndex)}
                       className="text-slate-400 hover:text-red-500 p-2"
@@ -259,8 +403,8 @@ export default function QuestionBuilder({ questions, setQuestions }: QuestionBui
                     </button>
                   </div>
                 ))}
-                
-                <button 
+
+                <button
                   type="button"
                   onClick={() => addOption(qIndex)}
                   className="mt-2 text-sm font-medium text-blue-600 hover:text-blue-800 flex items-center gap-1 p-1 rounded transition-colors"
@@ -276,10 +420,11 @@ export default function QuestionBuilder({ questions, setQuestions }: QuestionBui
                 <div className="flex items-start gap-2">
                   <AlertCircle className="w-5 h-5 text-emerald-600 mt-0.5" />
                   <div className="flex-1">
-                    <label className="block text-sm font-medium text-emerald-800 mb-1">Exact Match Answer Key</label>
+                    <label htmlFor={`exact_match_${qIndex}`} className="block text-sm font-medium text-emerald-800 mb-1">Exact Match Answer Key</label>
                     <p className="text-xs text-emerald-600 mb-3">The system will auto-grade the student's answer against this exact text (ignoring capitalization).</p>
-                    <input 
-                      type="text" 
+                    <input
+                      id={`exact_match_${qIndex}`}
+                      type="text"
                       value={q.exact_match_answer || ''}
                       onChange={(e) => updateQuestion(qIndex, 'exact_match_answer', e.target.value)}
                       placeholder="e.g., 42, Paris, Mitochondria"
@@ -314,8 +459,8 @@ export default function QuestionBuilder({ questions, setQuestions }: QuestionBui
       ))}
 
       {/* Global Add Question Button */}
-      <button 
-        type="button" 
+      <button
+        type="button"
         onClick={addQuestion}
         className="w-full py-4 border-2 border-dashed border-slate-300 rounded-xl text-slate-500 hover:bg-slate-50 hover:text-slate-800 hover:border-slate-400 transition-all flex flex-col items-center justify-center gap-2"
       >

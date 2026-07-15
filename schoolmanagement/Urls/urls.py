@@ -4,40 +4,67 @@ from django.conf.urls.static import static
 from django.contrib.auth.views import LoginView, LogoutView
 from django.contrib.auth import views as auth_views
 from django.http import JsonResponse
-
 from school.views import views, chat_views
 from school.views import views_timetable
-from school.views.assignment_views import TeacherAssignmentAPIView, TeacherGradingAPIView, \
-    StudentAssignmentBoardAPIView, QuizStartAPIView, SubmitAssignmentAPIView, SubmissionReviewAPIView, \
-    ParentMonitoringAPIView, SubmissionsRosterAPIView, BulkReleaseGradesAPIView, GradeStudentAPIView, \
-    TeacherAssignmentDetailAPIView, TeacherSubmissionDetailAPIView, TeacherGradingSaveAPIView
+from school.views.assignment_teacher_views import TeacherAssignmentAPIView, TeacherGradingAPIView, \
+    SubmissionsRosterAPIView, BulkReleaseGradesAPIView, GradeStudentAPIView, \
+    TeacherAssignmentDetailAPIView, TeacherSubmissionDetailAPIView, TeacherGradingSaveAPIView, \
+    AssignmentClassStreamStudentsAPIView
+from school.views.assignment_student_views import StudentAssignmentBoardAPIView, QuizStartAPIView, \
+    SubmitAssignmentAPIView, StudentSubmissionReviewAPIView, StudentAssignmentDetailAPIView
+from school.views.assignment_parent_views import ParentMonitoringAPIView, ParentSubmissionReviewAPIView
 
 from school.views.exams_views import RapidMarksEntryView, BroadsheetGeneratorView, ExamSelectionDataView, \
     ExamSetupDataView, \
     AddExamTermView, AddExamEventView, GradingRulesView, ActivateTermView, UpdateTermView, DeleteTermView, \
-    UpdateExamEventView, DeleteExamEventView, StudentReportCardView, PublishExamEventView, RevertExamEventView
+    UpdateExamEventView, DeleteExamEventView, StudentReportCardView, ClassReportCardsAPIView, \
+    PublishExamEventView, RevertExamEventView, MissingMarksVerificationView, SaveReportSummaryView
 
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from school.views.attendance_views import SubmitBatchAttendanceView, EventViewSet, NoticeViewSet, NotificationViewSet
+from school.views.attendance_views import SubmitBatchAttendanceView, AttendanceRosterView, \
+    AdminAttendanceOverviewView, EventViewSet, NoticeViewSet, NotificationViewSet
 
-from school.views.results_views import GenerateTermResultsAPIView, ClassPerformanceSummaryAPIView, \
-    StudentReportCardAPIView, SchoolAnalyticsAPIView, ResultsFilterOptionsAPIView, StudentPerformanceAnalyticsAPIView, \
-    TermImprovementAnalyticsAPIView, SubjectMatrixAnalyticsAPIView
+from school.views.results_views import GenerateTermResultsAPIView, BulkGenerateTermResultsAPIView, \
+    ClassPerformanceSummaryAPIView, StudentReportCardAPIView, SchoolAnalyticsAPIView, ResultsFilterOptionsAPIView, \
+    StudentPerformanceAnalyticsAPIView, TermImprovementAnalyticsAPIView, SubjectMatrixAnalyticsAPIView
 
 from school.views.teacherAllocation_view import AllocationMatrixAPIView, RolloverAllocationsAPIView, \
-    AutoAllocateDraftAPIView
+    AutoAllocateDraftAPIView, BulkAutoAllocateAPIView, ClearAllocationsAPIView, api_manage_splitting_rules, \
+    api_execute_allocation_splits, GlobalAllocationPolicyAPIView, api_get_stream_teachers, api_get_teacher_allocations
 
 from school.views.chat_views import GetFirebaseAuthTokenAPI, ClassParentsAPI
+from school.views import class_views
+from school.views.teacher_dashboard_view import teacher_login_view, TeacherPersonalTimetableAPIView, \
+    api_manage_teacher_availability
+from school.views import subject_views
+from school.views import curriculum_view
+from school.views.leave_views import TeacherLeaveViewSet
+from school.views.student_dashboard_view import StudentDashboardOverviewAPI
+from school.views.parent_dashboard_view import ParentDashboardOverviewAPI
+from school.views.finance_views import FinanceOverviewAPI
+from school.views.student_tasks_view import StudentTaskViewSet
+from school.views.rbac_views import RoleViewSet, PermissionViewSet, UserRoleAssignmentAPIView
+from school.views.curriculum_view import CurriculumViewSet, PathwayViewSet, CurriculumPresetViewSet
 
 router = DefaultRouter()
 router.register(r'events', EventViewSet, basename='event')
 router.register(r'notices', NoticeViewSet, basename='notice')
 router.register(r'notifications', NotificationViewSet, basename='notification')
+router.register(r'leaves', TeacherLeaveViewSet, basename='leave')
+router.register(r'rbac/roles', RoleViewSet, basename='rbac-role')
+router.register(r'rbac/permissions', PermissionViewSet, basename='rbac-permission')
+router.register(r'curriculum/curricula', CurriculumViewSet, basename='curriculum')
+router.register(r'curriculum/pathways', PathwayViewSet, basename='curriculum-pathway')
+router.register(r'curriculum/presets', CurriculumPresetViewSet, basename='curriculum-preset')
+
+student_router = DefaultRouter()
+student_router.register(r'tasks', StudentTaskViewSet, basename='student-task')
 
 urlpatterns = [
-
+    #Admin Dashboard
     path('api/core/', include(router.urls)),
+    path('api/core/rbac/assignments/', UserRoleAssignmentAPIView.as_view(), name='rbac-user-assignments'),
 
     path('api/exams/rapid-entry/', RapidMarksEntryView.as_view(), name='rapid-marks-entry'),
     path('api/exams/broadsheet/', BroadsheetGeneratorView.as_view(), name='generate-broadsheet'),
@@ -53,6 +80,8 @@ urlpatterns = [
     path('api/exams/grading-rules/', GradingRulesView.as_view(), name='grading-rules'),
 
     path('attendance/submit/', SubmitBatchAttendanceView.as_view(), name='submit_batch_attendance'),
+    path('attendance/roster/<int:class_stream_id>/<str:date>/', AttendanceRosterView.as_view(), name='attendance_roster'),
+    path('attendance/overview/', AdminAttendanceOverviewView.as_view(), name='attendance_overview'),
 
 
     path('api/firebase-login/', views.firebase_login_bridge, name='firebase-login'),
@@ -71,9 +100,9 @@ urlpatterns = [
     path('teachersignup', views.teacher_signup_view, name='teachersignup'),
     path('parentsignup', views.parent_signup_view, name='parentsignup'),
 
-    path('adminlogin', LoginView.as_view(template_name='school/admin/adminlogin.html'), name='adminlogin'),
-    path('studentlogin', LoginView.as_view(template_name='school/students/studentlogin.html'), name='studentlogin'),
-    path('teacherlogin', LoginView.as_view(template_name='school/teachers/teacherlogin.html'), name='teacherlogin'),
+    path('adminlogin', views.admin_login_view, name='adminlogin'),
+    path('studentlogin', views.student_login_view, name='studentlogin'),
+    path('teacherlogin/', teacher_login_view, name='teacherlogin'),
     path('parentlogin', LoginView.as_view(template_name='school/parents/parentlogin.html'), name='parentlogin'),
 
     path('afterlogin', views.afterlogin_view, name='afterlogin'),
@@ -83,62 +112,13 @@ urlpatterns = [
     path('logout', views.custom_logout_view, name='logout'),
     path('logout/', views.custom_logout_view, name='logout_with_slash'),
 
-    path('admin-dashboard', views.admin_dashboard_view, name='admin-dashboard'),
-
-    path('admin-teacher', views.admin_teacher_view, name='admin-teacher'),
-    path('admin-add-teacher', views.admin_add_teacher_view, name='admin-add-teacher'),
-    path('admin-view-teacher', views.admin_view_teacher_view, name='admin-view-teacher'),
-
-    # Teacher approval
-    path('admin-approve-teacher', views.admin_approve_teacher_view, name='admin-approve-teacher'),
-    path('approve-teacher/<int:pk>', views.approve_teacher_view, name='approve-teacher'),
-    path('reject-teacher/<int:pk>', views.reject_teacher_view, name='reject-teacher'),
-    path('delete-teacher-from-school/<int:pk>', views.delete_teacher_from_school_view, name='delete-teacher-from-school'),
-    path('update-teacher/<int:pk>', views.update_teacher_view, name='update-teacher'),
-    path('admin-view-teacher-salary', views.admin_view_teacher_salary_view, name='admin-view-teacher-salary'),
-
-    path('admin-student', views.admin_student_view, name='admin-student'),
-    path('admin-add-student', views.admin_add_student_view, name='admin-add-student'),
-    path('admin-view-student', views.admin_view_student_view, name='admin-view-student'),
-
-    path('delete-student-from-school/<int:pk>', views.delete_student_from_school_view, name='delete-student-from-school'),
-    path('delete-student/<int:pk>', views.delete_student_view, name='delete-student'),
-    path('update-student/<int:pk>', views.update_student_view, name='update-student'),
-
-    # Student approval
-    path('admin-approve-student', views.admin_approve_student_view, name='admin-approve-student'),
-    path('approve-student/<int:pk>', views.approve_student_view, name='approve-student'),
-    path('reject-student/<int:pk>', views.reject_student_view, name='reject-student'),
-    path('admin-view-student-fee', views.admin_view_student_fee_view, name='admin-view-student-fee'),
-
-    path('admin-attendance', views.admin_attendance_view, name='admin-attendance'),
-    path('admin-take-attendance/<str:cl>', views.admin_take_attendance_view, name='admin-take-attendance'),
-    path('admin-view-attendance/<str:cl>', views.admin_view_attendance_view, name='admin-view-attendance'),
-
-    path('admin-fee', views.admin_fee_view, name='admin-fee'),
-    path('admin-view-fee/<str:cl>', views.admin_view_fee_view, name='admin-view-fee'),
-    path('admin-notice', views.admin_notice_view, name='admin-notice'),
-
-    path('teacher-dashboard', views.teacher_dashboard_view, name='teacher-dashboard'),
-    path('teacher-attendance', views.teacher_attendance_view, name='teacher-attendance'),
-    path('teacher-take-attendance/<str:cl>', views.teacher_take_attendance_view, name='teacher-take-attendance'),
-    path('teacher-view-attendance/<str:cl>', views.teacher_view_attendance_view, name='teacher-view-attendance'),
-    path('teacher-notice', views.teacher_notice_view, name='teacher-notice'),
-
-    path('student-dashboard', views.student_dashboard_view, name='student-dashboard'),
-    path('student-attendance', views.student_attendance_view, name='student-attendance'),
-
     path('portal', views.portal_view, name='portal'),
     path('aboutus', views.aboutus_view),
     path('contactus', views.contactus_view),
     path('events/', views.events_view, name='events'),
-    path('parent-dashboard', views.parent_dashboard_view, name='parent-dashboard'),
-
-    # Admin Parent Management
-    path('admin-parent-view', views.admin_parent_view, name='admin-parent-view'),
-    path('admin-approve-parent', views.admin_approve_parent_view, name='admin-approve-parent'),
-    path('approve-parent/<int:pk>', views.approve_parent_view, name='approve-parent'),
-    path('delete-parent/<int:pk>', views.reject_parent_view, name='reject-parent'),
+    path('privacy-policy/', views.privacy_policy_view, name='privacy-policy'),
+    path('terms-of-service/', views.terms_of_service_view, name='terms-of-service'),
+    path('system-status/', views.system_status_view, name='system-status'),
 
     # Password Reset Paths
     path('password-reset/', auth_views.PasswordResetView.as_view(template_name='school/password_reset/password_reset.html'), name='password_reset'),
@@ -150,6 +130,10 @@ urlpatterns = [
     # --- NEW: API ENDPOINTS FOR REACT FRONTEND ---
     path('api/dashboard-stats/', views.dashboard_stats, name='dashboard_stats'),
     path('api/pending-approvals/', views.pending_approvals_api, name='pending_approvals_api'),
+    path('api/student/dashboard-overview/', StudentDashboardOverviewAPI.as_view(), name='api_student_dashboard_overview'),
+    path('api/parent/dashboard-overview/', ParentDashboardOverviewAPI.as_view(), name='api_parent_dashboard_overview'),
+    path('api/finance-overview/', FinanceOverviewAPI.as_view(), name='api_finance_overview'),
+    path('api/student/', include(student_router.urls)),
 
 # API endpoints for React Approvals Integration
     path('api/pending-users/<str:user_type>/', views.api_get_pending_users, name='api_pending_users'),
@@ -169,21 +153,44 @@ urlpatterns = [
 
     path('api/search/', views.api_global_search, name='api_global_search'),
 
-    path('api/academic-hub/', views.api_academic_hub_data, name='api_academic_hub'),
+    # ==========================================
+    # ACADEMIC HUB, CLASSES & SUBJECTS ENDPOINTS
+    # ==========================================
+    path('api/academic-hub/', class_views.api_academic_hub_data, name='api_academic_hub'),
 
-    path('api/academic-hub/add-subject/', views.api_add_subject, name='api_add_subject'),
-    path('api/academic-hub/add-grade/', views.api_add_grade_with_streams, name='api_add_grade'),
+    # Classes & Grades
+    path('api/manage-classes/', class_views.api_manage_classes, name='api_manage_classes'),
+    path('api/academic-hub/add-grade/', class_views.api_add_grade_with_streams, name='api_add_grade'),
+    path('api/add-single-stream/', class_views.api_add_single_stream, name='api_add_single_stream'),
+    path('api/academic-hub/edit-stream/<int:pk>/', class_views.api_edit_stream, name='api_edit_stream'),
+    path('api/academic-hub/delete-stream/<int:pk>/', class_views.api_delete_stream, name='api_delete_stream'),
 
-# NEW ROUTES FOR SPECIFIC OPERATIONS
-    path('api/manage-classes/', views.api_manage_classes, name='api_manage_classes'),
-    path('api/manage-subjects/', views.api_manage_subjects, name='api_manage_subjects'),
+    path('api/enrollments/class/<int:stream_id>/', class_views.api_class_enrollments, name='api_class_enrollments'),
+    path('api/enrollments/bulk-transfer/', class_views.api_bulk_transfer, name='api_bulk_transfer'),
+    path('api/subjects/curriculum-presets/', curriculum_view.api_curriculum_presets, name='api_curriculum_presets'),
+    path('api/enrollments/manage-enrollment/<int:student_id>/', class_views.ManageEnrollmentAPIView.as_view(), name='api_manage_enrollment'),
 
-    # ... inside your urlpatterns list ...
-    path('api/academic-hub/edit-stream/<int:pk>/', views.api_edit_stream, name='api_edit_stream'),
-    path('api/academic-hub/delete-stream/<int:pk>/', views.api_delete_stream, name='api_delete_stream'),
+    # Subjects
+    path('api/manage-subjects/', subject_views.api_manage_subjects, name='api_manage_subjects'),
+    path('api/academic-hub/add-subject/', subject_views.api_add_subject, name='api_add_subject'),
+    path('api/academic-hub/edit-subject/<int:pk>/', subject_views.api_edit_subject, name='api_edit_subject'),
+    path('api/academic-hub/delete-subject/<int:pk>/', subject_views.api_delete_subject, name='api_delete_subject'),
 
-    path('api/academic-hub/edit-subject/<int:pk>/', views.api_edit_subject, name='api_edit_subject'),
-    path('api/academic-hub/delete-subject/<int:pk>/', views.api_delete_subject, name='api_delete_subject'),
+    path('api/subjects/catalog/<int:grade_id>/', subject_views.api_subject_catalog, name='subject_catalog'),
+    path('api/subjects/student-profile/<int:student_id>/', subject_views.api_student_subject_profile, name='student_subject_profile'),
+    path('api/subjects/manage-enrollment/<int:student_id>/', subject_views.api_manage_subject_enrollment, name='manage_subject_enrollment'),
+    path('api/subjects/rules/<int:grade_id>/', subject_views.api_manage_selection_rules, name='manage_selection_rules'),
+    path('api/academic-years/', subject_views.api_get_academic_years, name='academic_years'),
+    path('api/subjects/stream-approvals/<int:stream_id>/', subject_views.api_class_pending_subjects, name='stream_approvals'),
+    path('api/subjects/bulk-approve/<int:stream_id>/', subject_views.api_bulk_approve_subjects, name='bulk_approve_subjects'),
+    path('api/subjects/category-limits/<int:grade_id>/', subject_views.api_manage_category_limits, name='manage_category_limits'),
+    path('api/subjects/exclusion-rules/<int:grade_id>/', subject_views.api_manage_exclusion_rules, name='manage_exclusion_rules'),
+
+    # Student self-service elective choice — feeds the existing admin Batch Approvals queue
+    # (ManageCurriculum.tsx / api_bulk_approve_subjects) with real Pending requests instead of
+    # only ever being populated by an admin assigning subjects directly.
+    path('api/subjects/my-electives/', subject_views.api_student_elective_options, name='student_elective_options'),
+    path('api/subjects/my-electives/request/', subject_views.api_student_elective_request, name='student_elective_request'),
 
 # ==========================================
     # TIMETABLE ENGINE API ROUTES
@@ -194,37 +201,44 @@ urlpatterns = [
     path('api/timetable/save-lesson/', views_timetable.api_save_lesson, name='api_save_lesson'),
     path('api/timetable/remove-lesson/<int:allocation_id>/', views_timetable.api_remove_lesson, name='api_remove_lesson'),
     path('api/timetable/class-lessons/<int:stream_id>/<int:timetable_id>/', views_timetable.api_get_class_lessons),
+    path('api/timetable/master/<int:timetable_id>/', views_timetable.api_get_master_timetable, name='api_get_master_timetable'),
 
     path('api/timetable/manage-containers/', views_timetable.api_manage_timetables, name='api_manage_timetables'),
     path('api/timetable/manage-slots/', views_timetable.api_manage_timeslots, name='api_manage_timeslots'),
     path('api/timetable/manage-quotas/', views_timetable.api_manage_quotas, name='api_manage_quotas'),
-
-    path('api/timetable/teachers-by-subject/<int:subject_id>/', views_timetable.api_get_teachers_by_subject, name='teachers_by_subject'),
-
+    path('api/timetable/teachers-by-subject/<str:subject_id>/', views_timetable.api_get_teachers_by_subject, name='teachers_by_subject'),
 # --- NEW: AUTO GENERATE ROUTE ---
     path('api/timetable/auto-generate/<int:timetable_id>/', views_timetable.api_auto_generate_timetable, name='api_auto_generate_timetable'),
-
     path('api/timetable/auto-generate-quotas/', views_timetable.api_auto_generate_quotas, name='api_auto_generate_quotas'),
-
-
 # --- NEW: RESET ROUTES ---
     path('api/timetable/clear-grid/<int:timetable_id>/', views_timetable.api_clear_grid, name='api_clear_grid'),
     path('api/timetable/clear-quotas/', views_timetable.api_clear_quotas, name='api_clear_quotas'),
+    path('api/timetable/manage-subject-blocks/', views_timetable.api_manage_subject_blocks, name='api_manage_subject_blocks'),
+    path('api/teacher/my-timetable/', TeacherPersonalTimetableAPIView.as_view(), name='api_teacher_my_timetable'),
+    path('api/timetable/manage-policies/',  views_timetable.api_manage_policies, name='api_manage_policies'),
+    path('api/timetable/teacher-availability/<int:teacher_id>/', api_manage_teacher_availability, name='api_manage_teacher_availability'),
+    path('api/timetable/update-status/<int:timetable_id>/', views_timetable.api_update_timetable_status, name='api_update_timetable_status'),
+    path('api/timetable/available-substitutes/<int:allocation_id>/<str:target_date>/', views_timetable.api_get_available_substitutes, name='api_get_available_substitutes'),
+    path('api/timetable/assign-daily-cover/', views_timetable.api_assign_daily_cover, name='api_assign_daily_cover'),
+    path('api/timetable/audit-logs/', views_timetable.api_get_audit_logs),
 
+    #EXAMS
     # Term Edit & Delete routes
     path('api/exams/terms/<int:pk>/update/', UpdateTermView.as_view(), name='update-term'),
     path('api/exams/terms/<int:pk>/delete/', DeleteTermView.as_view(), name='delete-term'),
-
     path('api/exams/events/<int:pk>/publish/', PublishExamEventView.as_view(), name='publish-exam'),
     path('api/exams/events/<int:pk>/revert/', RevertExamEventView.as_view(), name='revert-exam'),
-
     # Exam Edit & Delete routes
     path('api/exams/events/<int:pk>/update/', UpdateExamEventView.as_view(), name='update-exam'),
     path('api/exams/events/<int:pk>/delete/', DeleteExamEventView.as_view(), name='delete-exam'),
     path('api/exams/report-card/<int:exam_id>/<int:student_id>/', StudentReportCardView.as_view(), name='student-report-card'),
+    path('api/exams/report-card/class/<int:exam_id>/<int:class_id>/', ClassReportCardsAPIView.as_view(), name='class-report-cards'),
+    path('api/exams/verify-marks/', MissingMarksVerificationView.as_view(), name='missing-marks-verification'),
+    path('api/exams/report-card/save-summary/', SaveReportSummaryView.as_view()),
 
     #Results
     path('api/results/generate/', GenerateTermResultsAPIView.as_view(), name='generate_term_results'),
+    path('api/results/bulk-generate/', BulkGenerateTermResultsAPIView.as_view(), name='bulk_generate_term_results'),
     path('api/results/class-summary/', ClassPerformanceSummaryAPIView.as_view(), name='class_summary'),
     path('api/results/report-card/', StudentReportCardAPIView.as_view(), name='student_report_card'),
     path('api/results/school-analytics/', SchoolAnalyticsAPIView.as_view(), name='school_analytics'),
@@ -237,6 +251,13 @@ urlpatterns = [
     path('api/allocations/matrix/', AllocationMatrixAPIView.as_view(), name='allocation_matrix'),
     path('api/allocations/rollover/', RolloverAllocationsAPIView.as_view(), name='allocation_rollover'),
     path('api/allocations/auto-draft/', AutoAllocateDraftAPIView.as_view(), name='auto_allocate_draft'),
+    path('api/allocations/bulk-auto-allocate/', BulkAutoAllocateAPIView.as_view(), name='bulk_auto_allocate'),
+    path('api/allocations/clear/', ClearAllocationsAPIView.as_view(), name='clear_allocations'),
+    path('api/allocations/splitting-rules/<int:grade_id>/', api_manage_splitting_rules, name='api_manage_splitting_rules'),
+    path('api/allocations/execute-splits/<int:grade_id>/', api_execute_allocation_splits, name='api_execute_allocation_splits'),
+    path('api/allocations/global-policy/', GlobalAllocationPolicyAPIView.as_view(), name='global-policy'),
+    path('api/academic-hub/stream-teachers/<int:stream_id>/', api_get_stream_teachers, name='api_get_stream_teachers'),
+    path('api/teacher-allocations/<int:teacher_id>/', api_get_teacher_allocations, name='api-teacher-allocations'),
 
 
 # ==========================================
@@ -258,10 +279,12 @@ urlpatterns = [
     path('api/assignments/teacher/', TeacherAssignmentAPIView.as_view(), name='teacher_assignments'),
     path('api/assignments/teacher/grading/', TeacherGradingAPIView.as_view(), name='teacher_grading'),
     path('api/assignments/student/board/', StudentAssignmentBoardAPIView.as_view(), name='student_board'),
+    path('api/assignments/student/<int:assignment_id>/', StudentAssignmentDetailAPIView.as_view(), name='student_assignment_detail'),
     path('api/assignments/student/quiz/start/', QuizStartAPIView.as_view(), name='quiz_start'),
     path('api/assignments/student/submit/', SubmitAssignmentAPIView.as_view(), name='student_submit'),
-    path('api/assignments/review/', SubmissionReviewAPIView.as_view(), name='submission_review'),
+    path('api/assignments/student/review/', StudentSubmissionReviewAPIView.as_view(), name='student_submission_review'),
     path('api/assignments/parent/monitoring/', ParentMonitoringAPIView.as_view(), name='parent_monitoring'),
+    path('api/assignments/parent/review/', ParentSubmissionReviewAPIView.as_view(), name='parent_submission_review'),
     path('api/assignments/<int:assignment_id>/submissions-roster/', SubmissionsRosterAPIView.as_view(), name='api-submissions-roster'),
     path('api/assignments/<int:assignment_id>/bulk-release/', BulkReleaseGradesAPIView.as_view(), name='api-bulk-release'),
     path('api/assignments/<int:assignment_id>/grade-student/', GradeStudentAPIView.as_view(), name='api-grade-student'),
@@ -270,9 +293,12 @@ urlpatterns = [
          name='teacher_submission_detail'),
     path('api/assignments/grade/save/<int:submission_id>/', TeacherGradingSaveAPIView.as_view(),
          name='teacher_grading_save'),
+    path('api/assignments/class-stream/<int:class_stream_id>/students/', AssignmentClassStreamStudentsAPIView.as_view(),
+         name='assignment_class_stream_students'),
 
 
     path('.well-known/appspecific/com.chrome.devtools.json',lambda r: JsonResponse({})),
+    path('api/teacher/', include('schoolmanagement.Urls.teacherDashboard_urls', namespace='teacher_api')),
 ]
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, BookOpen, AlertTriangle } from 'lucide-react';
+import api from '../../libs/axiosInstance';
 
 interface SubjectModalProps {
   isOpen: boolean;
@@ -24,15 +25,13 @@ export default function SubjectModal({ isOpen, onClose, year, term }: SubjectMod
     setIsLoading(true);
     setError(null);
     try {
-      const token = localStorage.getItem('firebase_dev_token');
-      const response = await fetch(`http://127.0.0.1:8000/api/results/subject-matrix-analytics/?year=${year}&term=${term}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+      const response = await api.get('/api/results/subject-matrix-analytics/', {
+        params: { year: year, term: term }
       });
-      if (!response.ok) throw new Error("Failed to fetch detailed subject analytics.");
-      const result = await response.json();
-      setData(result);
+      
+      setData(response.data);
     } catch (err: any) {
-      setError(err.message);
+      setError(err.response?.data?.error || err.message || "Failed to fetch detailed subject analytics.");
     } finally {
       setIsLoading(false);
     }

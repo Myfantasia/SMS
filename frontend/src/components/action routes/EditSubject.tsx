@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Save, BookOpen, Users } from 'lucide-react';
 import toast from 'react-hot-toast';
+import api from '../../libs/axiosInstance';
 
 interface Teacher {
   id: number;
@@ -21,36 +22,47 @@ export default function EditSubject() {
   const [name, setName] = useState('');
   const [department, setDepartment] = useState('');
   const [isCore, setIsCore] = useState(true);
-  
+  const [allowDoublePeriods, setAllowDoublePeriods] = useState(true);
+  const [earliestAllowedTime, setEarliestAllowedTime] = useState('');
+
   // Array of Teacher IDs currently assigned to this subject
   const [selectedTeacherIds, setSelectedTeacherIds] = useState<number[]>([]);
 
-  useEffect(() => {
-    // 1. Fetch Teachers List
-    fetch('http://localhost:8000/api/approved-users/teachers/')
-      .then(res => res.json())
-      .then(response => {
-        if (response.status === 'success') setAllTeachers(response.data);
-      });
+useEffect(() => {
+  const initializeSubjectEditorData = async () => {
+    try {
+      const [teachersRes, subjectsRes] = await Promise.all([
+        api.get('/api/approved-users/teachers/'),
+        api.get('/api/manage-subjects/')
+      ]);
 
-    // 2. Fetch Subject details
-    fetch('http://localhost:8000/api/manage-subjects/')
-      .then(res => res.json())
-      .then(response => {
-        if (response.status === 'success') {
-          const subject = response.data.find((s: any) => s.id === Number(id));
-          if (subject) {
-            setCode(subject.code);
-            setName(subject.name);
-            setDepartment(subject.department);
-            setIsCore(subject.is_core);
-            // If API provides assigned teacher IDs, map them here. We'll add this to Django next.
-            if (subject.assigned_teacher_ids) setSelectedTeacherIds(subject.assigned_teacher_ids);
+      if (teachersRes.data.status === 'success') {
+        setAllTeachers(teachersRes.data.data);
+      }
+
+      if (subjectsRes.data.status === 'success') {
+        const subject = subjectsRes.data.data.find((s: any) => s.id === Number(id));
+        if (subject) {
+          setCode(subject.code);
+          setName(subject.name);
+          setDepartment(subject.department);
+          setIsCore(subject.is_core);
+          setAllowDoublePeriods(subject.allow_double_periods ?? true);
+          setEarliestAllowedTime(subject.earliest_allowed_time || '');
+          if (subject.assigned_teacher_ids) {
+            setSelectedTeacherIds(subject.assigned_teacher_ids);
           }
         }
-        setLoading(false);
-      });
-  }, [id]);
+      }
+    } catch (error) {
+      console.error("Failed to compile subject metrics:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  initializeSubjectEditorData();
+}, [id]);
 
   // Handle Multi-Select Checkboxes
   const handleCheckboxChange = (teacherId: number) => {
@@ -61,36 +73,37 @@ export default function EditSubject() {
     );
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setIsSubmitting(true);
 
-    try {
-      const response = await fetch(`http://localhost:8000/api/academic-hub/edit-subject/${id}/`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          code, 
-          name, 
-          department, 
-          is_core: isCore,
-          teacher_ids: selectedTeacherIds // Passing the array of IDs!
-        })
-      });
-      const data = await response.json();
-      
-      if (data.status === 'success') {
-        toast.success(data.message);
-        navigate('/admin-dashboard/subjects');
-      } else {
-        toast.error(data.message);
-      }
-    } catch (error) {
-      toast.error('Failed to update subject configuration.');
-    } finally {
-      setIsSubmitting(false);
+  try {
+    const response = await api.put(`/api/academic-hub/edit-subject/${id}/`, {
+      code,
+      name,
+      department,
+      is_core: isCore,
+      allow_double_periods: allowDoublePeriods,
+      earliest_allowed_time: earliestAllowedTime || null,
+      teacher_ids: selectedTeacherIds // Transmits updated arrays cleanly as primitive values
+    });
+    
+    const data = response.data;
+    
+    if (data.status === 'success') {
+      toast.success(data.message);
+      navigate('/admin-dashboard/subjects');
+    } else {
+      toast.error(data.message);
     }
-  };
+  } catch (error: any) {
+    console.error('Error updating subject:', error);
+    const errMsg = error.response?.data?.message || 'Failed to update subject configuration.';
+    toast.error(errMsg);
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 
   if (loading) return <div className="p-6 text-slate-500">Loading Master Curriculum...</div>;
 
@@ -135,6 +148,19 @@ export default function EditSubject() {
                 <input type="checkbox" checked={isCore} onChange={(e) => setIsCore(e.target.checked)} className="w-5 h-5 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500" />
                 <span className="font-bold text-slate-700">Mandatory Core Subject</span>
               </label>
+            </div>
+
+            <div className="space-y-2 flex flex-col justify-center">
+              <label className="flex items-center gap-3 cursor-pointer p-3 border border-slate-200 rounded-lg hover:bg-slate-50 transition">
+                <input type="checkbox" checked={allowDoublePeriods} onChange={(e) => setAllowDoublePeriods(e.target.checked)} className="w-5 h-5 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500" />
+                <span className="font-bold text-slate-700">Allow Double Periods</span>
+              </label>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-700">Earliest Allowed Time (optional)</label>
+              <input type="time" value={earliestAllowedTime} onChange={(e) => setEarliestAllowedTime(e.target.value)} className="w-full border border-slate-300 rounded-lg p-3 focus:ring-2 focus:ring-emerald-500 outline-none transition-shadow" />
+              <p className="text-xs text-slate-400">e.g. 09:30 for P.E., to prevent scheduling during cold early morning slots.</p>
             </div>
           </div>
 

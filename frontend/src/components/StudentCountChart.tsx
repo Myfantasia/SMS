@@ -13,7 +13,7 @@ export default function StudentCountChart() {
       {/* Title */}
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-lg font-bold text-slate-800">Students</h1>
-        <Users className="w-5 h-5 text-slate-400" />
+        <span className="text-[10px] font-bold uppercase tracking-wide text-amber-600 bg-amber-50 px-2 py-1 rounded-full">Sample data</span>
       </div>
 
       {/* Radial Chart */}

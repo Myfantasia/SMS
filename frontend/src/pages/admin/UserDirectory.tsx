@@ -1,15 +1,30 @@
+import { GraduationCap, Users, UserSquare2 } from 'lucide-react';
 import UserDirectoryTable from '../../components/UserDirectoryTable';
 
 interface UserDirectoryProps {
   userType: 'students' | 'teachers' | 'parents';
 }
 
+const DIRECTORY_META = {
+  teachers: { icon: GraduationCap, color: 'text-purple-600 bg-purple-50', label: 'Faculty' },
+  students: { icon: Users, color: 'text-blue-600 bg-blue-50', label: 'Learners' },
+  parents: { icon: UserSquare2, color: 'text-emerald-600 bg-emerald-50', label: 'Guardians' },
+} as const;
+
 export default function UserDirectory({ userType }: UserDirectoryProps) {
+  const meta = DIRECTORY_META[userType];
+  const Icon = meta.icon;
+
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-800 capitalize">{userType} Directory</h1>
-        <p className="text-gray-600 mt-1">Manage, edit, and view active {userType} profiles.</p>
+    <div className="space-y-6">
+      <div className="flex items-center gap-4">
+        <div className={`p-3 rounded-2xl ${meta.color}`}>
+          <Icon className="w-7 h-7" strokeWidth={2.5} />
+        </div>
+        <div>
+          <h1 className="text-2xl font-extrabold text-slate-800 capitalize">{userType} Directory</h1>
+          <p className="text-slate-500 text-sm mt-0.5">{meta.label} &middot; manage, edit, and view active profiles.</p>
+        </div>
       </div>
 
       <UserDirectoryTable userType={userType} />

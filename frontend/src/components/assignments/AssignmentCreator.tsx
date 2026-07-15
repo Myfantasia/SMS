@@ -12,7 +12,8 @@ import {
 import toast from 'react-hot-toast';
 import type { Assignment, Question } from '../../libs/assignments';
 import { assignmentService } from '../../libs/assignmentService';
-import QuestionBuilder from './QuestionBuilder'; 
+import QuestionBuilder from './QuestionBuilder';
+import AssignmentOptionsPanel from './AssignmentOptionsPanel';
 import api from '../../libs/axiosInstance';
 
 interface AssignmentCreatorProps {
@@ -22,16 +23,18 @@ interface AssignmentCreatorProps {
 export default function AssignmentCreator({ role }: AssignmentCreatorProps) {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  
+  const [metadataLoading, setMetadataLoading] = useState(true);
+
   // --- Data States ---
-  const [teachers, setTeachers] = useState<any[]>([]); 
+  const [teachers, setTeachers] = useState<any[]>([]);
   const [classes, setClasses] = useState<any[]>([]);
   const [subjects, setSubjects] = useState<any[]>([]);
   const [filteredSubjects, setFilteredSubjects] = useState<any[]>([]); // <-- NEW: Holds filtered subjects
 
   // --- Form & Modal States ---
-  const [uploadMode, setUploadMode] = useState<boolean>(true); 
-  const [isQuestionModalOpen, setIsQuestionModalOpen] = useState<boolean>(false); 
+  const [uploadMode, setUploadMode] = useState<boolean>(true);
+  const [isQuestionModalOpen, setIsQuestionModalOpen] = useState<boolean>(false);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
   
   const [assignment, setAssignment] = useState<Partial<Assignment>>({
     title: '',
@@ -46,9 +49,23 @@ export default function AssignmentCreator({ role }: AssignmentCreatorProps) {
     due_date: '',
     cutoff_date: '',
     teacher_attachment: null,
+    allow_resubmission: false,
+    max_attempts: 1,
+    late_penalty_percent: 0,
+    is_group_assignment: false,
+    groups: [],
+    assigned_student_ids: [],
+    additional_class_stream_ids: [],
+    reference_links: [],
+    reference_notes: '',
+    additional_attachments: [],
   });
 
   const [questions, setQuestions] = useState<Question[]>([]);
+
+  const classStreamOptions = classes.flatMap((grade: any) =>
+    (grade.streams || []).map((stream: any) => ({ id: stream.id, label: stream.name }))
+  );
 
   // 1. Fetch Real Metadata on Mount
   useEffect(() => {
@@ -97,6 +114,8 @@ export default function AssignmentCreator({ role }: AssignmentCreatorProps) {
       } catch (error) {
         console.error("Error fetching form metadata:", error);
         toast.error("Failed to load dropdown data from the server.");
+      } finally {
+        setMetadataLoading(false);
       }
     };
     fetchMetadata();
@@ -147,9 +166,17 @@ export default function AssignmentCreator({ role }: AssignmentCreatorProps) {
     }
   };
 
+  const handleFileDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDraggingFile(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleAssignmentChange('teacher_attachment', e.dataTransfer.files[0]);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent, isDraft: boolean) => {
     e.preventDefault();
-    
+
     // Basic Validation
     if (!assignment.title || !assignment.class_stream_id || !assignment.subject_id) {
       toast.error("Please fill in all required fields (Title, Class, Subject).");
@@ -157,6 +184,22 @@ export default function AssignmentCreator({ role }: AssignmentCreatorProps) {
     }
     if (role === 'admin' && !assignment.teacher_id) {
       toast.error("Admins must select a Teacher to assign this to.");
+      return;
+    }
+
+    // Schedule must make chronological sense — nothing previously stopped a Due
+    // Date before the Publish Date, or a Cutoff before the Due Date.
+    const { publish_date, due_date, cutoff_date } = assignment;
+    if (publish_date && due_date && new Date(due_date) < new Date(publish_date)) {
+      toast.error("Due Date can't be before the Publish Date.");
+      return;
+    }
+    if (due_date && cutoff_date && new Date(cutoff_date) < new Date(due_date)) {
+      toast.error("Cutoff Date can't be before the Due Date.");
+      return;
+    }
+    if (publish_date && cutoff_date && !due_date && new Date(cutoff_date) < new Date(publish_date)) {
+      toast.error("Cutoff Date can't be before the Publish Date.");
       return;
     }
 
@@ -188,9 +231,20 @@ export default function AssignmentCreator({ role }: AssignmentCreatorProps) {
     }
   };
 
+  if (metadataLoading) {
+    return (
+      <div className="max-w-5xl mx-auto space-y-6 animate-pulse">
+        <div className="h-14 bg-slate-200 rounded-2xl"></div>
+        <div className="h-40 bg-slate-200 rounded-2xl"></div>
+        <div className="h-56 bg-slate-200 rounded-2xl"></div>
+        <div className="h-40 bg-slate-200 rounded-2xl"></div>
+      </div>
+    );
+  }
+
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6 pb-20">
-      
+    <div className="max-w-5xl mx-auto space-y-6 pb-20">
+
       {/* 1. Header & Actions */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div className="flex items-center gap-3">
@@ -202,12 +256,15 @@ export default function AssignmentCreator({ role }: AssignmentCreatorProps) {
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
+          <div className="p-2.5 rounded-2xl text-amber-600 bg-amber-50">
+            <ListPlus className="w-6 h-6" strokeWidth={2.5} />
+          </div>
           <div>
             <h1 className="text-2xl font-bold text-slate-800">Create Assignment</h1>
             <p className="text-sm text-slate-500">Design a new task or upload a master document.</p>
           </div>
         </div>
-        
+
         <div className="flex gap-3">
           <button 
             onClick={(e) => handleSubmit(e, true)}
@@ -231,7 +288,7 @@ export default function AssignmentCreator({ role }: AssignmentCreatorProps) {
         
         {/* 2. ADMIN ONLY: Impersonation Block */}
         {role === 'admin' && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-5">
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5">
             <div className="flex items-center gap-2 mb-3">
               <UserSquare2 className="w-5 h-5 text-amber-600" />
               <h3 className="font-semibold text-amber-800">Admin Override: Assign To</h3>
@@ -255,7 +312,7 @@ export default function AssignmentCreator({ role }: AssignmentCreatorProps) {
         )}
 
         {/* 3. Basic Details Card */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 space-y-5">
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-5">
           <h3 className="text-lg font-semibold text-slate-800 border-b border-slate-100 pb-3">General Information</h3>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -283,7 +340,7 @@ export default function AssignmentCreator({ role }: AssignmentCreatorProps) {
                 <optgroup key={grade.grade_id} label={grade.grade_name}>
                   {grade.streams.map((stream: any) => (
                   <option key={stream.id} value={stream.id}>
-                    {grade.grade_name} {stream.name}
+                    {stream.name}
                   </option>
                   ))}
                 </optgroup>
@@ -313,20 +370,22 @@ export default function AssignmentCreator({ role }: AssignmentCreatorProps) {
         </div>
 
         {/* 4. Curriculum Type (Hybrid 8-4-4 vs CBC) */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 space-y-5">
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-5">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <h3 className="text-lg font-semibold text-slate-800">Curriculum Mapping</h3>
             <div className="flex bg-slate-100 p-1 rounded-lg">
-              <button 
+              <button
                 type="button"
                 onClick={() => handleAssignmentChange('curriculum_type', 'CBC')}
+                aria-pressed={assignment.curriculum_type === 'CBC'}
                 className={`px-3 py-1 text-sm font-medium rounded-md transition-all ${assignment.curriculum_type === 'CBC' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
               >
                 CBC
               </button>
-              <button 
+              <button
                 type="button"
                 onClick={() => handleAssignmentChange('curriculum_type', '8-4-4')}
+                aria-pressed={assignment.curriculum_type === '8-4-4'}
                 className={`px-3 py-1 text-sm font-medium rounded-md transition-all ${assignment.curriculum_type === '8-4-4' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
               >
                 8-4-4
@@ -358,7 +417,7 @@ export default function AssignmentCreator({ role }: AssignmentCreatorProps) {
         </div>
 
         {/* 5. Schedule & Timers */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 space-y-5">
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-5">
           <h3 className="text-lg font-semibold text-slate-800 border-b border-slate-100 pb-3">Schedule & Deadlines</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             <div>
@@ -397,14 +456,22 @@ export default function AssignmentCreator({ role }: AssignmentCreatorProps) {
           </div>
         </div>
 
+        {/* 5b. Submission Rules, Targeting & Reference Material */}
+        <AssignmentOptionsPanel
+          assignment={assignment}
+          onChange={handleAssignmentChange}
+          classStreamOptions={classStreamOptions}
+        />
+
         {/* 6. Content Mode Toggle (File vs Questions) */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 space-y-5">
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-5">
           <h3 className="text-lg font-semibold text-slate-800 border-b border-slate-100 pb-3">Assignment Content</h3>
           
           <div className="grid grid-cols-2 gap-4">
             <button
               type="button"
               onClick={() => setUploadMode(true)}
+              aria-pressed={uploadMode}
               className={`p-4 rounded-xl border-2 flex flex-col items-center justify-center gap-2 transition-all ${uploadMode ? 'border-blue-600 bg-blue-50/50 text-blue-700' : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50'}`}
             >
               <UploadCloud className="w-8 h-8" />
@@ -415,6 +482,7 @@ export default function AssignmentCreator({ role }: AssignmentCreatorProps) {
             <button
               type="button"
               onClick={() => setUploadMode(false)}
+              aria-pressed={!uploadMode}
               className={`p-4 rounded-xl border-2 flex flex-col items-center justify-center gap-2 transition-all ${!uploadMode ? 'border-blue-600 bg-blue-50/50 text-blue-700' : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50'}`}
             >
               <ListPlus className="w-8 h-8" />
@@ -426,11 +494,16 @@ export default function AssignmentCreator({ role }: AssignmentCreatorProps) {
           {/* DYNAMIC CONTENT AREA */}
           <div className="pt-4">
             {uploadMode ? (
-              <div className="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center bg-slate-50 hover:bg-slate-100 transition-colors cursor-pointer">
-                <input 
-                  type="file" 
-                  id="file-upload" 
-                  className="hidden" 
+              <div
+                onDragOver={(e) => { e.preventDefault(); setIsDraggingFile(true); }}
+                onDragLeave={() => setIsDraggingFile(false)}
+                onDrop={handleFileDrop}
+                className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer ${isDraggingFile ? 'border-blue-400 bg-blue-50' : 'border-slate-300 bg-slate-50 hover:bg-slate-100'}`}
+              >
+                <input
+                  type="file"
+                  id="file-upload"
+                  className="hidden"
                   onChange={handleFileChange}
                   accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
                 />

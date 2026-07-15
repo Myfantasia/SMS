@@ -96,7 +96,7 @@ export default function CalendarView({ events, role }: CalendarViewProps) {
 
         {/* Empty Padding Cells */}
         {blanks.map(blank => (
-          <div key={`blank-${blank}`} className="bg-slate-50/50 min-h-[120px] p-2"></div>
+          <div key={`blank-${blank}`} className="bg-slate-50/50 min-h-30 p-2"></div>
         ))}
 
         {/* Actual Days */}
@@ -105,7 +105,7 @@ export default function CalendarView({ events, role }: CalendarViewProps) {
           const todayHighlight = isToday(day);
 
           return (
-            <div key={day} className="bg-white min-h-[120px] p-2 hover:bg-slate-50 transition-colors flex flex-col group">
+            <div key={day} className="bg-white min-h-30 p-2 hover:bg-slate-50 transition-colors flex flex-col group">
               
               {/* Day Number */}
               <div className="flex justify-between items-start mb-1">

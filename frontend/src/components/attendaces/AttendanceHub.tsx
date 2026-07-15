@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import RapidEntryTab from './RapidEntryTab';
 import ReportsTab from './ReportsTab';
-import { LayoutDashboard, CheckSquare } from 'lucide-react'; // Added icons for the dynamic tabs
+import { LayoutDashboard, CheckSquare, CalendarCheck } from 'lucide-react'; // Added icons for the dynamic tabs
 import AdminOverviewTab from './AdminOverviewTab';
 
 // 1. Define the expected prop
@@ -16,20 +16,25 @@ export default function AttendanceHub({ role }: AttendanceHubProps) {
   );
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="max-w-7xl mx-auto">
       {/* Header & Tabs */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-        <div>
-          {/* Dynamic Header based on role */}
-          <h1 className="text-2xl font-bold text-slate-800">
-            {role === 'admin' ? 'School Attendance Overview' : 'My Class Attendance'}
-          </h1>
-          <p className="text-slate-500 text-sm mt-1">
-            {role === 'admin' ? 'Monitor school-wide daily registers.' : 'Submit your daily class register.'}
-          </p>
+        <div className="flex items-center gap-4">
+          <div className="p-3 rounded-2xl text-blue-600 bg-blue-50">
+            <CalendarCheck className="w-7 h-7" strokeWidth={2.5} />
+          </div>
+          <div>
+            {/* Dynamic Header based on role */}
+            <h1 className="text-2xl font-extrabold text-slate-800">
+              {role === 'admin' ? 'School Attendance Overview' : 'My Class Attendance'}
+            </h1>
+            <p className="text-slate-500 text-sm mt-0.5">
+              {role === 'admin' ? 'Monitor school-wide daily registers.' : 'Submit your daily class register.'}
+            </p>
+          </div>
         </div>
-        
-        <div className="flex bg-slate-100 p-1 rounded-lg">
+
+        <div className="flex bg-slate-100 p-1 rounded-xl">
           {/* Admin Only Tab */}
           {role === 'admin' && (
             <button
@@ -59,15 +64,6 @@ export default function AttendanceHub({ role }: AttendanceHubProps) {
           </button>
         </div>
       </div>
-
-      {/* Render Active Tab Component */}
-      {activeTab === 'overview' && (
-        <div className="bg-white p-12 rounded-xl shadow-sm border border-slate-200 text-center">
-          <h3 className="text-lg font-semibold text-slate-800">Admin Live Overview</h3>
-          <p className="text-slate-500 mt-2">A grid showing which teachers have submitted their registers today will go here.</p>
-        </div>
-      )}
-      
 
       {/* Render Active Tab Component */}
       {activeTab === 'overview' && <AdminOverviewTab />}

@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="{% static 'css/navbar.css' %}">
+    <link rel="stylesheet" href="{% static 'css/navbar.css' %}?v=2">
 </head>
 
 <nav class="navbar-container">
@@ -15,31 +15,42 @@
         <span class="brand-logo">MYFANTASIA</span>
     </a>
 
-    <div class="mobile-toggle" id="mobile-menu-btn">
-        <i class="fas fa-bars"></i>
-    </div>
+    <div class="navbar-right">
+        <div class="nav-links-wrapper" id="nav-links">
+            <a href="/" class="nav-item">Home</a>
+            <a href="/aboutus" class="nav-item">About</a>
+            <a href="/contactus" class="nav-item">Contact</a>
+            <a href="/events/" class="nav-item">Events & Updates</a>
 
-    <div class="nav-links-wrapper" id="nav-links">
-        <a href="/" class="nav-item">Home</a>
-        <a href="/aboutus" class="nav-item">About</a>
-        <a href="/contactus" class="nav-item">Contact</a>
-        <a href="/events" class="nav-item">Events & Updates</a>
+            <div class="portal-dropdown">
+                <button class="portal-trigger">
+                    Portal <i class="fas fa-chevron-down"></i>
+                </button>
+                <div class="dropdown-menu">
+{#                    <a href="/adminclick" class="drop-item"><i class="fas fa-crown"></i> Super Admin</a>#}
+                    <a href="/adminclick" class="drop-item"><i class="fas fa-user-shield"></i> Admin</a>
+                    <a href="/studentclick" class="drop-item"><i class="fas fa-user-graduate"></i> Student</a>
+                     <a href="/teacherclick" class="drop-item"><i class="fas fa-chalkboard-user"></i> Teacher</a>
+                    <a href="/parentclick" class="drop-item"><i class="fas fa-user-friends"></i> Parent</a>
 
-        <div class="portal-dropdown">
-            <button class="portal-trigger">
-                Portal <i class="fas fa-chevron-down"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- Always-visible controls: stay in the fixed top bar regardless of whether the
+             mobile drawer above is open, instead of being buried inside it. -->
+        <div class="navbar-controls">
+            <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch between light and dark mode" title="Switch theme">
+                <i class="fas fa-sun theme-icon-light"></i>
+                <i class="fas fa-moon theme-icon-dark"></i>
             </button>
-            <div class="dropdown-menu">
-{#                <a href="/adminclick" class="drop-item"><i class="fas fa-crown"></i> Super Admin</a>#}
-                <a href="/adminclick" class="drop-item"><i class="fas fa-user-shield"></i> Admin</a>
-                <a href="/studentclick" class="drop-item"><i class="fas fa-user-graduate"></i> Student</a>
-                 <a href="/teacherclick" class="drop-item"><i class="fas fa-chalkboard-user"></i> Teacher</a>
-                <a href="/parentclick" class="drop-item"><i class="fas fa-user-friends"></i> Parent</a>
 
+            <div class="mobile-toggle" id="mobile-menu-btn">
+                <i class="fas fa-bars"></i>
             </div>
         </div>
     </div>
 </nav>
 
-<script src="{% static 'js/navbar.js' %}"></script>
+<script src="{% static 'js/navbar.js' %}?v=2"></script>
 </html>

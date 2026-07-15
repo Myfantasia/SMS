@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { 
-  ArrowLeft, Search, CheckCircle2, 
+import {
+  ArrowLeft, Search, CheckCircle2,
   FileText, Download, UploadCloud, Clock, X, Bot, Filter,
-  Maximize2, PenTool
+  Maximize2, PenTool, RotateCcw, FileEdit, HelpCircle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../libs/axiosInstance'; // Adjust path to your configured Axios instance
@@ -26,11 +26,15 @@ export default function SubmissionManager({ role }: { role: 'admin' | 'teacher' 
   const [selectedStudent, setSelectedStudent] = useState<number | null>(null);
   const [submissionData, setSubmissionData] = useState<any>(null);
   const [isSaving, setIsSaving] = useState(false);
+  // Tracks unsaved edits so switching students doesn't silently discard grading in progress
+  const [isDirty, setIsDirty] = useState(false);
   
   // Modal States
   const [isFileModalOpen, setIsFileModalOpen] = useState(false);
   const [activeEssayId, setActiveEssayId] = useState<number | null>(null);
   const [returnFile, setReturnFile] = useState<File | null>(null);
+  // When the assignment is a group assignment, teachers can propagate a grade to every group member
+  const [applyToGroup, setApplyToGroup] = useState(false);
 
   // ==========================================
   // 1. FETCH INITIAL ROSTER (Ghost Detector)
@@ -64,20 +68,17 @@ export default function SubmissionManager({ role }: { role: 'admin' | 'teacher' 
   // ==========================================
   // 2. FETCH SPECIFIC STUDENT (Data Zip)
   // ==========================================
-  const handleStudentClick = async (studentId: number, status: string) => {
-    if (status === 'Missing') {
-      toast.error("Cannot grade a missing submission. Student must submit first.");
-      return;
-    }
-    
+  const loadStudent = async (studentId: number) => {
     try {
       setSelectedStudent(studentId);
-      setSubmissionData(null); 
-      
+      setSubmissionData(null);
+
       // Hits the TeacherSubmissionDetailAPIView
-      const response = await api.get(`/api/assignments/${assignmentId}/submissions/${studentId}/`);
+      const response = await api.get(`/api/assignments/${assignmentId}/grade/${studentId}/`);
       setSubmissionData(response.data);
       setReturnFile(null); // Reset the file upload state for the new student
+      setApplyToGroup(false);
+      setIsDirty(false);
     } catch (error) {
       console.error("Error fetching submission:", error);
       toast.error("Failed to load submission data.");
@@ -85,32 +86,94 @@ export default function SubmissionManager({ role }: { role: 'admin' | 'teacher' 
     }
   };
 
+  const handleStudentClick = (studentId: number, status: string) => {
+    if (status === 'Missing') {
+      toast.error("Cannot grade a missing submission. Student must submit first.");
+      return;
+    }
+
+    // Guard against silently discarding unsaved grading when switching students
+    if (isDirty && selectedStudent !== studentId) {
+      toast((t) => (
+        <div className="flex flex-col gap-3 max-w-sm">
+          <p className="text-sm font-medium text-slate-800 leading-relaxed">
+            You have unsaved grading changes for the current student. Switch anyway and discard them?
+          </p>
+          <div className="flex justify-end gap-2 mt-2">
+            <button
+              onClick={() => toast.dismiss(t.id)}
+              className="px-3 py-1.5 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-md transition-colors"
+            >
+              Keep Editing
+            </button>
+            <button
+              onClick={() => { toast.dismiss(t.id); loadStudent(studentId); }}
+              className="px-4 py-1.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors shadow-sm"
+            >
+              Discard & Switch
+            </button>
+          </div>
+        </div>
+      ), { duration: Infinity, position: 'top-center', style: { minWidth: '320px' } });
+      return;
+    }
+
+    loadStudent(studentId);
+  };
+
   // ==========================================
   // 3. LIVE LOCAL INPUT HANDLERS
   // ==========================================
   const handleScoreChange = (qId: number, newScore: number) => {
+    setIsDirty(true);
     setSubmissionData((prev: any) => {
-      const updatedQuestions = prev.questions_zipped.map((q: any) => 
-        q.question_id === qId ? { ...q, awarded_score: Number(newScore) } : q
-      );
+      const updatedQuestions = prev.questions_zipped.map((q: any) => {
+        if (q.question_id !== qId) return q;
+        // Clamp client-side too — the number input's max= only constrains the spinner
+        // arrows, a typed value could otherwise exceed the question's max_score.
+        const clamped = Math.max(0, Math.min(Number(newScore), q.max_score));
+        return { ...q, awarded_score: clamped };
+      });
+      const newTotal = updatedQuestions.reduce((sum: number, q: any) => sum + q.awarded_score, 0);
+      return { ...prev, questions_zipped: updatedQuestions, total_awarded_score: newTotal };
+    });
+  };
+
+  // When a question has rubric criteria, its awarded_score is derived as the sum of
+  // per-criterion scores rather than being directly editable.
+  const handleCriterionScoreChange = (qId: number, criterionId: number, newScore: number) => {
+    setIsDirty(true);
+    setSubmissionData((prev: any) => {
+      const updatedQuestions = prev.questions_zipped.map((q: any) => {
+        if (q.question_id !== qId) return q;
+        const updatedCriteria = q.rubric_criteria.map((c: any) => {
+          if (c.id !== criterionId) return c;
+          const clamped = Math.max(0, Math.min(Number(newScore), c.max_points));
+          return { ...c, score: clamped };
+        });
+        const newQuestionScore = updatedCriteria.reduce((sum: number, c: any) => sum + c.score, 0);
+        return { ...q, rubric_criteria: updatedCriteria, awarded_score: newQuestionScore };
+      });
       const newTotal = updatedQuestions.reduce((sum: number, q: any) => sum + q.awarded_score, 0);
       return { ...prev, questions_zipped: updatedQuestions, total_awarded_score: newTotal };
     });
   };
 
   const handleCommentChange = (qId: number, newComment: string) => {
+    setIsDirty(true);
     setSubmissionData((prev: any) => ({
       ...prev,
-      questions_zipped: prev.questions_zipped.map((q: any) => 
+      questions_zipped: prev.questions_zipped.map((q: any) =>
         q.question_id === qId ? { ...q, teacher_comment: newComment } : q
       )
     }));
   };
 
   const handleCorrectedTextChange = (qId: number, newText: string) => {
+    setIsDirty(true);
     setSubmissionData((prev: any) => ({
       ...prev,
-      questions_zipped: prev.questions_zipped.map((q: any) => 
+      questions_zipped: prev.questions_zipped.map((q: any) =>
         q.question_id === qId ? { ...q, teacher_corrected_text: newText } : q
       )
     }));
@@ -133,19 +196,21 @@ export default function SubmissionManager({ role }: { role: 'admin' | 'teacher' 
       // We pass the clean mapped DB status to the backend
       formData.append('status', action === 'Draft' ? 'Graded' : targetStatus);
       formData.append('overall_feedback', submissionData.overall_feedback || '');
-      
+      formData.append('apply_to_group', String(applyToGroup && submissionData.is_group_assignment));
+
       if (returnFile) {
         formData.append('teacher_returned_file', returnFile);
       }
 
-      // Package granular grades, micro-feedback, and the new essay edits
+      // Package granular grades, micro-feedback, the new essay edits, and any rubric criterion scores
       const gradesPayload = submissionData.questions_zipped.map((q: any) => ({
         answer_id: q.answer_id,
         question_id: q.question_id,
         score: q.awarded_score,
         comment: q.teacher_comment || '',
         // SAFEGUARD: Ensure this always passes a string, never null
-        corrected_text: q.teacher_corrected_text || '' 
+        corrected_text: q.teacher_corrected_text || '',
+        criterion_scores: (q.rubric_criteria || []).map((c: any) => ({ criterion_id: c.id, score: c.score || 0 }))
       }));
       formData.append('grades', JSON.stringify(gradesPayload));
 
@@ -155,11 +220,12 @@ export default function SubmissionManager({ role }: { role: 'admin' | 'teacher' 
       });
 
       toast.success(`Submission marked as ${targetStatus}`);
-      
+      setIsDirty(false);
+
       // Update the left sidebar roster instantly without requiring a full page refresh
-      setRoster(prev => prev.map(s => 
-        s.student_id === selectedStudent 
-          ? { ...s, status: targetStatus, score: submissionData.total_awarded_score } 
+      setRoster(prev => prev.map(s =>
+        s.student_id === selectedStudent
+          ? { ...s, status: targetStatus, score: submissionData.total_awarded_score }
           : s
       ));
 
@@ -171,19 +237,46 @@ export default function SubmissionManager({ role }: { role: 'admin' | 'teacher' 
     }
   };
 
+  const confirmPublish = () => {
+    toast((t) => (
+      <div className="flex flex-col gap-3 max-w-sm">
+        <p className="text-sm font-medium text-slate-800 leading-relaxed">
+          Publish this grade? {submissionData?.student_name} will immediately be able to see their score and feedback.
+        </p>
+        <div className="flex justify-end gap-2 mt-2">
+          <button
+            onClick={() => toast.dismiss(t.id)}
+            className="px-3 py-1.5 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-md transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => { toast.dismiss(t.id); handleSave('Published'); }}
+            className="px-4 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-md transition-colors shadow-sm"
+          >
+            Publish Grade
+          </button>
+        </div>
+      </div>
+    ), { duration: Infinity, position: 'top-center', style: { minWidth: '320px' } });
+  };
+
   const handleBackToAssignments = () => {
     const basePath = role === 'admin' ? '/admin-dashboard/assignments' : '/teacher-dashboard/assignments';
     navigate(basePath);
   };
 
+  // Off-palette purple replaced with amber+icon — this app's palette is slate/blue/emerald/amber/red.
+  // "Returned" reuses the same amber as the "Return for Revision" button that creates it (a deliberate
+  // link), distinguished from "Pending Review" (also amber) by the RotateCcw icon vs Clock icon.
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'Pending Review': return <span className="px-2.5 py-1 bg-amber-100 text-amber-700 text-xs font-semibold rounded-md border border-amber-200">Pending</span>;
-      case 'Graded (Draft)': 
-      case 'Graded': return <span className="px-2.5 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-md border border-blue-200">Draft</span>;
-      case 'Published': return <span className="px-2.5 py-1 bg-emerald-100 text-emerald-700 text-xs font-semibold rounded-md border border-emerald-200">Published</span>;
-      case 'Returned': return <span className="px-2.5 py-1 bg-purple-100 text-purple-700 text-xs font-semibold rounded-md border border-purple-200">Returned</span>;
-      default: return <span className="px-2.5 py-1 bg-slate-100 text-slate-500 text-xs font-semibold rounded-md border border-slate-200">Missing</span>;
+      case 'Pending Review': return <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-100 text-amber-700 text-xs font-semibold rounded-md border border-amber-200"><Clock className="w-3 h-3" /> Pending</span>;
+      case 'Graded (Draft)':
+      case 'Graded': return <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-md border border-blue-200"><FileEdit className="w-3 h-3" /> Draft</span>;
+      case 'Published': return <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-100 text-emerald-700 text-xs font-semibold rounded-md border border-emerald-200"><CheckCircle2 className="w-3 h-3" /> Published</span>;
+      case 'Returned': return <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-100 text-amber-700 text-xs font-semibold rounded-md border border-amber-200"><RotateCcw className="w-3 h-3" /> Returned</span>;
+      default: return <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-100 text-slate-500 text-xs font-semibold rounded-md border border-slate-200"><HelpCircle className="w-3 h-3" /> Missing</span>;
     }
   };
 
@@ -237,7 +330,9 @@ export default function SubmissionManager({ role }: { role: 'admin' | 'teacher' 
 
         <div className="flex-1 overflow-y-auto p-3 space-y-2 bg-slate-50/50">
           {loadingRoster ? (
-            <div className="flex justify-center p-8"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div></div>
+            <div className="space-y-2 animate-pulse">
+              {[1, 2, 3, 4, 5].map((i) => <div key={i} className="h-20 bg-slate-200 rounded-xl"></div>)}
+            </div>
           ) : filteredRoster.length === 0 ? (
              <div className="text-center p-6 text-sm text-slate-500">No students match your filter.</div>
           ) : (
@@ -258,6 +353,9 @@ export default function SubmissionManager({ role }: { role: 'admin' | 'teacher' 
                   </div>
                   {sub.is_late && <span className="text-[10px] font-black bg-red-100 text-red-700 px-2 py-0.5 rounded border border-red-200 uppercase tracking-wide">Late</span>}
                 </div>
+                {sub.group_name && (
+                  <span className="text-[10px] font-bold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded w-fit">{sub.group_name}</span>
+                )}
                 <div className="flex justify-between items-center w-full">
                   {getStatusBadge(sub.status)}
                   {sub.status !== 'Missing' && <span className="text-xs font-bold text-slate-600 bg-slate-100 px-2 py-1 rounded-md">{sub.score} / {sub.max_score}</span>}
@@ -287,6 +385,9 @@ export default function SubmissionManager({ role }: { role: 'admin' | 'teacher' 
                 <h1 className="text-2xl font-extrabold text-slate-800 flex items-center gap-3 truncate">
                   {submissionData.student_name}
                   {submissionData.is_late && <span className="text-[11px] font-bold bg-red-100 text-red-700 px-2 py-1 rounded-md border border-red-200 uppercase tracking-wider shrink-0">Late Submission</span>}
+                  {submissionData.is_group_assignment && submissionData.group_name && (
+                    <span className="text-[11px] font-bold bg-purple-100 text-purple-700 px-2 py-1 rounded-md border border-purple-200 uppercase tracking-wider shrink-0">{submissionData.group_name}</span>
+                  )}
                 </h1>
                 <p className="flex items-center gap-1.5 mt-1 text-sm font-medium text-slate-500">
                   <Clock className="w-4 h-4 text-slate-400 shrink-0" /> <span className="truncate">Submitted: {submissionData.submitted_at ? new Date(submissionData.submitted_at).toLocaleString() : 'N/A'}</span>
@@ -303,7 +404,14 @@ export default function SubmissionManager({ role }: { role: 'admin' | 'teacher' 
                 </div>
                 
                 <div className="h-10 w-px bg-slate-200 hidden md:block shrink-0"></div>
-                
+
+                {submissionData.is_group_assignment && (
+                  <label className="flex items-center gap-2 text-xs font-bold text-purple-700 bg-purple-50 border border-purple-200 px-3 py-2 rounded-lg shrink-0 cursor-pointer">
+                    <input type="checkbox" checked={applyToGroup} onChange={(e) => setApplyToGroup(e.target.checked)} />
+                    Apply to whole group
+                  </label>
+                )}
+
                 <div className="flex items-center gap-2.5 shrink-0">
                   <button onClick={() => handleSave('Draft')} disabled={isSaving} className="px-4 py-2.5 bg-white border border-slate-300 text-slate-700 rounded-lg text-sm font-bold hover:bg-slate-50 transition-colors shadow-sm disabled:opacity-50 whitespace-nowrap">
                     Save Draft
@@ -311,7 +419,7 @@ export default function SubmissionManager({ role }: { role: 'admin' | 'teacher' 
                   <button onClick={() => handleSave('Return')} disabled={isSaving} className="px-4 py-2.5 bg-amber-50 border border-amber-200 text-amber-700 rounded-lg text-sm font-bold hover:bg-amber-100 transition-colors shadow-sm disabled:opacity-50 whitespace-nowrap">
                     Return for Revision
                   </button>
-                  <button onClick={() => handleSave('Published')} disabled={isSaving} className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 border border-emerald-700 text-white rounded-lg text-sm font-bold hover:bg-emerald-700 transition-colors shadow-sm disabled:opacity-50 whitespace-nowrap">
+                  <button onClick={confirmPublish} disabled={isSaving} className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 border border-emerald-700 text-white rounded-lg text-sm font-bold hover:bg-emerald-700 transition-colors shadow-sm disabled:opacity-50 whitespace-nowrap">
                     <CheckCircle2 className="w-4 h-4" /> Publish Grade
                   </button>
                 </div>
@@ -326,11 +434,11 @@ export default function SubmissionManager({ role }: { role: 'admin' | 'teacher' 
                   <h3 className="text-sm font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-2">
                     Overall Master Feedback
                   </h3>
-                  <textarea 
+                  <textarea
                     placeholder="Enter comprehensive feedback for the student here..."
-                    className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition-all min-h-[120px]"
+                    className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition-all min-h-30"
                     value={submissionData.overall_feedback || ''}
-                    onChange={(e) => setSubmissionData({...submissionData, overall_feedback: e.target.value})}
+                    onChange={(e) => { setIsDirty(true); setSubmissionData({...submissionData, overall_feedback: e.target.value}); }}
                   />
                 </div>
                 
@@ -420,19 +528,42 @@ export default function SubmissionManager({ role }: { role: 'admin' | 'teacher' 
                       </div>
 
                       <div className="w-full lg:w-56 shrink-0 space-y-4 border-t lg:border-t-0 lg:border-l border-slate-200 pt-6 lg:pt-0 lg:pl-6">
-                        <div>
-                          <label className="text-xs font-extrabold text-slate-500 uppercase tracking-wider mb-2 block">Awarded Score</label>
-                          <div className="relative">
-                            <input 
-                              type="number" min="0" max={q.max_score} value={q.awarded_score || 0}
-                              onChange={(e) => handleScoreChange(q.question_id, parseInt(e.target.value) || 0)}
-                              className="w-full p-3 bg-white border border-slate-300 rounded-xl font-black text-xl text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-center"
-                            />
-                            {q.is_auto_graded && (
-                              <p className="text-[10px] text-slate-400 mt-1.5 text-center leading-tight">Admin can override auto-grade</p>
-                            )}
+                        {q.rubric_criteria && q.rubric_criteria.length > 0 ? (
+                          <div>
+                            <label className="text-xs font-extrabold text-purple-600 uppercase tracking-wider mb-2 block">Rubric Scoring</label>
+                            <div className="space-y-2">
+                              {q.rubric_criteria.map((c: any) => (
+                                <div key={c.id} className="flex items-center justify-between gap-2 bg-purple-50 border border-purple-200 rounded-lg px-2.5 py-2">
+                                  <span className="text-xs text-purple-800 font-medium leading-tight">{c.criterion_text}</span>
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    <input
+                                      type="number" min={0} max={c.max_points} value={c.score || 0}
+                                      onChange={(e) => handleCriterionScoreChange(q.question_id, c.id, parseFloat(e.target.value) || 0)}
+                                      className="w-12 p-1 bg-white border border-purple-200 rounded text-center text-sm font-bold text-purple-700"
+                                      aria-label={`Score for ${c.criterion_text}`}
+                                    />
+                                    <span className="text-[10px] text-purple-500">/{c.max_points}</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                            <p className="text-center font-black text-lg text-blue-700 mt-2">{q.awarded_score} <span className="text-sm text-slate-400 font-bold">/ {q.max_score}</span></p>
                           </div>
-                        </div>
+                        ) : (
+                          <div>
+                            <label className="text-xs font-extrabold text-slate-500 uppercase tracking-wider mb-2 block">Awarded Score</label>
+                            <div className="relative">
+                              <input
+                                type="number" min="0" max={q.max_score} value={q.awarded_score || 0}
+                                onChange={(e) => handleScoreChange(q.question_id, parseFloat(e.target.value) || 0)}
+                                className="w-full p-3 bg-white border border-slate-300 rounded-xl font-black text-xl text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-center"
+                              />
+                              {q.is_auto_graded && (
+                                <p className="text-[10px] text-slate-400 mt-1.5 text-center leading-tight">Auto-graded — you can override this score</p>
+                              )}
+                            </div>
+                          </div>
+                        )}
                         <div>
                           <label className="text-xs font-extrabold text-slate-500 uppercase tracking-wider mb-2 block">Micro-Feedback</label>
                           <textarea 
@@ -457,7 +588,7 @@ export default function SubmissionManager({ role }: { role: 'admin' | 'teacher' 
       {/* 1. THE FILE EXCHANGE MODAL                 */}
       {/* ========================================== */}
       {isFileModalOpen && submissionData && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
           <div className="bg-white w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
             
             <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center">
@@ -468,7 +599,7 @@ export default function SubmissionManager({ role }: { role: 'admin' | 'teacher' 
                   <p className="text-xs text-slate-500">Manage documents for {submissionData.student_name}</p>
                 </div>
               </div>
-              <button onClick={() => setIsFileModalOpen(false)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+              <button onClick={() => setIsFileModalOpen(false)} title="Close" aria-label="Close file exchange" className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -485,7 +616,7 @@ export default function SubmissionManager({ role }: { role: 'admin' | 'teacher' 
                     </a>
                   </div>
                 ) : (
-                  <div className="border border-slate-200 bg-slate-50 p-6 rounded-xl text-center flex flex-col items-center justify-center min-h-[180px]">
+                  <div className="border border-slate-200 bg-slate-50 p-6 rounded-xl text-center flex flex-col items-center justify-center min-h-45">
                     <p className="text-sm text-slate-500 font-medium">No file was uploaded by the student.</p>
                   </div>
                 )}
@@ -493,7 +624,7 @@ export default function SubmissionManager({ role }: { role: 'admin' | 'teacher' 
 
               <div className="flex-1 space-y-3">
                 <h4 className="text-xs font-extrabold text-slate-500 uppercase tracking-wider">Upload Annotated Return File</h4>
-                <div className="border-2 border-dashed border-slate-300 bg-slate-50 hover:bg-slate-100 transition-colors p-6 rounded-xl text-center relative flex flex-col items-center justify-center min-h-[180px] cursor-pointer group">
+                <div className="border-2 border-dashed border-slate-300 bg-slate-50 hover:bg-slate-100 transition-colors p-6 rounded-xl text-center relative flex flex-col items-center justify-center min-h-45 cursor-pointer group">
                    <input 
                        type="file" 
                        onChange={(e) => setReturnFile(e.target.files ? e.target.files[0] : null)}
@@ -523,7 +654,7 @@ export default function SubmissionManager({ role }: { role: 'admin' | 'teacher' 
       {/* 2. THE ESSAY GRADING STUDIO MODAL          */}
       {/* ========================================== */}
       {activeEssayId && activeEssay && (
-         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 sm:p-6 animate-in fade-in duration-200">
+         <div className="fixed inset-0 z-70 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 sm:p-6 animate-in fade-in duration-200">
           <div className="bg-white w-full max-w-6xl h-[90vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
             
             {/* Studio Header */}
@@ -535,7 +666,7 @@ export default function SubmissionManager({ role }: { role: 'admin' | 'teacher' 
                   <p className="text-xs text-slate-400">Student: {submissionData.student_name}</p>
                 </div>
               </div>
-              <button onClick={() => setActiveEssayId(null)} className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors">
+              <button onClick={() => setActiveEssayId(null)} title="Close" aria-label="Close essay grading studio" className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors">
                 <X className="w-6 h-6" />
               </button>
             </div>
@@ -551,7 +682,7 @@ export default function SubmissionManager({ role }: { role: 'admin' | 'teacher' 
                    <p className="text-slate-800 font-medium whitespace-pre-wrap">{activeEssay.question_text}</p>
                 </div>
 
-                <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-6 min-h-[300px]">
+                <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-6 min-h-75">
                   {/* Read-Only Original */}
                   <div className="flex flex-col space-y-2">
                     <p className="text-xs font-extrabold text-slate-500 uppercase tracking-wider">Student's Original Submission</p>

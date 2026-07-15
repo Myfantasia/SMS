@@ -9,7 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-    <link rel="stylesheet" href="{% static 'css/navbar.css' %}">
+    <link rel="stylesheet" href="{% static 'css/navbar.css' %}?v=2">
     <link rel="stylesheet" href="{% static 'css/auth_style.css' %}">
     <link rel="stylesheet" href="{% static 'css/success_popup.css' %}">
 </head>
@@ -26,17 +26,25 @@
                 <p>Secure Access Gateway</p>
             </div>
 
-            <form id="adminLoginForm">
+            <form id="adminLoginForm" method="post" action="{% url 'adminlogin' %}">
+                {% csrf_token %}
                 <div class="form-group">
-                    <input type="email" id="email" class="form-control" placeholder="Email Address" required>
+                    <input type="email" id="email" name="email" class="form-control" placeholder="Email Address" required>
                 </div>
 
                 <div class="form-group">
-                    <input type="password" id="password" class="form-control" placeholder="Password" required>
+                    <input type="password" id="password" name="password" class="form-control" placeholder="Password" required>
                 </div>
 
                 <button type="submit" class="btn-login">Login</button>
 
+                {% if messages %}
+                    {% for message in messages %}
+                        {% if 'signup_success' not in message.tags %}
+                        <div class="error-message" style="display:block;">{{ message }}</div>
+                        {% endif %}
+                    {% endfor %}
+                {% endif %}
                 <div id="errorMessage" class="error-message"></div>
                 <div id="successMessage" class="success-message"></div>
 
@@ -50,10 +58,6 @@
 
     {% include "school/footer.html" %}
 
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
-
-    <script src="{% static 'js/admin_login.js' %}"></script>
 <script src="{% static 'js/success_popup.js' %}"></script>
 </body>
 </html>

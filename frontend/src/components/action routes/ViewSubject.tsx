@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, BookOpen, Users, BarChart3, GraduationCap } from 'lucide-react';
+import api from '../../libs/axiosInstance';
 
 interface SubjectData {
   id: number;
@@ -17,21 +18,29 @@ export default function ViewSubject() {
   const [subject, setSubject] = useState<SubjectData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetch('http://localhost:8000/api/manage-subjects/')
-      .then(res => res.json())
-      .then(response => {
-        if (response.status === 'success') {
-          const found = response.data.find((s: SubjectData) => s.id === Number(id));
-          if (found) setSubject(found);
-        }
-        setLoading(false);
-      })
-      .catch(err => {
-        console.error("Failed to fetch subject data", err);
-        setLoading(false);
-      });
-  }, [id]);
+  // ✅ RBAC PATH RESOLVER: Controls local view layout visibility options
+  const isAdmin = window.location.pathname.includes('admin-dashboard');
+  const basePath = '/' + (window.location.pathname.split('/')[1] || 'admin-dashboard');
+
+useEffect(() => {
+  const fetchSubjectData = async () => {
+    try {
+      const response = await api.get('/api/manage-subjects/');
+      const responseData = response.data;
+      
+      if (responseData.status === 'success') {
+        const found = responseData.data.find((s: SubjectData) => s.id === Number(id));
+        if (found) setSubject(found);
+      }
+    } catch (error) {
+      console.error("Failed to fetch subject data", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchSubjectData();
+}, [id]);
 
   if (loading) return <div className="p-6 text-slate-500">Loading Subject Profile...</div>;
   if (!subject) return <div className="p-6 text-red-500">Subject not found.</div>;
@@ -39,7 +48,8 @@ export default function ViewSubject() {
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6 animate-fade-in">
       
-      <button onClick={() => navigate('/admin-dashboard/subjects')} className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-emerald-600 transition-colors w-max">
+      {/* Back button navigates contextually to the appropriate index directory */}
+      <button onClick={() => navigate(`${basePath}/subjects`)} className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-emerald-600 transition-colors w-max">
         <ArrowLeft className="w-4 h-4" /> Back to Subjects
       </button>
 
@@ -73,7 +83,15 @@ export default function ViewSubject() {
             <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
               <Users className="w-5 h-5 text-blue-600" /> Teaching Staff Pool
             </h3>
-            <button onClick={() => navigate(`/admin-dashboard/subjects/edit/${subject.id}`)} className="text-sm text-blue-600 font-medium hover:underline">Manage Staff</button>
+            {/* ✅ RBAC BUTTON INTERCEPT: Hides staff allocation management panel if user is an instructor */}
+            {isAdmin && (
+              <button 
+                onClick={() => navigate(`${basePath}/subjects/edit/${subject.id}`)} 
+                className="text-sm text-blue-600 font-medium hover:underline"
+              >
+                Manage Staff
+              </button>
+            )}
           </div>
           
           {subject.assigned_teachers.length > 0 ? (

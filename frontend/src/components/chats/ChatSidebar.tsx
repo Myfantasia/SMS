@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { 
   Search, 
   MessageSquarePlus, 
@@ -7,6 +7,7 @@ import {
   User
 } from 'lucide-react';
 import { useChat } from './ChatProvider';
+import api from '../../libs/axiosInstance';
 
 // --- NEW: IMPORT THE MODALS ---
 import SearchDirectoryModal from './SearchDirectoryModal';
@@ -19,6 +20,30 @@ export default function ChatSidebar() {
   // --- NEW: MODAL STATE CONTROL ---
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [groupMode, setGroupMode] = useState<'Group' | 'Broadcast' | null>(null);
+
+  // --- NEW: RBAC PROFILE STATE ---
+  const [userRole, setUserRole] = useState<'Admin' | 'Teacher' | 'Parent' | null>(null);
+
+  // Fetch the active user's structural clearance level on mount
+  useEffect(() => {
+    api.get('/api/my-profile/')
+      .then(res => {
+        if (res.data.status === 'success') {
+          const roleRaw = String(res.data.data.role || '').toLowerCase();
+          
+          // ---> THE FIX: Treat the generic "user" string as an Admin <---
+          if (roleRaw.includes('admin') || roleRaw === 'user') setUserRole('Admin');
+          else if (roleRaw.includes('teacher')) setUserRole('Teacher');
+          else if (roleRaw.includes('parent')) setUserRole('Parent');
+          else console.warn("Received unknown role from backend:", roleRaw);
+        }
+      })
+      .catch(err => console.error("Could not trace profile role for RBAC:", err));
+  }, []);
+
+  // Guard rails based on role status
+  const canBroadcast = userRole === 'Admin';
+  const canCreateGroup = userRole === 'Admin' || userRole === 'Teacher';
 
   // 1. LOCAL FILTERING: Instantly search existing chats without hitting Django
   const filteredThreads = useMemo(() => {
@@ -59,35 +84,39 @@ export default function ChatSidebar() {
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-bold text-slate-800">Messages</h2>
           
-          {/* Admin Superpower Action Buttons */}
+          {/* Admin / Teacher Superpower Action Buttons */}
           <div className="flex gap-2">
             
             {/* Standard 1-on-1 Search Modal Trigger */}
             <button 
               className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-full transition-colors"
               title="New Direct Message"
-              onClick={() => setIsSearchOpen(true)} // <-- UPDATED
+              onClick={() => setIsSearchOpen(true)}
             >
               <MessageSquarePlus className="w-4 h-4" />
             </button>
 
-            {/* Admin Group Builder Modal Trigger */}
-            <button 
-              className="p-2 bg-slate-100 hover:bg-blue-100 text-slate-600 hover:text-blue-600 rounded-full transition-colors hidden md:block"
-              title="Create Group Chat"
-              onClick={() => setGroupMode('Group')} // <-- UPDATED
-            >
-              <Users className="w-4 h-4" />
-            </button>
+            {/* Admin & Teacher Group Builder Modal Trigger */}
+            {canCreateGroup && (
+              <button 
+                className="p-2 bg-slate-100 hover:bg-blue-100 text-slate-600 hover:text-blue-600 rounded-full transition-colors hidden md:block"
+                title="Create Group Chat"
+                onClick={() => setGroupMode('Group')}
+              >
+                <Users className="w-4 h-4" />
+              </button>
+            )}
 
-            {/* Admin Broadcast Modal Trigger */}
-            <button 
-              className="p-2 bg-slate-100 hover:bg-orange-100 text-slate-600 hover:text-orange-600 rounded-full transition-colors hidden md:block"
-              title="Send School Broadcast"
-              onClick={() => setGroupMode('Broadcast')} // <-- UPDATED
-            >
-              <Megaphone className="w-4 h-4" />
-            </button>
+            {/* Admin Broadcast Modal Trigger: STRICTLY GUARDED */}
+            {canBroadcast && (
+              <button 
+                className="p-2 bg-slate-100 hover:bg-orange-100 text-slate-600 hover:text-orange-600 rounded-full transition-colors hidden md:block"
+                title="Send School Broadcast"
+                onClick={() => setGroupMode('Broadcast')}
+              >
+                <Megaphone className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -152,7 +181,7 @@ export default function ChatSidebar() {
                       {/* Sub-label based on type */}
                       <p className="text-xs text-slate-500 truncate">
                         {thread.type === 'Broadcast' ? 'Official Notice' : 
-                         thread.type === 'Group' ? 'Group Collaboration' : 'Direct Message'}
+                          thread.type === 'Group' ? 'Group Collaboration' : 'Direct Message'}
                       </p>
                     </div>
                   </button>

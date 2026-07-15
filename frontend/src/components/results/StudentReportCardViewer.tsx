@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Search, Printer, User, AlertCircle, Users, CheckCircle, Upload, Loader2 } from 'lucide-react';
+import { Search, Printer, User, AlertCircle, CheckCircle, Upload, Loader2 } from 'lucide-react';
+import api from '../../libs/axiosInstance';
 
 interface LinkedChild {
   name: string;
@@ -8,9 +9,7 @@ interface LinkedChild {
 
 interface StudentReportCardViewerProps {
   role: 'admin' | 'teacher' | 'student' | 'parent';
-  // If a student logs in, pass their admission number here
   currentStudentAdmNo?: string; 
-  // If a parent logs in, pass their array of children here
   linkedChildren?: LinkedChild[]; 
 }
 
@@ -39,21 +38,13 @@ export default function StudentReportCardViewer({ role, currentStudentAdmNo, lin
     }
   }, [toastMessage]);
 
-  // ==========================================
   // FETCH FILTER OPTIONS ON MOUNT
-  // ==========================================
   useEffect(() => {
     const fetchFilters = async () => {
       try {
-        const token = localStorage.getItem('firebase_dev_token');
-        const response = await fetch('http://127.0.0.1:8000/api/results/filter-options/', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (response.ok) {
-          const data = await response.json();
-          setAvailableYears(data.years);
-          setAvailableTerms(data.terms);
-        }
+        const response = await api.get('/api/results/filter-options/');
+        setAvailableYears(response.data.years);
+        setAvailableTerms(response.data.terms);
       } catch (err) {
         console.error("Failed to load filter options", err);
       }
@@ -61,9 +52,7 @@ export default function StudentReportCardViewer({ role, currentStudentAdmNo, lin
     fetchFilters();
   }, []);
 
-  // ==========================================
   // ACTION: READ (Fetch Data)
-  // ==========================================
   const fetchReportCard = async (searchQuery: string) => {
     if (!searchQuery.trim()) return;
     
@@ -72,67 +61,39 @@ export default function StudentReportCardViewer({ role, currentStudentAdmNo, lin
     setReportData(null);
     
     try {
-      const token = localStorage.getItem('firebase_dev_token');
-      // Append filters if they are selected
-      let url = `http://127.0.0.1:8000/api/results/report-card/?search=${encodeURIComponent(searchQuery)}`;
-      if (academicYear) url += `&year=${academicYear}`;
-      if (term) url += `&term=${term}`;
+      const queryParams: any = { search: searchQuery };
+      if (academicYear) queryParams.year = academicYear;
+      if (term) queryParams.term = term;
 
-      const response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+      const response = await api.get('/api/results/report-card/', {
+        params: queryParams
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to fetch report card.");
-      }
-
-      setReportData(data);
+      setReportData(response.data);
     } catch (err: any) {
-      setError(err.message);
+      setError(err.response?.data?.error || err.message || "Failed to fetch report card.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  // ==========================================
   // ACTION: WRITE (Publish Data)
-  // ==========================================
   const handlePublish = async () => {
     if (!reportData) return;
     setIsPublishing(true);
     setError(null);
 
     try {
-      const token = localStorage.getItem('firebase_dev_token');
-      const response = await fetch(`http://127.0.0.1:8000/api/results/report-card/`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          admNo: reportData.student.admNo,
-          year: reportData.termInfo.year,
-          term: reportData.termInfo.term
-        })
+      await api.post('/api/results/report-card/', {
+        admNo: reportData.student.admNo,
+        year: reportData.termInfo.year,
+        term: reportData.termInfo.term
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to publish report card.");
-      }
-
       setToastMessage("Report card published successfully!");
-      // Update local state to show the published badge
       setReportData({ ...reportData, isPublished: true });
     } catch (err: any) {
-      setError(err.message);
+      setError(err.response?.data?.error || err.message || "Failed to publish report card.");
     } finally {
       setIsPublishing(false);
     }
@@ -147,7 +108,7 @@ export default function StudentReportCardViewer({ role, currentStudentAdmNo, lin
       setSelectedChildAdmNo(linkedChildren[0].admNo);
       fetchReportCard(linkedChildren[0].admNo);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [role, currentStudentAdmNo, linkedChildren]);
 
   // When a parent selects a different child from the dropdown, fetch that child's data
@@ -155,14 +116,13 @@ export default function StudentReportCardViewer({ role, currentStudentAdmNo, lin
     if (role === 'parent' && selectedChildAdmNo) {
       fetchReportCard(selectedChildAdmNo);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedChildAdmNo]);
 
   const handlePrint = () => {
     window.print();
   };
 
-  // Determine what to search based on role
   const getSearchTarget = () => {
     if (role === 'student') return currentStudentAdmNo || '';
     if (role === 'parent') return selectedChildAdmNo || '';
@@ -175,11 +135,13 @@ export default function StudentReportCardViewer({ role, currentStudentAdmNo, lin
       {/* 1. CONTROLS BAR */}
       <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 flex flex-wrap gap-4 items-end justify-between print:hidden">
         
-        {/* Term & Year Filters (Available to everyone) */}
+        {/* Term & Year Filters */}
         <div className="flex gap-4 flex-1">
           <div className="flex flex-col gap-1 min-w-35">
-            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Academic Year</label>
+            <label htmlFor="academicYearSelect" className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Academic Year</label>
             <select 
+              id="academicYearSelect"
+              aria-label="Academic Year"
               value={academicYear} 
               onChange={(e) => setAcademicYear(e.target.value)}
               className="p-2 border border-slate-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white"
@@ -190,8 +152,10 @@ export default function StudentReportCardViewer({ role, currentStudentAdmNo, lin
           </div>
 
           <div className="flex flex-col gap-1 min-w-35">
-            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Term</label>
+            <label htmlFor="termSelect" className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Term</label>
             <select 
+              id="termSelect"
+              aria-label="Term"
               value={term} 
               onChange={(e) => setTerm(e.target.value)}
               className="p-2 border border-slate-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white"
@@ -228,9 +192,10 @@ export default function StudentReportCardViewer({ role, currentStudentAdmNo, lin
           {/* Parents: Child Selector */}
           {role === 'parent' && linkedChildren && linkedChildren.length > 0 && (
             <div className="flex flex-col gap-1 flex-1 min-w-50">
-              <label className="text-xs font-semibold text-blue-800 uppercase tracking-wider">Select Child</label>
+              <label htmlFor="childSelect" className="text-xs font-semibold text-blue-800 uppercase tracking-wider">Select Child</label>
               <select 
-                title='Select Child'
+                id="childSelect"
+                aria-label="Select Child"
                 value={selectedChildAdmNo}
                 onChange={(e) => setSelectedChildAdmNo(e.target.value)}
                 className="p-2 border border-blue-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white"
@@ -244,7 +209,6 @@ export default function StudentReportCardViewer({ role, currentStudentAdmNo, lin
             </div>
           )}
 
-          {/* Generate Button for Everyone */}
           <button 
             onClick={() => fetchReportCard(getSearchTarget())}
             disabled={isLoading}
@@ -264,7 +228,7 @@ export default function StudentReportCardViewer({ role, currentStudentAdmNo, lin
         </div>
       )}
 
-      {/* 3. LOADING STATE */}
+      {/* LOADING STATE */}
       {isLoading && (
         <div className="py-12 flex justify-center items-center flex-col gap-4 print:hidden animate-in fade-in">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -272,7 +236,7 @@ export default function StudentReportCardViewer({ role, currentStudentAdmNo, lin
         </div>
       )}
 
-      {/* 4. REPORT CARD DISPLAY AREA */}
+      {/* REPORT CARD DISPLAY AREA */}
       {!isLoading && reportData && (
         <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden print:border-none print:shadow-none animate-in fade-in slide-in-from-bottom-4 duration-300">
           
@@ -303,7 +267,6 @@ export default function StudentReportCardViewer({ role, currentStudentAdmNo, lin
 
               <button 
                 onClick={handlePrint}
-                // Disable printing if it's a draft and the user is a student/parent
                 disabled={(role === 'student' || role === 'parent') && !reportData.isPublished}
                 className="text-slate-600 hover:text-blue-600 bg-white border border-slate-200 px-4 py-1.5 rounded-md flex items-center gap-2 text-sm font-medium transition-colors shadow-sm disabled:opacity-50"
               >
@@ -323,10 +286,9 @@ export default function StudentReportCardViewer({ role, currentStudentAdmNo, lin
             </div>
           ) : (
             
-            /* The Printable Area (Only renders if published OR if user is Admin/Teacher) */
+            /* The Printable Area */
             <div className="p-8 max-w-4xl mx-auto bg-white print:p-0" id="printable-report-card">
               
-              {/* Draft Watermark for Admins previewing unpublished data */}
               {!reportData.isPublished && (
                 <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 -rotate-45 opacity-5 pointer-events-none print:opacity-10">
                   <p className="text-[120px] font-black uppercase">DRAFT</p>
@@ -400,6 +362,8 @@ function Layout844({ data }: { data: any }) {
         <thead className="bg-slate-100 text-slate-800 print:bg-slate-200">
           <tr>
             <th className="border border-slate-300 px-4 py-2 print:border-slate-800">Subject</th>
+            {/* ✅ ADDED: Teacher header column inside 8-4-4 matrix block */}
+            <th className="border border-slate-300 px-4 py-2 print:border-slate-800">Subject Teacher</th>
             <th className="border border-slate-300 px-4 py-2 text-center w-20 print:border-slate-800">CAT 1 (20)</th>
             <th className="border border-slate-300 px-4 py-2 text-center w-20 print:border-slate-800">CAT 2 (20)</th>
             <th className="border border-slate-300 px-4 py-2 text-center w-20 print:border-slate-800">Main (60)</th>
@@ -412,6 +376,10 @@ function Layout844({ data }: { data: any }) {
           {data.subjects.map((sub: any, idx: number) => (
             <tr key={idx} className="hover:bg-slate-50">
               <td className="border border-slate-300 px-4 py-2 font-medium print:border-slate-800">{sub.name}</td>
+              {/* ✅ ADDED: Render subject teacher column cell value */}
+              <td className={`border border-slate-300 px-4 py-2 print:border-slate-800 ${sub.teacher === 'Unassigned' ? 'text-rose-600 italic' : ''}`}>
+                {sub.teacher}
+              </td>
               <td className="border border-slate-300 px-4 py-2 text-center print:border-slate-800">{sub.cat1}</td>
               <td className="border border-slate-300 px-4 py-2 text-center print:border-slate-800">{sub.cat2}</td>
               <td className="border border-slate-300 px-4 py-2 text-center print:border-slate-800">{sub.main}</td>
@@ -434,7 +402,6 @@ function Layout844({ data }: { data: any }) {
 }
 
 function LayoutCBC({ data }: { data: any }) {
-  // Helper function to color-code the CBC performance levels
   const getBadgeStyle = (level: string) => {
     switch (level) {
       case 'Exceeding Expectation (EE)':
@@ -465,16 +432,21 @@ function LayoutCBC({ data }: { data: any }) {
       <table className="w-full text-left text-sm text-slate-700 border-collapse mb-6 print:text-black">
         <thead className="bg-slate-100 text-slate-800 print:bg-slate-200">
           <tr>
-            <th className="border border-slate-300 px-4 py-3 print:border-slate-800 w-1/3">Learning Area</th>
+            <th className="border border-slate-300 px-4 py-3 print:border-slate-800 w-1/4">Learning Area</th>
+            {/* ✅ ADDED: Teacher header column inside CBC layout block */}
+            <th className="border border-slate-300 px-4 py-3 print:border-slate-800 w-1/4">Facilitator</th>
             <th className="border border-slate-300 px-4 py-3 print:border-slate-800 w-1/4">Performance Level</th>
             <th className="border border-slate-300 px-4 py-3 print:border-slate-800">Teacher's Specific Comment</th>
           </tr>
         </thead>
         <tbody>
-          {/* Note: We map through data.subjects, but in CBC they are called Learning Areas */}
           {data.subjects.map((sub: any, idx: number) => (
             <tr key={idx} className="hover:bg-slate-50">
               <td className="border border-slate-300 px-4 py-3 font-semibold text-slate-800 print:border-slate-800">{sub.name}</td>
+              {/* ✅ ADDED: Render facilitator column data cell */}
+              <td className={`border border-slate-300 px-4 py-3 text-slate-600 print:border-slate-800 ${sub.teacher === 'Unassigned' ? 'text-rose-600 italic' : ''}`}>
+                {sub.teacher}
+              </td>
               <td className="border border-slate-300 px-4 py-3 print:border-slate-800">
                 <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${getBadgeStyle(sub.performanceLevel || sub.grade)} print:border-none print:bg-transparent print:text-black print:p-0`}>
                   {sub.performanceLevel || sub.grade}

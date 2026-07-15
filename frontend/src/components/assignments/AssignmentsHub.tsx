@@ -13,7 +13,6 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { assignmentService } from '../../libs/assignmentService';
-import api from '../../libs/axiosInstance'; // <-- Used for direct delete calls
 
 interface AssignmentsHubProps {
   role: 'admin' | 'teacher' | 'student' | 'parent';
@@ -72,7 +71,7 @@ export default function AssignmentsHub({ role }: AssignmentsHubProps) {
                 setAssignments(prev => prev.filter(a => a.id !== id));
                 
                 // 3. LIVE API CALL to the Django delete endpoint
-                await api.delete(`/api/assignments/${id}/`); 
+                await assignmentService.deleteAssignment(id);
                 
                 // 4. Success toast
                 toast.success("Assignment deleted successfully.");
@@ -138,23 +137,30 @@ export default function AssignmentsHub({ role }: AssignmentsHubProps) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full min-h-100">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      <div className="max-w-7xl mx-auto space-y-6 animate-pulse">
+        <div className="h-16 bg-slate-200 rounded-2xl"></div>
+        <div className="h-16 bg-slate-200 rounded-2xl"></div>
+        <div className="h-96 bg-slate-200 rounded-2xl"></div>
       </div>
     );
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
-      
+    <div className="max-w-7xl mx-auto space-y-6">
+
       {/* 1. Page Header & Action Button */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">Assignments & Assessments</h1>
-          <p className="text-sm text-slate-500 mt-1">Manage all academic tasks, quizzes, and homework.</p>
+        <div className="flex items-center gap-4">
+          <div className="p-3 rounded-2xl text-amber-600 bg-amber-50">
+            <FileEdit className="w-7 h-7" strokeWidth={2.5} />
+          </div>
+          <div>
+            <h1 className="text-2xl font-extrabold text-slate-800">Assignments & Assessments</h1>
+            <p className="text-sm text-slate-500 mt-0.5">Manage all academic tasks, quizzes, and homework.</p>
+          </div>
         </div>
         
-        {role === 'admin' && (
+        {(role === 'admin' || role === 'teacher') && (
           <button 
             onClick={() => navigate('create')}
             className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm"
@@ -166,21 +172,21 @@ export default function AssignmentsHub({ role }: AssignmentsHubProps) {
       </div>
 
       {/* 2. Filters & Search Bar */}
-      <div className="flex flex-col sm:flex-row gap-4 bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+      <div className="flex flex-col sm:flex-row gap-4 bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input 
-            type="text" 
-            placeholder="Search by title or teacher name..." 
+          <input
+            type="text"
+            placeholder="Search by title or teacher name..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
           />
         </div>
-        
+
         <div className="flex items-center gap-2 min-w-50">
           <Filter className="w-4 h-4 text-slate-400" />
-          <select 
+          <select
             aria-label="Filter assignments by status"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
@@ -194,8 +200,15 @@ export default function AssignmentsHub({ role }: AssignmentsHubProps) {
         </div>
       </div>
 
+      {/* Status legend */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1 -mt-2 text-[11px] font-medium text-slate-500">
+        <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3 h-3 text-emerald-500" /> Active — visible to students now</span>
+        <span className="flex items-center gap-1.5"><FileEdit className="w-3 h-3 text-slate-400" /> Draft — hidden until published</span>
+        <span className="flex items-center gap-1.5"><XCircle className="w-3 h-3 text-red-500" /> Closed — past due, no new submissions</span>
+      </div>
+
       {/* 3. The Master Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
@@ -254,13 +267,14 @@ export default function AssignmentsHub({ role }: AssignmentsHubProps) {
                     
                     {/* Action Buttons */}
                     <td className="p-4 text-right">
-                      <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        
+                      <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-within:opacity-100 transition-opacity">
+
                         {/* 1. View/Grade Submissions */}
                         <button
                           onClick={() => navigate(`${assign.id}/submissions`)}
                           className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                           title="View Submissions & Grade"
+                          aria-label={`View submissions for ${assign.title}`}
                         >
                           <Eye className="w-4 h-4" />
                         </button>
@@ -270,6 +284,7 @@ export default function AssignmentsHub({ role }: AssignmentsHubProps) {
                           onClick={() => navigate(`edit/${assign.id}`)}
                           className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
                           title="Edit Assignment"
+                          aria-label={`Edit ${assign.title}`}
                         >
                           <FileEdit className="w-4 h-4" />
                         </button>
@@ -279,10 +294,11 @@ export default function AssignmentsHub({ role }: AssignmentsHubProps) {
                           onClick={() => handleDelete(assign.id)}
                           className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                           title="Delete Assignment"
+                          aria-label={`Delete ${assign.title}`}
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
-                        
+
                       </div>
                     </td>
                   </tr>

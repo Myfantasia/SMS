@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Eye, Edit, Trash2, X, BarChart3, Users } from 'lucide-react';
+import { Eye, Edit, Trash2, X, Users, Sparkles, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
+import api from '../../libs/axiosInstance';
 
 interface Subject {
   id: number;
@@ -8,6 +9,8 @@ interface Subject {
   name: string;
   department: string;
   is_core: boolean;
+  live_enrollment?: number;
+  assigned_teachers?: string[];
 }
 
 interface SubjectsCardProps {
@@ -57,56 +60,58 @@ export default function SubjectsCard({ subjects, onRefresh }: SubjectsCardProps)
   };
 
   // Submit Edit to Backend
-  const handleEditSubmit = async () => {
-    if (!selectedSubject) return;
-    setIsSubmitting(true);
+const handleEditSubmit = async () => {
+  if (!selectedSubject) return;
+  setIsSubmitting(true);
+  
+  try {
+    const response = await api.put(`/api/academic-hub/edit-subject/${selectedSubject.id}/`, { 
+      code: editCode, 
+      name: editName, 
+      department: editDept 
+    });
+    const data = response.data;
     
-    try {
-      const response = await fetch(`http://localhost:8000/api/academic-hub/edit-subject/${selectedSubject.id}/`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: editCode, name: editName, department: editDept })
-      });
-      const data = await response.json();
-      
-      if (data.status === 'success') {
-        toast.success(data.message);
-        onRefresh();
-        closeModal();
-      } else {
-        toast.error(data.message);
-      }
-    } catch (error) {
-      toast.error("Failed to connect to the server.");
-    } finally {
-      setIsSubmitting(false);
+    if (data.status === 'success') {
+      toast.success(data.message);
+      onRefresh();
+      closeModal();
+    } else {
+      toast.error(data.message);
     }
-  };
+  } catch (error: any) {
+    console.error("Error editing subject:", error);
+    const errMsg = error.response?.data?.message || "Failed to connect to the server.";
+    toast.error(errMsg);
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 
   // Submit Delete to Backend
-  const handleDeleteConfirm = async () => {
-    if (!selectedSubject) return;
-    setIsSubmitting(true);
+const handleDeleteConfirm = async () => {
+  if (!selectedSubject) return;
+  setIsSubmitting(true);
+  
+  try {
+    const response = await api.delete(`/api/academic-hub/delete-subject/${selectedSubject.id}/`);
+    const data = response.data;
     
-    try {
-      const response = await fetch(`http://localhost:8000/api/academic-hub/delete-subject/${selectedSubject.id}/`, {
-        method: 'DELETE',
-      });
-      const data = await response.json();
-      
-      if (data.status === 'success') {
-        toast.success(data.message);
-        onRefresh();
-        closeModal();
-      } else {
-        toast.error(data.message);
-      }
-    } catch (error) {
-      toast.error("Failed to connect to the server.");
-    } finally {
-      setIsSubmitting(false);
+    if (data.status === 'success') {
+      toast.success(data.message);
+      onRefresh();
+      closeModal();
+    } else {
+      toast.error(data.message);
     }
-  };
+  } catch (error: any) {
+    console.error("Error deleting subject:", error);
+    const errMsg = error.response?.data?.message || "Failed to connect to the server.";
+    toast.error(errMsg);
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 
   return (
     <div className="w-full relative">
@@ -182,34 +187,34 @@ export default function SubjectsCard({ subjects, onRefresh }: SubjectsCardProps)
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
                     <div className="flex items-center gap-2 text-indigo-600 mb-2 font-semibold">
-                      <Users className="w-4 h-4" /> Staffing
+                      <Users className="w-4 h-4" /> Active Teachers
                     </div>
-                    <p className="text-sm text-slate-600"><span className="font-medium text-slate-800">Head of Department:</span> Dr. Emily Clark</p>
-                    <p className="text-sm text-slate-600 mt-2"><span className="font-medium text-slate-800">Active Teachers:</span> 4 assigned</p>
+                    {selectedSubject.assigned_teachers && selectedSubject.assigned_teachers.length > 0 ? (
+                      <ul className="text-sm text-slate-600 space-y-1">
+                        {selectedSubject.assigned_teachers.map((name) => (
+                          <li key={name} className="font-medium text-slate-800">{name}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-sm text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                        No teachers currently assigned to this subject.
+                      </p>
+                    )}
                   </div>
                   <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
                     <div className="flex items-center gap-2 text-emerald-600 mb-2 font-semibold">
-                      <BarChart3 className="w-4 h-4" /> Global Performance
+                      <Sparkles className="w-4 h-4" /> Live Enrollment
                     </div>
-                    <p className="text-sm text-slate-600"><span className="font-medium text-slate-800">School-Wide Mean:</span> 68.2%</p>
-                    <p className="text-sm text-slate-600 mt-2"><span className="font-medium text-slate-800">Highest Performing:</span> Grade 8 East</p>
+                    <p className="text-sm text-slate-600">
+                      <span className="font-bold text-2xl text-slate-800">{selectedSubject.live_enrollment ?? 0}</span> students enrolled this academic year
+                    </p>
                   </div>
                 </div>
 
-                <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                   <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/80 font-semibold text-slate-700">Class Performance Breakdown (Term 1)</div>
-                   <div className="p-0 text-sm text-slate-500">
-                     <table className="w-full text-left">
-                       <thead className="bg-slate-50 border-b border-slate-100 text-xs">
-                         <tr><th className="px-4 py-2">Class</th><th className="px-4 py-2">Mean Score</th><th className="px-4 py-2">Grade</th></tr>
-                       </thead>
-                       <tbody>
-                         <tr className="border-b border-slate-50"><td className="px-4 py-2">Grade 8 East</td><td className="px-4 py-2 font-mono">84.5%</td><td className="px-4 py-2 text-emerald-600 font-bold">A</td></tr>
-                         <tr className="border-b border-slate-50"><td className="px-4 py-2">Grade 8 West</td><td className="px-4 py-2 font-mono">72.1%</td><td className="px-4 py-2 text-blue-600 font-bold">B</td></tr>
-                         <tr><td className="px-4 py-2">Grade 7 North</td><td className="px-4 py-2 font-mono">65.0%</td><td className="px-4 py-2 text-amber-600 font-bold">C+</td></tr>
-                       </tbody>
-                     </table>
-                   </div>
+                <div className="flex flex-col items-center justify-center text-center p-8 bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
+                  <Clock className="w-8 h-8 text-slate-300 mb-3" />
+                  <p className="text-sm font-semibold text-slate-500">Class performance breakdown coming soon</p>
+                  <p className="text-xs text-slate-400 mt-1">Per-class mean scores for this subject will appear here once wired up.</p>
                 </div>
               </div>
             )}

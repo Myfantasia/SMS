@@ -16,8 +16,16 @@ body.no-scroll {
 :root {
     --primary: #6366f1;
     --nav-bg: #0f172a;
+    --nav-border: rgba(255,255,255,0.1);
     --text-white: #ffffff;
     --text-dim: #cbd5e1;
+}
+
+:root[data-theme="light"] {
+    --nav-bg: #ffffff;
+    --nav-border: rgba(15,23,42,0.08);
+    --text-white: #0f172a;
+    --text-dim: #475569;
 }
 
 .navbar-container {
@@ -32,12 +40,49 @@ body.no-scroll {
     z-index: 10000;
     background: var(--nav-bg);
     font-family: 'Outfit', sans-serif;
-    border-bottom: 1px solid rgba(255,255,255,0.1);
+    border-bottom: 1px solid var(--nav-border);
+    transition: background-color 0.25s ease, border-color 0.25s ease;
 }
 
 .brand-wrapper { display: flex; align-items: center; gap: 12px; text-decoration: none; min-width: fit-content; }
 .logo-box { width: 42px; height: 42px; background: linear-gradient(135deg, var(--primary), #a855f7); border-radius: 10px; display: grid; place-items: center; color: white; font-weight: 800; font-size: 1.3rem; }
-.brand-logo { color: white; font-weight: 800; font-size: 1.4rem; }
+.brand-logo { color: var(--text-white); font-weight: 800; font-size: 1.4rem; }
+
+/* Right-side cluster: nav links + always-visible controls, pinned opposite the brand */
+.navbar-right {
+    display: flex;
+    align-items: center;
+    gap: 22px;
+}
+
+/* Persistent controls (theme toggle + hamburger) — always visible in the fixed top
+   bar, independent of whether the mobile nav drawer is open or closed */
+.navbar-controls {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+/* Theme Toggle */
+.theme-toggle {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 1px solid var(--nav-border);
+    background: transparent;
+    color: var(--text-white);
+    cursor: pointer;
+    font-size: 1rem;
+    flex-shrink: 0;
+    transition: background-color 0.2s ease, transform 0.2s ease;
+}
+.theme-toggle:hover { background: rgba(99, 102, 241, 0.15); transform: rotate(15deg); }
+.theme-toggle:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.theme-toggle .theme-icon-light { display: none; }
+:root[data-theme="light"] .theme-toggle .theme-icon-light { display: inline-block; }
+:root[data-theme="light"] .theme-toggle .theme-icon-dark { display: none; }
 
 /* Desktop Menu */
 .nav-links-wrapper {
@@ -56,7 +101,7 @@ body.no-scroll {
     white-space: nowrap;
 }
 
-.nav-item:hover { color: white; background: rgba(255,255,255,0.1); }
+.nav-item:hover { color: var(--text-white); background: rgba(99, 102, 241, 0.12); }
 
 /* Portal System */
 .portal-dropdown {
@@ -115,7 +160,7 @@ body.no-scroll {
 /* Hamburger Button */
 .mobile-toggle {
     display: none;
-    color: white;
+    color: var(--text-white);
     font-size: 1.8rem;
     cursor: pointer;
     z-index: 10002;
@@ -167,7 +212,7 @@ body.no-scroll {
     }
 
     .drop-item { color: var(--text-dim); }
-    .drop-item:hover { background: rgba(255,255,255,0.1); color: white; }
+    .drop-item:hover { background: rgba(99, 102, 241, 0.15); color: var(--text-white); }
 }
 
 @media (max-width: 992px) {

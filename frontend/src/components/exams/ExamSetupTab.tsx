@@ -85,6 +85,9 @@ const ExamSetupTab: React.FC = () => {
   };
 
   // NEW: Delete Handlers
+  // The backend blocks the first attempt with a 409 + impact summary when the term/exam
+  // has real data attached, instead of silently cascade-deleting marks. On that response we
+  // show the blast radius and let the admin explicitly confirm with force=true.
   const handleDeleteTerm = (id: string | number) => {
     toast((t) => (
       <div className="flex flex-col gap-3">
@@ -92,24 +95,28 @@ const ExamSetupTab: React.FC = () => {
           Delete this term? All connected exams will also be removed.
         </p>
         <div className="flex justify-end gap-2">
-          <button 
-            onClick={() => toast.dismiss(t.id)} 
+          <button
+            onClick={() => toast.dismiss(t.id)}
             className="px-3 py-1 text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-600 rounded transition"
           >
             Cancel
           </button>
-          <button 
+          <button
             onClick={async () => {
               toast.dismiss(t.id);
               try {
                 await api.delete(`/api/exams/terms/${id}/delete/`);
                 toast.success('Term deleted successfully!');
                 fetchSetupData();
-              } catch (error) {
-                toast.error('Failed to delete term.');
+              } catch (error: any) {
+                if (error.response?.status === 409 && error.response.data?.requires_confirmation) {
+                  confirmForceDeleteTerm(id, error.response.data.error);
+                  return;
+                }
+                toast.error(error.response?.data?.error || 'Failed to delete term.');
                 console.error("Failed to delete term", error);
               }
-            }} 
+            }}
             className="px-3 py-1 text-xs font-medium bg-red-600 hover:bg-red-700 text-white rounded transition"
           >
             Delete Term
@@ -119,6 +126,39 @@ const ExamSetupTab: React.FC = () => {
     ), { duration: Infinity }); // Infinity prevents it from auto-closing before they decide
   };
 
+  const confirmForceDeleteTerm = (id: string | number, impactMessage: string) => {
+    toast((t) => (
+      <div className="flex flex-col gap-3 max-w-sm">
+        <p className="text-sm font-bold text-red-700">This will permanently destroy real data.</p>
+        <p className="text-sm text-slate-700">{impactMessage}</p>
+        <div className="flex justify-end gap-2">
+          <button
+            onClick={() => toast.dismiss(t.id)}
+            className="px-3 py-1 text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-600 rounded transition"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={async () => {
+              toast.dismiss(t.id);
+              try {
+                await api.delete(`/api/exams/terms/${id}/delete/?force=true`);
+                toast.success('Term and all its data deleted.');
+                fetchSetupData();
+              } catch (error) {
+                toast.error('Failed to delete term.');
+                console.error("Failed to force-delete term", error);
+              }
+            }}
+            className="px-3 py-1 text-xs font-medium bg-red-600 hover:bg-red-700 text-white rounded transition"
+          >
+            Yes, Delete Everything
+          </button>
+        </div>
+      </div>
+    ), { duration: Infinity });
+  };
+
   const handleDeleteExam = (id: string | number) => {
     toast((t) => (
       <div className="flex flex-col gap-3">
@@ -126,27 +166,64 @@ const ExamSetupTab: React.FC = () => {
           Delete this exam? All student results tied to it will be lost.
         </p>
         <div className="flex justify-end gap-2">
-          <button 
-            onClick={() => toast.dismiss(t.id)} 
+          <button
+            onClick={() => toast.dismiss(t.id)}
             className="px-3 py-1 text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-600 rounded transition"
           >
             Cancel
           </button>
-          <button 
+          <button
             onClick={async () => {
               toast.dismiss(t.id);
               try {
                 await api.delete(`/api/exams/events/${id}/delete/`);
                 toast.success('Exam deleted successfully!');
                 fetchSetupData();
-              } catch (error) {
-                toast.error('Failed to delete exam.');
+              } catch (error: any) {
+                if (error.response?.status === 409 && error.response.data?.requires_confirmation) {
+                  confirmForceDeleteExam(id, error.response.data.error);
+                  return;
+                }
+                toast.error(error.response?.data?.error || 'Failed to delete exam.');
                 console.error("Failed to delete exam", error);
               }
-            }} 
+            }}
             className="px-3 py-1 text-xs font-medium bg-red-600 hover:bg-red-700 text-white rounded transition"
           >
             Delete Exam
+          </button>
+        </div>
+      </div>
+    ), { duration: Infinity });
+  };
+
+  const confirmForceDeleteExam = (id: string | number, impactMessage: string) => {
+    toast((t) => (
+      <div className="flex flex-col gap-3 max-w-sm">
+        <p className="text-sm font-bold text-red-700">This will permanently destroy real data.</p>
+        <p className="text-sm text-slate-700">{impactMessage}</p>
+        <div className="flex justify-end gap-2">
+          <button
+            onClick={() => toast.dismiss(t.id)}
+            className="px-3 py-1 text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-600 rounded transition"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={async () => {
+              toast.dismiss(t.id);
+              try {
+                await api.delete(`/api/exams/events/${id}/delete/?force=true`);
+                toast.success('Exam and all its marks deleted.');
+                fetchSetupData();
+              } catch (error) {
+                toast.error('Failed to delete exam.');
+                console.error("Failed to force-delete exam", error);
+              }
+            }}
+            className="px-3 py-1 text-xs font-medium bg-red-600 hover:bg-red-700 text-white rounded transition"
+          >
+            Yes, Delete Everything
           </button>
         </div>
       </div>
@@ -262,10 +339,10 @@ const ExamSetupTab: React.FC = () => {
                       {/* NEW ACTIONS COLUMN */}
                       <td className="py-3 text-right">
                         <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button onClick={() => openEditTerm(term)} className="p-1 text-slate-400 hover:text-blue-600 rounded">
+                          <button type="button" onClick={() => openEditTerm(term)} className="p-1 text-slate-400 hover:text-blue-600 rounded">
                             <Edit className="w-4 h-4" />
                           </button>
-                          <button onClick={() => handleDeleteTerm(term.id)} className="p-1 text-slate-400 hover:text-red-600 rounded">
+                          <button  type="button" onClick={() => handleDeleteTerm(term.id)} className="p-1 text-slate-400 hover:text-red-600 rounded">
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
@@ -325,10 +402,10 @@ const ExamSetupTab: React.FC = () => {
                       {/* NEW ACTIONS COLUMN */}
                       <td className="py-3 text-right">
                         <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button onClick={() => openEditExam(exam)} className="p-1 text-slate-400 hover:text-blue-600 rounded">
+                          <button type="button" onClick={() => openEditExam(exam)} title="Edit exam" aria-label={`Edit ${exam.name}`} className="p-1 text-slate-400 hover:text-blue-600 rounded">
                             <Edit className="w-4 h-4" />
                           </button>
-                          <button onClick={() => handleDeleteExam(exam.id)} className="p-1 text-slate-400 hover:text-red-600 rounded">
+                          <button type="button" onClick={() => handleDeleteExam(exam.id)} title="Delete exam" aria-label={`Delete ${exam.name}`} className="p-1 text-slate-400 hover:text-red-600 rounded">
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </div>

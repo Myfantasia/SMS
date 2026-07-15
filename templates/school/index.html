@@ -5,27 +5,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MyFantasia | Smart School Ecosystem</title>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{% static 'css/navbar.css' %}">
-    <link rel="stylesheet" href="{% static 'css/home.css' %}">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-    <style>
-        /* Small extra CSS for the new News Section */
-        .news-section { padding: 80px 6%; background: rgba(255,255,255,0.02); }
-        .news-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 30px; margin-top: 40px; }
-        .news-card {
-            background: #0f172a; border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 16px; overflow: hidden; transition: 0.3s;
-        }
-        .news-card:hover { transform: translateY(-5px); border-color: #6366f1; }
-        .news-img { height: 180px; background: #1e1b4b; display: flex; align-items: center; justify-content: center; color: #6366f1; font-size: 3rem; }
-        .news-content { padding: 25px; }
-        .news-date { color: #94a3b8; font-size: 0.85rem; margin-bottom: 10px; display: block; }
-        .news-content h4 { color: white; font-size: 1.2rem; margin-bottom: 10px; }
-        .news-content p { color: #cbd5e1; font-size: 0.95rem; line-height: 1.5; }
-        .badge-cbc { background: #16a34a; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; vertical-align: middle; margin-left: 8px; }
-    </style>
+    <script>
+        // Applied before first paint so switching pages never flashes the wrong theme.
+        (function () {
+            var saved = localStorage.getItem('theme');
+            document.documentElement.setAttribute('data-theme', saved === 'light' ? 'light' : 'dark');
+        })();
+    </script>
+
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'css/navbar.css' %}?v=2">
+    <link rel="stylesheet" href="{% static 'css/home.css' %}?v=2">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
 
@@ -127,32 +119,31 @@
             <h2>Campus <span class="gradient-text">Pulse</span></h2>
             <p>Keeping our community informed on the latest happenings.</p>
         </div>
+        {% if recent_events %}
         <div class="news-grid">
+            {% for event in recent_events %}
             <div class="news-card">
-                <div class="news-img"><i class="fas fa-trophy"></i></div>
+                <div class="news-img">
+                    {% if event.event_type == 'Exam' %}<i class="fas fa-file-signature"></i>
+                    {% elif event.event_type == 'Holiday' %}<i class="fas fa-umbrella-beach"></i>
+                    {% elif event.event_type == 'Meeting' %}<i class="fas fa-users"></i>
+                    {% elif event.event_type == 'Sports' %}<i class="fas fa-trophy"></i>
+                    {% else %}<i class="fas fa-calendar-check"></i>{% endif %}
+                </div>
                 <div class="news-content">
-                    <span class="news-date">Feb 2, 2026</span>
-                    <h4>National Drama Festivals</h4>
-                    <p>Our French play "L'Avenir" has qualified for the Nationals in Mombasa. Congratulations to the creative team!</p>
+                    <span class="news-date">{{ event.start_time|date:"M j, Y" }}<span class="badge-cbc">{{ event.event_type }}</span></span>
+                    <h4>{{ event.title }}</h4>
+                    <p>{{ event.description|default:"More details coming soon."|truncatewords:28 }}</p>
                 </div>
             </div>
-            <div class="news-card">
-                <div class="news-img"><i class="fas fa-flask"></i></div>
-                <div class="news-content">
-                    <span class="news-date">Jan 28, 2026</span>
-                    <h4>Science Congress Win</h4>
-                    <p>The Physics department took home gold at the Nairobi Regionals for their renewable energy project.</p>
-                </div>
-            </div>
-            <div class="news-card">
-                <div class="news-img"><i class="fas fa-bus"></i></div>
-                <div class="news-content">
-                    <span class="news-date">Jan 15, 2026</span>
-                    <h4>New School Fleet</h4>
-                    <p>We have added two new buses to our transport fleet to serve the Kitengela and Thika Road routes.</p>
-                </div>
-            </div>
+            {% endfor %}
         </div>
+        {% else %}
+        <div class="news-empty">
+            <i class="fas fa-calendar-plus"></i>
+            <p>No campus updates published yet — check back soon.</p>
+        </div>
+        {% endif %}
     </section>
 
     <section class="info-section">
@@ -179,7 +170,5 @@
     </section>
 
     {% include "school/footer.html" %}
-
-    <script src="{% static 'js/navbar.js' %}"></script>
 </body>
 </html>

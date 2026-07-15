@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useOutletContext, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { Trash2 } from 'lucide-react';
 import TimetableHeader from './TimetableHeader';
@@ -7,55 +8,23 @@ import TimetableGrid from './TimetableGrid';
 import AssignLessonModal from './AssignLessonModal';
 import TimetableSettings from './TimetableSettings';
 import ViewBlockModal from './ViewBlockModal'; 
-import type { Bucket, ClassStream, Lesson, Teacher, TimeSlot, Timetable } from '../../libs/types';
-
-// --- FRONTEND HELPER FUNCTIONS ---
-const isTechSubject = (subjectName: string, gradeName: string) => {
-  const nameUpper = subjectName.toUpperCase();
-  const gradeNum = parseInt(gradeName.replace(/\D/g, '')) || 0;
-  
-  if (nameUpper === "TECHNICAL BLOCK") return true;
-
-  const techKeywords = ["TECHNICAL", "PRE-TECH", "HOME SCIENCE", "COMPUTER", "AGRICULTURE", "ART", "MUSIC"];
-  if (techKeywords.some(kw => nameUpper.includes(kw))) return true;
-
-  if (nameUpper.includes("BUSINESS")) return gradeNum >= 10;
-  return false;
-};
-
-const isRelSubject = (subjectName: string) => {
-  const nameUpper = subjectName.toUpperCase();
-  return ['CRE', 'IRE', 'HRE', 'CHRISTIAN', 'ISLAM', 'HINDU', 'RELIGIOUS'].some(kw => nameUpper.includes(kw));
-};
-
-const isHumSubject = (subjectName: string, gradeName: string) => {
-  const nameUpper = subjectName.toUpperCase();
-  const gradeNum = parseInt(gradeName.replace(/\D/g, '')) || 0;
-  
-  if (gradeNum >= 10) {
-    if (nameUpper.includes("HISTORY")) return false; // History is excluded
-    return ['GEOGRAPHY', 'CRE', 'IRE', 'HRE', 'CHRISTIAN', 'ISLAM', 'HINDU', 'RELIGIOUS'].some(kw => nameUpper.includes(kw));
-  }
-  return false;
-};
-
-const canStackSubjects = (existingSubject: string, newSubject: string, gradeName: string) => {
-  const gradeNum = parseInt(gradeName.replace(/\D/g, '')) || 0;
-
-  // 1. Religious subjects stack together (Grades 1-9 ONLY)
-  if (gradeNum < 10 && isRelSubject(existingSubject) && isRelSubject(newSubject)) return true;
-
-  // 2. Technical subjects stack together
-  if (isTechSubject(existingSubject, gradeName) && isTechSubject(newSubject, gradeName)) return true;
-
-  // 3. Humanities stack together (Grades 10-12 ONLY)
-  if (isHumSubject(existingSubject, gradeName) && isHumSubject(newSubject, gradeName)) return true;
-
-  // STRICT RULE: Business Studies in Grades 7-9 will hit 'false' and block stacking automatically!
-  return false;
-};
+import SubstituteModal from './SubstituteModal'; 
+import type { Bucket, ClassStream, DailyCoverEntry, Lesson, Teacher, TimeSlot, Timetable } from '../../libs/types';
+import api from '../../libs/axiosInstance';
+import TeacherAvailabilityView from './TeacherAvailability';
+import MasterTimetableView from './MasterTimetableView';
+import ScheduleUnderConstruction from './ScheduleUnderConstruction';
 
 export default function TimetableManager() {
+  const { role } = useOutletContext<{ role: string }>();
+  // Lets other pages (e.g. a class's "Manage Timetable" button) deep-link
+  // straight to that class instead of always landing on the first one.
+  const [searchParams] = useSearchParams();
+  const preselectedClassId = searchParams.get('class');
+
+  // View Mode Navigation State
+  const [currentView, setCurrentView] = useState<'grid' | 'availability' | 'master'>('grid');
+
   const [loading, setLoading] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [slots, setSlots] = useState<TimeSlot[]>([]);
@@ -77,36 +46,152 @@ export default function TimetableManager() {
   const [lessonToDelete, setLessonToDelete] = useState<number | null>(null);
   const [viewBlockLessons, setViewBlockLessons] = useState<Lesson[] | null>(null); 
   
-  // --- NEW STATE FOR CLEAR GRID MODAL ---
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [clearScope, setClearScope] = useState<'stream' | 'all'>('stream');
 
-  useEffect(() => {
-    if (!selectedSubject) {
-      setTeachers([]);
-      setSelectedTeacher('');
+  const [isEngineBusy, setIsEngineBusy] = useState(false);
+  const [unscheduledBasket, setUnscheduledBasket] = useState<string[]>([]);
+
+  const [isDailyCoverMode, setIsDailyCoverMode] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [coverAllocationId, setCoverAllocationId] = useState<number | null>(null);
+  const [dailyCovers, setDailyCovers] = useState<DailyCoverEntry[]>([]);
+
+  // Lifecycle Toggle State
+  const [isProcessingPublish, setIsProcessingPublish] = useState(false);
+
+  const isPublished = activeTimetable?.status === 'Published';
+
+  const executeStatusUpdate = async (targetNextStatus: 'Draft' | 'Published') => {
+    setIsProcessingPublish(true);
+    const loadingToast = toast.loading(`Transitioning status to ${targetNextStatus}...`);
+
+    try {
+      const res = await api.post(`/api/timetable/update-status/${activeTimetable?.id}/`, {
+        status: targetNextStatus,
+        is_active: activeTimetable?.is_active
+      });
+
+      if (res.data.status === 'success') {
+        toast.success(`Timetable status updated to ${targetNextStatus}!`, { id: loadingToast });
+        setActiveTimetable(prev => prev ? { ...prev, status: targetNextStatus as 'Draft' | 'Published' } : null);
+      } else {
+        toast.error(res.data.message || "Failed to update status.", { id: loadingToast });
+      }
+    } catch (err) {
+      console.error("Error updating timetable status:", err);
+      toast.error("Network error updating status.", { id: loadingToast });
+    } finally {
+      setIsProcessingPublish(false);
+    }
+  };
+
+  // Interactive Toast Trigger Replacing window.confirm
+  const handlePublishLifecycleToggle = () => {
+    if (!activeTimetable || isEngineBusy || isProcessingPublish) return;
+
+    const targetNextStatus = isPublished ? 'Draft' : 'Published';
+    const alertMessage = isPublished 
+      ? "Revert this timetable back to Draft status? Public views will be hidden."
+      : "Publish this schedule framework to go Live? Grid modifications and compilation tools will be locked.";
+
+    // Renders a custom interactive confirmation card inside react-hot-toast
+    toast((t) => (
+      <div className="flex flex-col gap-3 font-sans text-left max-w-sm">
+        <div>
+          <p className="text-xs font-black uppercase tracking-wider text-slate-400 mb-1">
+            Confirm Lifecycle Shift
+          </p>
+          <p className="text-xs font-medium text-slate-700 leading-relaxed">
+            {alertMessage}
+          </p>
+        </div>
+
+        <div className="flex justify-end gap-2 pt-1 border-t border-slate-100">
+          <button
+            type="button"
+            onClick={() => toast.dismiss(t.id)}
+            className="px-3 py-1.5 text-xs font-bold text-slate-500 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              toast.dismiss(t.id);
+              executeStatusUpdate(targetNextStatus);
+            }}
+            className={`px-3 py-1.5 text-xs font-bold text-white rounded-lg transition-colors cursor-pointer shadow-xs ${
+              isPublished 
+                ? 'bg-amber-600 hover:bg-amber-700' 
+                : 'bg-blue-600 hover:bg-blue-700'
+            }`}
+          >
+            Confirm Transition
+          </button>
+        </div>
+      </div>
+    ), {
+      duration: 8000,
+      position: 'top-center',
+      style: {
+        background: '#ffffff',
+        border: '1px solid #e2e8f0',
+        padding: '14px',
+        borderRadius: '16px',
+        boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+      },
+    });
+  };
+
+  const safeSetActiveSlotId = (id: number | null) => {
+    if (isPublished) {
+      toast.error("Grid is Published (Live). Revert to Draft mode to edit slots.");
       return;
     }
+    if (role === 'admin' && !isEngineBusy && !isDailyCoverMode) setActiveSlotId(id);
+  };
+
+  const safeSetLessonToDelete = (id: number | null) => {
+    if (isPublished) {
+      toast.error("Grid is Published (Live). Revert to Draft mode to delete lessons.");
+      return;
+    }
+    if (role === 'admin' && !isEngineBusy && !isDailyCoverMode) setLessonToDelete(id);
+  };
+
+  useEffect(() => {
     const fetchTeachers = async () => {
       try {
-        const res = await fetch(`http://localhost:8000/api/timetable/teachers-by-subject/${selectedSubject}/`);
-        const data = await res.json();
-        if (data.status === 'success') setTeachers(data.data);
-        else toast.error("Could not fetch teachers.");
-      } catch (e) { console.error("Error", e); }
+        const res = await api.get(`/api/timetable/teachers-by-subject/${selectedSubject}/`);
+        const data = res.data;
+        if (data.status === 'success') {
+          setTeachers(data.data);
+        } else {
+          toast.error("Could not fetch teachers.");
+        }
+      } catch (error) {
+        console.error("Error fetching teachers:", error);
+        toast.error("Could not fetch teachers.");
+      }
     };
-    fetchTeachers();
+    if (selectedSubject) fetchTeachers();
   }, [selectedSubject]);
 
   const fetchInitialSetup = async () => {
     try {
       const [termRes, classRes] = await Promise.all([
-        fetch('http://localhost:8000/api/timetable/manage-containers/'),
-        fetch('http://localhost:8000/api/manage-classes/')
+        api.get('/api/timetable/manage-containers/'),
+        api.get('/api/manage-classes/')
       ]);
-      const termData = await termRes.json();
-      const classData = await classRes.json();
       
-      if (termData.status === 'success') setActiveTimetable(termData.data.find((t: Timetable) => t.is_active) || null);
+      const termData = termRes.data;
+      const classData = classRes.data;
+      
+      if (termData.status === 'success') {
+        setActiveTimetable(termData.data.find((t: Timetable) => t.is_active) || null);
+      }
+      
       if (classData.status === 'success') {
         const flatClasses: ClassStream[] = [];
         classData.data.forEach((grade: any) => {
@@ -115,9 +200,15 @@ export default function TimetableManager() {
           });
         });
         setClasses(flatClasses);
-        if (flatClasses.length > 0 && !selectedClassId) setSelectedClassId(flatClasses[0].id);
+        if (flatClasses.length > 0 && !selectedClassId) {
+          const deepLinked = preselectedClassId ? flatClasses.find((c) => c.id === Number(preselectedClassId)) : null;
+          setSelectedClassId(deepLinked ? deepLinked.id : flatClasses[0].id);
+        }
       }
-    } catch (e) { toast.error("Failed to load setup."); }
+    } catch (error) {
+      console.error("Error fetching initial setup:", error);
+      toast.error("Failed to load setup.");
+    }
   };
 
   const fetchGridData = async () => {
@@ -125,59 +216,132 @@ export default function TimetableManager() {
     setLoading(true);
     try {
       const [gridRes, bucketRes, lessonsRes] = await Promise.all([
-        fetch('http://localhost:8000/api/timetable/grid/'),
-        fetch(`http://localhost:8000/api/timetable/buckets/${selectedClassId}/${activeTimetable.id}/`),
-        fetch(`http://localhost:8000/api/timetable/class-lessons/${selectedClassId}/${activeTimetable.id}/`)
+        api.get('/api/timetable/grid/'),
+        api.get(`/api/timetable/buckets/${selectedClassId}/${activeTimetable.id}/`),
+        api.get(`/api/timetable/class-lessons/${selectedClassId}/${activeTimetable.id}/`)
       ]);
-      const gridData = await gridRes.json();
-      const bucketData = await bucketRes.json();
-      const lessonsData = await lessonsRes.json();
+      
+      const gridData = gridRes.data;
+      const bucketData = bucketRes.data;
+      const lessonsData = lessonsRes.data;
+      
       if (gridData.status === 'success') setSlots(gridData.data);
       if (bucketData.status === 'success') setBuckets(bucketData.data);
       if (lessonsData.status === 'success') setLessons(lessonsData.data);
-    } catch (error) { toast.error("Failed to sync grid."); } 
-    finally { setLoading(false); }
+    } catch (error) { 
+      console.error("Error fetching grid data:", error);
+      toast.error("Failed to sync grid."); 
+    } finally { 
+      setLoading(false); 
+    }
+  };
+
+  const fetchDailyCovers = async () => {
+    if (!selectedClassId || !selectedDate) return;
+    try {
+      const res = await api.get(`/api/timetable/assign-daily-cover/?date=${selectedDate}&class_stream_id=${selectedClassId}`);
+      if (res.data.status === 'success') setDailyCovers(res.data.data);
+    } catch (error) {
+      console.error("Error fetching daily covers:", error);
+    }
+  };
+
+  const handleCancelCover = async (coverId: number) => {
+    try {
+      const res = await api.delete('/api/timetable/assign-daily-cover/', { data: { id: coverId } });
+      if (res.data.status === 'success') {
+        toast.success(res.data.message || "Cover cancelled.");
+        fetchDailyCovers();
+      } else {
+        toast.error(res.data.message);
+      }
+    } catch (error) {
+      console.error("Error cancelling cover:", error);
+      toast.error("Failed to cancel cover.");
+    }
   };
 
   useEffect(() => { fetchInitialSetup(); }, []);
   useEffect(() => { fetchGridData(); }, [selectedClassId, activeTimetable]);
+  useEffect(() => {
+    if (isDailyCoverMode) fetchDailyCovers();
+  }, [isDailyCoverMode, selectedDate, selectedClassId]);
 
   const handleAutoGenerate = async () => {
-    if (!activeTimetable) { toast.error("Please ensure an active term is selected."); return; }
-    const loadingToast = toast.loading("Algorithm running...");
-    try {
-      const res = await fetch(`http://localhost:8000/api/timetable/auto-generate/${activeTimetable.id}/`, { method: 'POST' });
-      const data = await res.json();
-      if (data.status === 'success') { toast.success(data.message, { id: loadingToast }); fetchGridData(); } 
-      else toast.error(data.message, { id: loadingToast });
-    } catch (e) { toast.error("Server error.", { id: loadingToast }); }
-  };
+    if (role !== 'admin' || isEngineBusy || isPublished) return;
+    if (!activeTimetable) {
+      toast.error("Please ensure an active term is selected.");
+      return;
+    }
+    if (!selectedClassId) {
+      toast.error("Please select a class to generate a timetable for.");
+      return;
+    }
 
-  // --- NEW: Handle Confirm Clear Grid ---
-  const confirmClearGrid = async () => {
-    if (!activeTimetable) return;
-    const loadingToast = toast.loading("Clearing timetable grid...");
+    setIsEngineBusy(true);
+    setUnscheduledBasket([]);
+    const loadingToast = toast.loading("Scheduling algorithm compiling models...");
+
     try {
-      const res = await fetch(`http://localhost:8000/api/timetable/clear-grid/${activeTimetable.id}/`, { method: 'DELETE' });
-      const data = await res.json();
-      if (data.status === 'success') {
+      const res = await api.post(`/api/timetable/auto-generate/${activeTimetable.id}/?stream_id=${selectedClassId}`);
+      const data = res.data;
+      
+      if (data.status === 'success') { 
         toast.success(data.message, { id: loadingToast });
-        fetchGridData();
+        if (data.unscheduled_basket && data.unscheduled_basket.length > 0) {
+          setUnscheduledBasket(data.unscheduled_basket);
+        }
+        await fetchGridData();
       } else {
         toast.error(data.message, { id: loadingToast });
       }
-    } catch (e) {
-      toast.error("Failed to clear grid.", { id: loadingToast });
+    } catch (error: any) {
+      console.error("Error generating timetable:", error);
+      if (error.response?.status === 423) {
+        const structuralMsg = error.response?.data?.message || "Engine state locked. Compilation active in another window.";
+        toast.error(structuralMsg, { id: loadingToast, duration: 6000 });
+      } else {
+        const errMsg = error.response?.data?.message || "Critical compilation abort.";
+        toast.error(errMsg, { id: loadingToast });
+      }
+    } finally {
+      setIsEngineBusy(false);
     }
-    setShowClearConfirm(false);
   };
 
+  const confirmClearGrid = async () => {
+  if (!activeTimetable || isEngineBusy || isPublished) return;
+  const loadingToast = toast.loading("Clearing allocations...");
+  
+  try {
+    // If clearScope === 'stream', append ?stream_id=... to target only the selected stream
+    const endpoint = (clearScope === 'stream' && selectedClassId)
+      ? `/api/timetable/clear-grid/${activeTimetable.id}/?stream_id=${selectedClassId}`
+      : `/api/timetable/clear-grid/${activeTimetable.id}/`;
+
+    const res = await api.delete(endpoint);
+    if (res.data.status === 'success') {
+      toast.success(res.data.message, { id: loadingToast });
+      fetchGridData(); // Refresh grid view
+    } else {
+      toast.error(res.data.message, { id: loadingToast });
+    }
+  } catch (error) {
+    console.error("Error clearing grid:", error);
+    toast.error("Failed to clear grid.", { id: loadingToast });
+  } finally {
+    setShowClearConfirm(false);
+  }
+};
+
   const confirmRemoveLesson = async () => {
-    if (!lessonToDelete) return;
+    if (role !== 'admin' || !lessonToDelete || isEngineBusy || isPublished) return;
     try {
       const targetLesson = lessons.find(l => l.id === lessonToDelete);
+      const isSharedBlockSubject = targetLesson && targetLesson.subject_block_id !== null && targetLesson.subject_block_id !== undefined;
       let twinId = null;
-      if (targetLesson && targetLesson.is_double) {
+      
+      if (targetLesson && targetLesson.is_double && !isSharedBlockSubject) {
          const slot = slots.find(s => s.id === targetLesson.time_slot_id);
          if (slot) {
             const daySlots = slots.filter(s => s.day === slot.day).sort((a, b) => a.start_time.localeCompare(b.start_time));
@@ -188,36 +352,44 @@ export default function TimetableManager() {
             if (nextL) twinId = nextL.id;
          }
       }
-      const res = await fetch(`http://localhost:8000/api/timetable/remove-lesson/${lessonToDelete}/`, { method: 'DELETE' });
-      const data = await res.json();
+      
+      const res = await api.delete(`/api/timetable/remove-lesson/${lessonToDelete}/`);
+      const data = res.data;
+      
       if (data.status === 'success') {
-        if (twinId) await fetch(`http://localhost:8000/api/timetable/remove-lesson/${twinId}/`, { method: 'DELETE' });
-        toast.success("Lesson returned to bucket.");
+        if (twinId) {
+          await api.delete(`/api/timetable/remove-lesson/${twinId}/`);
+        }
+        toast.success(data.message || "Lesson returned to bucket.");
         fetchGridData(); 
-      } else toast.error(data.message);
-    } catch (e) { toast.error("Error removing."); }
+      } else {
+        toast.error(data.message);
+      }
+    } catch (error) {
+      console.error("Error removing lesson:", error);
+      toast.error("Error removing lesson.");
+    }
     setLessonToDelete(null);
   };
 
+  // --- UPGRADED RELATIONAL INTEGRITY PLACEMENT ENGINE ---
   const handleSaveLesson = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activeTimetable || !selectedClassId || !activeSlotId) return;
+    if (role !== 'admin' || !activeTimetable || !selectedClassId || !activeSlotId || isEngineBusy || isPublished) return;
     setIsSaving(true);
     
     try {
       const currentSlot = slots.find(s => s.id === activeSlotId);
-      let nextSlot = null;
-      
-      const currentClass = classes.find(c => c.id === selectedClassId);
-      const gradeName = currentClass?.grade_name || '';
-
-      const newSubjectObj = buckets.find(b => b.subject_id.toString() === selectedSubject.toString());
-      const newSubjectName = newSubjectObj ? newSubjectObj.subject_name : '';
+      let nextSlot: TimeSlot | undefined = undefined; 
 
       const currentSlotConflicts = lessons.filter(l => l.time_slot_id === activeSlotId);
-      for (const conflict of currentSlotConflicts) {
-         if (!canStackSubjects(conflict.subject_name, newSubjectName, gradeName)) {
-            toast.error(`Slot already occupied by ${conflict.subject_name}.`);
+      
+      if (currentSlotConflicts.length > 0) {
+         const existingLesson = currentSlotConflicts[0];
+         const isExistingBlock = existingLesson.subject_block_id !== null && existingLesson.subject_block_id !== undefined;
+         
+         if (!isExistingBlock) {
+            toast.error(`Conflict Warning: Slot already fully occupied by standalone subject: ${existingLesson.subject_name}.`);
             setIsSaving(false);
             return;
          }
@@ -232,9 +404,12 @@ export default function TimetableManager() {
         }
         
         const nextSlotConflicts = lessons.filter(l => l.time_slot_id === nextSlot.id);
-        for (const conflict of nextSlotConflicts) {
-           if (!canStackSubjects(conflict.subject_name, newSubjectName, gradeName)) {
-              toast.error(`Next slot occupied by ${conflict.subject_name}.`);
+        if (nextSlotConflicts.length > 0) {
+           const existingNextLesson = nextSlotConflicts[0];
+           const isNextBlock = existingNextLesson.subject_block_id !== null && existingNextLesson.subject_block_id !== undefined;
+           
+           if (!isNextBlock) {
+              toast.error(`Conflict Warning: Target trailing slot occupied by standalone subject: ${existingNextLesson.subject_name}.`);
               setIsSaving(false);
               return;
            }
@@ -242,30 +417,82 @@ export default function TimetableManager() {
       }
 
       const payload = { timetable_id: activeTimetable.id, class_stream_id: selectedClassId, subject_id: selectedSubject, teacher_id: selectedTeacher, is_double_period: isDoublePeriod };
+      const res1 = await api.post('/api/timetable/save-lesson/', { ...payload, time_slot_id: activeSlotId });
+      const data1 = res1.data;
       
-      const res1 = await fetch('http://localhost:8000/api/timetable/save-lesson/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...payload, time_slot_id: activeSlotId }) });
-      const data1 = await res1.json();
-      if (data1.status !== 'success') { toast.error(data1.message); setIsSaving(false); return; }
+      if (data1.status !== 'success') { 
+        toast.error(data1.message); 
+        setIsSaving(false); 
+        return; 
+      }
+
+      if (data1.warnings && data1.warnings.length > 0) {
+        data1.warnings.forEach((warn: string) => {
+          toast(warn, { icon: '⚠️', duration: 6000, style: { background: '#fffbeb', color: '#92400e', border: '1px solid #fde68a' } });
+        });
+      }
 
       if (isDoublePeriod && nextSlot) {
-         const res2 = await fetch('http://localhost:8000/api/timetable/save-lesson/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...payload, time_slot_id: nextSlot.id }) });
-         const data2 = await res2.json();
+         const res2 = await api.post('/api/timetable/save-lesson/', { ...payload, time_slot_id: nextSlot.id });
+         const data2 = res2.data;
          if (data2.status !== 'success') {
              toast.error(`Error on second period: ${data2.message}`);
+         }
+         
+         if (data2.warnings && data2.warnings.length > 0) {
+           data2.warnings.forEach((warn: string) => {
+             toast(warn, { icon: '⚠️', duration: 6000, style: { background: '#fffbeb', color: '#92400e', border: '1px solid #fde68a' } });
+           });
          }
       }
       
       toast.success("Lesson locked in!");
       setActiveSlotId(null); setSelectedSubject(''); setSelectedTeacher(''); setIsDoublePeriod(false);
       fetchGridData(); 
-    } catch (e) { toast.error("Network error."); } 
-    finally { setIsSaving(false); }
+    } catch (error) { 
+      toast.error("Network error.");
+      console.error("Error saving lesson:", error);
+    } finally { 
+      setIsSaving(false); 
+    }
   };
 
-  if (loading) return <div className="p-8 text-slate-500 font-medium">Booting Timetable Engine...</div>;
+  if (loading) {
+    return (
+      <div className="space-y-6 animate-pulse">
+        <div className="h-16 bg-slate-200 rounded-2xl"></div>
+        <div className="h-[60vh] bg-slate-200 rounded-2xl"></div>
+      </div>
+    );
+  }
+
+  // Render Full-Screen Availability Workspace when requested
+  if (currentView === 'availability') {
+    return (
+      <TeacherAvailabilityView
+        slots={slots}
+        onBack={() => {
+          setCurrentView('grid');
+          fetchGridData();
+        }}
+      />
+    );
+  }
+
+  // Render the read-only Whole-School (Master) Timetable view when requested
+  if (currentView === 'master') {
+    return (
+      <MasterTimetableView
+        activeTimetable={activeTimetable}
+        slots={slots}
+        onBack={() => setCurrentView('grid')}
+      />
+    );
+  }
 
   return (
-    <div className="p-6 max-w-[1600px] mx-auto space-y-6 flex flex-col h-[calc(100vh-80px)] animate-fade-in relative">
+    <div className="p-6 max-w-400 mx-auto space-y-6 flex flex-col h-[calc(100vh-80px)] animate-fade-in relative">
+      
       <TimetableHeader 
         activeTimetable={activeTimetable} 
         classes={classes} 
@@ -275,16 +502,95 @@ export default function TimetableManager() {
         setViewType={setViewType} 
         setShowSettings={setShowSettings} 
         handleAutoGenerate={handleAutoGenerate} 
-        handleClearTimetable={() => setShowClearConfirm(true)} // <-- WIRED UP HERE
+        handleClearTimetable={() => { setClearScope('stream'); setShowClearConfirm(true); }}
+        role={role}
+        isEngineBusy={isEngineBusy}
+        unscheduledBasket={unscheduledBasket}
+        setUnscheduledBasket={setUnscheduledBasket}
+        isDailyCoverMode={isDailyCoverMode}
+        setIsDailyCoverMode={setIsDailyCoverMode}
+        selectedDate={selectedDate}
+        setSelectedDate={setSelectedDate}
+        onOpenTeacherAvailability={() => setCurrentView('availability')}
+        onOpenMasterTimetable={() => setCurrentView('master')}
+        handlePublishLifecycleToggle={handlePublishLifecycleToggle}
+        isProcessingPublish={isProcessingPublish}
       />
       
-      <div className="flex gap-6 flex-1 overflow-hidden min-h-0">
-        <TimetableGrid viewType={viewType} slots={slots} lessons={lessons} classes={classes} selectedClassId={selectedClassId} setActiveSlotId={setActiveSlotId} setLessonToDelete={setLessonToDelete} setViewBlockLessons={setViewBlockLessons} />
-        <TimetableBuckets buckets={buckets} />
-      </div>
+      {/* --- PHASE 9: CONSUMER VIEW GUARD --- */}
+      {role !== 'admin' && !isPublished ? (
+        <ScheduleUnderConstruction termName={activeTimetable?.name} />
+      ) : (
+        <div className="flex gap-6 flex-1 overflow-hidden min-h-0">
+          <TimetableGrid
+            viewType={viewType}
+            slots={slots}
+            lessons={lessons}
+            classes={classes}
+            selectedClassId={selectedClassId}
+            setActiveSlotId={safeSetActiveSlotId}
+            setLessonToDelete={safeSetLessonToDelete}
+            setViewBlockLessons={setViewBlockLessons}
+            role={role}
+            isDailyCoverMode={isDailyCoverMode}
+            setCoverAllocationId={setCoverAllocationId}
+            dailyCovers={dailyCovers}
+          />
+
+          {role === 'admin' && !isDailyCoverMode && <TimetableBuckets buckets={buckets} />}
+
+          {role === 'admin' && isDailyCoverMode && (
+            <div className="w-80 bg-amber-50/40 border border-amber-200 p-4 rounded-2xl shadow-sm h-full flex flex-col gap-3 animate-fade-in">
+              <h3 className="font-bold text-sm text-amber-900 tracking-tight uppercase border-b border-amber-200 pb-2">
+                Date Adjustments ledger
+              </h3>
+              <p className="text-xs font-semibold text-amber-700/80 leading-relaxed">
+                Click any active cell badge icon on the calendar grid to register a single-day teacher absence.
+              </p>
+              <div className="flex-1 overflow-y-auto space-y-2">
+                {dailyCovers.length === 0 ? (
+                  <div className="h-full bg-white/50 border border-dashed border-amber-200 rounded-xl p-3 flex flex-col items-center justify-center text-center text-slate-400 text-xs">
+                    No covers assigned for {selectedDate} yet.
+                  </div>
+                ) : (
+                  dailyCovers.map(cover => (
+                    <div key={cover.id} className="bg-white border border-amber-200 rounded-lg p-3 text-xs space-y-1 shadow-sm">
+                      <div className="flex justify-between items-start gap-2">
+                        <span className="font-bold text-slate-800">{cover.subject_name}</span>
+                        <button
+                          onClick={() => handleCancelCover(cover.id)}
+                          className="text-red-500 hover:text-red-700 font-bold shrink-0"
+                          title="Cancel this cover"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      <p className="text-slate-500">
+                        <span className="text-red-600 font-semibold">{cover.absent_teacher_name}</span>
+                        {' → '}
+                        <span className="text-emerald-600 font-semibold">{cover.covering_teacher_name}</span>
+                      </p>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {activeSlotId && (
         <AssignLessonModal setActiveSlotId={setActiveSlotId} buckets={buckets} teachers={teachers} selectedSubject={selectedSubject} setSelectedSubject={setSelectedSubject} selectedTeacher={selectedTeacher} setSelectedTeacher={setSelectedTeacher} isDoublePeriod={isDoublePeriod} setIsDoublePeriod={setIsDoublePeriod} handleSaveLesson={handleSaveLesson} isSaving={isSaving} />
+      )}
+
+      {coverAllocationId && (
+        <SubstituteModal 
+          allocationId={coverAllocationId}
+          targetDate={selectedDate}
+          onClose={() => setCoverAllocationId(null)}
+          onSuccess={() => { setCoverAllocationId(null); fetchDailyCovers(); }}
+          lessons={lessons}
+        />
       )}
 
       {viewBlockLessons && (
@@ -292,40 +598,74 @@ export default function TimetableManager() {
           lessons={viewBlockLessons}
           gradeName={classes.find(c => c.id === selectedClassId)?.grade_name || ''}
           onClose={() => setViewBlockLessons(null)}
-          onDeleteLesson={setLessonToDelete}
+          onDeleteLesson={safeSetLessonToDelete}
         />
       )}
 
-      {/* --- EXISTING: Remove Lesson Modal --- */}
-      {lessonToDelete && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-[70] p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-fade-in p-6 text-center space-y-4">
-            <div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-2"><Trash2 className="w-6 h-6" /></div>
-            <h3 className="font-bold text-xl text-slate-800">Remove Lesson?</h3>
-            <div className="flex gap-3 pt-4">
-              <button onClick={() => setLessonToDelete(null)} className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-600 rounded-lg font-bold hover:bg-slate-50">Cancel</button>
-              <button onClick={confirmRemoveLesson} className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700">Remove</button>
+      {lessonToDelete && (() => {
+        const target = lessons.find(l => l.id === lessonToDelete);
+        return (
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-70 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-fade-in p-6 text-center space-y-4">
+              <div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-2"><Trash2 className="w-6 h-6" /></div>
+              <h3 className="font-bold text-xl text-slate-800">Remove Lesson?</h3>
+              {target && (
+                <p className="text-sm text-slate-500">
+                  <span className="font-bold text-slate-700">{target.subject_name}</span> with {target.teacher_name} will be unscheduled and returned to the bucket.
+                </p>
+              )}
+              <div className="flex gap-3 pt-4">
+                <button onClick={() => setLessonToDelete(null)} className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-600 rounded-lg font-bold hover:bg-slate-50">Cancel</button>
+                <button onClick={confirmRemoveLesson} className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700">Remove</button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
-      {/* --- NEW: Clear Grid Modal --- */}
-      {showClearConfirm && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-[70] p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-fade-in p-6 text-center space-y-4">
-            <div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-2">
-              <Trash2 className="w-6 h-6" />
-            </div>
-            <h3 className="font-bold text-xl text-slate-800">Clear Entire Grid?</h3>
-            <p className="text-sm text-slate-500">This will remove all scheduled lessons from the active timetable. This action cannot be undone.</p>
-            <div className="flex gap-3 pt-4">
-              <button onClick={() => setShowClearConfirm(false)} className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-600 rounded-lg font-bold hover:bg-slate-50">Cancel</button>
-              <button onClick={confirmClearGrid} className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700">Clear Grid</button>
+      {showClearConfirm && (() => {
+        const currentClass = classes.find(c => c.id === selectedClassId);
+        const currentClassLabel = currentClass
+          ? (currentClass.name.toLowerCase().includes(currentClass.grade_name.toLowerCase()) ? currentClass.name : `${currentClass.grade_name} ${currentClass.name}`)
+          : 'the selected class';
+        return (
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-70 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-fade-in p-6 text-center space-y-4">
+              <div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-2">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <h3 className="font-bold text-xl text-slate-800">Clear Schedule?</h3>
+
+              {/* Scope selector — `clearScope` used to be dead state with no way to set it,
+                  so "Clear Entire Grid?" always meant just the current stream regardless
+                  of what the copy implied. Now the choice is explicit. */}
+              <div className="flex flex-col gap-2 text-left">
+                <label className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${clearScope === 'stream' ? 'border-red-300 bg-red-50/60' : 'border-slate-200 hover:bg-slate-50'}`}>
+                  <input type="radio" name="clear-scope" className="mt-1" checked={clearScope === 'stream'} onChange={() => setClearScope('stream')} />
+                  <span>
+                    <span className="block text-sm font-bold text-slate-800">Just {currentClassLabel}</span>
+                    <span className="block text-xs text-slate-500">Removes lessons for this class only. Other classes are untouched.</span>
+                  </span>
+                </label>
+                <label className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${clearScope === 'all' ? 'border-red-300 bg-red-50/60' : 'border-slate-200 hover:bg-slate-50'}`}>
+                  <input type="radio" name="clear-scope" className="mt-1" checked={clearScope === 'all'} onChange={() => setClearScope('all')} />
+                  <span>
+                    <span className="block text-sm font-bold text-slate-800">The entire school</span>
+                    <span className="block text-xs text-slate-500">Removes every scheduled lesson for every class in this term. Cannot be undone.</span>
+                  </span>
+                </label>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button onClick={() => setShowClearConfirm(false)} className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-600 rounded-lg font-bold hover:bg-slate-50">Cancel</button>
+                <button onClick={confirmClearGrid} className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700">
+                  {clearScope === 'all' ? 'Clear Entire School' : `Clear ${currentClassLabel}`}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {showSettings && <TimetableSettings onClose={() => setShowSettings(false)} onRefreshTrigger={fetchInitialSetup} />}
     </div>

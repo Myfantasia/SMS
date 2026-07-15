@@ -13,7 +13,8 @@ import {
 import toast from 'react-hot-toast';
 import type { Assignment, Question } from '../../libs/assignments';
 import { assignmentService } from '../../libs/assignmentService';
-import QuestionBuilder from './QuestionBuilder'; 
+import QuestionBuilder from './QuestionBuilder';
+import AssignmentOptionsPanel from './AssignmentOptionsPanel';
 import api from '../../libs/axiosInstance';
 
 interface EditAssignmentProps {
@@ -39,12 +40,17 @@ export default function EditAssignment({ role }: EditAssignmentProps) {
   const [filteredSubjects, setFilteredSubjects] = useState<any[]>([]); 
 
   // --- Form States ---
-  const [uploadMode, setUploadMode] = useState<boolean>(true); 
-  const [isQuestionModalOpen, setIsQuestionModalOpen] = useState<boolean>(false); 
+  const [uploadMode, setUploadMode] = useState<boolean>(true);
+  const [isQuestionModalOpen, setIsQuestionModalOpen] = useState<boolean>(false);
   const [isPublishedMode, setIsPublishedMode] = useState<boolean>(false); // SAFETY LOCK
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
   
   const [assignment, setAssignment] = useState<Partial<Assignment>>({});
   const [questions, setQuestions] = useState<Question[]>([]);
+
+  const classStreamOptions = classes.flatMap((grade: any) =>
+    (grade.streams || []).map((stream: any) => ({ id: stream.id, label: stream.name }))
+  );
 
   // 1. Fetch Master Data & Existing Assignment Data
   useEffect(() => {
@@ -150,13 +156,38 @@ export default function EditAssignment({ role }: EditAssignmentProps) {
     }
   };
 
+  const handleFileDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDraggingFile(false);
+    if (isPublishedMode) return;
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleAssignmentChange('teacher_attachment', e.dataTransfer.files[0]);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent, isDraft: boolean) => {
     e.preventDefault();
     if (!id) return;
-    
+
     // Basic Validation
     if (!assignment.title || !assignment.class_stream_id || !assignment.subject_id) {
       toast.error("Please fill in all required fields (Title, Class, Subject).");
+      return;
+    }
+
+    // Schedule must make chronological sense — nothing previously stopped a Due
+    // Date before the Publish Date, or a Cutoff before the Due Date.
+    const { publish_date, due_date, cutoff_date } = assignment;
+    if (publish_date && due_date && new Date(due_date) < new Date(publish_date)) {
+      toast.error("Due Date can't be before the Publish Date.");
+      return;
+    }
+    if (due_date && cutoff_date && new Date(cutoff_date) < new Date(due_date)) {
+      toast.error("Cutoff Date can't be before the Due Date.");
+      return;
+    }
+    if (publish_date && cutoff_date && !due_date && new Date(cutoff_date) < new Date(publish_date)) {
+      toast.error("Cutoff Date can't be before the Publish Date.");
       return;
     }
 
@@ -187,21 +218,33 @@ export default function EditAssignment({ role }: EditAssignmentProps) {
   };
 
   if (!initialFetchDone) {
-    return <div className="p-10 text-center text-slate-500">Loading assignment data...</div>;
+    return (
+      <div className="max-w-5xl mx-auto space-y-6 animate-pulse">
+        <div className="h-14 bg-slate-200 rounded-2xl"></div>
+        <div className="h-40 bg-slate-200 rounded-2xl"></div>
+        <div className="h-56 bg-slate-200 rounded-2xl"></div>
+        <div className="h-40 bg-slate-200 rounded-2xl"></div>
+      </div>
+    );
   }
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6 pb-20">
-      
+    <div className="max-w-5xl mx-auto space-y-6 pb-20">
+
       {/* 1. Header & Actions */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate('..')}
+            aria-label="Go back"
+            title="Go back"
             className="p-2 bg-white border border-slate-200 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-50 transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
+          <div className="p-2.5 rounded-2xl text-amber-600 bg-amber-50">
+            <ListPlus className="w-6 h-6" strokeWidth={2.5} />
+          </div>
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold text-slate-800">Edit Assignment</h1>
@@ -221,6 +264,8 @@ export default function EditAssignment({ role }: EditAssignmentProps) {
             <button 
               onClick={(e) => handleSubmit(e, true)}
               disabled={loading}
+              aria-label="Save draft"
+              title="Save draft"
               className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors disabled:opacity-50"
             >
               Save Draft
@@ -241,12 +286,13 @@ export default function EditAssignment({ role }: EditAssignmentProps) {
         
         {/* 2. ADMIN ONLY: Impersonation Block (Disabled if published to prevent ownership breaking) */}
         {role === 'admin' && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-5">
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5">
             <div className="flex items-center gap-2 mb-3">
               <UserSquare2 className="w-5 h-5 text-amber-600" />
               <h3 className="font-semibold text-amber-800">Admin Override: Assigned Teacher</h3>
             </div>
             <select 
+              id="assigned-teacher-select"
               className="w-full md:w-1/2 p-2.5 bg-white border border-amber-200 rounded-lg text-sm outline-none disabled:opacity-50 disabled:bg-slate-100"
               value={assignment.teacher_id || ''}
               onChange={(e) => handleAssignmentChange('teacher_id', e.target.value)}
@@ -263,7 +309,7 @@ export default function EditAssignment({ role }: EditAssignmentProps) {
         )}
 
         {/* 3. Basic Details Card */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 space-y-5">
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-5">
           <h3 className="text-lg font-semibold text-slate-800 border-b border-slate-100 pb-3">General Information</h3>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -278,11 +324,12 @@ export default function EditAssignment({ role }: EditAssignmentProps) {
             </div>
 
             <div>
-              <label className="flex text-sm font-medium text-slate-700 mb-1 justify-between">
+              <label htmlFor="class-stream" className="flex text-sm font-medium text-slate-700 mb-1 justify-between">
                 <span>Class Stream <span className="text-red-500">*</span></span>
                 {isPublishedMode && <Lock className="w-4 h-4 text-slate-400" />}
               </label>
-              <select 
+              <select
+                id="class-stream"
                 className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none disabled:opacity-50 disabled:bg-slate-100"
                 value={assignment.class_stream_id || ''}
                 onChange={(e) => handleAssignmentChange('class_stream_id', e.target.value)}
@@ -292,7 +339,7 @@ export default function EditAssignment({ role }: EditAssignmentProps) {
                 {classes.map((grade: any) => (
                 <optgroup key={grade.grade_id} label={grade.grade_name}>
                   {grade.streams.map((stream: any) => (
-                  <option key={stream.id} value={stream.id}>{grade.grade_name} {stream.name}</option>
+                  <option key={stream.id} value={stream.id}>{stream.name}</option>
                   ))}
                 </optgroup>
                 ))}
@@ -320,23 +367,25 @@ export default function EditAssignment({ role }: EditAssignmentProps) {
         </div>
 
         {/* 4. Curriculum Type */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 space-y-5">
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-5">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
               Curriculum Mapping 
               {isPublishedMode && <Lock className="w-4 h-4 text-slate-400" />}
             </h3>
             <div className={`flex p-1 rounded-lg ${isPublishedMode ? 'bg-slate-50 opacity-50 pointer-events-none' : 'bg-slate-100'}`}>
-              <button 
+              <button
                 type="button"
                 onClick={() => handleAssignmentChange('curriculum_type', 'CBC')}
+                aria-pressed={assignment.curriculum_type === 'CBC'}
                 className={`px-3 py-1 text-sm font-medium rounded-md transition-all ${assignment.curriculum_type === 'CBC' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
               >
                 CBC
               </button>
-              <button 
+              <button
                 type="button"
                 onClick={() => handleAssignmentChange('curriculum_type', '8-4-4')}
+                aria-pressed={assignment.curriculum_type === '8-4-4'}
                 className={`px-3 py-1 text-sm font-medium rounded-md transition-all ${assignment.curriculum_type === '8-4-4' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
               >
                 8-4-4
@@ -366,7 +415,7 @@ export default function EditAssignment({ role }: EditAssignmentProps) {
         </div>
 
         {/* 5. Schedule & Timers (Always Editable so Teachers can extend deadlines) */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 space-y-5">
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-5">
           <h3 className="text-lg font-semibold text-slate-800 border-b border-slate-100 pb-3">Schedule & Deadlines</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             <div>
@@ -399,8 +448,16 @@ export default function EditAssignment({ role }: EditAssignmentProps) {
           </div>
         </div>
 
+        {/* 5b. Submission Rules, Targeting & Reference Material */}
+        <AssignmentOptionsPanel
+          assignment={assignment}
+          onChange={handleAssignmentChange}
+          classStreamOptions={classStreamOptions}
+          structuralLocked={isPublishedMode}
+        />
+
         {/* 6. Content Mode Toggle */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 space-y-5 relative">
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-5 relative">
           <div className="flex justify-between items-center border-b border-slate-100 pb-3">
              <h3 className="text-lg font-semibold text-slate-800">Assignment Content</h3>
              {isPublishedMode && <span className="text-xs text-red-500 font-medium">Content is locked for live assignments</span>}
@@ -411,7 +468,8 @@ export default function EditAssignment({ role }: EditAssignmentProps) {
               type="button"
               onClick={() => setUploadMode(true)}
               disabled={isPublishedMode} // Lock the toggle if published
-              className={`p-4 rounded-xl border-2 flex flex-col items-center justify-center gap-2 transition-all 
+              aria-pressed={uploadMode}
+              className={`p-4 rounded-xl border-2 flex flex-col items-center justify-center gap-2 transition-all
                 ${uploadMode ? 'border-blue-600 bg-blue-50/50 text-blue-700' : 'border-slate-200 bg-white text-slate-500'}
                 ${isPublishedMode && !uploadMode ? 'opacity-40 cursor-not-allowed' : ''}
               `}
@@ -424,7 +482,8 @@ export default function EditAssignment({ role }: EditAssignmentProps) {
               type="button"
               onClick={() => setUploadMode(false)}
               disabled={isPublishedMode} // Lock the toggle if published
-              className={`p-4 rounded-xl border-2 flex flex-col items-center justify-center gap-2 transition-all 
+              aria-pressed={!uploadMode}
+              className={`p-4 rounded-xl border-2 flex flex-col items-center justify-center gap-2 transition-all
                 ${!uploadMode ? 'border-blue-600 bg-blue-50/50 text-blue-700' : 'border-slate-200 bg-white text-slate-500'}
                 ${isPublishedMode && uploadMode ? 'opacity-40 cursor-not-allowed' : ''}
               `}
@@ -436,8 +495,13 @@ export default function EditAssignment({ role }: EditAssignmentProps) {
 
           <div className="pt-4">
             {uploadMode ? (
-              <div className={`border-2 border-dashed border-slate-300 rounded-xl p-8 text-center bg-slate-50 transition-colors ${isPublishedMode ? 'opacity-70 pointer-events-none' : 'hover:bg-slate-100 cursor-pointer'}`}>
-                <input 
+              <div
+                onDragOver={(e) => { e.preventDefault(); if (!isPublishedMode) setIsDraggingFile(true); }}
+                onDragLeave={() => setIsDraggingFile(false)}
+                onDrop={handleFileDrop}
+                className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${isPublishedMode ? 'opacity-70 pointer-events-none border-slate-300 bg-slate-50' : isDraggingFile ? 'border-blue-400 bg-blue-50 cursor-pointer' : 'border-slate-300 bg-slate-50 hover:bg-slate-100 cursor-pointer'}`}
+              >
+                <input
                   type="file" 
                   id="file-upload" 
                   className="hidden" 
@@ -497,11 +561,12 @@ export default function EditAssignment({ role }: EditAssignmentProps) {
                   <p className="text-xs text-slate-500">Edit and arrange questions.</p>
                 </div>
               </div>
-              <button 
+              <button
                 type="button"
-                onClick={() => setIsQuestionModalOpen(false)} 
+                onClick={() => setIsQuestionModalOpen(false)}
                 className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg"
                 title="Close Question Builder"
+                aria-label="Close Question Builder"
               >
                 <X className="w-5 h-5" />
               </button>
