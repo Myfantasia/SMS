@@ -13,13 +13,13 @@ export default defineConfig({
     proxy: {
       // This tells Vite: "If the URL starts with /api, send it to Django"
       '/api': {
-        target: 'http://127.0.0.1:8000',
+        target: 'http://localhost:8000',
         changeOrigin: true,
         secure: false,
       },
       // Also proxy static files if needed (images, etc)
       '/static': {
-        target: 'http://127.0.0.1:8000',
+        target: 'http://localhost:8000',
         changeOrigin: true,
       }
     }

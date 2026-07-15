@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, TrendingUp, TrendingDown, Award, AlertTriangle } from 'lucide-react';
+import api from '../../libs/axiosInstance';
 
 interface ImprovementModalProps {
   isOpen: boolean;
@@ -23,20 +24,23 @@ export default function ImprovementModal({ isOpen, onClose, year, term }: Improv
   const fetchImprovementData = async () => {
     setIsLoading(true);
     setError(null);
+    
     try {
-      const token = localStorage.getItem('firebase_dev_token');
-      const response = await fetch(`http://127.0.0.1:8000/api/results/improvement-analytics/?year=${year}&term=${term}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+      const response = await api.get('/api/results/improvement-analytics/', {
+        params: {
+          year: year,
+          term: term
+        }
       });
-      if (!response.ok) throw new Error("Failed to fetch detailed improvement analytics.");
-      const result = await response.json();
-      setData(result);
+      
+      setData(response.data);
+
     } catch (err: any) {
-      setError(err.message);
+      setError(err.response?.data?.error || err.message || "Failed to fetch detailed improvement analytics.");
     } finally {
       setIsLoading(false);
     }
-  };
+};
 
   if (!isOpen) return null;
 

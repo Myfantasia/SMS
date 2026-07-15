@@ -9,8 +9,7 @@ import {
   Loader2,
   ShieldCheck,
   Image as ImageIcon, 
-  MapPin,
-  File
+  MapPin
 } from 'lucide-react'; 
 import { 
   collection, 
@@ -36,8 +35,10 @@ export default function ChatWindow() {
   const [isUploading, setIsUploading] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
   const [editingMessage, setEditingMessage] = useState<IFirebaseMessage | null>(null);
-  const [currentUser, setCurrentUser] = useState(auth.currentUser);
-  const myEmail = localStorage.getItem('my_chat_email');
+  const [currentUser, setCurrentUser] = useState<User | null>(auth.currentUser);
+  
+  // --- SECURE STATE: Replaces localStorage vulnerability ---
+  const [userEmail, setUserEmail] = useState<string>('');
   
   // --- ATTACHMENT MENU STATE ---
   const [isAttachMenuOpen, setIsAttachMenuOpen] = useState(false);
@@ -49,11 +50,25 @@ export default function ChatWindow() {
   const currentThread = inboxThreads.find(t => t.thread_id === activeThreadId);
 
   // ==========================================
-  // 0. TRACK FIREBASE AUTH STATE
+  // 0. TRACK FIREBASE AUTH STATE & DECODE TOKEN
   // ==========================================
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
+      if (user) {
+        setUserEmail(user.email || '');
+        try {
+          // Cryptographically extract the true email from the token claims
+          const tokenResult = await user.getIdTokenResult();
+          if (tokenResult.claims.email) {
+            setUserEmail(tokenResult.claims.email as string);
+          }
+        } catch (err) {
+          console.error("Failed to safely resolve token claims:", err);
+        }
+      } else {
+        setUserEmail('');
+      }
     });
     return () => unsubscribe();
   }, []);
@@ -94,7 +109,7 @@ export default function ChatWindow() {
   const handleSendMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!newMessage.trim() && !isUploading) return;
-    if (!activeThreadId || !currentUser) return;
+    if (!activeThreadId || !currentUser || !userEmail) return;
 
     try {
       if (editingMessage) {
@@ -108,7 +123,7 @@ export default function ChatWindow() {
         toast.success("Message updated");
       } else {
         await addDoc(collection(db, 'chat_threads', activeThreadId, 'messages'), {
-          sender_email: myEmail,
+          sender_email: userEmail, // <-- Securely pulled from auth token
           message_body: newMessage,
           sent_at: Date.now(), 
           firebase_sent_at: serverTimestamp() 
@@ -132,7 +147,7 @@ export default function ChatWindow() {
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !activeThreadId || !currentUser) return;
+    if (!file || !activeThreadId || !currentUser || !userEmail) return;
 
     if (file.size > 25 * 1024 * 1024) {
       toast.error("File is too large (Max 25MB).");
@@ -146,7 +161,7 @@ export default function ChatWindow() {
       const url = await getDownloadURL(snapshot.ref);
 
       await addDoc(collection(db, 'chat_threads', activeThreadId, 'messages'), {
-        sender_email: myEmail,
+        sender_email: userEmail, // <-- Securely pulled from auth token
         message_body: `📎 Attached: ${file.name}`,
         attachment_url: url,
         attachment_name: file.name,
@@ -183,7 +198,7 @@ export default function ChatWindow() {
         
         try {
           await addDoc(collection(db, 'chat_threads', activeThreadId!, 'messages'), {
-            sender_email: myEmail,
+            sender_email: userEmail, // <-- Securely pulled from auth token
             message_body: `📍 Shared Location:\n${mapsUrl}`,
             sent_at: Date.now(),
             firebase_sent_at: serverTimestamp()
@@ -209,7 +224,6 @@ export default function ChatWindow() {
   // 5. INFINITE SOFT DELETE LOGIC
   // ==========================================
   const handleDeleteMessage = (messageId: string) => {
-    // Fire a custom interactive toast instead of the browser alert
     toast((t) => (
       <div className="flex flex-col gap-3 min-w-50">
         <span className="text-sm font-medium text-slate-800">Delete for everyone?</span>
@@ -224,7 +238,6 @@ export default function ChatWindow() {
             onClick={async () => {
               toast.dismiss(t.id); // Close the toast
               
-              // Proceed with the actual database update
               try {
                 const msgRef = doc(db, 'chat_threads', activeThreadId!, 'messages', messageId);
                 await updateDoc(msgRef, {
@@ -245,10 +258,11 @@ export default function ChatWindow() {
         </div>
       </div>
     ), { 
-      duration: 10000, // Give them 10 seconds to decide before it auto-closes
-      id: messageId    // Prevents duplicate toasts if they click multiple times
+      duration: 10000, 
+      id: messageId    
     });
   };
+
   return (
     <div className="flex flex-col h-full bg-slate-50 relative">
       
@@ -274,6 +288,7 @@ export default function ChatWindow() {
           <MessageBubble 
             key={msg.id} 
             message={msg}
+            userEmail={userEmail}
             onEdit={() => {
               setEditingMessage(msg);
               setNewMessage(msg.message_body.replace(/📎 Attached: .*/, ''));
@@ -286,8 +301,6 @@ export default function ChatWindow() {
 
       {/* INPUT CONTROLS */}
       <div className="p-4 border-t border-slate-200 bg-white shrink-0">
-        
-        {/* Editing Banner */}
         {editingMessage && (
           <div className="mb-3 flex items-center justify-between bg-blue-50 border border-blue-100 p-2.5 rounded-lg text-blue-700 text-xs font-medium animate-pulse">
             <span className="flex items-center gap-2"><Edit2 className="w-3.5 h-3.5"/> Editing Message...</span>
@@ -304,8 +317,6 @@ export default function ChatWindow() {
         )}
         
         <form onSubmit={handleSendMessage} className="flex items-end gap-2 relative">
-          
-          {/* PROFESSIONAL ATTACHMENT MENU */}
           <div className="relative shrink-0">
             <button 
               type="button"
@@ -320,7 +331,6 @@ export default function ChatWindow() {
               {(isUploading || isLocating) ? <Loader2 className="w-5 h-5 animate-spin"/> : <Paperclip className="w-5 h-5" />}
             </button>
 
-            {/* Hidden Input for generic uploads */}
             <input 
               type="file" 
               title='Upload'
@@ -330,14 +340,10 @@ export default function ChatWindow() {
               className="hidden" 
             />
 
-            {/* The Dropdown Popover */}
             {isAttachMenuOpen && (
               <>
-                {/* Invisible backdrop to close menu when clicking outside */}
                 <div className="fixed inset-0 z-40" onClick={() => setIsAttachMenuOpen(false)}></div>
-                
                 <div className="absolute bottom-14 left-0 bg-white border border-slate-200 shadow-[0_8px_30px_rgb(0,0,0,0.12)] rounded-2xl p-2 flex flex-col gap-1 w-64 z-50 animate-in fade-in zoom-in-95 duration-200 origin-bottom-left">
-                  
                   <div className="px-3 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">
                     Share Attachment
                   </div>
@@ -367,13 +373,11 @@ export default function ChatWindow() {
                       <p className="text-[10px] text-slate-400 font-normal">Send current GPS spot</p>
                     </div>
                   </button>
-                  
                 </div>
               </>
             )}
           </div>
 
-          {/* Text Area */}
           <div className="flex-1 bg-slate-100 rounded-2xl px-4 py-1 border border-slate-200 focus-within:ring-2 focus-within:ring-blue-500 focus-within:bg-white transition-all">
             <textarea
               rows={1}
@@ -391,7 +395,6 @@ export default function ChatWindow() {
             />
           </div>
 
-          {/* Send Button */}
           <button 
             type="submit" 
             disabled={(!newMessage.trim() && !isUploading && !isLocating) || isUploading || isLocating}
@@ -410,13 +413,18 @@ export default function ChatWindow() {
 // ==========================================
 // SUB-COMPONENT: INDIVIDUAL MESSAGE BUBBLE
 // ==========================================
-function MessageBubble({ message, onEdit, onDelete }: { 
+function MessageBubble({ message, onEdit, onDelete, userEmail }: { 
   message: IFirebaseMessage;
   onEdit: () => void; 
   onDelete: () => void;
+  userEmail: string;
 }) {
-  const myEmail = localStorage.getItem('my_chat_email');
-  const isMe = message.sender_email === myEmail;
+  // ✅ FIXED: Changed .strip() to .trim() to resolve the runtime crash
+  const isMe = Boolean(
+    message.sender_email && 
+    userEmail && 
+    message.sender_email.toLowerCase().trim() === userEmail.toLowerCase().trim()
+  );
   
   const [now, setNow] = useState(() => Date.now());
 
@@ -433,8 +441,8 @@ function MessageBubble({ message, onEdit, onDelete }: {
   const canDelete = isMe;
   const isDeleted = (message as any).is_deleted === true;
 
-  // Render clickable links seamlessly (especially for Google Maps URLs)
   const renderMessageBody = (text: string) => {
+    if (!text) return "";
     const urlRegex = /(https?:\/\/[^\s]+)/g;
     return text.split(urlRegex).map((part, index) => {
       if (part.match(urlRegex)) {

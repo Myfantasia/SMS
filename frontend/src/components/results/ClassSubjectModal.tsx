@@ -9,34 +9,34 @@ interface SubjectPerformance {
   grade: string;
   highest: number;
   lowest: number;
+  teacher: string; // ✅ ADDED: Capture assigned faculty property from unified api payload
 }
 
 interface ClassSubjectModalProps {
   isOpen: boolean;
   onClose: () => void;
   data: SubjectPerformance[];
-  className?: string; // e.g., "Grade 11 North"
+  className?: string; 
 }
 
 export default function ClassSubjectModal({ isOpen, onClose, data, className }: ClassSubjectModalProps) {
   if (!isOpen) return null;
 
-  // Helper to color-code the bars based on the grade
   const getBarColor = (grade: string) => {
-    if (grade.startsWith('A')) return '#10b981'; // Emerald
-    if (grade.startsWith('B')) return '#3b82f6'; // Blue
-    if (grade.startsWith('C')) return '#f59e0b'; // Amber
-    if (grade.startsWith('D')) return '#ef4444'; // Red
-    return '#64748b'; // Slate (E/Fail)
+    if (grade.startsWith('A')) return '#10b981'; 
+    if (grade.startsWith('B')) return '#3b82f6'; 
+    if (grade.startsWith('C')) return '#f59e0b'; 
+    if (grade.startsWith('D')) return '#ef4444'; 
+    return '#64748b'; 
   };
 
-  // Custom Tooltip for the Recharts graph
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
       const p = payload[0].payload;
       return (
         <div className="bg-white p-3 border border-slate-200 shadow-lg rounded-md outline-none">
           <p className="font-bold text-slate-800 mb-1">{p.subject}</p>
+          <div className="text-xs font-semibold text-indigo-600 mb-2">Instructor: {p.teacher}</div>
           <div className="flex justify-between gap-4 text-sm">
             <span className="text-slate-500">Class Mean:</span>
             <span className="font-semibold text-slate-900">{p.mean}% ({p.grade})</span>
@@ -78,7 +78,7 @@ export default function ClassSubjectModal({ isOpen, onClose, data, className }: 
         {/* Modal Body (Scrollable) */}
         <div className="p-6 overflow-y-auto">
           
-          {/* 1. The Recharts Bar Chart */}
+          {/* Recharts Bar Chart */}
           <div className="mb-8 bg-slate-50 border border-slate-200 rounded-lg p-4">
             <h3 className="text-sm font-semibold text-slate-600 mb-4 uppercase tracking-wider">Mean Score Comparison</h3>
             <div className="h-72 w-full">
@@ -110,7 +110,7 @@ export default function ClassSubjectModal({ isOpen, onClose, data, className }: 
             </div>
           </div>
 
-          {/* 2. The Detailed Data Table */}
+          {/* Detailed Data Table */}
           <div>
             <h3 className="text-sm font-semibold text-slate-600 mb-3 uppercase tracking-wider">Detailed Subject Breakdown</h3>
             <div className="border border-slate-200 rounded-lg overflow-hidden">
@@ -118,6 +118,7 @@ export default function ClassSubjectModal({ isOpen, onClose, data, className }: 
                 <thead className="bg-slate-100 text-slate-500 border-b border-slate-200">
                   <tr>
                     <th className="px-4 py-3 font-semibold">Subject</th>
+                    <th className="px-4 py-3 font-semibold">Assigned Teacher</th> {/* ✅ ADDED: Table Column Header */}
                     <th className="px-4 py-3 font-semibold">Class Mean</th>
                     <th className="px-4 py-3 font-semibold">Grade</th>
                     <th className="px-4 py-3 font-semibold">Highest Score</th>
@@ -128,10 +129,15 @@ export default function ClassSubjectModal({ isOpen, onClose, data, className }: 
                   {data.map((row, idx) => (
                     <tr key={idx} className="hover:bg-slate-50 transition-colors">
                       <td className="px-4 py-3 font-medium text-slate-800 flex items-center gap-2">
-                        {/* Add little icons for the best and worst subjects */}
                         {idx === 0 && <div title="Top Subject"><Award className="w-4 h-4 text-amber-500" /></div>}
                         {idx === data.length - 1 && <div title="Needs Attention"><AlertCircle className="w-4 h-4 text-red-500" /></div>}
                         {row.subject}
+                      </td>
+                      {/* ✅ ADDED: Dynamic cell displaying responsible faculty with context styling on unassigned profiles */}
+                      <td className="px-4 py-3 font-medium">
+                        <span className={row.teacher === "Unassigned" ? "text-rose-600 italic font-normal" : "text-slate-700"}>
+                          {row.teacher}
+                        </span>
                       </td>
                       <td className="px-4 py-3 font-semibold">{row.mean}%</td>
                       <td className="px-4 py-3">
@@ -152,7 +158,6 @@ export default function ClassSubjectModal({ isOpen, onClose, data, className }: 
               </table>
             </div>
           </div>
-
         </div>
       </div>
     </div>

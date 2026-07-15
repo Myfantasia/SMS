@@ -25,7 +25,10 @@ export default function TimetableBuckets({ buckets }: { buckets: Bucket[] }) {
                 <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md whitespace-nowrap ${bucket.remaining === 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-100 text-indigo-700'}`}>{bucket.remaining} Left</span>
               </div>
               <div className="w-full bg-slate-100 rounded-full h-1.5 mt-2 overflow-hidden">
-                <div className={`h-full rounded-full ${bucket.remaining === 0 ? 'bg-emerald-500' : 'bg-indigo-500'}`} style={{ width: `${(bucket.already_scheduled / bucket.total_required) * 100}%` }}></div>
+                <div
+                  className={`h-full rounded-full ${bucket.remaining === 0 ? 'bg-emerald-500' : 'bg-indigo-500'}`}
+                  style={{ width: `${bucket.total_required > 0 ? Math.min(100, (bucket.already_scheduled / bucket.total_required) * 100) : 0}%` }}
+                ></div>
               </div>
             </div>
           ))

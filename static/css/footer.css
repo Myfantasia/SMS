@@ -1,11 +1,32 @@
 /* --- FOOTER STYLING --- */
 
+:root {
+    --footer-bg: #0b1120;
+    --footer-border: rgba(255, 255, 255, 0.05);
+    --footer-heading: #f8fafc;
+    --footer-muted: #94a3b8;
+    --footer-dim: #64748b;
+    --footer-icon-bg: rgba(255, 255, 255, 0.05);
+    --footer-icon-color: #cbd5e1;
+}
+
+:root[data-theme="light"] {
+    --footer-bg: #f1f5f9;
+    --footer-border: rgba(15, 23, 42, 0.08);
+    --footer-heading: #0f172a;
+    --footer-muted: #475569;
+    --footer-dim: #64748b;
+    --footer-icon-bg: rgba(15, 23, 42, 0.05);
+    --footer-icon-color: #334155;
+}
+
 .site-footer {
-    background-color: #0b1120; /* Darker than body */
-    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    background-color: var(--footer-bg);
+    border-top: 1px solid var(--footer-border);
     padding: 80px 6% 30px;
     margin-top: auto;
     font-family: 'Outfit', sans-serif;
+    transition: background-color 0.25s ease, border-color 0.25s ease;
 }
 
 .footer-content {
@@ -40,12 +61,12 @@
 .footer-name {
     font-size: 1.3rem;
     font-weight: 800;
-    color: #f8fafc;
+    color: var(--footer-heading);
     letter-spacing: -0.5px;
 }
 
 .footer-desc {
-    color: #94a3b8;
+    color: var(--footer-muted);
     line-height: 1.6;
     font-size: 0.95rem;
     margin-bottom: 25px;
@@ -61,14 +82,14 @@
 .social-links a {
     width: 36px;
     height: 36px;
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--footer-icon-bg);
     display: grid;
     place-items: center;
     border-radius: 50%;
-    color: #cbd5e1;
+    color: var(--footer-icon-color);
     text-decoration: none;
     transition: 0.3s ease;
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--footer-border);
 }
 
 .social-links a:hover {
@@ -80,7 +101,7 @@
 
 /* Columns Headers */
 .footer-col h4 {
-    color: #f8fafc;
+    color: var(--footer-heading);
     font-size: 1.1rem;
     margin-bottom: 25px;
     font-weight: 600;
@@ -98,7 +119,7 @@
 }
 
 .footer-links a {
-    color: #94a3b8;
+    color: var(--footer-muted);
     text-decoration: none;
     font-size: 0.95rem;
     transition: 0.3s;
@@ -120,7 +141,7 @@
     display: flex;
     align-items: flex-start;
     gap: 15px;
-    color: #94a3b8;
+    color: var(--footer-muted);
     margin-bottom: 18px;
     font-size: 0.95rem;
     line-height: 1.5;
@@ -133,13 +154,13 @@
 
 /* Bottom Bar */
 .footer-bottom {
-    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    border-top: 1px solid var(--footer-border);
     padding-top: 30px;
     display: flex;
     justify-content: space-between;
     flex-wrap: wrap;
     gap: 20px;
-    color: #64748b;
+    color: var(--footer-dim);
     font-size: 0.9rem;
 }
 

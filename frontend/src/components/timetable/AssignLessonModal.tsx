@@ -1,4 +1,4 @@
-import { X, Save } from 'lucide-react';
+import { X, Save, CalendarPlus } from 'lucide-react';
 import type { Bucket, Teacher } from '../../libs/types';
 
 interface AssignProps {
@@ -24,8 +24,11 @@ export default function AssignLessonModal({
     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in">
         <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-          <h3 className="font-bold text-lg text-slate-800">Assign Lesson</h3>
-          <button onClick={() => setActiveSlotId(null)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-blue-50 text-blue-600"><CalendarPlus className="w-5 h-5" /></div>
+            <h3 className="font-bold text-lg text-slate-800">Assign Lesson</h3>
+          </div>
+          <button onClick={() => setActiveSlotId(null)} title="Close" aria-label="Close" className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
         </div>
         <form onSubmit={handleSaveLesson} className="p-6 space-y-5">
           <div className="space-y-2">
@@ -37,13 +40,24 @@ export default function AssignLessonModal({
               ))}
             </select>
           </div>
+          
           <div className="space-y-2">
             <label className="text-sm font-bold text-slate-700">Assign Teacher</label>
             <select required value={selectedTeacher} onChange={(e) => setSelectedTeacher(e.target.value)} className="w-full border border-slate-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-blue-500 bg-white" disabled={!selectedSubject || teachers.length === 0}>
               <option value="">{selectedSubject ? (teachers.length > 0 ? '-- Choose Teacher --' : 'No qualified teachers found') : '-- Select a subject first --'}</option>
-              {teachers.map(t => <option key={t.id} value={t.id.toString()}>{t.name}</option>)}
+              {teachers.map(t => {
+                // Real-time capacity check against backend tracking fields
+                const hasLoadData = t.current_load !== undefined && t.max_weekly_lessons !== undefined;
+                const loadLabel = hasLoadData ? ` (${t.current_load}/${t.max_weekly_lessons} periods)` : '';
+                return (
+                  <option key={t.id} value={t.id.toString()}>
+                    {t.name}{loadLabel}
+                  </option>
+                );
+              })}
             </select>
           </div>
+          
           <label className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-100 transition">
             <input type="checkbox" checked={isDoublePeriod} onChange={(e) => setIsDoublePeriod(e.target.checked)} className="w-5 h-5 text-blue-600 rounded" />
             <span className="font-medium text-slate-700 text-sm">This is a Double Period (80 mins)</span>

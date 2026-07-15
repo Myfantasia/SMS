@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Calendar as CalendarIcon, List, Plus, Loader2 } from 'lucide-react';
+import { Calendar as CalendarIcon, List, Plus, Loader2, CalendarDays } from 'lucide-react';
 import toast from 'react-hot-toast';
 import AgendaView from './AgendaView';
 import EventFormModal from './EventFormModal';
@@ -70,16 +70,21 @@ export default function EventsHub({ role }: EventsHubProps) {
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="max-w-7xl mx-auto">
       {/* Header & Controls */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">School Calendar & Events</h1>
-          <p className="text-slate-500 text-sm mt-1">Manage activities across the public website and internal dashboards.</p>
-        </div>
-        
         <div className="flex items-center gap-4">
-          <div className="flex bg-slate-100 p-1 rounded-lg">
+          <div className="p-3 rounded-2xl text-amber-600 bg-amber-50">
+            <CalendarDays className="w-7 h-7" strokeWidth={2.5} />
+          </div>
+          <div>
+            <h1 className="text-2xl font-extrabold text-slate-800">School Calendar & Events</h1>
+            <p className="text-slate-500 text-sm mt-0.5">Manage activities across the public website and internal dashboards.</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-4">
+          <div className="flex bg-slate-100 p-1 rounded-xl">
             <button
               onClick={() => setActiveView('agenda')}
               className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${activeView === 'agenda' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}

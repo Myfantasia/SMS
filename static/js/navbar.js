@@ -1,4 +1,17 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // 0. LIGHT / DARK THEME TOGGLE
+    const themeToggle = document.getElementById('theme-toggle');
+    const root = document.documentElement;
+
+    if (themeToggle) {
+        themeToggle.addEventListener('click', () => {
+            const isLight = root.getAttribute('data-theme') === 'light';
+            const next = isLight ? 'dark' : 'light';
+            root.setAttribute('data-theme', next);
+            localStorage.setItem('theme', next);
+        });
+    }
+
     const mobileBtn = document.getElementById('mobile-menu-btn');
     const navWrapper = document.getElementById('nav-links');
     const portalContainer = document.querySelector('.portal-dropdown');

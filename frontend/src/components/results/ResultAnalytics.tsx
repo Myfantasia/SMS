@@ -4,6 +4,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
 import ImprovementModal from './ImprovementModal';
 import SubjectModal from './SubjectModal';
 import TopPerformersModal from './TopPerformanceModal';
+import api from '../../libs/axiosInstance';
 
 interface ResultsAnalyticsProps {
   role: 'admin' | 'teacher' | 'student' | 'parent';
@@ -13,43 +14,30 @@ export default function ResultsAnalytics({ role }: ResultsAnalyticsProps) {
   const [academicYear, setAcademicYear] = useState('2026');
   const [term, setTerm] = useState('Term 1');
 
-  // 2. Modal States
+  // Modal States
   const [isImprovementModalOpen, setIsImprovementModalOpen] = useState(false);
   const [isSubjectModalOpen, setIsSubjectModalOpen] = useState(false);
-  const [isTopPerformersModalOpen, setIsTopPerformersModalOpen] = useState(false); // Added State
+  const [isTopPerformersModalOpen, setIsTopPerformersModalOpen] = useState(false); 
 
-  // ==========================================
   // REAL DATA STATES
-  // ==========================================
   const [data, setData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // ==========================================
   // FETCH FROM DJANGO API
-  // ==========================================
   useEffect(() => {
     const fetchAnalytics = async () => {
       setIsLoading(true);
       setError(null);
       
       try {
-        const token = localStorage.getItem('firebase_dev_token');
-        const response = await fetch(`http://127.0.0.1:8000/api/results/school-analytics/?year=${academicYear}&term=${term}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
+        const response = await api.get('/api/results/school-analytics/', {
+          params: { year: academicYear, term: term }
         });
-
-        if (!response.ok) {
-          throw new Error("Failed to fetch analytics data from the server.");
-        }
-
-        const result = await response.json();
-        setData(result);
+        
+        setData(response.data);
       } catch (err: any) {
-        setError(err.message);
+        setError(err.response?.data?.error || err.message || "Failed to fetch analytics data from the server.");
       } finally {
         setIsLoading(false);
       }
@@ -83,9 +71,7 @@ export default function ResultsAnalytics({ role }: ResultsAnalyticsProps) {
     );
   }
 
-  // ==========================================
   // BULLETPROOF DESTRUCTURING
-  // ==========================================
   const schoolStats = data?.schoolStats || {};
   const subjectAlerts = data?.subjectAlerts || [];
   const termTrends = data?.termTrends || [];
@@ -285,7 +271,10 @@ export default function ResultsAnalytics({ role }: ResultsAnalyticsProps) {
                       <span className="bg-red-100 text-red-700 text-xs px-2 py-0.5 rounded font-bold">{alert.mean}</span>
                     </div>
                     <div className="flex justify-between text-xs text-slate-500">
-                      <span>Teacher: {alert.teacher}</span>
+                      {/* ✅ FIXED: Styled warning tags if alert return contains an unallocated staff state */}
+                      <span className={alert.teacher === 'Unassigned' ? 'text-amber-600 font-bold' : ''}>
+                        Teacher: {alert.teacher}
+                      </span>
                       <span className="flex items-center text-red-600"><TrendingDown className="w-3 h-3 mr-1"/> {alert.drop}</span>
                     </div>
                   </div>
@@ -295,7 +284,6 @@ export default function ResultsAnalytics({ role }: ResultsAnalyticsProps) {
           </div>
 
           <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
-            {/* INTERACTIVE TOP PERFORMERS HEADER */}
             <div 
               onClick={() => setIsTopPerformersModalOpen(true)}
               className="bg-amber-50 p-4 border-b border-amber-100 flex items-center justify-between cursor-pointer hover:bg-amber-100 transition-colors group"

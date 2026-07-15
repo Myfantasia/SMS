@@ -3,6 +3,7 @@ import { X, Loader2, User, Trophy, BookOpen } from 'lucide-react';
 import { 
   ComposedChart, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer 
 } from 'recharts';
+import api from '../../libs/axiosInstance';
 
 interface AnalyticsData {
   subject: string;
@@ -34,25 +35,21 @@ export default function StudentAnalyticsModal({ isOpen, onClose, studentId, year
     if (isOpen && studentId) {
       fetchStudentAnalytics();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, studentId]);
 
   const fetchStudentAnalytics = async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const token = localStorage.getItem('firebase_dev_token');
-      const response = await fetch(`http://127.0.0.1:8000/api/results/student-analytics/?student_id=${studentId}&year=${year}&term=${term}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+      const response = await api.get('/api/results/student-analytics/', {
+        params: { student_id: studentId, year: year, term: term }
       });
 
-      if (!response.ok) throw new Error("Failed to load student analytics.");
-
-      const data = await response.json();
-      setStudentInfo(data.student);
-      setAnalyticsData(data.analytics);
+      setStudentInfo(response.data.student);
+      setAnalyticsData(response.data.analytics);
     } catch (err: any) {
-      setError(err.message);
+      setError(err.response?.data?.error || err.message || "Failed to load student analytics.");
     } finally {
       setIsLoading(false);
     }
@@ -60,7 +57,6 @@ export default function StudentAnalyticsModal({ isOpen, onClose, studentId, year
 
   if (!isOpen) return null;
 
-  // Custom tooltip for the ComposedChart
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       return (
@@ -121,7 +117,7 @@ export default function StudentAnalyticsModal({ isOpen, onClose, studentId, year
             </div>
           ) : (
             <>
-              {/* 1. Visual Chart: Exam Trajectory */}
+              {/* Visual Chart: Exam Trajectory */}
               <div className="mb-8">
                 <h3 className="text-sm font-semibold text-slate-600 mb-4 uppercase tracking-wider flex items-center gap-2">
                   <Trophy className="w-4 h-4" /> Assessment Trajectory
@@ -144,7 +140,7 @@ export default function StudentAnalyticsModal({ isOpen, onClose, studentId, year
                 </div>
               </div>
 
-              {/* 2. Detailed Data Table */}
+              {/* Detailed Data Table */}
               <div>
                 <h3 className="text-sm font-semibold text-slate-600 mb-3 uppercase tracking-wider flex items-center gap-2">
                   <BookOpen className="w-4 h-4" /> Comprehensive Breakdown
@@ -166,7 +162,10 @@ export default function StudentAnalyticsModal({ isOpen, onClose, studentId, year
                       {analyticsData.map((row, idx) => (
                         <tr key={idx} className="hover:bg-slate-50 transition-colors">
                           <td className="px-4 py-3 font-medium text-slate-800">{row.subject}</td>
-                          <td className="px-4 py-3 text-slate-500">{row.teacher}</td>
+                          {/* ✅ FIXED: Implemented safety check highlighting unassigned teacher profiles inside user modal layout */}
+                          <td className={`px-4 py-3 font-medium ${row.teacher === 'Unassigned' ? 'text-rose-600 italic' : 'text-slate-500'}`}>
+                            {row.teacher}
+                          </td>
                           <td className="px-4 py-3">{row.cat1}%</td>
                           <td className="px-4 py-3">{row.cat2}%</td>
                           <td className="px-4 py-3">{row.main}%</td>

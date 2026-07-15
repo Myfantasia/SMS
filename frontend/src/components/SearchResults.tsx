@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, Link, useLocation } from 'react-router-dom';
 import { Search, ChevronRight, User } from 'lucide-react';
+import api from '../libs/axiosInstance';
 
 interface SearchResult {
   id: number;
@@ -21,25 +22,29 @@ export default function SearchResults() {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (!query) return;
+useEffect(() => {
+  if (!query) return;
 
-    const fetchResults = async () => {
-      setLoading(true);
-      try {
-        const response = await fetch(`http://localhost:8000/api/search/?q=${encodeURIComponent(query)}`);
-        const data = await response.json();
-        if (data.status === 'success') {
-          setResults(data.data);
-        }
-      } catch (error) {
-        console.error("Search failed", error);
+  const fetchResults = async () => {
+    setLoading(true);
+    try {
+      // Axios cleans up URL generation. You can pass parameters cleanly via the config object.
+      const response = await api.get('/api/search/', {
+        params: { q: query }
+      });
+      
+      const data = response.data;
+      if (data.status === 'success') {
+        setResults(data.data);
       }
-      setLoading(false);
-    };
+    } catch (error) {
+      console.error("Search failed", error);
+    }
+    setLoading(false);
+  };
 
-    fetchResults();
-  }, [query]);
+  fetchResults();
+}, [query]);
 
   return (
     <div className="p-6 max-w-4xl">

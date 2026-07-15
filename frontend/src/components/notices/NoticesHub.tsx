@@ -65,17 +65,20 @@ export default function NoticesHub({ role }: NoticesHubProps) {
   };
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="max-w-5xl mx-auto">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-            <Megaphone className="w-6 h-6 text-blue-600" /> Digital Noticeboard
-          </h1>
-          <p className="text-slate-500 text-sm mt-1">Broadcast announcements and attach downloadable resources.</p>
+        <div className="flex items-center gap-4">
+          <div className="p-3 rounded-2xl text-blue-600 bg-blue-50">
+            <Megaphone className="w-7 h-7" strokeWidth={2.5} />
+          </div>
+          <div>
+            <h1 className="text-2xl font-extrabold text-slate-800">Digital Noticeboard</h1>
+            <p className="text-slate-500 text-sm mt-0.5">Broadcast announcements and attach downloadable resources.</p>
+          </div>
         </div>
-        
-        {/* Only Admins and Teachers can post notices */}
-        {(role === 'admin' || role === 'teacher') && (
+
+        {/* Only Admins can post notices; teachers, students and parents are view-only */}
+        {role === 'admin' && (
           <button 
             onClick={handleOpenNewModal}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-all shadow-sm"

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Download, UploadCloud, Filter, TrendingUp, Award, RotateCcw, AlertTriangle } from 'lucide-react';
+import { Download, UploadCloud, Filter, TrendingUp, AlertCircle, Award, RotateCcw, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../libs/axiosInstance';
 
@@ -18,10 +18,16 @@ interface StudentResult {
 interface SelectionOption {
   id: string | number;
   name: string;
-  status?: string; 
+  status?: string;
+  can_publish?: boolean; 
 }
 
-const ResultsBroadsheet: React.FC = () => {
+// NEW: Added the props interface to receive the role
+interface ResultsBroadsheetProps {
+  role?: 'admin' | 'teacher' | 'student' | 'parent';
+}
+
+const ResultsBroadsheet: React.FC<ResultsBroadsheetProps> = ({ role = 'teacher' }) => {
   const [selectedClass, setSelectedClass] = useState(''); 
   const [selectedExam, setSelectedExam] = useState('');   
   const [isPublishing, setIsPublishing] = useState(false);
@@ -89,35 +95,35 @@ const ResultsBroadsheet: React.FC = () => {
   // --- HANDLERS ---
 
   // FIX: The URL Bridge - Handles both Production (1 port) and Development (2 ports)
-const getAuthConfig = () => {
-  const token = localStorage.getItem('firebase_dev_token');
+  const getAuthConfig = () => {
+    const token = localStorage.getItem('firebase_dev_token');
 
-  if (!token) {
-    throw new Error("Session expired. Please log in again.");
-  }
+    if (!token) {
+      throw new Error("Session expired. Please log in again.");
+    }
 
-  try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    const isExpired = payload.exp * 1000 < Date.now();
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const isExpired = payload.exp * 1000 < Date.now();
+      
+      if (isExpired) {
+        localStorage.removeItem('firebase_dev_token'); // clean up
+        window.location.href = 'http://localhost:8000/adminlogin'; // redirect to login
+        throw new Error("Token expired. Redirecting to login...");
+      }
+    } catch (e: any) {
+      if (e.message.includes("Redirecting")) throw e; // re-throw our redirect error
+      // If parsing fails for other reasons, still try the request
+    }
+
     
-    if (isExpired) {
-      localStorage.removeItem('firebase_dev_token'); // clean up
-      window.location.href = 'http://localhost:8000/adminlogin'; // redirect to login
-      throw new Error("Token expired. Redirecting to login...");
-    }
-  } catch (e: any) {
-    if (e.message.includes("Redirecting")) throw e; // re-throw our redirect error
-    // If parsing fails for other reasons, still try the request
-  }
-
-  
-  return {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    }
+    return {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      }
+    };
   };
-};
 
 
   // PROFESSIONAL PUBLISH POPUP
@@ -136,7 +142,7 @@ const getAuthConfig = () => {
             <div className="ml-4 w-0 flex-1">
               <h3 className="text-base font-semibold text-slate-900">Publish Results</h3>
               <p className="mt-1 text-sm text-slate-500">
-                You can publish the results for just this specific class, or broadcast the results for the entire school at once.
+                You can publish the results for just this specific class{role === 'admin' && ', or broadcast the results for the entire school at once'}.
               </p>
             </div>
           </div>
@@ -169,27 +175,31 @@ const getAuthConfig = () => {
           >
             This Class Only
           </button>
-          <button
-            onClick={async () => {
-              toast.dismiss(t.id);
-              setIsPublishing(true);
-              try {
-                const config = getAuthConfig();
-                await api.post(`/api/exams/events/${selectedExam}/publish/`, { class_id: 'ALL' }, config);
-                toast.success('Entire school published successfully!');
-                setClassPublishStatus('Published');
-              } catch (error: any) {
-                console.error("🔥 PUBLISH ERROR CAUGHT:", error); 
-                const actualErrorMessage = error.response?.data?.error || error.message || "Unknown error occurred";
-                toast.error(`Error: ${actualErrorMessage}`);
-              } finally {
-                setIsPublishing(false);
-              }
-            }}
-            className="w-full sm:w-auto px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors shadow-sm"
-          >
-            Publish All Classes
-          </button>
+          
+          {/* UPDATED: Only Admins can see the Publish All button */}
+          {role === 'admin' && (
+            <button
+              onClick={async () => {
+                toast.dismiss(t.id);
+                setIsPublishing(true);
+                try {
+                  const config = getAuthConfig();
+                  await api.post(`/api/exams/events/${selectedExam}/publish/`, { class_id: 'ALL' }, config);
+                  toast.success('Entire school published successfully!');
+                  setClassPublishStatus('Published');
+                } catch (error: any) {
+                  console.error("🔥 PUBLISH ERROR CAUGHT:", error); 
+                  const actualErrorMessage = error.response?.data?.error || error.message || "Unknown error occurred";
+                  toast.error(`Error: ${actualErrorMessage}`);
+                } finally {
+                  setIsPublishing(false);
+                }
+              }}
+              className="w-full sm:w-auto px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors shadow-sm"
+            >
+              Publish All Classes
+            </button>
+          )}
         </div>
       </div>
     ), { duration: Infinity });
@@ -211,7 +221,7 @@ const getAuthConfig = () => {
             <div className="ml-4 w-0 flex-1">
               <h3 className="text-base font-semibold text-slate-900">Revert to Draft</h3>
               <p className="mt-1 text-sm text-slate-500">
-                This will hide the results from parent and student portals. Do you want to revert just this class or the whole school?
+                This will hide the results from parent and student portals. Do you want to revert just this class{role === 'admin' && ' or the whole school'}?
               </p>
             </div>
           </div>
@@ -241,24 +251,28 @@ const getAuthConfig = () => {
           >
             This Class Only
           </button>
-          <button
-            onClick={async () => {
-              toast.dismiss(t.id);
-              try {
-                const config = getAuthConfig();
-                await api.post(`/api/exams/events/${selectedExam}/revert/`, { class_id: 'ALL' }, config);
-                toast.success('Entire school reversed to Draft!');
-                setClassPublishStatus('Draft');
-              } catch (error: any) {
-                console.error("🔥 REVERT ERROR CAUGHT:", error); 
-                const actualErrorMessage = error.response?.data?.error || error.message || "Unknown error occurred";
-                toast.error(`Error: ${actualErrorMessage}`);
-              }
-            }}
-            className="w-full sm:w-auto px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors shadow-sm"
-          >
-            Revert All Classes
-          </button>
+
+          {/* UPDATED: Only Admins can see the Revert All button */}
+          {role === 'admin' && (
+            <button
+              onClick={async () => {
+                toast.dismiss(t.id);
+                try {
+                  const config = getAuthConfig();
+                  await api.post(`/api/exams/events/${selectedExam}/revert/`, { class_id: 'ALL' }, config);
+                  toast.success('Entire school reversed to Draft!');
+                  setClassPublishStatus('Draft');
+                } catch (error: any) {
+                  console.error("🔥 REVERT ERROR CAUGHT:", error); 
+                  const actualErrorMessage = error.response?.data?.error || error.message || "Unknown error occurred";
+                  toast.error(`Error: ${actualErrorMessage}`);
+                }
+              }}
+              className="w-full sm:w-auto px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors shadow-sm"
+            >
+              Revert All Classes
+            </button>
+          )}
         </div>
       </div>
     ), { duration: Infinity });
@@ -307,6 +321,9 @@ const getAuthConfig = () => {
 
   const isCurrentlyPublished = classPublishStatus === 'Published';
 
+  const activeClassData = availableClasses.find(c => c.id.toString() === selectedClass);
+  const hasPublishRights = activeClassData?.can_publish || false;
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       
@@ -339,6 +356,15 @@ const getAuthConfig = () => {
              >
                <RotateCcw className="w-4 h-4" /> Revert to Draft
              </button>
+          ) : !hasPublishRights ? (
+            // ✨ STEP 6: Show a locked, disabled button if they aren't authorized
+            <button 
+              disabled
+              className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-slate-100 text-slate-400 border border-slate-200 rounded-md cursor-not-allowed font-medium shadow-sm"
+              title="Only the assigned Class Teacher or Admin can publish results."
+            >
+              <AlertCircle className="w-4 h-4" /> Not Authorized to Publish
+            </button>
           ) : (
             <button 
               onClick={handlePublish}

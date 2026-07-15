@@ -61,14 +61,14 @@ const ExamModal: React.FC<ExamModalProps> = ({ isOpen, onClose, onSuccess, terms
       <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
           <h2 className="font-semibold text-slate-800">{editData ? 'Edit Assessment' : 'Create Assessment / Exam'}</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600">
             <X className="w-5 h-5" />
           </button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4 text-sm">
           <div>
-            <label className="block text-slate-600 font-medium mb-1">Select Term</label>
-            <select required className="w-full border border-slate-200 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+            <label htmlFor="term-select" className="block text-slate-600 font-medium mb-1">Select Term</label>
+            <select id="term-select" required className="w-full border border-slate-200 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none bg-white"
               value={examForm.term_id} onChange={(e) => setExamForm({...examForm, term_id: e.target.value})}>
               <option value="">-- Choose Term --</option>
               {terms.map(t => <option key={t.id} value={String(t.id)}>{t.name}</option>)}
@@ -81,8 +81,8 @@ const ExamModal: React.FC<ExamModalProps> = ({ isOpen, onClose, onSuccess, terms
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-slate-600 font-medium mb-1">Exam Type</label>
-              <select required className="w-full border border-slate-200 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+              <label htmlFor="exam-type-select" className="block text-slate-600 font-medium mb-1">Exam Type</label>
+              <select id="exam-type-select" required className="w-full border border-slate-200 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none bg-white"
                 value={examForm.exam_type} onChange={(e) => setExamForm({...examForm, exam_type: e.target.value})}>
                 <option value="MAIN">Main Exam</option>
                 <option value="CAT">Continuous Assessment</option>

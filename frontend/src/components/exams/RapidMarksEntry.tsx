@@ -21,6 +21,19 @@ interface SelectionOption {
   name: string;
 }
 
+interface ClassOption extends SelectionOption {
+  grade_id: number;
+}
+
+interface SubjectOption extends SelectionOption {
+  is_core: boolean;
+  grade_ids: number[];
+}
+
+interface ExamOption extends SelectionOption {
+  total_marks: number;
+}
+
 const RapidMarksEntry: React.FC = () => {
   // Selection State
   const [selectedClass, setSelectedClass] = useState('');
@@ -28,14 +41,19 @@ const RapidMarksEntry: React.FC = () => {
   const [selectedExam, setSelectedExam] = useState('');
 
   // Dropdown Data State (Fetched from Backend)
-  const [availableClasses, setAvailableClasses] = useState<SelectionOption[]>([]);
-  const [availableSubjects, setAvailableSubjects] = useState<SelectionOption[]>([]);
-  const [availableExams, setAvailableExams] = useState<SelectionOption[]>([]);
+  const [availableClasses, setAvailableClasses] = useState<ClassOption[]>([]);
+  const [allSubjects, setAllSubjects] = useState<SubjectOption[]>([]);
+  const [availableExams, setAvailableExams] = useState<ExamOption[]>([]);
 
   // Data State
   const [students, setStudents] = useState<StudentInfo[]>([]);
   const [marksData, setMarksData] = useState<Record<string, MarkEntry>>({});
   const [isSaving, setIsSaving] = useState(false);
+
+  // Roster-fetch response tells us the real max score and whether the selected subject is
+  // an elective (in which case only enrolled students are shown, not the whole class).
+  const [totalMarks, setTotalMarks] = useState<number>(100);
+  const [isCoreSubject, setIsCoreSubject] = useState<boolean>(true);
 
   // --- 1. FETCH DROPDOWN SELECTIONS ON MOUNT ---
   useEffect(() => {
@@ -43,7 +61,7 @@ const RapidMarksEntry: React.FC = () => {
       try {
         const response = await api.get('/api/exams/selection-data/');
         setAvailableClasses(response.data.classes);
-        setAvailableSubjects(response.data.subjects);
+        setAllSubjects(response.data.subjects);
         setAvailableExams(response.data.exams);
       } catch (error) {
         console.error("Error fetching selection data:", error);
@@ -52,6 +70,24 @@ const RapidMarksEntry: React.FC = () => {
     };
     fetchSelectionData();
   }, []);
+
+  // Only show subjects actually taught to the selected class's grade, instead of every
+  // subject in the school regardless of relevance.
+  const selectedClassGradeId = availableClasses.find(c => String(c.id) === selectedClass)?.grade_id;
+  const availableSubjects = selectedClassGradeId
+    ? allSubjects.filter(s => s.grade_ids.includes(selectedClassGradeId))
+    : allSubjects;
+
+  // Drop a previously-selected subject that doesn't apply to the newly selected class
+  // (e.g. switching from a senior grade to a junior one that doesn't teach it).
+  useEffect(() => {
+    if (selectedSubject && !availableSubjects.some(s => String(s.id) === selectedSubject)) {
+      setSelectedSubject('');
+      setStudents([]);
+      setMarksData({});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedClass, allSubjects]);
 
   // --- 2. FETCH ROSTER & EXISTING MARKS ---
   useEffect(() => {
@@ -70,6 +106,8 @@ const RapidMarksEntry: React.FC = () => {
           const fetchedStudents: StudentInfo[] = response.data.students;
           const existingMarks = response.data.existing_marks; // Marks saved previously
 
+          setTotalMarks(response.data.total_marks ?? 100);
+          setIsCoreSubject(response.data.is_core_subject ?? true);
           setStudents(fetchedStudents);
 
           // Initialize the input state dictionary and pre-fill any existing drafts
@@ -86,9 +124,11 @@ const RapidMarksEntry: React.FC = () => {
           
           setMarksData(initialMarks);
 
-        } catch (error) {
+        } catch (error: any) {
           console.error("Error fetching roster:", error);
-          toast.error("Failed to load student roster.");
+          // UPDATED: Now dynamically shows the backend 403 Access Denied messages
+          const errorMsg = error.response?.data?.error || "Failed to load student roster.";
+          toast.error(errorMsg);
           setStudents([]);
           setMarksData({});
         }
@@ -145,9 +185,10 @@ const RapidMarksEntry: React.FC = () => {
       // Post the data to Django
       await api.post('/api/exams/rapid-entry/', payload);
       toast.success('Results saved successfully as Draft.');
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error saving marks:", error);
-      toast.error('Failed to save results. Please try again.');
+      const errorMsg = error.response?.data?.error || 'Failed to save results. Please try again.';
+      toast.error(errorMsg);
     } finally {
       setIsSaving(false);
     }
@@ -159,11 +200,13 @@ const RapidMarksEntry: React.FC = () => {
       {/* Configuration Bar */}
       <div className="bg-slate-50 border border-slate-200 p-5 rounded-lg grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
-          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Class Stream</label>
+          <label htmlFor="select-class" className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Class Stream</label>
           <select 
+            id="select-class"
             className="w-full p-2.5 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
             value={selectedClass}
             onChange={(e) => handleDropdownChange(setSelectedClass, e)}
+            aria-label="Class Stream"
           >
             <option value="">-- Select Class --</option>
             {availableClasses.map((cls) => (
@@ -173,11 +216,13 @@ const RapidMarksEntry: React.FC = () => {
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Subject</label>
+          <label htmlFor="select-subject" className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Subject</label>
           <select 
+            id="select-subject"
             className="w-full p-2.5 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
             value={selectedSubject}
             onChange={(e) => handleDropdownChange(setSelectedSubject, e)}
+            aria-label="Subject"
           >
             <option value="">-- Select Subject --</option>
             {availableSubjects.map((sub) => (
@@ -187,11 +232,13 @@ const RapidMarksEntry: React.FC = () => {
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Assessment</label>
+          <label htmlFor="select-exam" className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Assessment</label>
           <select 
+            id="select-exam"
             className="w-full p-2.5 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
             value={selectedExam}
             onChange={(e) => handleDropdownChange(setSelectedExam, e)}
+            aria-label="Assessment"
           >
             <option value="">-- Select Exam --</option>
             {availableExams.map((exam) => (
@@ -204,13 +251,21 @@ const RapidMarksEntry: React.FC = () => {
       {/* Spreadsheet Grid */}
       {students.length > 0 ? (
         <form onSubmit={handleSubmit} className="border border-slate-200 rounded-lg shadow-sm bg-white overflow-hidden">
-          <div className="bg-slate-50 border-b border-slate-200 p-4 flex justify-between items-center">
+          <div className="bg-slate-50 border-b border-slate-200 p-4 flex justify-between items-center flex-wrap gap-2">
             <h3 className="font-semibold text-slate-800">
-              Entering marks for {students.length} students
+              Entering marks for {students.length} student{students.length === 1 ? '' : 's'}
+              {!isCoreSubject && <span className="text-slate-500 font-normal"> (enrolled in this elective)</span>}
             </h3>
-            <span className="text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded-full font-medium flex items-center gap-1">
-              <AlertCircle className="w-3 h-3" /> Draft Mode
-            </span>
+            <div className="flex items-center gap-2">
+              {!isCoreSubject && (
+                <span className="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full font-medium">
+                  Elective
+                </span>
+              )}
+              <span className="text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded-full font-medium flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" /> Draft Mode
+              </span>
+            </div>
           </div>
 
           <div className="overflow-x-auto">
@@ -219,7 +274,7 @@ const RapidMarksEntry: React.FC = () => {
                 <tr className="bg-white border-b border-slate-200 text-slate-600">
                   <th className="py-3 px-4 font-semibold w-32">Adm Number</th>
                   <th className="py-3 px-4 font-semibold">Student Name</th>
-                  <th className="py-3 px-4 font-semibold w-40">Score</th>
+                  <th className="py-3 px-4 font-semibold w-40">Score (out of {totalMarks})</th>
                   <th className="py-3 px-4 font-semibold">Teacher Remarks (Optional)</th>
                 </tr>
               </thead>
@@ -232,9 +287,9 @@ const RapidMarksEntry: React.FC = () => {
                       <input
                         type="number"
                         min="0"
-                        max="100" 
+                        max={totalMarks}
                         className="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                        placeholder="0-100"
+                        placeholder={`0-${totalMarks}`}
                         value={marksData[student.id]?.marks || ''}
                         onChange={(e) => handleMarkChange(student.id, e.target.value)}
                       />

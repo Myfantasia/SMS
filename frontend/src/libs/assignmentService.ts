@@ -4,8 +4,17 @@ import { auth } from '../firebaseConfig'; // <-- Import Firebase auth
 
 const API_URL = '/api/assignments'; 
 
+// --- NEW UTILITY HELPER: Extracts CSRF tokens from cookies ---
+export const getCSRFToken = (): string => {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; csrftoken=`);
+  if (parts.length === 2) return parts.pop()?.split(';').shift() || '';
+  return '';
+};
+
+
 // --- UPDATED HELPER FUNCTION ---
-const getAuthHeaders = async () => {
+export const getAuthHeaders = async () => {
   // 1. Wait for Firebase to finish checking the local session
   await new Promise((resolve) => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
@@ -31,18 +40,53 @@ const getAuthHeaders = async () => {
   return {};
 };
 
+// Keys whose values are arrays/objects and must be JSON-stringified rather than .toString()'d
+const JSON_FIELDS = new Set([
+  'groups', 'reference_links', 'assigned_student_ids', 'additional_class_stream_ids', 'removed_attachment_ids'
+]);
+
+// Keys that are backend-computed/read-only and should never be sent back up
+const SKIP_FIELDS = new Set(['attachments', 'teacher_attachment_url']);
+
+const appendAssignmentFormData = (formData: FormData, assignment: Partial<Assignment>) => {
+  Object.keys(assignment).forEach(key => {
+    if (SKIP_FIELDS.has(key)) return;
+    const value = assignment[key as keyof Assignment];
+    if (value === undefined || value === null) return;
+
+    if (key === 'teacher_attachment' && value instanceof File) {
+      formData.append(key, value);
+    } else if (key === 'additional_attachments' && Array.isArray(value)) {
+      (value as File[]).forEach(file => formData.append('additional_attachments', file));
+    } else if (JSON_FIELDS.has(key)) {
+      formData.append(key, JSON.stringify(value));
+    } else {
+      formData.append(key, value.toString());
+    }
+  });
+};
+
 export const assignmentService = {
 
   // Fetch Assignments
   getAssignments: async (teacherId?: number) => {
     const headers = await getAuthHeaders(); // <-- Waits for token securely
-    
+
     const url = teacherId
       ? `${API_URL}/teacher/?teacher_id=${teacherId}`
       : `${API_URL}/teacher/`;
-      
-    const response = await api.get(url, { headers }); 
+
+    const response = await api.get(url, { headers });
     return response.data.assignments;
+  },
+
+  // Delete an Assignment
+  deleteAssignment: async (id: string | number) => {
+    const headers = await getAuthHeaders();
+    const response = await api.delete(`${API_URL}/teacher/${id}/`, {
+      headers: { ...headers, 'X-CSRFToken': getCSRFToken() },
+    });
+    return response.data;
   },
 
   // Create an Assignment
@@ -50,23 +94,14 @@ export const assignmentService = {
     const authHeaders = await getAuthHeaders(); // <-- Waits for token securely
     const formData = new FormData();
 
-    Object.keys(assignment).forEach(key => {
-      const value = assignment[key as keyof Assignment];
-      if (value !== undefined && value !== null) {
-        if (key === 'teacher_attachment' && value instanceof File) {
-          formData.append(key, value);
-        } else {
-          formData.append(key, value.toString());
-        }
-      }
-    });
-
+    appendAssignmentFormData(formData, assignment);
     formData.append('questions', JSON.stringify(questions));
 
     const response = await api.post(`${API_URL}/teacher/`, formData, {
       headers: {
-        ...authHeaders, 
+        ...authHeaders,
         'Content-Type': 'multipart/form-data',
+        'X-CSRFToken': getCSRFToken(),
       },
     });
     return response.data;
@@ -79,17 +114,29 @@ export const assignmentService = {
     return response.data.data; // Navigates through the {"status": "success", "data": {...}} wrapper
   },
 
+  // Lightweight roster for the "specific students" / "group member" pickers
+  getStudentsForStream: async (classStreamId: number | string): Promise<{ id: number; name: string; roll: string }[]> => {
+    const headers = await getAuthHeaders();
+    const response = await api.get(`${API_URL}/class-stream/${classStreamId}/students/`, { headers });
+    return response.data.students;
+  },
+
   // --- NEW: Update an Existing Assignment ---
   updateAssignment: async (id: string | number, assignment: Partial<Assignment>, questions: Question[]) => {
     const authHeaders = await getAuthHeaders();
     const formData = new FormData();
 
     Object.keys(assignment).forEach(key => {
+      if (SKIP_FIELDS.has(key)) return;
       const value = assignment[key as keyof Assignment];
       // Skip appending if undefined to let the backend fallback logic handle it
       if (value !== undefined && value !== null) {
         if (key === 'teacher_attachment' && value instanceof File) {
           formData.append(key, value);
+        } else if (key === 'additional_attachments' && Array.isArray(value)) {
+          (value as File[]).forEach(file => formData.append('additional_attachments', file));
+        } else if (JSON_FIELDS.has(key)) {
+          formData.append(key, JSON.stringify(value));
         } else {
           formData.append(key, value.toString());
         }

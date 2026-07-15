@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Save, UserCheck, LayoutDashboard } from 'lucide-react';
 import toast from 'react-hot-toast';
+import api from '../../libs/axiosInstance';
 
 interface Teacher {
   id: number;
@@ -22,64 +23,70 @@ export default function EditClass() {
   const [capacity, setCapacity] = useState<number | string>('');
   const [classTeacherId, setClassTeacherId] = useState<string>('');
 
-  useEffect(() => {
-    // 1. Fetch all approved teachers for the dropdown
-    fetch('http://localhost:8000/api/approved-users/teachers/')
-      .then(res => res.json())
-      .then(response => {
-        if (response.status === 'success') setTeachers(response.data);
-      });
+useEffect(() => {
+  const initializeClassEditorData = async () => {
+    try {
+      // Execute sibling lookup streams concurrently via Promise.all
+      const [teachersRes, classesRes] = await Promise.all([
+        api.get('/api/approved-users/teachers/'),
+        api.get('/api/manage-classes/')
+      ]);
 
-    // 2. Fetch class data to pre-fill the form
-    fetch('http://localhost:8000/api/manage-classes/')
-      .then(res => res.json())
-      .then(response => {
-        if (response.status === 'success') {
-          for (const grade of response.data) {
-            const stream = grade.streams.find((s: any) => s.id === Number(id));
-            if (stream) {
-              setGradeName(grade.grade_name);
-              setName(stream.name);
-              setCapacity(stream.capacity);
-              // If your API returns the ID of the assigned teacher, set it here.
-              // We'll update the backend shortly to ensure it does!
-              if (stream.class_teacher_id) setClassTeacherId(stream.class_teacher_id.toString());
-              break;
+      if (teachersRes.data.status === 'success') {
+        setTeachers(teachersRes.data.data);
+      }
+
+      if (classesRes.data.status === 'success') {
+        for (const grade of classesRes.data.data) {
+          const stream = grade.streams.find((s: any) => s.id === Number(id));
+          if (stream) {
+            setGradeName(grade.grade_name);
+            setName(stream.name);
+            setCapacity(stream.capacity);
+            if (stream.class_teacher_id) {
+              setClassTeacherId(stream.class_teacher_id.toString());
             }
+            break;
           }
         }
-        setLoading(false);
-      });
-  }, [id]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-
-    try {
-      const response = await fetch(`http://localhost:8000/api/academic-hub/edit-stream/${id}/`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          name, 
-          capacity,
-          teacher_id: classTeacherId // Passing the newly assigned teacher!
-        })
-      });
-      const data = await response.json();
-      
-      if (data.status === 'success') {
-        toast.success(data.message);
-        navigate('/admin-dashboard/classes'); // Redirect back to list
-      } else {
-        toast.error(data.message);
       }
     } catch (error) {
-      toast.error('Failed to update class configuration.');
+      console.error("Initialization failed:", error);
     } finally {
-      setIsSubmitting(false);
+      setLoading(false);
     }
   };
+
+  initializeClassEditorData();
+}, [id]);
+
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setIsSubmitting(true);
+
+  try {
+    const response = await api.put(`/api/academic-hub/edit-stream/${id}/`, { 
+      name, 
+      capacity,
+      teacher_id: classTeacherId // Updates the form teacher relational assignment
+    });
+    
+    const data = response.data;
+    
+    if (data.status === 'success') {
+      toast.success(data.message);
+      navigate('/admin-dashboard/classes'); 
+    } else {
+      toast.error(data.message);
+    }
+  } catch (error: any) {
+    console.error(error);
+    const errMsg = error.response?.data?.message || 'Failed to update class configuration.';
+    toast.error(errMsg);
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 
   if (loading) return <div className="p-6 text-slate-500">Loading Configuration Engine...</div>;
 

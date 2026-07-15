@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { X } from 'lucide-react';
+import { X, Save, Layers } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import api from '../../libs/axiosInstance';
 
 interface AddGradeModalProps {
   isOpen: boolean;
@@ -16,76 +17,104 @@ export default function AddGradeModal({ isOpen, onClose, onSuccess }: AddGradeMo
 
   if (!isOpen) return null;
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setLoading(true);
 
-    const toastId = toast.loading('Creating grade...');
+  const toastId = toast.loading('Creating grade...');
 
-    try {
-      const response = await fetch('http://localhost:8000/api/academic-hub/add-grade/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
-      });
-      const data = await response.json();
+  try {
+    const response = await api.post('/api/academic-hub/add-grade/', formData);
+    const data = response.data;
 
-      if (data.status === 'success') {
-        toast.success('Grade and Streams successfully created!', { id: toastId });
-        onSuccess();
-        onClose();
-      } else {
-        toast.error(data.message || 'Failed to create grade.', { id: toastId });
-      }
-    } catch (error) {
-      console.error(error);
-      toast.error('Network error occurred.', { id: toastId });
-    } finally {
-      setLoading(false);
+    if (data.status === 'success') {
+      toast.success('Grade and Streams successfully created!', { id: toastId });
+      onSuccess();
+      onClose();
+    } else {
+      toast.error(data.message || 'Failed to create grade.', { id: toastId });
     }
-  };
+  } catch (error: any) {
+    console.error(error);
+    const errMsg = error.response?.data?.message || 'Network error occurred.';
+    toast.error(errMsg, { id: toastId });
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
-    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
-        
-        <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-          <h2 className="font-semibold text-slate-800">Add Grade & Streams</h2>
-          <button onClick={onClose} title="Close" className="text-slate-400 hover:text-slate-600">
+    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh]">
+
+        {/* Beautiful Header Design (matches AddStreamModal) */}
+        <div className="px-6 py-5 border-b border-slate-100 bg-slate-50 flex items-center justify-between relative overflow-hidden shrink-0">
+          <div className="absolute top-0 right-0 -mr-4 -mt-4 w-24 h-24 bg-blue-100 rounded-full opacity-50 pointer-events-none blur-xl"></div>
+
+          <div className="flex items-center gap-3 relative z-10">
+            <div className="w-10 h-10 bg-white shadow-sm border border-slate-200 rounded-full flex items-center justify-center text-blue-600">
+              <Layers className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-bold text-slate-800 text-lg leading-tight">Add Grade & Streams</h3>
+              <p className="text-xs text-slate-500 font-medium tracking-wide">Builds the grade level and its physical classrooms in one step</p>
+            </div>
+          </div>
+
+          <button onClick={onClose} title="Close" className="text-slate-400 hover:text-slate-700 bg-white hover:bg-slate-100 p-1.5 rounded-full transition-colors relative z-10 border border-transparent hover:border-slate-200">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 text-sm">
-          <div className="grid grid-cols-3 gap-4">
-            <div className="col-span-2">
-              <label className="block text-slate-600 font-medium mb-1">Grade Name</label>
-              <input required type="text" placeholder="e.g. Grade 8" aria-label="Grade Name" className="w-full border border-slate-200 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none" 
+        <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto">
+          <div className="grid grid-cols-3 gap-5">
+            <div className="col-span-2 space-y-1.5">
+              <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block">
+                Grade Name <span className="text-red-500">*</span>
+              </label>
+              <input required type="text" placeholder="e.g. Grade 8" aria-label="Grade Name"
+                className="w-full border border-slate-300 rounded-xl p-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-white text-slate-800 transition-all shadow-sm"
                 onChange={(e) => setFormData({...formData, grade_name: e.target.value})} />
             </div>
-            <div className="col-span-1">
-              <label className="block text-slate-600 font-medium mb-1">Sort Order</label>
-              <input required type="number" placeholder="e.g. 8" aria-label="Sort Order" className="w-full border border-slate-200 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none" 
+            <div className="col-span-1 space-y-1.5">
+              <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block">
+                Sort Order <span className="text-red-500">*</span>
+              </label>
+              <input required type="number" placeholder="e.g. 8" aria-label="Sort Order"
+                className="w-full border border-slate-300 rounded-xl p-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-white text-slate-800 transition-all shadow-sm"
                 onChange={(e) => setFormData({...formData, numeric_order: e.target.value})} />
             </div>
           </div>
 
-          <div>
-            <label className="block text-slate-600 font-medium mb-1">Class Streams (Comma Separated)</label>
-            <input required type="text" placeholder="e.g. A, B, C, East, West" aria-label="Class Streams" className="w-full border border-slate-200 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none"
-               onChange={(e) => setFormData({...formData, streams: e.target.value})} />
-            <p className="text-xs text-slate-400 mt-1">This will auto-generate all physical classrooms for this grade.</p>
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block">
+              Class Streams (Comma Separated) <span className="text-red-500">*</span>
+            </label>
+            <input required type="text" placeholder="e.g. A, B, C, East, West" aria-label="Class Streams"
+              className="w-full border border-slate-300 rounded-xl p-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-white text-slate-800 transition-all shadow-sm"
+              onChange={(e) => setFormData({...formData, streams: e.target.value})} />
+            <p className="text-xs text-slate-400">This will auto-generate all physical classrooms for this grade — one per stream listed.</p>
           </div>
 
-          <div>
-            <label className="block text-slate-600 font-medium mb-1">Default Capacity Per Stream</label>
-            <input required type="number" defaultValue={40} aria-label="Default Capacity Per Stream" className="w-full border border-slate-200 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none"
-               onChange={(e) => setFormData({...formData, capacity: parseInt(e.target.value)})} />
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block">
+              Default Capacity Per Stream <span className="text-red-500">*</span>
+            </label>
+            <div className="relative">
+              <input required type="number" defaultValue={40} aria-label="Default Capacity Per Stream"
+                className="w-full border border-slate-300 rounded-xl p-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-white text-slate-800 transition-all shadow-sm font-medium"
+                onChange={(e) => setFormData({...formData, capacity: parseInt(e.target.value)})} />
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium pointer-events-none">Students</span>
+            </div>
+            <p className="text-xs text-slate-400">Applied to every stream created above — you can fine-tune each one afterward.</p>
           </div>
 
-          <div className="pt-4 flex justify-end gap-3 border-t border-slate-100 mt-6">
-            <button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-md font-medium">Cancel</button>
-            <button type="submit" disabled={loading} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium disabled:opacity-50">
+          <div className="pt-3 flex gap-3">
+            <button type="button" onClick={onClose} disabled={loading} className="flex-1 px-4 py-3 border border-slate-200 text-slate-600 rounded-xl font-bold hover:bg-slate-50 transition-colors">
+              Cancel
+            </button>
+            <button type="submit" disabled={loading} className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all flex items-center justify-center gap-2 disabled:opacity-70 shadow-md shadow-blue-600/20">
+              <Save className="w-4 h-4" />
               {loading ? 'Saving...' : 'Save Structure'}
             </button>
           </div>

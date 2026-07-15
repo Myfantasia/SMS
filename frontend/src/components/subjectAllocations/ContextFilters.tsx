@@ -13,14 +13,19 @@ interface AcademicYear {
 interface ExamTerm {
   id: number;
   name: string;
-  academic_year: number; 
 }
 
 interface ClassStream {
   id: number;
   name: string; 
-  grade_name: string; 
   full_name: string; 
+  is_virtual?: boolean;
+}
+
+interface GradeGroup {
+  grade_id: number;
+  grade_name: string;
+  streams: ClassStream[];
 }
 
 // --- 2. COMPONENT PROPS ---
@@ -44,56 +49,45 @@ const ContextFilters: React.FC<ContextFiltersProps> = ({
   // --- 3. LOCAL STATE FOR DROPDOWN OPTIONS ---
   const [years, setYears] = useState<AcademicYear[]>([]);
   const [terms, setTerms] = useState<ExamTerm[]>([]);
-  const [classes, setClasses] = useState<ClassStream[]>([]);
+  const [gradeGroups, setGradeGroups] = useState<GradeGroup[]>([]);
   
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  // --- 4. FETCH INITIAL DATA (Combined from filter-options) ---
+  // --- 4. FETCH DATA WITH REAL DATABASE IDs ---
   useEffect(() => {
     const fetchBaseData = async () => {
       setIsLoading(true);
       try {
-        const token = localStorage.getItem('firebase_dev_token');
-        const response = await api.get('/api/results/filter-options/', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+        // Fetch Academic Years
+        const yearRes = await api.get('/api/academic-years/');
+        if (yearRes.data?.status === 'success') {
+          const fetchedYears = yearRes.data.data;
+          setYears(fetchedYears);
+          
+          // Auto-select the active year if nothing is selected
+          if (!selectedYear) {
+            const activeYear = fetchedYears.find((y: AcademicYear) => y.is_active);
+            if (activeYear) setSelectedYear(activeYear.id.toString());
+          }
+        }
 
-        if (response.status === 200) {
-          const data = response.data;
+        // Fetch Exam Terms
+        const termRes = await api.get('/api/exams/setup-data/');
+        if (termRes.data?.terms) {
+          setTerms(termRes.data.terms);
+          if (!selectedTerm && termRes.data.terms.length > 0) {
+            setSelectedTerm(termRes.data.terms[0].id.toString());
+          }
+        }
 
-          // Convert string arrays to objects to maintain your existing structure
-          const formattedYears = data.years.map((y: string, index: number) => ({
-            id: index, // Temporary ID since endpoint returns strings
-            year: y,
-            is_active: index === 0 // Logic from your summary file (first is usually current)
-          }));
-
-          const formattedClasses = data.streams.map((s: string, index: number) => ({
-            id: index,
-            name: s.split(' (')[0],
-            grade_name: '',
-            full_name: s
-          }));
-
-          // We set terms initially from the same payload
-          const formattedTerms = data.terms.map((t: string, index: number) => ({
-            id: index,
-            name: t,
-            academic_year: 0
-          }));
-
-          setYears(formattedYears);
-          setClasses(formattedClasses);
-          setTerms(formattedTerms);
-
-          // Auto-select defaults as seen in your ClassPerformanceSummary
-          if (data.years.length > 0 && !selectedYear) setSelectedYear(data.years[0]);
-          if (data.terms.length > 0 && !selectedTerm) setSelectedTerm(data.terms[0]);
-          if (data.streams.length > 0 && !selectedClass) setSelectedClass(data.streams[0]);
+        // Fetch Classes (Grouped by Grade)
+        const classRes = await api.get('/api/manage-classes/');
+        if (classRes.data?.status === 'success') {
+          setGradeGroups(classRes.data.data);
         }
 
       } catch (error) {
-        console.error("Error fetching filter options:", error);
+        console.error("Error fetching context filters:", error);
       } finally {
         setIsLoading(false);
       }
@@ -102,44 +96,36 @@ const ContextFilters: React.FC<ContextFiltersProps> = ({
     fetchBaseData();
   }, []);
 
-  // --- 5. CASCADING FETCH (Keeping structure, though data is already loaded) ---
-  useEffect(() => {
-    const fetchTermsForYear = async () => {
-      if (!selectedYear) {
-        setSelectedTerm('');
-        return;
-      }
-      // Since your filter-options endpoint provides all terms at once, 
-      // we don't need a separate API call here, keeping the structure intact.
-    };
-
-    fetchTermsForYear();
-  }, [selectedYear]);
-
-  // --- 6. THE UI (Tailwind Grid) ---
+  // --- 5. THE UI (Tailwind Grid) ---
   return (
-    <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-sm">
-      <h2 className="text-sm font-bold text-gray-700 uppercase tracking-wider mb-4 border-b pb-2">
-        1. Select Context
-      </h2>
-      
+    <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden">
+      {/* Decorative background accent */}
+      <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500"></div>
+
+      <div className="flex justify-between items-center mb-4 border-b border-slate-100 pb-3">
+        <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
+          <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 text-xs flex items-center justify-center font-black">1</span>
+          Select Context
+        </h2>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         
         {/* YEAR DROPDOWN */}
         <div>
-          <label htmlFor="year-select" className="block text-sm font-medium text-gray-700 mb-1">Academic Year <span className="text-red-500">*</span></label>
+          <label htmlFor="year-select" className="block text-sm font-medium text-slate-700 mb-1">
+            Academic Year <span className="text-red-500">*</span>
+          </label>
           <select
             id="year-select"
-            className="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2.5 bg-gray-50 border text-sm"
+            className="w-full border-slate-300 rounded-lg shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2.5 bg-slate-50 border text-sm transition-colors cursor-pointer"
             value={selectedYear}
-            onChange={(e) => {
-              setSelectedYear(e.target.value);
-            }}
+            onChange={(e) => setSelectedYear(e.target.value)}
             disabled={isLoading}
           >
             <option value="">-- Select Year --</option>
             {years.map((y) => (
-              <option key={y.year} value={y.year}>
+              <option key={y.id} value={y.id}>
                 {y.year} {y.is_active ? '(Current)' : ''}
               </option>
             ))}
@@ -148,11 +134,13 @@ const ContextFilters: React.FC<ContextFiltersProps> = ({
 
         {/* TERM DROPDOWN */}
         <div>
-          <label htmlFor="term-select" className="block text-sm font-medium text-gray-700 mb-1">Exam Term <span className="text-red-500">*</span></label>
+          <label htmlFor="term-select" className="block text-sm font-medium text-slate-700 mb-1">
+            Exam Term <span className="text-red-500">*</span>
+          </label>
           <select
             id="term-select"
-            className={`w-full border-gray-300 rounded-md shadow-sm p-2.5 border focus:ring-blue-500 focus:border-blue-500 text-sm ${
-              !selectedYear ? 'bg-gray-200 cursor-not-allowed opacity-60' : 'bg-gray-50'
+            className={`w-full border-slate-300 rounded-lg shadow-sm p-2.5 border focus:ring-indigo-500 focus:border-indigo-500 text-sm transition-colors ${
+              !selectedYear ? 'bg-slate-100 cursor-not-allowed opacity-60' : 'bg-slate-50 cursor-pointer'
             }`}
             value={selectedTerm}
             onChange={(e) => setSelectedTerm(e.target.value)}
@@ -160,7 +148,7 @@ const ContextFilters: React.FC<ContextFiltersProps> = ({
           >
             <option value="">-- Select Term --</option>
             {terms.map((t) => (
-              <option key={t.name} value={t.name}>
+              <option key={t.id} value={t.id}>
                 {t.name}
               </option>
             ))}
@@ -169,19 +157,25 @@ const ContextFilters: React.FC<ContextFiltersProps> = ({
 
         {/* CLASS STREAM DROPDOWN */}
         <div>
-          <label htmlFor="class-select" className="block text-sm font-medium text-gray-700 mb-1">Class Stream <span className="text-red-500">*</span></label>
+          <label htmlFor="class-select" className="block text-sm font-medium text-slate-700 mb-1">
+            Class Stream <span className="text-red-500">*</span>
+          </label>
           <select
             id="class-select"
-            className="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2.5 bg-gray-50 border text-sm"
+            className="w-full border-slate-300 rounded-lg shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2.5 bg-slate-50 border text-sm transition-colors cursor-pointer"
             value={selectedClass}
             onChange={(e) => setSelectedClass(e.target.value)}
             disabled={isLoading}
           >
             <option value="">-- Select Class --</option>
-            {classes.map((c) => (
-              <option key={c.full_name} value={c.full_name}>
-                {c.full_name}
-              </option>
+            {gradeGroups.map((grade) => (
+              <optgroup key={grade.grade_id} label={grade.grade_name}>
+                {grade.streams.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </optgroup>
             ))}
           </select>
         </div>

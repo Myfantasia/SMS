@@ -4,55 +4,112 @@ import { School } from 'lucide-react';
 import Menu from '../components/Menu';
 import Navbar from '../components/Navbar';
 import api from '../libs/axiosInstance';
-
+import toast from 'react-hot-toast';
 
 interface LayoutProps {
   role: 'admin' | 'teacher' | 'student' | 'parent';
 }
 
+export interface DashboardContextType {
+  userName: string;
+  role: string;
+  permissions: string[];
+}
+
+// Unauthenticated visitors get bounced here instead of ever seeing dashboard chrome.
+const LOGIN_URL = 'http://localhost:8000/portal';
+
 export default function DashboardLayout({ role }: LayoutProps) {
   const [userName, setUserName] = useState("Loading...");
+  const [isClassTeacher, setIsClassTeacher] = useState(false);
+  const [permissions, setPermissions] = useState<string[]>([]);
+  const [authStatus, setAuthStatus] = useState<'checking' | 'authorized' | 'denied'>('checking');
 
-  // Fetch the logged-in user's name from Django when the layout loads
+  // 1. DYNAMIC FETCH — also acts as the auth gate for this route group.
   useEffect(() => {
-    api.get('/api/dashboard-stats/')
+    let cancelled = false;
+
+    api.get('/api/my-profile/')
       .then((res) => {
-        if (res.data && res.data.admin_name) {
-          setUserName(res.data.admin_name);
+        if (cancelled) return;
+        if (res.data?.data) {
+          const { first_name, last_name, is_class_teacher, permissions } = res.data.data;
+          setUserName(`${first_name} ${last_name}`);
+          setIsClassTeacher(!!is_class_teacher);
+          setPermissions(permissions || []);
+          setAuthStatus('authorized');
         } else {
-          setUserName("Admin");
+          setAuthStatus('denied');
         }
       })
-      .catch((err) => {
-        console.error("Failed to fetch user details", err);
-        setUserName("Admin"); // Fallback on error
+      .catch(() => {
+        if (cancelled) return;
+        // Any failure (401, network, etc.) means we can't confirm a session — fail closed.
+        setAuthStatus('denied');
       });
+
+    return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => {
+    if (authStatus === 'denied') {
+      window.location.href = LOGIN_URL;
+    }
+  }, [authStatus]);
+
+  // 2. GLOBAL COMMAND PALETTE LISTENER
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        toast("Command Palette open", { icon: '🔍' });
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Block rendering of dashboard chrome and content until the session is confirmed.
+  if (authStatus !== 'authorized') {
+    return (
+      <div className="h-screen w-screen flex flex-col items-center justify-center bg-slate-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+        <p className="text-slate-500 font-medium">
+          {authStatus === 'denied' ? 'Redirecting to login...' : 'Verifying session...'}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen flex bg-slate-50 font-sans">
-      
+
       {/* Sidebar Navigation */}
-      <div className="w-[16%] md:w-[10%] lg:w-[18%] xl:w-[16%] p-4 bg-white border-r border-slate-200 overflow-y-scroll scrollbar-hide flex flex-col">
-        <div className="flex items-center justify-center lg:justify-start gap-3 mb-6 mt-2 text-blue-700">
-          <School className="w-8 h-8" />
-          <span className="hidden lg:block font-extrabold text-xl text-slate-800">SMS Portal</span>
+      <div className="w-[16%] md:w-[10%] lg:w-[18%] xl:w-[16%] px-3 lg:px-4 py-4 bg-white border-r border-slate-200 overflow-y-scroll scrollbar-hide flex flex-col transition-all">
+        <div className="flex items-center justify-center lg:justify-start gap-2.5 mb-6 mt-1 px-1">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center shadow-sm shrink-0">
+            <School className="w-5 h-5 text-white" />
+          </div>
+          <div className="hidden lg:flex flex-col leading-none">
+            <span className="font-extrabold text-lg text-slate-800">SMS Portal</span>
+            <span className="text-[10px] text-slate-400 font-medium tracking-wide">School Management</span>
+          </div>
         </div>
-        <Menu userRole={role} />
+        <div className="hidden lg:block h-px bg-slate-100 mb-2" />
+        <Menu userRole={role} isClassTeacher={isClassTeacher} />
       </div>
 
       {/* Main Content Pane */}
       <div className="w-[84%] md:w-[90%] lg:w-[82%] xl:w-[84%] bg-slate-50 flex flex-col overflow-hidden">
-        
-        {/* Universal Top Navbar - Now receiving dynamic userName */}
+
+        {/* Universal Top Navbar */}
         <Navbar role={role} userName={userName} />
 
         {/* Dynamic Page Content */}
-        <main className="p-8 overflow-y-auto flex-1 scrollbar-hide">
-          {/* We pass the userName via context so AdminDashboard can use it for the Welcome Banner */}
-          <Outlet context={{ userName }} />
+        <main className="p-4 md:p-8 overflow-y-auto flex-1 scrollbar-hide">
+          <Outlet context={{ userName, role, permissions } satisfies DashboardContextType} />
         </main>
-        
+
       </div>
     </div>
   );

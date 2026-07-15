@@ -7,6 +7,9 @@ import UserDirectory from './pages/admin/UserDirectory';
 import ViewProfile from './pages/admin/ViewProfile';
 import EditProfile from './pages/admin/EditProfile';
 import AdminProfile from './pages/admin/AdminProfile';
+import RolesPermissions from './pages/admin/RolesPermissions';
+import RoleEditor from './pages/admin/RoleEditor';
+import CurriculumHub from './pages/admin/CurriculumHub';
 import SearchResults from './components/SearchResults';
 import AcademicHub from './components/academics/AcademicHub';
 import SubjectsPage from './components/lists pages/SubjectsPage';
@@ -27,10 +30,26 @@ import { onAuthStateChanged } from 'firebase/auth';
 import AllocationDashboard from './components/subjectAllocations/AllocationDashboard';
 import { ChatProvider } from './components/chats/ChatProvider';
 import AssignmentsHub from './components/assignments/AssignmentsHub';
-import AdminChatDashboard from './components/chats/AdminChatDashboard';
 import AssignmentCreator from './components/assignments/AssignmentCreator';
 import SubmissionManager from './components/assignments/SubmissionManager';
 import EditAssignment from './components/assignments/EditAssignments';
+import AssignmentTaker from './components/assignments/AssignmentTaker';
+import AssignmentReview from './components/assignments/AssignmentReview';
+import TeacherDashboard from './pages/teacher/TeacherDashboard';
+import TeacherProfile from './pages/teacher/TeacherProfile';
+import StudentDashboard from './pages/student/StudentDashboard';
+import StudentProfile from './pages/student/StudentProfile';
+import StudentTasks from './pages/student/StudentTasks';
+import StudentAssignments from './pages/student/StudentAssignments';
+import StudentElectiveChoices from './pages/student/StudentElectiveChoices';
+import ParentDashboard from './pages/parent/ParentDashboard';
+import ParentProfile from './pages/parent/ParentProfile';
+import ParentAssignments from './pages/parent/ParentAssignments';
+import ChatDashboard from './components/chats/ChatDashboard';
+import AssignSubjectsPage from './components/action routes/AssignSubjectsPage';
+import LeaveRequestsHub from './components/leave/LeaveRequestsHub';
+import ApproveLeaves from './components/leave/ApproveLeaves';
+import FinanceHub from './components/Finance/FinanceHub';
 
 
 // 1. CATCH THE URL TOKEN AND SAVE TO LOCAL STORAGE
@@ -107,11 +126,17 @@ export default function App() {
             <Route path="parents" element={<UserDirectory userType="parents" />} />
 
             <Route path="academics" element={<AcademicHub />} />
+            <Route path="curriculum" element={<CurriculumHub />} />
             <Route path="classes" element={<ClassesPage />} />
             <Route path="subjects" element={<SubjectsPage />} />
 
             {/* Admin Profile Route */}
             <Route path="profile" element={<AdminProfile />} />
+
+            {/* RBAC Management */}
+            <Route path="roles-permissions" element={<RolesPermissions />} />
+            <Route path="roles-permissions/new" element={<RoleEditor />} />
+            <Route path="roles-permissions/:id/edit" element={<RoleEditor />} />
 
             {/* action routes for user*/}
 
@@ -141,19 +166,108 @@ export default function App() {
 
             <Route path="results" element={<ResultsHub role="admin" />} />
 
+            {/* --- LEAVE MANAGEMENT ROUTES --- */}
+            <Route path="leave-requests" element={<LeaveRequestsHub role="admin" />} />
+            <Route path="approvals/leave" element={<ApproveLeaves />} />
+
+            <Route path="classes/assign-subjects/:gradeId/:studentId"
+              element={<AssignSubjectsPage />} 
+            />
+
             <Route path="assignments" element={<AssignmentsHub role="admin" />} />
             <Route path="assignments/create" element={<AssignmentCreator role="admin" />} />
             <Route path="assignments/:id/submissions" element={<SubmissionManager role="admin" />} />
             <Route path="assignments/edit/:id" element={<EditAssignment role="admin" />} />
 
+            {/* --- FINANCE: FEES & SALARY OVERVIEW --- */}
+            <Route path="finance" element={<FinanceHub />} />
+
             {/* --- NEW: MESSAGING ROUTE --- */}
-            <Route path="messages" element={<AdminChatDashboard />} />
+            <Route path="messages" element={<ChatDashboard />} />
           </Route>
 
-          {/* Teacher Route Group (Ready for future integration) */}
-          {/* <Route path="/teacher-dashboard/*" element={<DashboardLayout role="teacher" />}>
-          <Route index element={<TeacherDashboard />} />
-           </Route> */}
+          {/* TEACHER ROUTE GROUP */}
+          <Route path="/teacher-dashboard/*" element={<DashboardLayout role="teacher" />}>
+            <Route index element={<TeacherDashboard />} />
+            <Route path="messages" element={<ChatDashboard />} />
+            <Route path="profile" element={<TeacherProfile />} />
+            <Route path="search" element={<SearchResults />} />
+
+            <Route path="teachers" element={<UserDirectory userType="teachers" />} />
+            <Route path="students" element={<UserDirectory userType="students" />} />
+            <Route path="parents" element={<UserDirectory userType="parents" />} />
+            
+            {/* ✅ CLASSES MATRIX ROUTES ADDED FOR THE TEACHER Portal */}
+            <Route path="classes" element={<ClassesPage />} />
+            <Route path="curriculum" element={<CurriculumHub />} />
+            <Route path="classes/view/:id" element={<ViewClass />} />
+            <Route path="classes/assign-subjects/:gradeId/:studentId" element={<AssignSubjectsPage />} />
+            
+            <Route path="timetable" element={<TimetableManager />} />
+            <Route path=":userType/view/:id" element={<ViewProfile />} />
+
+            <Route path="subjects" element={<SubjectsPage />} />
+            <Route path="subjects/view/:id" element={<ViewSubject />} />
+
+            {/* --- ADD THE ATTENDANCE ROUTE HERE --- */}
+            <Route path="attendance" element={<AttendanceHub role='teacher' />} />
+
+            <Route path="assignments" element={<AssignmentsHub role="teacher" />} />
+            <Route path="assignments/create" element={<AssignmentCreator role="teacher" />} />
+            <Route path="assignments/edit/:id" element={<EditAssignment role="teacher" />} />
+            <Route path="assignments/:id/submissions" element={<SubmissionManager role="teacher" />} />
+
+            <Route path="results" element={<ResultsHub role="teacher" />} />
+
+            <Route path="exams" element={<ExamsHub role="teacher" />} />
+
+            <Route path="events" element={<EventsHub role="teacher" />} />
+
+            <Route path="notices" element={<NoticesHub role="teacher" />} />
+
+            {/* --- LEAVE MANAGEMENT: APPLY & TRACK --- */}
+            <Route path="leave-requests" element={<LeaveRequestsHub role="teacher" />} />
+          </Route>
+
+          {/* STUDENT ROUTE GROUP */}
+          <Route path="/student-dashboard/*" element={<DashboardLayout role="student" />}>
+            <Route index element={<StudentDashboard />} />
+            <Route path="messages" element={<ChatDashboard />} />
+            <Route path="profile" element={<StudentProfile />} />
+            <Route path="search" element={<SearchResults />} />
+
+            <Route path="subjects" element={<SubjectsPage />} />
+            <Route path="subjects/view/:id" element={<ViewSubject />} />
+            <Route path="my-electives" element={<StudentElectiveChoices />} />
+
+            <Route path="exams" element={<ExamsHub role="student" />} />
+            <Route path="results" element={<ResultsHub role="student" />} />
+
+            <Route path="events" element={<EventsHub role="student" />} />
+            <Route path="notices" element={<NoticesHub role="student" />} />
+            <Route path="tasks" element={<StudentTasks />} />
+
+            <Route path="assignments" element={<StudentAssignments />} />
+            <Route path="assignments/:id/take" element={<AssignmentTaker />} />
+            <Route path="assignments/:id/review" element={<AssignmentReview role="student" />} />
+          </Route>
+
+          {/* PARENT ROUTE GROUP */}
+          <Route path="/parent-dashboard/*" element={<DashboardLayout role="parent" />}>
+            <Route index element={<ParentDashboard />} />
+            <Route path="messages" element={<ChatDashboard />} />
+            <Route path="profile" element={<ParentProfile />} />
+            <Route path="search" element={<SearchResults />} />
+
+            <Route path="exams" element={<ExamsHub role="parent" />} />
+            <Route path="results" element={<ResultsHub role="parent" />} />
+
+            <Route path="events" element={<EventsHub role="parent" />} />
+            <Route path="notices" element={<NoticesHub role="parent" />} />
+
+            <Route path="assignments" element={<ParentAssignments />} />
+            <Route path="assignments/:id/review" element={<AssignmentReview role="parent" />} />
+          </Route>
 
           {/* Catch-all route to prevent 404 errors */}
           <Route path="*" element={<Navigate to="/admin-dashboard" replace />} />
