@@ -30,16 +30,13 @@ MAINTENANCE_ALLOWED_PATHS = {
 }
 
 # Path prefixes that stay reachable regardless of exact path: static/media assets,
-# Django's own admin site, password reset (harmless — only useful with a valid
-# emailed token — and it's how a locked-out admin recovers), and the Firebase
-# bridges the admin login/signup pages call.
+# Django's own admin site, and password reset (harmless — only useful with a valid
+# emailed token — and it's how a locked-out admin recovers).
 MAINTENANCE_ALLOWED_PREFIXES = (
     '/static/',
     '/media/',
     '/admin/',
     '/password-reset',
-    '/api/firebase-login/',
-    '/api/firebase-admin-signup/',
 )
 
 

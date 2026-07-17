@@ -22,7 +22,6 @@ from school.decorators import require_permission
 from school.rbac import HasModulePermission
 from django.shortcuts import render, redirect
 from django.contrib import messages
-from firebase_admin import auth as firebase_admin_auth
 from rest_framework import status
 import json
 from django.http import JsonResponse
@@ -150,30 +149,6 @@ def teacher_login_view(request):
             if auth_user is not None:
                 # Log them into Django
                 login(request, auth_user)
-
-                # ==========================================
-                # NEW: FIREBASE INSTANT PROVISIONING
-                # This guarantees they appear in your Firebase Console immediately
-                # ==========================================
-                uid = str(auth_user.username)
-                try:
-                    # Check if they are already in Firebase
-                    firebase_admin_auth.get_user(uid)
-                except firebase_admin_auth.UserNotFoundError:
-                    # If not, create them right now!
-                    try:
-                        firebase_admin_auth.create_user(
-                            uid=uid,
-                            email=auth_user.email,
-                            display_name=f"{auth_user.first_name} {auth_user.last_name}".strip() or auth_user.username,
-                        )
-                        # Tag them as a teacher in Firebase
-                        firebase_admin_auth.set_custom_user_claims(uid, {'role': 'teacher'})
-                        print(f"✅ Successfully provisioned Teacher {auth_user.email} in Firebase.")
-                    except Exception as e:
-                        print(f"❌ Firebase provisioning failed: {str(e)}")
-                # ==========================================
-
                 return redirect('afterlogin')
             else:
                 messages.error(request, 'Invalid email or password.')

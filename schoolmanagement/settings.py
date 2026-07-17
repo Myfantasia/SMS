@@ -1,6 +1,4 @@
 import os
-import firebase_admin
-from firebase_admin import credentials
 from dotenv import load_dotenv
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
@@ -180,17 +178,9 @@ else:
 PASSWORD_RESET_TIMEOUT = 60 * 60
 
 
-# --------------------------------------------------------
-# FIREBASE CONFIGURATION (Must be at the bottom)
-# --------------------------------------------------------
-
-# Public Web API key (same one used client-side); needed server-side to call
-# Google's Identity Toolkit REST API for the admin login self-healing password check.
-FIREBASE_WEB_API_KEY = "AIzaSyD6NrpxBwBOIZIPTWd49x1sh3gvUuQzxPc"
-
 # Shared secret an existing admin gives out-of-band to whoever they want to invite as
-# a new admin. Required on /adminsignup and the Firebase admin signup bridge for every
-# signup except the very first (bootstrap) admin. CHANGE THIS before deploying.
+# a new admin. Required on /adminsignup for every signup except the very first
+# (bootstrap) admin. CHANGE THIS before deploying.
 ADMIN_SIGNUP_INVITE_CODE = _env('ADMIN_SIGNUP_INVITE_CODE', 'change-this-invite-code')
 
 # Server-side maintenance switch (deliberately NOT toggleable from inside the app — set this
@@ -198,16 +188,6 @@ ADMIN_SIGNUP_INVITE_CODE = _env('ADMIN_SIGNUP_INVITE_CODE', 'change-this-invite-
 # except the public marketing pages and the admin login/signup flow; only an authenticated
 # admin can reach anything else. See school/middleware.py.
 MAINTENANCE_MODE = os.environ.get('MAINTENANCE_MODE', 'False').lower() == 'true'
-
-# CHECK: Ensure the file inside your project folder is named exactly 'serviceKey.json'
-# If you renamed it to 'serviceAccountKey.json', update the name below.
-firebase_cred_path = os.path.join(BASE_DIR, 'serviceKey.json')
-
-if os.path.exists(firebase_cred_path):
-    cred = credentials.Certificate(firebase_cred_path)
-    firebase_admin.initialize_app(cred)
-else:
-    print("WARNING: Firebase JSON key not found at:", firebase_cred_path)
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
