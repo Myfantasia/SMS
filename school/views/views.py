@@ -7,7 +7,6 @@ from django.http import HttpResponseRedirect
 from django.contrib.auth.decorators import login_required,user_passes_test
 from django.conf import settings
 from django.core.mail import send_mail
-import requests
 
 from school.models.models import (
     AdminExtra, TeacherExtra, StudentExtra, ParentExtra, StaffExtra,
@@ -16,7 +15,6 @@ from school.models.models import (
 from school.models.teachers_model import TeacherLeave
 from django.contrib.auth.models import User
 from django.contrib.auth import login, authenticate
-from firebase_admin import auth
 import json
 from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.contrib import messages
@@ -860,142 +858,6 @@ def custom_logout_view(request):
     return redirect('/')
 
 
-@csrf_exempt
-@ensure_csrf_cookie
-def firebase_login_bridge(request):
-    # This is the real login path the React SPA uses (client-side Firebase sign-in ->
-    # POST here to bridge it into a Django session) — afterlogin_view's server-rendered
-    # redirect flow is never hit from here, so the csrftoken cookie has to be set on
-    # *this* response instead, or every subsequent DRF POST (SessionAuthentication) 403s
-    # with "CSRF cookie not set".
-    if request.method == "POST":
-        try:
-            # 1. Get the token the user sent us
-            data = json.loads(request.body)
-            id_token = data.get('id_token')
-            role_requested = data.get('role')  # 'admin', 'teacher', or 'student'
-
-            # 2. Ask Firebase: "Is this token real?"
-            decoded_token = auth.verify_id_token(id_token, clock_skew_seconds=60)
-            uid = decoded_token['uid']  # The unique ID from Firebase
-            email = decoded_token['email']
-
-            # 3. Check if this user exists in OUR database
-            # We use the Firebase UID as the username so it never conflicts
-            user, created = User.objects.get_or_create(username=uid)
-
-            if created:
-                # If they are new, save their email
-                user.email = email
-                user.save()
-
-            # 4. CRITICAL: Check Roles
-            if role_requested == 'admin':
-                if not user.groups.filter(name='ADMIN').exists():
-                    return JsonResponse({
-                        'status': 'error',
-                        'message': 'You do not have Admin privileges.'
-                    })
-
-                # 5. Log them in to Django
-            login(request, user)
-            session_token = secrets.token_urlsafe(32)
-            cache.set(f'session_{session_token}', email, timeout=3 * 60 * 60)
-
-            return JsonResponse({'status': 'success', 'session_token': session_token})
-
-        except Exception as e:
-            return JsonResponse({'status': 'error', 'message': str(e)})
-
-    return JsonResponse({'status': 'error', 'message': 'Invalid request'})
-
-
-# school/views.py
-
-
-@csrf_exempt
-def firebase_admin_signup_bridge(request):
-    if request.method == "POST":
-        try:
-            data = json.loads(request.body)
-            id_token = data.get('id_token')
-
-            print("=== SIGNUP DEBUG ===")
-            print("Token received:", bool(id_token))
-            print("Token length:", len(id_token) if id_token else 0)
-            print("First name:", data.get('first_name'))
-            print("Email from data:", data.get('email'))
-
-            if not id_token:
-                return JsonResponse({'status': 'error', 'message': 'No token received'})
-
-            first_name = data.get('first_name')
-            last_name = data.get('last_name')
-            mobile = data.get('mobile')
-            address = data.get('address')
-            invite_code = data.get('invite_code', '')
-
-            # 1. Verify Token with Firebase
-            decoded_token = auth.verify_id_token(id_token, clock_skew_seconds=60)
-            uid = decoded_token['uid']
-            email = decoded_token['email']
-
-            # 2. Same bootstrap/invite-code gate as the classic /adminsignup path:
-            # a valid Firebase token only proves *a* Google account was verified, not
-            # that its owner is allowed to be an admin here.
-            is_bootstrap = not User.objects.filter(groups__name='ADMIN').exists()
-            if not is_bootstrap and invite_code != settings.ADMIN_SIGNUP_INVITE_CODE:
-                return JsonResponse({
-                    'status': 'error',
-                    'message': 'Invalid invite code. Contact an existing administrator for access.'
-                })
-
-            # 3. Create or Update the Core User
-            user, created = User.objects.get_or_create(username=uid)
-            user.email = email
-            user.first_name = first_name
-            user.last_name = last_name
-
-            # This allows the user to log into the Django system
-            user.is_staff = True
-            user.save()
-
-            # 4. Save Extra Data (Database Reflection)
-            admin_extra, created = AdminExtra.objects.get_or_create(user=user)
-            admin_extra.mobile = mobile
-            admin_extra.address = address
-            admin_extra.status = is_bootstrap
-            admin_extra.save()
-
-            if not is_bootstrap:
-                # Pending: verified via Firebase, but withheld from the ADMIN group and
-                # the Firebase 'admin' claim until an existing admin approves them.
-                return JsonResponse({
-                    'status': 'success',
-                    'pending': True,
-                    'message': 'Registration submitted! An existing administrator must approve your account before you can log in.'
-                })
-
-            # 5. Bootstrap: first admin ever, grant access immediately — there's no one
-            # else around yet to approve them.
-            admin_group, _ = Group.objects.get_or_create(name='ADMIN')
-            admin_group.user_set.add(user)
-
-            # 6. SET FIREBASE CUSTOM CLAIMS (Cloud Identification)
-            # This makes Firebase "know" the user is an admin forever.
-            auth.set_custom_user_claims(uid, {'admin': True})
-
-            # 7. Log them in
-            login(request, user)
-
-            return JsonResponse({'status': 'success', 'pending': False})
-
-        except Exception as e:
-            return JsonResponse({'status': 'error', 'message': str(e)})
-
-    return JsonResponse({'status': 'error', 'message': 'Invalid Method'})
-
-
 def admin_login_view(request):
     # If already logged in, send them straight to the router
     if request.user.is_authenticated:
@@ -1041,54 +903,10 @@ def admin_login_view(request):
             messages.error(request, 'No account found with this email.')
             return render(request, 'school/admin/adminlogin.html')
 
-        # 1. Try Django's own password store first (the steady-state path)
         auth_user = authenticate(username=user.username, password=password)
-
-        # 2. Self-healing fallback: this admin has never logged in since the
-        # migration to Django-first auth, so Django has no password for them
-        # yet. Verify the password against Firebase (server-side equivalent
-        # of the old client-side signInWithEmailAndPassword call), and if it
-        # checks out, backfill a Django password so future logins skip this.
-        if auth_user is None:
-            try:
-                resp = requests.post(
-                    "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword",
-                    params={"key": settings.FIREBASE_WEB_API_KEY},
-                    json={"email": email, "password": password, "returnSecureToken": True},
-                    timeout=8,
-                )
-                if resp.status_code == 200:
-                    user.set_password(password)
-                    user.save()
-                    auth_user = authenticate(username=user.username, password=password)
-            except requests.RequestException as e:
-                print(f"❌ Firebase password verification failed: {str(e)}")
 
         if auth_user is not None and auth_user.groups.filter(name='ADMIN').exists():
             login(request, auth_user)
-
-            # ==========================================
-            # FIREBASE INSTANT PROVISIONING
-            # Guarantees the admin appears in Firebase Console immediately
-            # ==========================================
-            uid = str(auth_user.username)
-            try:
-                auth.get_user(uid)
-            except auth.UserNotFoundError:
-                try:
-                    auth.create_user(
-                        uid=uid,
-                        email=auth_user.email,
-                        display_name=f"{auth_user.first_name} {auth_user.last_name}".strip() or auth_user.username,
-                    )
-                except Exception as e:
-                    print(f"❌ Firebase provisioning failed: {str(e)}")
-            try:
-                auth.set_custom_user_claims(uid, {'admin': True})
-            except Exception as e:
-                print(f"❌ Firebase claim update failed: {str(e)}")
-            # ==========================================
-
             return redirect('afterlogin')
         elif auth_user is not None and AdminExtra.objects.filter(user=auth_user, status=False).exists():
             admin_extra = AdminExtra.objects.get(user=auth_user)
@@ -1244,27 +1062,6 @@ def student_login_view(request):
 
         if auth_user is not None:
             login(request, auth_user)
-
-            # ==========================================
-            # FIREBASE INSTANT PROVISIONING
-            # Guarantees the student appears in Firebase Console immediately
-            # ==========================================
-            uid = str(auth_user.username)
-            try:
-                auth.get_user(uid)
-            except auth.UserNotFoundError:
-                try:
-                    auth.create_user(
-                        uid=uid,
-                        email=auth_user.email,
-                        display_name=f"{auth_user.first_name} {auth_user.last_name}".strip() or auth_user.username,
-                    )
-                    auth.set_custom_user_claims(uid, {'role': 'student'})
-                    print(f"✅ Successfully provisioned Student {auth_user.email} in Firebase.")
-                except Exception as e:
-                    print(f"❌ Firebase provisioning failed: {str(e)}")
-            # ==========================================
-
             return redirect('afterlogin')
         else:
             messages.error(request, 'Invalid admission number or password.')

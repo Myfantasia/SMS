@@ -86,10 +86,6 @@ urlpatterns = [
     path('attendance/roster/<int:class_stream_id>/<str:date>/', AttendanceRosterView.as_view(), name='attendance_roster'),
     path('attendance/overview/', AdminAttendanceOverviewView.as_view(), name='attendance_overview'),
 
-
-    path('api/firebase-login/', views.firebase_login_bridge, name='firebase-login'),
-    path('api/firebase-admin-signup/', views.firebase_admin_signup_bridge, name='firebase-admin-signup'),
-
     path('admin/', admin.site.urls),
     path('', views.home_view, name=''),
 
