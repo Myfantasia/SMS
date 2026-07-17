@@ -26,9 +26,6 @@ import EventsHub from './components/events/EventsHub';
 import NoticesHub from './components/notices/NoticesHub';
 import ExamsHub from './components/exams/ExamsHub';
 import ResultsHub from './components/results/ResultsHub';
-import { auth } from './firebaseConfig';
-import { useEffect, useState } from 'react';
-import { onAuthStateChanged } from 'firebase/auth';
 import AllocationDashboard from './components/subjectAllocations/AllocationDashboard';
 import { ChatProvider } from './components/chats/ChatProvider';
 import AssignmentsHub from './components/assignments/AssignmentsHub';
@@ -55,40 +52,7 @@ import ApproveLeaves from './components/leave/ApproveLeaves';
 import FinanceHub from './components/Finance/FinanceHub';
 
 
-// 1. CATCH THE URL TOKEN AND SAVE TO LOCAL STORAGE
-const urlParams = new URLSearchParams(window.location.search);
-const tokenFromUrl = urlParams.get('token');
-if (tokenFromUrl) {
-  localStorage.setItem('firebase_dev_token', tokenFromUrl);
-  window.history.replaceState({}, document.title, window.location.pathname);
-}
-
 export default function App() {
-
-  const [isAuthReady, setIsAuthReady] = useState(false);
-
-  useEffect(() => {
-    // This listener actively waits for Firebase to check the browser's memory
-    // Once Firebase confirms whether a user exists OR is definitely null, it fires.
-    const unsubscribe = onAuthStateChanged(auth, () => {
-      setIsAuthReady(true); // Tell React it's safe to render the app now!
-    });
-
-    // Cleanup listener on unmount
-    return () => unsubscribe();
-  }, []);
-
-  // Show a clean loading screen while Firebase is checking the session
-  if (!isAuthReady) {
-    return (
-      <div className="h-screen w-screen flex flex-col items-center justify-center bg-slate-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
-        <p className="text-slate-500 font-medium">Restoring secure session...</p>
-      </div>
-    );
-  }
-
-
   return (
     <BrowserRouter>
       <Toaster 

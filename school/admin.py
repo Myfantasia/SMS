@@ -45,9 +45,9 @@ admin.site.register(User, UserAdmin)
 
 
 # --- ADMIN APPROVAL QUEUE ---
-# Signups via /adminsignup or the Firebase bridge land here with status=False and are
-# NOT in the ADMIN group yet (group membership alone is what is_admin() checks). An
-# existing superuser reviews and approves/revokes them from this list.
+# Signups via /adminsignup land here with status=False and are NOT in the ADMIN group
+# yet (group membership alone is what is_admin() checks). An existing superuser
+# reviews and approves/revokes them from this list.
 @admin.register(AdminExtra)
 class AdminExtraAdmin(ModelAdmin):
     list_display = ('user', 'status', 'mobile')

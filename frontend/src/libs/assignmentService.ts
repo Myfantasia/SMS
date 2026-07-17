@@ -1,8 +1,7 @@
 import api from './axiosInstance';
 import type { Assignment, Question } from './assignments';
-import { auth } from '../firebaseConfig'; // <-- Import Firebase auth
 
-const API_URL = '/api/assignments'; 
+const API_URL = '/api/assignments';
 
 // --- NEW UTILITY HELPER: Extracts CSRF tokens from cookies ---
 export const getCSRFToken = (): string => {
@@ -10,34 +9,6 @@ export const getCSRFToken = (): string => {
   const parts = value.split(`; csrftoken=`);
   if (parts.length === 2) return parts.pop()?.split(';').shift() || '';
   return '';
-};
-
-
-// --- UPDATED HELPER FUNCTION ---
-export const getAuthHeaders = async () => {
-  // 1. Wait for Firebase to finish checking the local session
-  await new Promise((resolve) => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
-      unsubscribe(); // Stop listening once we get the initial state
-      resolve(user);
-    });
-  });
-
-  // 2. Now we can safely grab the user
-  const user = auth.currentUser;
-  
-  if (user) {
-    const token = await user.getIdToken();
-    return { Authorization: `Bearer ${token}` };
-  }
-  
-  // 3. Fallback for your local development (just in case)
-  const devToken = localStorage.getItem('firebase_dev_token');
-  if (devToken) {
-    return { Authorization: `Bearer ${devToken}` };
-  }
-  
-  return {};
 };
 
 // Keys whose values are arrays/objects and must be JSON-stringified rather than .toString()'d
@@ -70,28 +41,24 @@ export const assignmentService = {
 
   // Fetch Assignments
   getAssignments: async (teacherId?: number) => {
-    const headers = await getAuthHeaders(); // <-- Waits for token securely
-
     const url = teacherId
       ? `${API_URL}/teacher/?teacher_id=${teacherId}`
       : `${API_URL}/teacher/`;
 
-    const response = await api.get(url, { headers });
+    const response = await api.get(url);
     return response.data.assignments;
   },
 
   // Delete an Assignment
   deleteAssignment: async (id: string | number) => {
-    const headers = await getAuthHeaders();
     const response = await api.delete(`${API_URL}/teacher/${id}/`, {
-      headers: { ...headers, 'X-CSRFToken': getCSRFToken() },
+      headers: { 'X-CSRFToken': getCSRFToken() },
     });
     return response.data;
   },
 
   // Create an Assignment
   createAssignment: async (assignment: Assignment, questions: Question[]) => {
-    const authHeaders = await getAuthHeaders(); // <-- Waits for token securely
     const formData = new FormData();
 
     appendAssignmentFormData(formData, assignment);
@@ -99,7 +66,6 @@ export const assignmentService = {
 
     const response = await api.post(`${API_URL}/teacher/`, formData, {
       headers: {
-        ...authHeaders,
         'Content-Type': 'multipart/form-data',
         'X-CSRFToken': getCSRFToken(),
       },
@@ -109,21 +75,18 @@ export const assignmentService = {
 
   // --- NEW: Fetch a Single Assignment by ID ---
   getAssignmentById: async (id: string | number) => {
-    const headers = await getAuthHeaders();
-    const response = await api.get(`${API_URL}/teacher/${id}/`, { headers });
+    const response = await api.get(`${API_URL}/teacher/${id}/`);
     return response.data.data; // Navigates through the {"status": "success", "data": {...}} wrapper
   },
 
   // Lightweight roster for the "specific students" / "group member" pickers
   getStudentsForStream: async (classStreamId: number | string): Promise<{ id: number; name: string; roll: string }[]> => {
-    const headers = await getAuthHeaders();
-    const response = await api.get(`${API_URL}/class-stream/${classStreamId}/students/`, { headers });
+    const response = await api.get(`${API_URL}/class-stream/${classStreamId}/students/`);
     return response.data.students;
   },
 
   // --- NEW: Update an Existing Assignment ---
   updateAssignment: async (id: string | number, assignment: Partial<Assignment>, questions: Question[]) => {
-    const authHeaders = await getAuthHeaders();
     const formData = new FormData();
 
     Object.keys(assignment).forEach(key => {
@@ -149,10 +112,7 @@ export const assignmentService = {
     formData.append('questions', JSON.stringify(questions));
 
     const response = await api.put(`${API_URL}/teacher/${id}/`, formData, {
-      headers: {
-        ...authHeaders, 
-        'Content-Type': 'multipart/form-data',
-      },
+      headers: { 'Content-Type': 'multipart/form-data' },
     });
     return response.data;
   }

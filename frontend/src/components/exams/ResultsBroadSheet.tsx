@@ -94,38 +94,6 @@ const ResultsBroadsheet: React.FC<ResultsBroadsheetProps> = ({ role = 'teacher' 
 
   // --- HANDLERS ---
 
-  // FIX: The URL Bridge - Handles both Production (1 port) and Development (2 ports)
-  const getAuthConfig = () => {
-    const token = localStorage.getItem('firebase_dev_token');
-
-    if (!token) {
-      throw new Error("Session expired. Please log in again.");
-    }
-
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      const isExpired = payload.exp * 1000 < Date.now();
-      
-      if (isExpired) {
-        localStorage.removeItem('firebase_dev_token'); // clean up
-        window.location.href = 'http://localhost:8000/adminlogin'; // redirect to login
-        throw new Error("Token expired. Redirecting to login...");
-      }
-    } catch (e: any) {
-      if (e.message.includes("Redirecting")) throw e; // re-throw our redirect error
-      // If parsing fails for other reasons, still try the request
-    }
-
-    
-    return {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      }
-    };
-  };
-
-
   // PROFESSIONAL PUBLISH POPUP
   const handlePublish = () => {
     if (!selectedExam || !selectedClass) return;
@@ -159,8 +127,7 @@ const ResultsBroadsheet: React.FC<ResultsBroadsheetProps> = ({ role = 'teacher' 
               toast.dismiss(t.id);
               setIsPublishing(true);
               try {
-                const config = getAuthConfig();
-                await api.post(`/api/exams/events/${selectedExam}/publish/`, { class_id: selectedClass }, config);
+                await api.post(`/api/exams/events/${selectedExam}/publish/`, { class_id: selectedClass });
                 toast.success('This class has been published successfully!');
                 setClassPublishStatus('Published');
               } catch (error: any) {
@@ -183,8 +150,7 @@ const ResultsBroadsheet: React.FC<ResultsBroadsheetProps> = ({ role = 'teacher' 
                 toast.dismiss(t.id);
                 setIsPublishing(true);
                 try {
-                  const config = getAuthConfig();
-                  await api.post(`/api/exams/events/${selectedExam}/publish/`, { class_id: 'ALL' }, config);
+                  await api.post(`/api/exams/events/${selectedExam}/publish/`, { class_id: 'ALL' });
                   toast.success('Entire school published successfully!');
                   setClassPublishStatus('Published');
                 } catch (error: any) {
@@ -237,8 +203,7 @@ const ResultsBroadsheet: React.FC<ResultsBroadsheetProps> = ({ role = 'teacher' 
             onClick={async () => {
               toast.dismiss(t.id);
               try {
-                const config = getAuthConfig();
-                await api.post(`/api/exams/events/${selectedExam}/revert/`, { class_id: selectedClass }, config);
+                await api.post(`/api/exams/events/${selectedExam}/revert/`, { class_id: selectedClass });
                 toast.success('Class reversed to Draft!');
                 setClassPublishStatus('Draft');
               } catch (error: any) {
@@ -258,8 +223,7 @@ const ResultsBroadsheet: React.FC<ResultsBroadsheetProps> = ({ role = 'teacher' 
               onClick={async () => {
                 toast.dismiss(t.id);
                 try {
-                  const config = getAuthConfig();
-                  await api.post(`/api/exams/events/${selectedExam}/revert/`, { class_id: 'ALL' }, config);
+                  await api.post(`/api/exams/events/${selectedExam}/revert/`, { class_id: 'ALL' });
                   toast.success('Entire school reversed to Draft!');
                   setClassPublishStatus('Draft');
                 } catch (error: any) {
