@@ -29,11 +29,13 @@ from django.contrib.auth import logout
 from django.contrib.auth import update_session_auth_hash
 from django.db.models import Q
 import secrets
+from datetime import timedelta
 from django.utils import timezone
 from django.core.cache import cache
 from school.models.classSubjects_models import Subject, SubjectAllocation
 from school.permissions import api_login_required, api_admin_required
 from school.rbac import get_user_permission_codes, is_class_teacher_of_student
+from school.views.auth_rate_limit import is_login_rate_limited, record_login_failure, security_logger
 
 
 @csrf_exempt
@@ -876,11 +878,31 @@ def admin_login_view(request):
                 messages.error(request, 'Verification session expired. Please log in again to restart.')
                 return render(request, 'school/admin/adminlogin.html')
 
+            # A 6-digit code is only 1-in-1,000,000 — cap guesses per admin_extra
+            # before forcing a fresh code, and expire codes after 30 minutes so a
+            # stale one can't be brute-forced indefinitely.
+            attempts_key = f'verify_code_attempts:{admin_extra.pk}'
+            attempts = cache.get(attempts_key, 0)
+            code_expired = (
+                admin_extra.code_generated_at is not None
+                and timezone.now() - admin_extra.code_generated_at > timedelta(minutes=30)
+            )
+
+            if attempts >= 5 or code_expired:
+                admin_extra.verification_code = None
+                admin_extra.code_generated_at = None
+                admin_extra.save()
+                cache.delete(attempts_key)
+                security_logger.warning('Verification code invalidated (expired or too many attempts) for %s', verify_email)
+                messages.error(request, 'This code has expired. Ask the approving administrator to approve you again for a fresh code.')
+                return render(request, 'school/admin/adminlogin.html')
+
             if admin_extra.verification_code and submitted_code.strip() == admin_extra.verification_code:
                 admin_extra.status = True
                 admin_extra.verification_code = None
                 admin_extra.code_generated_at = None
                 admin_extra.save()
+                cache.delete(attempts_key)
 
                 my_admin_group, _ = Group.objects.get_or_create(name='ADMIN')
                 my_admin_group.user_set.add(pending_user)
@@ -888,6 +910,7 @@ def admin_login_view(request):
                 messages.success(request, 'Account verified! You can now log in below.', extra_tags='signup_success')
                 return render(request, 'school/admin/adminlogin.html')
 
+            cache.set(attempts_key, attempts + 1, 30 * 60)
             messages.error(request, 'Incorrect verification code. Please try again.')
             return render(request, 'school/admin/adminlogin.html', {
                 'needs_verification': True,
@@ -897,13 +920,20 @@ def admin_login_view(request):
         email = request.POST.get('email')
         password = request.POST.get('password')
 
+        if is_login_rate_limited(request, email):
+            messages.error(request, 'Invalid email or password.')
+            return render(request, 'school/admin/adminlogin.html')
+
         try:
             user = User.objects.get(email=email)
         except User.DoesNotExist:
+            record_login_failure(request, email)
             messages.error(request, 'No account found with this email.')
             return render(request, 'school/admin/adminlogin.html')
 
         auth_user = authenticate(username=user.username, password=password)
+        if auth_user is None:
+            record_login_failure(request, email)
 
         if auth_user is not None and auth_user.groups.filter(name='ADMIN').exists():
             login(request, auth_user)
@@ -1074,12 +1104,17 @@ def student_login_view(request):
         username = request.POST.get('username')
         password = request.POST.get('password')
 
+        if is_login_rate_limited(request, username):
+            messages.error(request, 'Invalid admission number or password.')
+            return render(request, 'school/students/studentlogin.html')
+
         auth_user = authenticate(username=username, password=password)
 
         if auth_user is not None:
             login(request, auth_user)
             return redirect('afterlogin')
         else:
+            record_login_failure(request, username)
             messages.error(request, 'Invalid admission number or password.')
 
     # GET request: just render the login page

@@ -28,6 +28,7 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from school.models.teachers_model import TeacherStructuralAvailability, TeacherLeave
 from school.models.classSubjects_models import SystemAuditLog
+from school.views.auth_rate_limit import is_login_rate_limited, record_login_failure
 
 class TeacherDashboardOverviewAPI(APIView):
     """
@@ -139,6 +140,10 @@ def teacher_login_view(request):
         email = request.POST.get('email')
         password = request.POST.get('password')
 
+        if is_login_rate_limited(request, email):
+            messages.error(request, 'Invalid email or password.')
+            return render(request, 'school/teachers/teacherlogin.html')
+
         try:
             # 1. Find the User object linked to this email
             user = User.objects.get(email=email)
@@ -151,9 +156,11 @@ def teacher_login_view(request):
                 login(request, auth_user)
                 return redirect('afterlogin')
             else:
+                record_login_failure(request, email)
                 messages.error(request, 'Invalid email or password.')
 
         except User.DoesNotExist:
+            record_login_failure(request, email)
             messages.error(request, 'No account found with this email.')
 
     # GET request: just render the login page
