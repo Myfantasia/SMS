@@ -5,9 +5,35 @@ from school import models
 
 #for admin
 class AdminSigupForm(forms.ModelForm):
+    # No username field — the template collects email instead, and the view
+    # auto-generates a unique username from it (see admin_signup_view).
+    email = forms.EmailField()
+    mobile = forms.CharField(max_length=40)
+    address = forms.CharField(max_length=200)
+    password2 = forms.CharField(widget=forms.PasswordInput, label='Confirm password')
+
     class Meta:
-        model=User
-        fields=['first_name','last_name','username','password']
+        model = User
+        fields = ['first_name', 'last_name', 'password']
+        widgets = {'password': forms.PasswordInput}
+
+    def clean_email(self):
+        email = self.cleaned_data['email'].strip().lower()
+        if User.objects.filter(email=email).exists():
+            raise forms.ValidationError('An account with this email already exists.')
+        return email
+
+    def clean(self):
+        cleaned = super().clean()
+        password = cleaned.get('password')
+        password2 = cleaned.get('password2')
+
+        if password and len(password) < 6:
+            self.add_error('password', 'Password must be at least 6 characters.')
+        elif password and password2 and password != password2:
+            self.add_error('password2', 'Passwords do not match.')
+
+        return cleaned
 
 
 #for student related form

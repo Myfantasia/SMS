@@ -22,15 +22,26 @@
                 <p>Register as a system administrator.</p>
             </div>
 
-            <form id="adminSignupForm">
+            <form method="post">
+                {% csrf_token %}
+                {% include "school/form_errors.html" %}
+
+                {% if messages %}
+                    {% for message in messages %}
+                        {% if 'signup_success' not in message.tags %}
+                        <div class="error-message" style="display:block;">{{ message }}</div>
+                        {% endif %}
+                    {% endfor %}
+                {% endif %}
+
                 <div class="form-row">
                     <div class="form-group col-half">
                         <label class="field-label" for="first_name">First Name</label>
-                        <input type="text" id="first_name" class="form-control" placeholder="e.g. Jane" required>
+                        <input type="text" id="first_name" name="first_name" class="form-control" placeholder="e.g. Jane" required>
                     </div>
                     <div class="form-group col-half">
                         <label class="field-label" for="last_name">Last Name</label>
-                        <input type="text" id="last_name" class="form-control" placeholder="e.g. Mwangi" required>
+                        <input type="text" id="last_name" name="last_name" class="form-control" placeholder="e.g. Mwangi" required>
                     </div>
                 </div>
 
@@ -39,17 +50,15 @@
                         <label class="field-label" for="email">Email Address</label>
                         <div class="input-icon-wrap">
                             <i class="fas fa-envelope input-icon"></i>
-                            <input type="email" id="email" class="form-control" placeholder="e.g. jane@myfantasia.com" required>
+                            <input type="email" id="email" name="email" class="form-control" placeholder="e.g. jane@myfantasia.com" required>
                         </div>
                     </div>
                     <div class="col-half">
                         <div class="form-group">
                             <label class="field-label" for="mobile">Mobile Number</label>
-                            <div class="phone-group">
-                                <select id="country_code" class="form-control code-select" disabled>
-                                    <option>+254</option>
-                                </select>
-                                <input type="tel" id="mobile" class="form-control phone-input" placeholder="712 345 678" required>
+                            <div class="input-icon-wrap">
+                                <i class="fas fa-phone input-icon"></i>
+                                <input type="tel" id="mobile" name="mobile" class="form-control" placeholder="+254 712 345 678" required>
                             </div>
                         </div>
                     </div>
@@ -59,24 +68,24 @@
                     <label class="field-label" for="address">Address</label>
                     <div class="input-icon-wrap">
                         <i class="fas fa-location-dot input-icon"></i>
-                        <input type="text" id="address" class="form-control" placeholder="Street, City" required>
+                        <input type="text" id="address" name="address" class="form-control" placeholder="Street, City" required>
                     </div>
                 </div>
 
                 <div class="form-row">
                     <div class="form-group col-half">
-                        <label class="field-label" for="pass1">Password</label>
+                        <label class="field-label" for="password">Password</label>
                         <div class="input-icon-wrap">
                             <i class="fas fa-lock input-icon"></i>
-                            <input type="password" id="pass1" class="form-control" placeholder="Create a password" required>
+                            <input type="password" id="password" name="password" class="form-control" placeholder="Create a password" required>
                         </div>
                         <div class="input-hint"><i class="fas fa-circle-info"></i> Minimum 6 characters.</div>
                     </div>
                     <div class="form-group col-half">
-                        <label class="field-label" for="pass2">Confirm Password</label>
+                        <label class="field-label" for="password2">Confirm Password</label>
                         <div class="input-icon-wrap">
                             <i class="fas fa-lock input-icon"></i>
-                            <input type="password" id="pass2" class="form-control" placeholder="Repeat password" required>
+                            <input type="password" id="password2" name="password2" class="form-control" placeholder="Repeat password" required>
                         </div>
                     </div>
                 </div>
@@ -85,20 +94,16 @@
                     <label class="field-label" for="invite_code">Admin Invite Code <span class="optional-label">(skip for the first admin account)</span></label>
                     <div class="input-icon-wrap">
                         <i class="fas fa-key input-icon"></i>
-                        <input type="text" id="invite_code" class="form-control" placeholder="Provided by an existing administrator">
+                        <input type="text" id="invite_code" name="invite_code" class="form-control" placeholder="Provided by an existing administrator">
                     </div>
                     <div class="input-hint"><i class="fas fa-circle-info"></i> Ask an existing admin for this — it's required for every account after the first.</div>
                 </div>
 
                 <button type="submit" class="btn-login"><i class="fas fa-user-plus"></i> Register & Access Dashboard</button>
-                <div id="errorMessage" class="error-message"></div>
                 <div class="signup-link"><p>Already an Admin? <a href="/adminlogin">Login here</a></p></div>
             </form>
         </div>
     </div>
     {% include "school/footer.html" %}
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
-    <script src="{% static 'js/admin_signup.js' %}"></script>
 </body>
 </html>

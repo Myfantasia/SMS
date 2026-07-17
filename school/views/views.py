@@ -952,6 +952,18 @@ def studentclick_view(request):
     return render(request, 'school/students/studentclick.html')
 
 
+def _generate_admin_username(email):
+    """Derives a unique User.username from an admin signup email's local part —
+    the signup form has no username field, so this is the only source for it."""
+    base = ''.join(ch for ch in email.split('@')[0] if ch.isalnum() or ch in '_.') or 'admin'
+    username = base
+    counter = 1
+    while User.objects.filter(username=username).exists():
+        username = f"{base}{counter}"
+        counter += 1
+    return username
+
+
 def admin_signup_view(request):
     form=forms.AdminSigupForm()
     if request.method=='POST':
@@ -968,11 +980,15 @@ def admin_signup_view(request):
                 messages.error(request, 'Invalid invite code. Contact an existing administrator for access.')
                 return render(request, 'school/admin/adminsignup.html', {'form': form})
 
-            user=form.save()
-            user.set_password(user.password)
+            user = form.save(commit=False)
+            user.username = _generate_admin_username(form.cleaned_data['email'])
+            user.email = form.cleaned_data['email']
+            user.set_password(form.cleaned_data['password'])
             user.save()
 
             admin_extra, _ = AdminExtra.objects.get_or_create(user=user)
+            admin_extra.mobile = form.cleaned_data['mobile']
+            admin_extra.address = form.cleaned_data['address']
             admin_extra.status = is_bootstrap
             admin_extra.save()
 
@@ -983,7 +999,7 @@ def admin_signup_view(request):
             else:
                 messages.success(request, 'Registration submitted! An existing administrator must approve your account before you can log in.', extra_tags='signup_success')
 
-            return HttpResponseRedirect('adminlogin')
+            return redirect('adminlogin')
     return render(request, 'school/admin/adminsignup.html', {'form':form})
 
 
