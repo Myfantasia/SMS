@@ -62,9 +62,23 @@ CSRF_TRUSTED_ORIGINS = [
 CSRF_COOKIE_HTTPONLY = False
 CSRF_COOKIE_SAMESITE = 'Lax'
 SESSION_COOKIE_SAMESITE = 'Lax'
-SESSION_COOKIE_SECURE = False  # False for local dev, True in production
 SESSION_COOKIE_AGE = 60 * 60 * 3  # Sessions expire after 3 hours of inactivity
 SESSION_SAVE_EVERY_REQUEST = True  # ...resetting that 3-hour clock on every request (sliding/idle timeout, not absolute-from-login)
+
+# Deliberately a separate flag from DEBUG/MAINTENANCE_MODE (same env-var-driven,
+# defaults-off pattern as MAINTENANCE_MODE below) — set this once actually deployed
+# behind real HTTPS. Left off by default so local dev (plain http://localhost) is
+# never affected: with these on over plain HTTP, the browser would refuse to send
+# the session/CSRF cookies back at all, silently breaking every request.
+PRODUCTION_SECURITY = os.environ.get('PRODUCTION_SECURITY', 'False').lower() == 'true'
+SESSION_COOKIE_SECURE = PRODUCTION_SECURITY
+CSRF_COOKIE_SECURE = PRODUCTION_SECURITY
+SECURE_SSL_REDIRECT = PRODUCTION_SECURITY
+SECURE_CONTENT_TYPE_NOSNIFF = PRODUCTION_SECURITY
+X_FRAME_OPTIONS = 'DENY'
+if PRODUCTION_SECURITY:
+    SECURE_HSTS_SECONDS = 60 * 60 * 24 * 30  # 30 days — ramp up once confirmed stable
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 
 
 ROOT_URLCONF = 'schoolmanagement.Urls.urls'
@@ -191,6 +205,29 @@ MAINTENANCE_MODE = os.environ.get('MAINTENANCE_MODE', 'False').lower() == 'true'
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# --------------------------------------------------------
+# SECURITY EVENT LOGGING
+# --------------------------------------------------------
+# Without this, a logger not under the 'django' namespace (like school.security,
+# used for failed-login/rate-limit/verification-code events — see
+# school/views/auth_rate_limit.py) has no configured handler: INFO-level calls
+# would be silently dropped, and even WARNING+ would only reach Python's bare
+# "handler of last resort" rather than a consistent, filterable stream.
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {'class': 'logging.StreamHandler'},
+    },
+    'loggers': {
+        'school.security': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}
 
 # --------------------------------------------------------
 # DJANGO REST FRAMEWORK CONFIGURATION

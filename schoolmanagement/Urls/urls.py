@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.conf import settings
 from django.conf.urls.static import static
-from django.contrib.auth.views import LoginView, LogoutView
+from django.contrib.auth.views import LogoutView
 from django.contrib.auth import views as auth_views
 from django.http import JsonResponse
 from school.views import views, chat_views
@@ -36,6 +36,7 @@ from school.views.teacherAllocation_view import AllocationMatrixAPIView, Rollove
 from school.views.chat_views import ClassParentsAPI
 from school.views.password_reset_views import RateLimitedPasswordResetView, \
     NotifyingPasswordResetConfirmView, api_admin_reset_user_password, api_teacher_reset_student_password
+from school.views.auth_rate_limit import RateLimitedLoginView
 from school.views import class_views
 from school.views.teacher_dashboard_view import teacher_login_view, TeacherPersonalTimetableAPIView, \
     api_manage_teacher_availability
@@ -104,7 +105,7 @@ urlpatterns = [
     path('adminlogin', views.admin_login_view, name='adminlogin'),
     path('studentlogin', views.student_login_view, name='studentlogin'),
     path('teacherlogin/', teacher_login_view, name='teacherlogin'),
-    path('parentlogin', LoginView.as_view(template_name='school/parents/parentlogin.html'), name='parentlogin'),
+    path('parentlogin', RateLimitedLoginView.as_view(template_name='school/parents/parentlogin.html'), name='parentlogin'),
     path('stafflogin/', views.staff_login_view, name='stafflogin'),
 
     path('afterlogin', views.afterlogin_view, name='afterlogin'),
