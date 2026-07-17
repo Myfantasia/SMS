@@ -6,18 +6,18 @@
     <title>Parent Portal | Login</title>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="{% static 'css/navbar.css' %}?v=2">
-    <link rel="stylesheet" href="{% static 'css/auth_style.css' %}">
-    <link rel="stylesheet" href="{% static 'css/success_popup.css' %}">
+    <link rel="stylesheet" href="{% static 'css/navbar.css' %}?v=3">
+    <link rel="stylesheet" href="{% static 'css/auth_style.css' %}?v=4">
+    <link rel="stylesheet" href="{% static 'css/success_popup.css' %}?v=2">
 </head>
-<body>
+<body class="role-parent">
     {% include "school/navbar.html" %}
     {% include "school/success_popup.html" %}
 
     <div class="login-wrapper">
         <div class="login-card">
             <div class="login-header">
-                <i class="fas fa-user-friends" style="font-size: 3rem; color: #6366f1; margin-bottom: 15px;"></i>
+                <div class="header-icon-badge"><i class="fas fa-user-friends"></i></div>
                 <h2>Parent Login</h2>
                 <p>Welcome back to the parent portal.</p>
             </div>
@@ -26,27 +26,30 @@
                 {% csrf_token %}
 
                 {% if form.errors %}
-                <div class="alert alert-danger" style="color: red; text-align: center; margin-bottom: 10px;">
-                    Invalid Username or Password
+                <div class="error-message" style="display:block; margin-top: 0; margin-bottom: 20px;">
+                    Invalid username or password.
                 </div>
                 {% endif %}
 
                 <div class="form-group">
                     <label class="field-label">Username</label>
-                    <div class="input-with-icon">
-                        <input type="text" name="username" class="form-control" placeholder="Enter username" required>
+                    <div class="input-icon-wrap">
+                        <i class="fas fa-user input-icon"></i>
+                        <input type="text" name="username" class="form-control" placeholder="e.g. (studentname)_parent" required>
                     </div>
+                    <div class="input-hint"><i class="fas fa-circle-info"></i> The username you created at registration, not your email.</div>
                 </div>
 
                 <div class="form-group">
                     <label class="field-label">Password</label>
-                    <div class="input-with-icon">
-                        <input type="password" name="password" class="form-control" placeholder="Enter password" required>
+                    <div class="input-icon-wrap">
+                        <i class="fas fa-lock input-icon"></i>
+                        <input type="password" name="password" class="form-control" placeholder="Enter your password" required>
                     </div>
                 </div>
 
                 <div style="text-align: right; margin-top: -10px; margin-bottom: 20px;">
-                    <a href="{% url 'password_reset' %}" style="color: #6366f1; text-decoration: none; font-size: 0.9rem; font-weight: 600;">Forgot Password?</a>
+                    <a href="{% url 'password_reset' %}?role=parent" class="forgot-password" style="font-size: 0.9rem; font-weight: 600;">Forgot Password?</a>
                 </div>
 
                 <button type="submit" class="btn-login">
@@ -63,5 +66,6 @@
 
     {% include "school/footer.html" %}
     <script src="{% static 'js/success_popup.js' %}"></script>
+    <script src="{% static 'js/form_handler.js' %}"></script>
 </body>
 </html>

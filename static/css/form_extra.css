@@ -14,20 +14,19 @@
     height: auto;
     padding: 8px 12px;
     cursor: pointer;
-    background-color: rgba(15, 23, 42, 0.6); /* Matches your dark inputs */
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background-color: var(--input-bg); /* Matches the other form inputs */
+    border: 1px solid var(--border-soft-strong);
     border-radius: 8px;
     transition: all 0.3s ease;
 }
 
 .multi-select-input:hover {
-    border-color: rgba(255, 255, 255, 0.3);
+    border-color: var(--border-soft-strong);
 }
 
 .multi-select-input.active {
     border-color: #6366f1; /* Your theme purple */
     box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
-    background-color: rgba(15, 23, 42, 0.8);
 }
 
 /* Container for the selected items */
@@ -39,7 +38,7 @@
 }
 
 .placeholder-text {
-    color: #94a3b8;
+    color: var(--text-muted);
     font-size: 14px;
 }
 
@@ -75,15 +74,14 @@
     left: 0;
     right: 0;
     margin-top: 5px;
-    background-color: rgba(30, 41, 59, 0.95); /* Glassmorphism dark */
-    backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background-color: var(--option-bg);
+    border: 1px solid var(--border-soft-strong);
     border-radius: 8px;
     max-height: 220px;
     overflow-y: auto;
     z-index: 1000;
     display: none;
-    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 10px 25px -5px var(--shadow-color);
 }
 
 .multi-select-dropdown.show {
@@ -93,7 +91,7 @@
 /* Individual options inside the dropdown */
 .dropdown-option {
     padding: 10px 15px;
-    color: #e2e8f0;
+    color: var(--option-text);
     font-size: 14px;
     cursor: pointer;
     transition: background-color 0.2s ease;
@@ -112,7 +110,7 @@
 }
 
 .toggle-icon {
-    color: #94a3b8;
+    color: var(--text-muted);
     transition: transform 0.3s ease;
     margin-left: 10px;
 }

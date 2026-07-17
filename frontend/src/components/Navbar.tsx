@@ -4,6 +4,7 @@ import { Search, MessageCircle, User, LogOut, ChevronDown } from 'lucide-react';
 import { useChat } from './chats/ChatProvider';
 import NotificationBell from './Notifications';
 import api from '../libs/axiosInstance';
+import { clearActivity } from '../libs/sessionExpiry';
 
 interface NavbarProps {
   role: string;
@@ -122,7 +123,7 @@ useEffect(() => {
               My Profile
             </Link>
             <hr className="my-1 border-slate-100" />
-            <a href="http://localhost:8000/logout" className="flex items-center gap-3 px-4 py-2 hover:bg-red-50 text-red-600 transition-colors text-sm font-medium">
+            <a href="http://localhost:8000/logout" onClick={clearActivity} className="flex items-center gap-3 px-4 py-2 hover:bg-red-50 text-red-600 transition-colors text-sm font-medium">
               <LogOut className="w-4 h-4" />
               Logout
             </a>

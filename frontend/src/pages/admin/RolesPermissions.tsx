@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { Fragment, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShieldCheck, Plus, Trash2, X, Search, UserPlus, UserMinus, History, Pencil } from 'lucide-react';
+import { ShieldCheck, Plus, Trash2, X, Search, UserPlus, UserMinus, History, Pencil, Copy, Users, ChevronDown, ChevronUp } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../libs/axiosInstance';
 
@@ -17,6 +17,14 @@ interface Role {
   description: string;
   permissions: Permission[];
   is_system_role: boolean;
+  member_count: number;
+}
+
+interface RoleMember {
+  id: number;
+  username: string;
+  email: string;
+  full_name: string;
 }
 
 interface UserSearchResult {
@@ -51,6 +59,11 @@ export default function RolesPermissions() {
 
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [auditLoading, setAuditLoading] = useState(true);
+
+  const [expandedPerms, setExpandedPerms] = useState<Set<number>>(new Set());
+  const [expandedMembers, setExpandedMembers] = useState<number | null>(null);
+  const [members, setMembers] = useState<RoleMember[]>([]);
+  const [membersLoading, setMembersLoading] = useState(false);
 
   const fetchRoles = () => {
     api.get('/api/core/rbac/roles/')
@@ -93,6 +106,59 @@ export default function RolesPermissions() {
     } finally {
       setDeleting(false);
     }
+  };
+
+  const togglePermsExpanded = (roleId: number) => {
+    setExpandedPerms((prev) => {
+      const next = new Set(prev);
+      if (next.has(roleId)) next.delete(roleId);
+      else next.add(roleId);
+      return next;
+    });
+  };
+
+  const toggleMembers = async (role: Role) => {
+    if (expandedMembers === role.id) {
+      setExpandedMembers(null);
+      return;
+    }
+    setExpandedMembers(role.id);
+    setMembersLoading(true);
+    try {
+      const res = await api.get(`/api/core/rbac/roles/${role.id}/members/`);
+      setMembers(res.data);
+    } catch (error) {
+      console.error('Failed to load role members', error);
+      toast.error('Failed to load role members.');
+      setMembers([]);
+    } finally {
+      setMembersLoading(false);
+    }
+  };
+
+  const removeMember = async (role: Role, member: RoleMember) => {
+    try {
+      await api.delete('/api/core/rbac/assignments/', { data: { user_id: member.id, role_id: role.id } });
+      setMembers((prev) => prev.filter((m) => m.id !== member.id));
+      toast.success(`Removed ${member.full_name} from ${role.name}.`);
+      fetchRoles();
+      fetchAuditLog();
+    } catch (error: any) {
+      console.error('Failed to remove member', error);
+      toast.error(error?.response?.data?.error || 'Failed to remove member.');
+    }
+  };
+
+  const duplicateRole = (role: Role) => {
+    navigate('/admin-dashboard/roles-permissions/new', {
+      state: {
+        cloneFrom: {
+          name: `${role.name} (Copy)`,
+          description: role.description,
+          permission_ids: role.permissions.map((p) => p.id),
+        },
+      },
+    });
   };
 
   const runUserSearch = async () => {
@@ -180,49 +246,116 @@ export default function RolesPermissions() {
               <tr className="text-slate-400 text-[11px] uppercase tracking-wider border-b border-slate-100 bg-slate-50">
                 <th className="px-6 py-3 font-bold">Role</th>
                 <th className="px-6 py-3 font-bold">Permissions</th>
+                <th className="px-6 py-3 font-bold">Members</th>
                 <th className="px-6 py-3 font-bold text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="text-sm text-slate-700 divide-y divide-slate-50">
-              {roles.map((role) => (
-                <tr key={role.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-slate-800">{role.name}</span>
-                      {role.is_system_role && (
-                        <span className="bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full">
-                          System
-                        </span>
-                      )}
-                    </div>
-                    {role.description && <p className="text-xs text-slate-400 mt-0.5">{role.description}</p>}
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex flex-wrap gap-1">
-                      {role.permissions.length > 0 ? role.permissions.map((p) => (
-                        <span key={p.id} className="bg-slate-100 border border-slate-200 text-slate-700 px-2 py-1 rounded text-xs whitespace-nowrap font-mono">
-                          {p.code}
-                        </span>
-                      )) : <span className="text-xs text-slate-400 italic">No permissions</span>}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <div className="flex justify-end gap-3">
-                      <button onClick={() => navigate(`/admin-dashboard/roles-permissions/${role.id}/edit`)} className="text-slate-400 hover:text-blue-600 transition" title="Edit role">
-                        <Pencil className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => setRoleToDelete(role)}
-                        disabled={role.is_system_role}
-                        className="text-slate-400 hover:text-red-600 transition disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-slate-400"
-                        title={role.is_system_role ? "System roles can't be deleted" : "Delete role"}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {roles.map((role) => {
+                const isExpanded = expandedPerms.has(role.id);
+                const modules = Array.from(new Set(role.permissions.map((p) => p.module)));
+                const visiblePerms = isExpanded ? role.permissions : role.permissions.slice(0, 4);
+                const membersOpen = expandedMembers === role.id;
+                return (
+                  <Fragment key={role.id}>
+                    <tr className="hover:bg-slate-50 transition-colors align-top">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-slate-800">{role.name}</span>
+                          {role.is_system_role && (
+                            <span className="bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full">
+                              System
+                            </span>
+                          )}
+                        </div>
+                        {role.description && <p className="text-xs text-slate-400 mt-0.5">{role.description}</p>}
+                      </td>
+                      <td className="px-6 py-4">
+                        {role.permissions.length === 0 ? (
+                          <span className="text-xs text-slate-400 italic">No permissions</span>
+                        ) : (
+                          <div className="space-y-1.5 max-w-sm">
+                            <p className="text-xs text-slate-500">
+                              <span className="font-semibold text-slate-700">{role.permissions.length}</span> permission{role.permissions.length !== 1 ? 's' : ''} across {modules.length} module{modules.length !== 1 ? 's' : ''}
+                            </p>
+                            <div className="flex flex-wrap gap-1">
+                              {visiblePerms.map((p) => (
+                                <span key={p.id} title={p.label} className="bg-slate-100 border border-slate-200 text-slate-700 px-2 py-1 rounded text-xs whitespace-nowrap font-mono">
+                                  {p.code}
+                                </span>
+                              ))}
+                            </div>
+                            {role.permissions.length > 4 && (
+                              <button onClick={() => togglePermsExpanded(role.id)} className="flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:text-blue-700">
+                                {isExpanded ? <>Show less <ChevronUp className="w-3 h-3" /></> : <>Show all <ChevronDown className="w-3 h-3" /></>}
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
+                        <button
+                          onClick={() => toggleMembers(role)}
+                          className={`flex items-center gap-1.5 text-xs font-bold px-2.5 py-1.5 rounded-full border transition ${
+                            membersOpen ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-500 hover:border-blue-300 hover:text-blue-600'
+                          }`}
+                        >
+                          <Users className="w-3.5 h-3.5" />
+                          {role.member_count} {role.member_count === 1 ? 'user' : 'users'}
+                          {membersOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                        </button>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex justify-end gap-3">
+                          <button onClick={() => duplicateRole(role)} className="text-slate-400 hover:text-blue-600 transition" title="Duplicate role">
+                            <Copy className="w-4 h-4" />
+                          </button>
+                          <button onClick={() => navigate(`/admin-dashboard/roles-permissions/${role.id}/edit`)} className="text-slate-400 hover:text-blue-600 transition" title="Edit role">
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => setRoleToDelete(role)}
+                            disabled={role.is_system_role}
+                            className="text-slate-400 hover:text-red-600 transition disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-slate-400"
+                            title={role.is_system_role ? "System roles can't be deleted" : "Delete role"}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                    {membersOpen && (
+                      <tr className="bg-slate-50/60">
+                        <td colSpan={4} className="px-6 py-4">
+                          {membersLoading ? (
+                            <div className="animate-pulse flex gap-2">
+                              {[1, 2, 3].map((i) => <div key={i} className="h-8 w-32 bg-slate-200 rounded-full"></div>)}
+                            </div>
+                          ) : members.length === 0 ? (
+                            <p className="text-xs text-slate-400 italic">No one currently holds this role.</p>
+                          ) : (
+                            <div className="flex flex-wrap gap-2">
+                              {members.map((m) => (
+                                <span key={m.id} className="flex items-center gap-2 bg-white border border-slate-200 rounded-full pl-3 pr-1.5 py-1 text-xs">
+                                  <span className="font-semibold text-slate-700">{m.full_name}</span>
+                                  <span className="text-slate-400">{m.email || m.username}</span>
+                                  <button
+                                    onClick={() => removeMember(role, m)}
+                                    title={`Remove ${m.full_name} from ${role.name}`}
+                                    className="text-slate-300 hover:text-red-600 transition p-0.5"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
             </tbody>
           </table>
         )}

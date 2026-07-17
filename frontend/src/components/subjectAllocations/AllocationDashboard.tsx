@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import { AlertTriangle, Layers, ClipboardList, HelpCircle } from 'lucide-react'; // Added icons
+import { AlertTriangle, ClipboardList, HelpCircle } from 'lucide-react';
 import type { MatrixRow } from '../../libs/types';
 import ContextFilters from './ContextFilters';
 import MatrixTable from './MatrixTable';
@@ -93,22 +93,34 @@ const AllocationDashboard: React.FC = () => {
       <div className="max-w-7xl mx-auto bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
         
         {/* Header Section */}
-        <div className="px-6 py-5 bg-slate-800 flex flex-col md:flex-row justify-between items-center gap-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-white/10 text-white shrink-0">
-              <ClipboardList className="w-5 h-5" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-white tracking-tight">
-                Subject Teacher Allocations
-              </h1>
-              <p className="text-slate-400 text-sm">
-                Assign and manage staff teaching loads per class
-              </p>
-            </div>
+        <div className="px-6 py-5 flex items-center gap-4 border-b border-slate-100">
+          <div className="p-3 rounded-2xl text-indigo-600 bg-indigo-50 shrink-0">
+            <ClipboardList className="w-6 h-6" strokeWidth={2.5} />
+          </div>
+          <div>
+            <h1 className="text-2xl font-extrabold text-slate-800">
+              Subject Teacher Allocations
+            </h1>
+            <p className="text-slate-500 text-sm mt-0.5">
+              Assign and manage staff teaching loads per class
+            </p>
+          </div>
+        </div>
+
+        <div className="p-6">
+          {/* 1. Context Filters */}
+          <div className="mb-6">
+            {/* The Key prop forces this to remount and fetch fresh data when splits are generated */}
+            <ContextFilters
+                key={refreshKey}
+                selectedYear={yearId} setSelectedYear={setYearId}
+                selectedTerm={termId} setSelectedTerm={setTermId}
+                selectedClass={classId} setSelectedClass={setClassId}
+            />
           </div>
 
-          <div className="flex items-center gap-3">
+          {/* 2. Action Toolbar */}
+          <div className="mb-8">
              <ActionButtons
                yearId={yearId}
                termId={termId}
@@ -119,46 +131,11 @@ const AllocationDashboard: React.FC = () => {
                matrixData={matrixData}
                setMatrixData={setMatrixData}
                onRefresh={triggerRefresh}
+               onOpenSplittingModal={() => setIsSplittingModalOpen(true)}
              />
           </div>
-        </div>
 
-        <div className="p-6">
-          {/* 1. Context Filters & Splitting Button */}
-          <div className="mb-8 relative">
-            
-            {/* NEW: Manage Elective Splits Button (Desktop placement) */}
-            <div className="absolute top-4 right-5 z-10 hidden md:block">
-               <button
-                 onClick={() => setIsSplittingModalOpen(true)}
-                 className="flex items-center gap-2 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-sm font-bold rounded-lg transition-colors border border-indigo-200 shadow-sm"
-               >
-                 <Layers className="w-4 h-4" />
-                 Manage Elective Splits
-               </button>
-            </div>
-
-            {/* The Key prop forces this to remount and fetch fresh data when splits are generated */}
-            <ContextFilters 
-                key={refreshKey}
-                selectedYear={yearId} setSelectedYear={setYearId}
-                selectedTerm={termId} setSelectedTerm={setTermId}
-                selectedClass={classId} setSelectedClass={setClassId}
-            />
-
-            {/* Mobile-only button placement */}
-            <div className="mt-4 md:hidden">
-               <button
-                 onClick={() => setIsSplittingModalOpen(true)}
-                 className="w-full flex justify-center items-center gap-2 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-sm font-bold rounded-lg transition-colors border border-indigo-200 shadow-sm"
-               >
-                 <Layers className="w-4 h-4" />
-                 Manage Elective Splits
-               </button>
-            </div>
-          </div>
-
-          {/* 2. Matrix Grid Section */}
+          {/* 3. Matrix Grid Section */}
           <div className="mt-8">
             
             {/* NEW: AMBER WARNING FOR VIRTUAL STREAMS */}

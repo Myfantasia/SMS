@@ -33,7 +33,9 @@ from school.views.teacherAllocation_view import AllocationMatrixAPIView, Rollove
     AutoAllocateDraftAPIView, BulkAutoAllocateAPIView, ClearAllocationsAPIView, api_manage_splitting_rules, \
     api_execute_allocation_splits, GlobalAllocationPolicyAPIView, api_get_stream_teachers, api_get_teacher_allocations
 
-from school.views.chat_views import GetFirebaseAuthTokenAPI, ClassParentsAPI
+from school.views.chat_views import ClassParentsAPI
+from school.views.password_reset_views import RateLimitedPasswordResetView, \
+    NotifyingPasswordResetConfirmView, api_admin_reset_user_password, api_teacher_reset_student_password
 from school.views import class_views
 from school.views.teacher_dashboard_view import teacher_login_view, TeacherPersonalTimetableAPIView, \
     api_manage_teacher_availability
@@ -45,7 +47,7 @@ from school.views.parent_dashboard_view import ParentDashboardOverviewAPI
 from school.views.finance_views import FinanceOverviewAPI
 from school.views.student_tasks_view import StudentTaskViewSet
 from school.views.rbac_views import RoleViewSet, PermissionViewSet, UserRoleAssignmentAPIView
-from school.views.curriculum_view import CurriculumViewSet, PathwayViewSet, CurriculumPresetViewSet
+from school.views.curriculum_view import CurriculumViewSet, PathwayViewSet, CurriculumPresetViewSet, TierViewSet
 
 router = DefaultRouter()
 router.register(r'events', EventViewSet, basename='event')
@@ -56,6 +58,7 @@ router.register(r'rbac/roles', RoleViewSet, basename='rbac-role')
 router.register(r'rbac/permissions', PermissionViewSet, basename='rbac-permission')
 router.register(r'curriculum/curricula', CurriculumViewSet, basename='curriculum')
 router.register(r'curriculum/pathways', PathwayViewSet, basename='curriculum-pathway')
+router.register(r'curriculum/tiers', TierViewSet, basename='curriculum-tier')
 router.register(r'curriculum/presets', CurriculumPresetViewSet, basename='curriculum-preset')
 
 student_router = DefaultRouter()
@@ -94,16 +97,19 @@ urlpatterns = [
     path('teacherclick', views.teacherclick_view, name='teacherclick'),
     path('studentclick', views.studentclick_view, name='studentclick'),
     path('parentclick', views.parentclick_view, name='parentclick'),
+    path('staffclick', views.staffclick_view, name='staffclick'),
 
     path('adminsignup', views.admin_signup_view, name='adminsignup'),
     path('studentsignup', views.student_signup_view, name='studentsignup'),
     path('teachersignup', views.teacher_signup_view, name='teachersignup'),
     path('parentsignup', views.parent_signup_view, name='parentsignup'),
+    path('staffsignup', views.staff_signup_view, name='staffsignup'),
 
     path('adminlogin', views.admin_login_view, name='adminlogin'),
     path('studentlogin', views.student_login_view, name='studentlogin'),
     path('teacherlogin/', teacher_login_view, name='teacherlogin'),
     path('parentlogin', LoginView.as_view(template_name='school/parents/parentlogin.html'), name='parentlogin'),
+    path('stafflogin/', views.staff_login_view, name='stafflogin'),
 
     path('afterlogin', views.afterlogin_view, name='afterlogin'),
 
@@ -121,9 +127,9 @@ urlpatterns = [
     path('system-status/', views.system_status_view, name='system-status'),
 
     # Password Reset Paths
-    path('password-reset/', auth_views.PasswordResetView.as_view(template_name='school/password_reset/password_reset.html'), name='password_reset'),
+    path('password-reset/', RateLimitedPasswordResetView.as_view(template_name='school/password_reset/password_reset.html'), name='password_reset'),
     path('password-reset/done/', auth_views.PasswordResetDoneView.as_view(template_name='school/password_reset/password_reset_done.html'), name='password_reset_done'),
-    path('password-reset-confirm/<uidb64>/<token>/', auth_views.PasswordResetConfirmView.as_view(template_name='school/password_reset/password_reset_confirm.html'), name='password_reset_confirm'),
+    path('password-reset-confirm/<uidb64>/<token>/', NotifyingPasswordResetConfirmView.as_view(template_name='school/password_reset/password_reset_confirm.html'), name='password_reset_confirm'),
     path('password-reset-complete/', auth_views.PasswordResetCompleteView.as_view(template_name='school/password_reset/password_reset_complete.html'), name='password_reset_complete'),
 
 
@@ -149,6 +155,13 @@ urlpatterns = [
 # API endpoint for editing a user profile
     path('api/user/<str:user_type>/<int:user_id>/edit/', views.api_edit_single_user, name='api_edit_single_user'),
 
+# API endpoint for an admin to reset another user's password (students, or anyone
+# who can't complete self-service reset yet)
+    path('api/admin/reset-user-password/', api_admin_reset_user_password, name='api_admin_reset_user_password'),
+
+# API endpoint for a Class Teacher to reset a password for a student in their own class only
+    path('api/teacher/reset-student-password/', api_teacher_reset_student_password, name='api_teacher_reset_student_password'),
+
     path('api/my-profile/', views.api_my_profile, name='api_my_profile'),
 
     path('api/search/', views.api_global_search, name='api_global_search'),
@@ -161,6 +174,7 @@ urlpatterns = [
     # Classes & Grades
     path('api/manage-classes/', class_views.api_manage_classes, name='api_manage_classes'),
     path('api/academic-hub/add-grade/', class_views.api_add_grade_with_streams, name='api_add_grade'),
+    path('api/academic-hub/edit-grade/<int:pk>/', class_views.api_edit_grade, name='api_edit_grade'),
     path('api/add-single-stream/', class_views.api_add_single_stream, name='api_add_single_stream'),
     path('api/academic-hub/edit-stream/<int:pk>/', class_views.api_edit_stream, name='api_edit_stream'),
     path('api/academic-hub/delete-stream/<int:pk>/', class_views.api_delete_stream, name='api_delete_stream'),
@@ -191,6 +205,14 @@ urlpatterns = [
     # only ever being populated by an admin assigning subjects directly.
     path('api/subjects/my-electives/', subject_views.api_student_elective_options, name='student_elective_options'),
     path('api/subjects/my-electives/request/', subject_views.api_student_elective_request, name='student_elective_request'),
+
+    # Student self-service Pathway choice + the admin/class-teacher approval queue for it —
+    # same request/approve shape as the electives pair above, but for a student's single SSS
+    # Pathway (see StudentPathwaySelection) instead of many subjects.
+    path('api/subjects/my-pathway/', subject_views.api_student_pathway_options, name='student_pathway_options'),
+    path('api/subjects/my-pathway/request/', subject_views.api_student_pathway_request, name='student_pathway_request'),
+    path('api/subjects/pathway-requests/', subject_views.api_pathway_requests, name='pathway_requests'),
+    path('api/subjects/pathway-requests/<int:selection_id>/decide/', subject_views.api_decide_pathway_request, name='decide_pathway_request'),
 
 # ==========================================
     # TIMETABLE ENGINE API ROUTES
@@ -269,8 +291,11 @@ urlpatterns = [
     path('api/chat/read/<uuid:thread_id>/', chat_views.MarkThreadReadAPI.as_view(), name='chat-mark-read'),
     path('api/chat/admin/group/', chat_views.CreateAdminGroupThreadAPI.as_view(), name='chat-admin-group'),
     path('api/chat/admin/audit/<uuid:thread_id>/', chat_views.AdminAuditLogAPI.as_view(), name='chat-admin-audit'),
-    path('api/chat/firebase-token/', GetFirebaseAuthTokenAPI.as_view(), name='firebase_token'),
+    path('api/chat/messages/<uuid:thread_id>/', chat_views.ThreadMessageHistoryAPI.as_view(), name='chat-message-history'),
+    path('api/chat/attachments/<uuid:thread_id>/', chat_views.ChatAttachmentUploadAPI.as_view(), name='chat-attachment-upload'),
     path('api/chat/class-parents/<int:stream_id>/', ClassParentsAPI.as_view(), name='chat-class-parents'),
+    path('api/chat/leave/<uuid:thread_id>/', chat_views.LeaveConversationAPI.as_view(), name='chat-leave'),
+    path('api/chat/participants/<uuid:thread_id>/', chat_views.ThreadParticipantsAPI.as_view(), name='chat-participants'),
 
 
 # ==========================================

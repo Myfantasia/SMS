@@ -1,0 +1,102 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Terms of Service | MyFantasia</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{% static 'css/navbar.css' %}?v=3">
+    <link rel="stylesheet" href="{% static 'css/home.css' %}?v=5">
+    <link rel="stylesheet" href="{% static 'css/legal.css' %}?v=3">
+</head>
+<body>
+    {% include "school/navbar.html" %}
+
+    <main>
+        <section class="legal-hero">
+            <span class="pill-tag"><i class="fas fa-file-contract"></i> Terms</span>
+            <h1>Terms of <span class="gradient-text">Service</span></h1>
+            <p>The rules that govern use of the MyFantasia school management portal by students, parents, teachers, and administrators.</p>
+            <span class="legal-updated">Last updated: January 2026</span>
+        </section>
+
+        <div class="legal-toc">
+            <h4>On this page</h4>
+            <ol>
+                <li><a href="#acceptance">Acceptance of Terms</a></li>
+                <li><a href="#accounts">Accounts & Access</a></li>
+                <li><a href="#acceptable-use">Acceptable Use</a></li>
+                <li><a href="#fees">Fees & Payments</a></li>
+                <li><a href="#content">Content & Records</a></li>
+                <li><a href="#availability">Availability</a></li>
+                <li><a href="#liability">Limitation of Liability</a></li>
+                <li><a href="#changes">Changes to These Terms</a></li>
+                <li><a href="#contact-terms">Contact Us</a></li>
+            </ol>
+        </div>
+
+        <div class="legal-body">
+            <section id="acceptance">
+                <h2><i class="fas fa-check-circle"></i> Acceptance of Terms</h2>
+                <p>By logging into or otherwise using this portal — as an administrator, teacher, student, or parent — you agree to these Terms of Service and to our <a href="/privacy-policy/" style="color: var(--primary);">Privacy Policy</a>. If you do not agree, please do not use the system and contact the school administration directly instead.</p>
+            </section>
+
+            <section id="accounts">
+                <h2><i class="fas fa-user-shield"></i> Accounts & Access</h2>
+                <ul>
+                    <li>Accounts are role-specific (Admin, Teacher, Student, Parent) and are provisioned or approved by the school administration.</li>
+                    <li>Parent accounts must be verified against an existing, matching student record before approval.</li>
+                    <li>You are responsible for keeping your login credentials confidential and for all activity carried out under your account.</li>
+                    <li>Impersonating another user, or attempting to access records outside your role's permissions, is strictly prohibited.</li>
+                </ul>
+            </section>
+
+            <section id="acceptable-use">
+                <h2><i class="fas fa-gavel"></i> Acceptable Use</h2>
+                <p>You agree to use the portal only for its intended purpose — managing and following academic, attendance, financial, and administrative activity related to the school. You agree not to:</p>
+                <ul>
+                    <li>Attempt to bypass authentication, probe for vulnerabilities, or interfere with the normal operation of the system.</li>
+                    <li>Upload or submit content that is unlawful, abusive, or infringes on someone else's rights.</li>
+                    <li>Share, scrape, or redistribute another student's or family's academic or personal records.</li>
+                    <li>Use the messaging or notice features to send unsolicited or harassing communication.</li>
+                </ul>
+            </section>
+
+            <section id="fees">
+                <h2><i class="fas fa-mobile-alt"></i> Fees & Payments</h2>
+                <p>Fee balances shown on the portal are for reference and are reconciled against payments made via M-PESA Paybill. In case of any discrepancy between a displayed balance and an actual payment made, please raise it with the school accounts office or through <a href="/contactus" style="color: var(--primary);">Contact Us</a> promptly so it can be corrected.</p>
+            </section>
+
+            <section id="content">
+                <h2><i class="fas fa-folder-open"></i> Content & Records</h2>
+                <p>Academic records, attendance, assignments, and results entered into the system remain the property of the school. Users may view and, where their role permits (e.g. a teacher grading an assignment), edit only the records relevant to their role. The school reserves the right to correct erroneous entries.</p>
+            </section>
+
+            <section id="availability">
+                <h2><i class="fas fa-server"></i> Availability</h2>
+                <p>We aim to keep the portal available at all times, but scheduled maintenance, upgrades, or circumstances outside our control may occasionally make it temporarily unavailable. Current operational status is published on our <a href="/system-status/" style="color: var(--primary);">System Status</a> page.</p>
+            </section>
+
+            <section id="liability">
+                <h2><i class="fas fa-balance-scale"></i> Limitation of Liability</h2>
+                <p>The portal is provided on an "as available" basis. While we take reasonable care to keep information accurate and the system secure, the school is not liable for indirect or incidental loss arising from temporary unavailability, data entry errors by third parties, or events beyond our reasonable control.</p>
+            </section>
+
+            <section id="changes">
+                <h2><i class="fas fa-sync-alt"></i> Changes to These Terms</h2>
+                <p>We may update these Terms of Service from time to time to reflect changes to the platform or school policy. The "Last updated" date at the top of this page reflects the most recent revision. Continued use of the portal after an update constitutes acceptance of the revised terms.</p>
+            </section>
+
+            <section id="contact-terms">
+                <h2><i class="fas fa-envelope"></i> Contact Us</h2>
+                <p>Questions about these terms can be sent through our <a href="/contactus" style="color: var(--primary);">Contact page</a>.</p>
+            </section>
+        </div>
+    </main>
+
+    {% include "school/footer.html" %}
+</body>
+</html>

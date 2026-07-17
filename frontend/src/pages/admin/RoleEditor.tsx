@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
-import { ShieldCheck, Save, Search, ChevronRight, ChevronLeft, CheckSquare, Square } from 'lucide-react';
+import { useNavigate, useParams, useLocation, Link } from 'react-router-dom';
+import { ShieldCheck, Save, Search, ChevronRight, ChevronLeft, CheckSquare, Square, Users } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../libs/axiosInstance';
 
@@ -17,6 +17,7 @@ interface Role {
   description: string;
   permissions: Permission[];
   is_system_role: boolean;
+  member_count: number;
 }
 
 // Common school-system role names to speed up "Add Role" — selecting one fills in the
@@ -29,8 +30,9 @@ const ROLE_TEMPLATES: { name: string; description: string; permissions: string[]
   { name: 'Finance Officer', description: 'Fees, salaries, and financial oversight', permissions: ['finance.view'] },
   { name: 'Accountant', description: 'Fees, salaries, and financial oversight', permissions: ['finance.view'] },
   { name: 'Exam Officer', description: 'Coordinates exam scheduling and results processing', permissions: ['exams.view', 'exams.edit', 'results.view', 'results.edit'] },
-  { name: 'Registrar', description: 'Manages class, stream, and enrollment records', permissions: ['classes.view', 'classes.edit'] },
-  { name: 'HR Officer', description: 'Manages staff leave and personnel records', permissions: ['leave.view', 'leave.edit'] },
+  { name: 'Marks Entry Clerk', description: 'Enters exam marks only — cannot change exam terms, events, or grading rules', permissions: ['exams.view', 'exams.marks'] },
+  { name: 'Registrar', description: 'Manages student enrollment, transfers, and status', permissions: ['classes.view', 'classes.enrollment'] },
+  { name: 'HR Officer', description: 'Approves staff leave requests', permissions: ['leave.view', 'leave.approve'] },
   { name: 'Front Office Coordinator', description: 'Handles notices, events, and visitor coordination', permissions: ['notices.edit', 'events.edit', 'classes.view'] },
   { name: 'Timetable Coordinator', description: 'Builds and maintains the school timetable', permissions: ['timetable.view', 'timetable.edit'] },
   { name: 'Subject Allocation Coordinator', description: 'Manages teacher-subject allocations', permissions: ['allocations.view', 'allocations.edit'] },
@@ -45,20 +47,27 @@ const ROLE_TEMPLATES: { name: string; description: string; permissions: string[]
   { name: 'Receptionist', description: 'Front-desk visitor and enquiry management', permissions: ['classes.view'] },
 ];
 
+interface CloneState {
+  cloneFrom?: { name: string; description: string; permission_ids: number[] };
+}
+
 export default function RoleEditor() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
+  const location = useLocation();
   const isEditing = Boolean(id);
+  const cloneFrom = (location.state as CloneState | null)?.cloneFrom;
 
   const [loading, setLoading] = useState(isEditing);
   const [saving, setSaving] = useState(false);
 
-  const [roleName, setRoleName] = useState('');
-  const [description, setDescription] = useState('');
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [roleName, setRoleName] = useState(cloneFrom?.name ?? '');
+  const [description, setDescription] = useState(cloneFrom?.description ?? '');
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set(cloneFrom?.permission_ids ?? []));
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [templateSearch, setTemplateSearch] = useState('');
   const [isSystemRole, setIsSystemRole] = useState(false);
+  const [memberCount, setMemberCount] = useState(0);
 
   useEffect(() => {
     api.get('/api/core/rbac/permissions/').then((res) => setPermissions(res.data));
@@ -74,6 +83,7 @@ export default function RoleEditor() {
         setDescription(role.description || '');
         setSelectedIds(new Set(role.permissions.map((p) => p.id)));
         setIsSystemRole(role.is_system_role);
+        setMemberCount(role.member_count);
       })
       .catch((err) => {
         console.error('Failed to load role', err);
@@ -191,7 +201,17 @@ export default function RoleEditor() {
                 </span>
               )}
             </h1>
-            <p className="text-xs text-slate-500">{selectedIds.size} permission{selectedIds.size !== 1 ? 's' : ''} selected</p>
+            <p className="text-xs text-slate-500 flex items-center gap-2">
+              <span>{selectedIds.size} permission{selectedIds.size !== 1 ? 's' : ''} selected</span>
+              {isEditing && (
+                <span className="flex items-center gap-1 text-slate-400">
+                  <Users className="w-3 h-3" /> {memberCount} {memberCount === 1 ? 'user holds' : 'users hold'} this role
+                </span>
+              )}
+              {!isEditing && cloneFrom && (
+                <span className="text-blue-500">— duplicated from {cloneFrom.name.replace(/ \(Copy\)$/, '')}, review before saving</span>
+              )}
+            </p>
           </div>
         </div>
         <div className="flex gap-3">

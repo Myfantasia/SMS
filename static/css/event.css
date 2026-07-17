@@ -1,32 +1,32 @@
+/* --- Uses CSS variables from home.css so this page follows the site-wide light/dark theme --- */
 /* --- PAGE BASE --- */
 .events-page {
-    padding-top: 100px;
-    background-color: #020617; /* Deep Navy Background */
+    background-color: var(--bg-dark);
     min-height: 100vh;
     padding-bottom: 80px;
     font-family: 'Outfit', sans-serif;
-    color: #f1f5f9;
+    color: var(--text-main);
 }
 
 /* Common Header Styles */
 .section-header, .sector-header { margin-bottom: 50px; }
 .center-header { text-align: center; }
-.white-highlight, .white-text { color: white; }
-.center-header h2, .sector-header h2 { font-size: 2.8rem; font-weight: 800; margin-bottom: 10px; color: #94a3b8; }
-.center-header p, .sector-header p { color: #94a3b8; font-size: 1.1rem; }
-.header-line { width: 60px; height: 4px; background: #6366f1; border-radius: 2px; margin: 20px auto 0; }
+.white-highlight, .white-text { color: var(--text-main); }
+.center-header h2, .sector-header h2 { font-size: 2.8rem; font-weight: 800; margin-bottom: 10px; color: var(--text-muted); }
+.center-header p, .sector-header p { color: var(--text-muted); font-size: 1.1rem; }
+.header-line { width: 60px; height: 4px; background: var(--primary); border-radius: 2px; margin: 20px auto 0; }
 .sector-header .header-line { margin: 20px 0 0; } /* Align left for sectors */
 
 /* --- HERO SECTION --- */
 .events-hero {
     text-align: center;
-    padding: 100px 6% 60px;
+    padding: 40px 6% 60px;
     position: relative;
-    background: radial-gradient(circle at 50% 0%, rgba(99, 102, 241, 0.15), transparent 70%);
+    background: radial-gradient(circle at 50% 0%, var(--hero-glow), transparent 70%);
 }
 
 .pill-tag {
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--surface-tint-strong);
     color: #818cf8;
     padding: 8px 20px;
     border-radius: 50px;
@@ -35,11 +35,11 @@
     letter-spacing: 1.5px;
     display: inline-block;
     margin-bottom: 25px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--border-soft-strong);
 }
 
 .events-hero h1 { font-size: 3.8rem; margin-bottom: 20px; line-height: 1.1; font-weight: 800; }
-.events-hero p { color: #cbd5e1; font-size: 1.25rem; max-width: 700px; margin: 0 auto; line-height: 1.6; }
+.events-hero p { color: var(--text-muted); font-size: 1.25rem; max-width: 700px; margin: 0 auto; line-height: 1.6; }
 
 /* --- SECTOR 1: ACADEMIC CALENDAR (TIMELINE) --- */
 .timeline-section { padding: 40px 6%; }
@@ -51,7 +51,7 @@
     position: absolute;
     top: 20px; bottom: 20px; left: 40px;
     width: 2px;
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--border-soft-strong);
 }
 
 .timeline-row {
@@ -60,24 +60,24 @@
 
 .date-circle {
     width: 80px; height: 80px;
-    background: #0f172a; border: 2px solid #334155; border-radius: 50%;
+    background: var(--card-bg); border: 2px solid var(--border-soft-strong); border-radius: 50%;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     z-index: 2; flex-shrink: 0; transition: 0.3s;
 }
 
-.d-month { font-size: 0.75rem; color: #94a3b8; font-weight: 700; }
-.d-day { font-size: 1.8rem; color: white; font-weight: 800; line-height: 1; }
+.d-month { font-size: 0.75rem; color: var(--text-muted); font-weight: 700; }
+.d-day { font-size: 1.8rem; color: var(--text-main); font-weight: 800; line-height: 1; }
 
-.active-date { border-color: #6366f1; background: #1e1b4b; box-shadow: 0 0 20px rgba(99, 102, 241, 0.3); }
+.active-date { border-color: var(--primary); background: rgba(99, 102, 241, 0.12); box-shadow: 0 0 20px rgba(99, 102, 241, 0.3); }
 .active-date .d-day { color: #818cf8; }
 
 .timeline-content {
-    background: #1e293b; border: 1px solid rgba(255, 255, 255, 0.05);
+    background: var(--card-bg); border: 1px solid var(--border-soft);
     padding: 30px; border-radius: 20px; flex-grow: 1;
     transition: 0.3s; position: relative;
 }
 .timeline-content:hover { transform: translateX(10px); border-color: rgba(99, 102, 241, 0.3); }
-.active-card { background: rgba(30, 41, 59, 0.8); border-left: 4px solid #6366f1; }
+.active-card { background: rgba(99, 102, 241, 0.08); border-left: 4px solid var(--primary); }
 
 /* Badges inside timeline */
 .content-badge {
@@ -90,12 +90,12 @@
 .exam { background: #ef4444; color: white; }
 .holiday { background: #10b981; color: white; }
 
-.timeline-content h3 { color: white; font-size: 1.5rem; margin-bottom: 10px; font-weight: 700; }
-.timeline-content p { color: #cbd5e1; font-size: 1rem; line-height: 1.6; }
+.timeline-content h3 { color: var(--text-main); font-size: 1.5rem; margin-bottom: 10px; font-weight: 700; }
+.timeline-content p { color: var(--text-muted); font-size: 1rem; line-height: 1.6; }
 
 
 /* --- SECTOR 2: UPCOMING EVENTS (CARDS) --- */
-.upcoming-sector { padding: 40px 6%; background: rgba(255,255,255,0.02); }
+.upcoming-sector { padding: 40px 6%; background: var(--surface-tint); }
 
 .events-card-grid {
     display: grid;
@@ -104,58 +104,59 @@
 }
 
 .event-box {
-    background: #0f172a;
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--card-bg);
+    border: 1px solid var(--border-soft);
     border-radius: 20px;
     padding: 25px;
     display: flex; gap: 20px;
     transition: 0.3s; align-items: flex-start;
 }
-.event-box:hover { transform: translateY(-5px); background: #1e293b; border-color: #6366f1; }
+.event-box:hover { transform: translateY(-5px); background: rgba(99, 102, 241, 0.05); border-color: var(--primary); }
 
 .event-date {
-    background: #1e1b4b; border: 1px solid rgba(99, 102, 241, 0.3);
+    background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.3);
     border-radius: 12px; min-width: 70px; height: 70px;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     flex-shrink: 0;
 }
-.e-day { font-size: 1.8rem; font-weight: 800; color: white; line-height: 1; }
+.e-day { font-size: 1.8rem; font-weight: 800; color: var(--text-main); line-height: 1; }
 .e-month { font-size: 0.8rem; font-weight: 700; color: #818cf8; }
 
 .event-info { display: flex; flex-direction: column; }
 .event-cat { font-size: 0.7rem; font-weight: 800; text-transform: uppercase; margin-bottom: 5px; }
 .sports { color: #f43f5e; } .academic { color: #3b82f6; } .culture { color: #eab308; }
 
-.event-info h3 { color: white; font-size: 1.2rem; margin-bottom: 8px; font-weight: 700; }
-.event-info p { color: #94a3b8; font-size: 0.9rem; line-height: 1.4; margin-bottom: 12px; }
+.event-info h3 { color: var(--text-main); font-size: 1.2rem; margin-bottom: 8px; font-weight: 700; }
+.event-info p { color: var(--text-muted); font-size: 0.9rem; line-height: 1.4; margin-bottom: 12px; }
 
-.event-meta { display: flex; gap: 15px; font-size: 0.8rem; color: #cbd5e1; font-weight: 600; }
-.event-meta i { color: #6366f1; margin-right: 5px; }
+.event-meta { display: flex; gap: 15px; font-size: 0.8rem; color: var(--text-muted); font-weight: 600; }
+.event-meta i { color: var(--primary); margin-right: 5px; }
 
 
 /* --- SECTOR 3: STUDENT NOTICES (LIST) --- */
 .notices-sector { padding: 60px 6%; }
 
 .notices-container {
-    background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 24px;
+    background: var(--card-bg);
+    border: 1px solid var(--border-soft-strong); border-radius: 24px;
     padding: 40px;
+    box-shadow: 0 20px 40px var(--shadow-color);
 }
 
 .notice-list { display: flex; flex-direction: column; gap: 20px; }
 
 .notice-item {
     display: flex; gap: 20px; padding: 20px;
-    background: rgba(255, 255, 255, 0.03); border-radius: 16px;
-    border-left: 4px solid rgba(255, 255, 255, 0.1);
+    background: var(--surface-tint-strong); border-radius: 16px;
+    border-left: 4px solid var(--border-soft-strong);
     transition: 0.3s;
 }
-.notice-item:hover { background: rgba(255, 255, 255, 0.06); }
+.notice-item:hover { background: var(--border-soft); }
 .notice-item.priority { border-left-color: #f43f5e; background: rgba(244, 63, 94, 0.05); }
 
 .notice-icon {
-    font-size: 1.5rem; color: #94a3b8;
-    background: rgba(255, 255, 255, 0.05);
+    font-size: 1.5rem; color: var(--text-muted);
+    background: var(--surface-tint-strong);
     width: 50px; height: 50px; border-radius: 50%;
     display: grid; place-items: center; flex-shrink: 0;
 }
@@ -163,31 +164,32 @@
 
 .notice-content { flex-grow: 1; }
 .notice-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
-.notice-top h4 { color: white; font-size: 1.1rem; margin: 0; font-weight: 700; }
+.notice-top h4 { color: var(--text-main); font-size: 1.1rem; margin: 0; font-weight: 700; }
 .badge-new { background: #f43f5e; color: white; font-size: 0.65rem; padding: 2px 8px; border-radius: 4px; font-weight: 800; }
 
-.notice-content p { color: #cbd5e1; font-size: 0.95rem; margin-bottom: 5px; line-height: 1.5; }
-.notice-content small { color: #64748b; font-size: 0.8rem; }
+.notice-content p { color: var(--text-muted); font-size: 0.95rem; margin-bottom: 5px; line-height: 1.5; }
+.notice-content small { color: var(--text-muted); font-size: 0.8rem; opacity: 0.8; }
 
 
 /* --- SECTOR 4: TRIPS (GALLERY) --- */
-.trips-section { padding: 60px 6%; background: rgba(255,255,255,0.02); }
+.trips-section { padding: 60px 6%; background: var(--surface-tint); }
 .trips-gallery {
     display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 30px;
 }
 
 .trip-card {
-    background: #0f172a; border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--card-bg); border: 1px solid var(--border-soft-strong);
     border-radius: 24px; overflow: hidden; transition: 0.4s;
     display: flex; flex-direction: column;
 }
-.trip-card:hover { transform: translateY(-10px); border-color: #6366f1; box-shadow: 0 20px 40px -10px rgba(0,0,0,0.5); }
+.trip-card:hover { transform: translateY(-10px); border-color: var(--primary); box-shadow: 0 20px 40px -10px var(--shadow-color); }
 
 .trip-image {
     height: 220px; background-size: cover; background-position: center;
-    position: relative; background-color: #1e1b4b;
+    position: relative; background-color: var(--card-bg);
 }
 
+/* Always dark/black — sits on top of a photo, needs to stay readable regardless of page theme */
 .trip-date-badge {
     position: absolute; top: 15px; left: 15px;
     background: rgba(0,0,0,0.7); backdrop-filter: blur(5px);
@@ -196,41 +198,42 @@
 }
 
 .trip-details { padding: 25px; flex-grow: 1; display: flex; flex-direction: column; }
-.trip-details h4 { color: white; font-size: 1.4rem; margin-bottom: 5px; font-weight: 700; }
+.trip-details h4 { color: var(--text-main); font-size: 1.4rem; margin-bottom: 5px; font-weight: 700; }
 .trip-loc { color: #10b981; font-size: 0.85rem; font-weight: 700; text-transform: uppercase; margin-bottom: 15px; display: block; }
-.trip-details p { color: #94a3b8; font-size: 0.95rem; line-height: 1.6; margin-bottom: 20px; flex-grow: 1; }
+.trip-details p { color: var(--text-muted); font-size: 0.95rem; line-height: 1.6; margin-bottom: 20px; flex-grow: 1; }
 
 .btn-trip-action {
-    background: rgba(255,255,255,0.05); color: white;
-    border: 1px solid rgba(255,255,255,0.1);
+    background: var(--surface-tint-strong); color: var(--text-main);
+    border: 1px solid var(--border-soft-strong);
     padding: 12px; border-radius: 12px;
     cursor: pointer; font-weight: 600; transition: 0.3s; width: 100%;
 }
-.btn-trip-action:hover { background: #6366f1; border-color: #6366f1; }
+.btn-trip-action:hover { background: var(--primary); border-color: var(--primary); color: white; }
 
 
 /* --- SECTOR 5: MEMOS (DOWNLOAD GRID) --- */
 .memos-section { padding: 60px 6%; }
 .memos-wrapper {
-    background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 30px;
+    background: var(--card-bg);
+    border: 1px solid var(--border-soft-strong); border-radius: 30px;
     padding: 50px;
+    box-shadow: 0 20px 40px var(--shadow-color);
 }
 
 .memos-header { margin-bottom: 40px; text-align: center; }
-.memos-header h3 { color: white; font-size: 1.8rem; margin-bottom: 5px; }
-.memos-header p { color: #94a3b8; }
+.memos-header h3 { color: var(--text-main); font-size: 1.8rem; margin-bottom: 5px; }
+.memos-header p { color: var(--text-muted); }
 
 .memos-grid {
     display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px;
 }
 
 .memo-card {
-    background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.05);
+    background: var(--surface-tint-strong); border: 1px solid var(--border-soft);
     padding: 20px; border-radius: 16px; display: flex; align-items: center; gap: 15px;
     transition: 0.3s; cursor: pointer;
 }
-.memo-card:hover { background: rgba(255, 255, 255, 0.08); transform: translateY(-3px); border-color: rgba(255, 255, 255, 0.2); }
+.memo-card:hover { background: var(--border-soft); transform: translateY(-3px); border-color: var(--border-soft-strong); }
 
 .memo-icon {
     width: 45px; height: 45px; border-radius: 10px;
@@ -242,9 +245,9 @@
 .bus { background: rgba(16, 185, 129, 0.15); color: #10b981; }
 
 .memo-info { flex-grow: 1; overflow: hidden; }
-.memo-info h5 { color: white; margin: 0 0 3px 0; font-size: 1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.memo-info span { color: #64748b; font-size: 0.8rem; }
-.memo-action { color: #6366f1; font-size: 1rem; }
+.memo-info h5 { color: var(--text-main); margin: 0 0 3px 0; font-size: 1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.memo-info span { color: var(--text-muted); font-size: 0.8rem; }
+.memo-action { color: var(--primary); font-size: 1rem; }
 
 /* Mobile Response */
 @media (max-width: 768px) {

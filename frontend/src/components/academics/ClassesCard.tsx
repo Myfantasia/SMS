@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Users, Eye, Edit, Trash2, X, Star, BookOpen, Plus, Loader2 } from 'lucide-react';
+import { Users, Eye, Edit, Trash2, X, Star, BookOpen, Plus, Loader2, Settings } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../libs/axiosInstance';
 
@@ -16,7 +16,16 @@ interface Grade {
   grade_name: string;
   total_streams: number;
   curriculum_type?: string;
+  curriculum_id: number | null;
+  tier_id: number | null;
   streams: Stream[];
+}
+
+interface Tier {
+  id: number;
+  curriculum: number;
+  name: string;
+  code: string;
 }
 
 // NEW: Interface for the fetched teacher data
@@ -27,18 +36,19 @@ interface AssignedTeacher {
 
 interface ClassesCardProps {
   grades: Grade[];
+  tiers: Tier[];
   onRefresh: () => void;
   onAddStream: (gradeId: number, gradeName: string) => void;
+  onEditGrade: (grade: Grade) => void;
 }
 
-export default function ClassesCard({ grades, onRefresh, onAddStream }: ClassesCardProps) {
+export default function ClassesCard({ grades, tiers, onRefresh, onAddStream, onEditGrade }: ClassesCardProps) {
   const [selectedStream, setSelectedStream] = useState<{ stream: Stream, grade: Grade } | null>(null);
   const [modalType, setModalType] = useState<'view' | 'edit' | 'delete' | null>(null);
 
   // Form States for Editing
   const [editName, setEditName] = useState('');
   const [editCapacity, setEditCapacity] = useState<number | string>('');
-  const [editCurriculum, setEditCurriculum] = useState('CBC');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // NEW: States for dynamic teacher fetching
@@ -80,7 +90,6 @@ const fetchStreamTeachers = async (streamId: number) => {
     if (type === 'edit') {
       setEditName(stream.name);
       setEditCapacity(stream.capacity);
-      setEditCurriculum(grade.curriculum_type || 'CBC'); 
     }
 
     // NEW: Trigger fetch if opening the view modal
@@ -101,11 +110,10 @@ const handleEditSubmit = async () => {
   
   try {
     // Replaced native fetch wrapper with structured api.put()
-    const response = await api.put(`/api/academic-hub/edit-stream/${selectedStream.stream.id}/`, { 
-      name: editName, 
+    const response = await api.put(`/api/academic-hub/edit-stream/${selectedStream.stream.id}/`, {
+      name: editName,
       capacity: editCapacity,
-      curriculum_type: editCurriculum,
-      grade_id: selectedStream.grade.id 
+      grade_id: selectedStream.grade.id
     });
     
     const data = response.data;
@@ -160,17 +168,25 @@ const handleDeleteConfirm = async () => {
         <div key={grade.id} className="border-b border-slate-100 last:border-0">
           <div className="bg-slate-50 px-4 py-3 flex justify-between items-center">
             <span className="font-semibold text-slate-700">
-              {grade.grade_name} 
+              {grade.grade_name}
               <span className="ml-2 text-[10px] uppercase tracking-wider text-slate-400 border border-slate-300 px-1.5 py-0.5 rounded" title="Curriculum Type">
                 {grade.curriculum_type || 'CBC'}
+                {grade.tier_id ? ` · ${tiers.find(t => t.id === grade.tier_id)?.code ?? ''}` : ''}
               </span>
             </span>
-            
+
             <div className="flex items-center gap-3">
               <span className="text-xs font-medium bg-blue-100 text-blue-700 px-2 py-1 rounded-full" title="Total streams in this grade">
                 {grade.total_streams} Streams
               </span>
-              <button 
+              <button
+                onClick={() => onEditGrade(grade)}
+                title={`Edit ${grade.grade_name}'s curriculum settings`}
+                className="flex items-center gap-1 text-xs font-bold text-slate-500 hover:text-amber-600 bg-white border border-slate-200 hover:border-amber-300 px-2 py-1 rounded transition shadow-sm"
+              >
+                <Settings className="w-3.5 h-3.5" /> Edit Grade
+              </button>
+              <button
                 onClick={() => onAddStream(grade.id, grade.grade_name)}
                 title={`Add a new stream to ${grade.grade_name}`}
                 className="flex items-center gap-1 text-xs font-bold text-slate-500 hover:text-blue-600 bg-white border border-slate-200 hover:border-blue-300 px-2 py-1 rounded transition shadow-sm"
@@ -340,23 +356,8 @@ const handleDeleteConfirm = async () => {
                     className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none" 
                   />
                 </div>
-                
-                <div className="space-y-2">
-                  <label htmlFor="curriculum" className="text-sm font-medium text-slate-700">Curriculum Type</label>
-                  <select 
-                    id="curriculum" 
-                    title="Change Curriculum Type for this Grade"
-                    value={editCurriculum} 
-                    onChange={(e) => setEditCurriculum(e.target.value)} 
-                    className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none bg-white"
-                  >
-                    <option value="CBC">Competency Based Curriculum (CBC)</option>
-                    <option value="8-4-4">Standard 8-4-4 Curriculum</option>
-                  </select>
-                  <p className="text-xs text-slate-400 mt-1">Note: Changing this will affect how exams are graded for this entire Grade Level.</p>
-                </div>
 
-                <button 
+                <button
                   onClick={handleEditSubmit} 
                   disabled={isSubmitting} 
                   title="Save configurations"

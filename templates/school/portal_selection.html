@@ -7,8 +7,8 @@
     <title>Select Role | MyFantasia</title>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="{% static 'css/home.css' %}?v=2">
-    <link rel="stylesheet" href="{% static 'css/portal.css' %}">
+    <link rel="stylesheet" href="{% static 'css/home.css' %}?v=5">
+    <link rel="stylesheet" href="{% static 'css/portal.css' %}?v=2">
 </head>
 <body>
     {% include "school/navbar.html" %}
@@ -46,6 +46,13 @@
                     <div class="icon-bubble"><i class="fas fa-user-friends"></i></div>
                     <h3>Parent</h3>
                     <p>Monitor child's progress and communicate with school.</p>
+                    <span class="btn-text">Proceed <i class="fas fa-arrow-right"></i></span>
+                </a>
+
+                <a href="/staffclick" class="role-card teacher-card">
+                    <div class="icon-bubble"><i class="fas fa-briefcase"></i></div>
+                    <h3>Staff</h3>
+                    <p>Librarian, finance, front office, and other support roles.</p>
                     <span class="btn-text">Proceed <i class="fas fa-arrow-right"></i></span>
                 </a>
             </div>

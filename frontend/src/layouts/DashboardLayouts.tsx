@@ -5,21 +5,21 @@ import Menu from '../components/Menu';
 import Navbar from '../components/Navbar';
 import api from '../libs/axiosInstance';
 import toast from 'react-hot-toast';
+import { recordActivity, redirectToSignInIfSessionExpired, SIGN_IN_URL } from '../libs/sessionExpiry';
 
 interface LayoutProps {
-  role: 'admin' | 'teacher' | 'student' | 'parent';
+  role: 'admin' | 'teacher' | 'student' | 'parent' | 'staff';
 }
 
 export interface DashboardContextType {
+  userId: number | null;
   userName: string;
   role: string;
   permissions: string[];
 }
 
-// Unauthenticated visitors get bounced here instead of ever seeing dashboard chrome.
-const LOGIN_URL = 'http://localhost:8000/portal';
-
 export default function DashboardLayout({ role }: LayoutProps) {
+  const [userId, setUserId] = useState<number | null>(null);
   const [userName, setUserName] = useState("Loading...");
   const [isClassTeacher, setIsClassTeacher] = useState(false);
   const [permissions, setPermissions] = useState<string[]>([]);
@@ -33,11 +33,13 @@ export default function DashboardLayout({ role }: LayoutProps) {
       .then((res) => {
         if (cancelled) return;
         if (res.data?.data) {
-          const { first_name, last_name, is_class_teacher, permissions } = res.data.data;
+          const { id, first_name, last_name, is_class_teacher, permissions } = res.data.data;
+          setUserId(id ?? null);
           setUserName(`${first_name} ${last_name}`);
           setIsClassTeacher(!!is_class_teacher);
           setPermissions(permissions || []);
           setAuthStatus('authorized');
+          recordActivity();
         } else {
           setAuthStatus('denied');
         }
@@ -53,8 +55,36 @@ export default function DashboardLayout({ role }: LayoutProps) {
 
   useEffect(() => {
     if (authStatus === 'denied') {
-      window.location.href = LOGIN_URL;
+      window.location.href = SIGN_IN_URL;
     }
+  }, [authStatus]);
+
+  // Idle-timeout watchdog: any mouse/keyboard/scroll activity resets the 3-hour clock, so
+  // only a genuinely idle tab (no interaction, no API calls) gets signed out. Checked every
+  // minute rather than waiting for the next 401, so an idle tab left open still gets bounced.
+  useEffect(() => {
+    if (authStatus !== 'authorized') return;
+
+    let lastRecorded = 0;
+    const THROTTLE_MS = 5_000; // avoid hammering localStorage on every mousemove
+    const handleActivity = () => {
+      const now = Date.now();
+      if (now - lastRecorded > THROTTLE_MS) {
+        lastRecorded = now;
+        recordActivity();
+      }
+    };
+
+    const events: (keyof WindowEventMap)[] = ['mousemove', 'keydown', 'mousedown', 'scroll', 'touchstart'];
+    events.forEach((evt) => window.addEventListener(evt, handleActivity, { passive: true }));
+
+    redirectToSignInIfSessionExpired();
+    const intervalId = setInterval(redirectToSignInIfSessionExpired, 60_000);
+
+    return () => {
+      events.forEach((evt) => window.removeEventListener(evt, handleActivity));
+      clearInterval(intervalId);
+    };
   }, [authStatus]);
 
   // 2. GLOBAL COMMAND PALETTE LISTENER
@@ -96,7 +126,7 @@ export default function DashboardLayout({ role }: LayoutProps) {
           </div>
         </div>
         <div className="hidden lg:block h-px bg-slate-100 mb-2" />
-        <Menu userRole={role} isClassTeacher={isClassTeacher} />
+        <Menu userRole={role} isClassTeacher={isClassTeacher} permissions={permissions} />
       </div>
 
       {/* Main Content Pane */}
@@ -107,7 +137,7 @@ export default function DashboardLayout({ role }: LayoutProps) {
 
         {/* Dynamic Page Content */}
         <main className="p-4 md:p-8 overflow-y-auto flex-1 scrollbar-hide">
-          <Outlet context={{ userName, role, permissions } satisfies DashboardContextType} />
+          <Outlet context={{ userId, userName, role, permissions } satisfies DashboardContextType} />
         </main>
 
       </div>

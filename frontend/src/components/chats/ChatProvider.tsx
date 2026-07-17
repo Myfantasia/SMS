@@ -1,12 +1,10 @@
 /* eslint-disable react-refresh/only-export-components */
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import type { ReactNode } from 'react';
 import type { IInboxThread } from '../../libs/chat';
-
-// --- FIREBASE IMPORTS ---
-import { signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
-import { auth } from '../../firebaseConfig';
 import api from '../../libs/axiosInstance';
+import { useInboxSocket } from '../../hooks/useInboxSocket';
+import type { InboxUpdateEvent } from '../../hooks/useInboxSocket';
 
 
 // ==========================================
@@ -20,6 +18,7 @@ interface ChatContextType {
   error: string | null;
   setActiveThread: (threadId: string | null) => void;
   refreshInbox: () => Promise<void>;
+  leaveConversation: (threadId: string) => Promise<void>;
 }
 
 // Create the context with a null default
@@ -34,9 +33,12 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Tracks whether the Firebase auth bridge has finished logging in.
-  // The inbox must NOT fetch until this is true.
-  const [isFirebaseReady, setIsFirebaseReady] = useState<boolean>(false);
+  // Read inside the inbox-socket callback below without re-subscribing the socket
+  // every time the user switches threads.
+  const activeThreadIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    activeThreadIdRef.current = activeThreadId;
+  }, [activeThreadId]);
 
   // Dynamically calculate the red badge number for the Navbar
   const unreadCount = inboxThreads.filter(thread => thread.has_unread).length;
@@ -55,56 +57,48 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, []);
 
-  // ==========================================
-  // STEP 1: FIREBASE AUTHENTICATION BRIDGE
-  // Must complete FIRST — sets isFirebaseReady when done
-  // ==========================================
+  // DashboardLayouts.tsx already gates dashboard rendering on a real (session-based)
+  // auth check before this provider ever mounts, so the inbox can load immediately.
   useEffect(() => {
-    const authenticateFirebase = async () => {
-      try {
-        // 1. Ask Django for the Firebase Custom Token
-        const response = await api.get('/api/chat/firebase-token/');
-        const firebaseToken = response.data.firebase_token;
+    refreshInbox();
+  }, [refreshInbox]);
 
-        localStorage.setItem('my_chat_email', response.data.user_email);
-
-        // 2. Use the token to sign into Firebase
-        await signInWithCustomToken(auth, firebaseToken);
-        console.log("✅ Successfully logged into Firebase!");
-
-      } catch (err) {
-        console.error("❌ Failed to authenticate with Firebase:", err);
-      } finally {
-        // Whether it succeeded or failed, unblock the inbox fetch
-        setIsFirebaseReady(true);
+  // Live sidebar updates: patch the affected row in place so a message arriving in a
+  // background thread reorders/re-previews without a full inbox refetch. Falls back to
+  // one refreshInbox() call if the ping is for a thread we don't have yet (e.g. someone
+  // just added this user to a brand-new group).
+  const handleInboxUpdate = useCallback((event: InboxUpdateEvent) => {
+    setInboxThreads(prevThreads => {
+      const idx = prevThreads.findIndex(t => t.thread_id === event.thread_id);
+      if (idx === -1) {
+        refreshInbox();
+        return prevThreads;
       }
-    };
 
-    if (!auth.currentUser) {
-      authenticateFirebase();
-    } else {
-      // Already logged in (e.g. on hot reload), unblock immediately
-      setIsFirebaseReady(true);
-    }
-  }, []);
+      const isActive = activeThreadIdRef.current === event.thread_id;
+      const updated: IInboxThread = {
+        ...prevThreads[idx],
+        last_message: event.message_body,
+        updated_at: event.updated_at,
+        has_unread: isActive ? prevThreads[idx].has_unread : true,
+      };
 
-  // ==========================================
-  // STEP 2: FETCH INBOX — only after Firebase bridge is done
-  // onAuthStateChanged confirms the token is active before calling Django
-  // ==========================================
-  useEffect(() => {
-    if (!isFirebaseReady) return; // Gate: wait for bridge to finish
-
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      if (firebaseUser) {
-        refreshInbox(); // Token is live in interceptor — safe to call Django
-      } else {
-        setIsLoading(false); // Not logged in, stop the spinner
-      }
+      const next = prevThreads.filter(t => t.thread_id !== event.thread_id);
+      next.unshift(updated);
+      return next;
     });
+  }, [refreshInbox]);
 
-    return () => unsubscribe();
-  }, [isFirebaseReady, refreshInbox]);
+  useInboxSocket(true, handleInboxUpdate);
+
+  // Leaves a thread on the caller's behalf — "Delete Conversation" (Direct), "Leave
+  // Group", or "Leave Broadcast" all resolve to this same backend call, differing only
+  // in the confirmation copy the sidebar shows before calling it.
+  const leaveConversation = useCallback(async (threadId: string) => {
+    await api.post(`/api/chat/leave/${threadId}/`);
+    setInboxThreads(prevThreads => prevThreads.filter(t => t.thread_id !== threadId));
+    setActiveThreadId(prev => (prev === threadId ? null : prev));
+  }, []);
 
   // Function to handle clicking on a chat room
   const handleSetActiveThread = async (threadId: string | null) => {
@@ -144,6 +138,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         error,
         setActiveThread: handleSetActiveThread,
         refreshInbox,
+        leaveConversation,
       }}
     >
       {children}

@@ -19,6 +19,11 @@ body.no-scroll {
     --nav-border: rgba(255,255,255,0.1);
     --text-white: #ffffff;
     --text-dim: #cbd5e1;
+    --nav-shadow: rgba(0,0,0,0.45);
+    --nav-overlay: rgba(255,255,255,0.05);
+    --dropdown-bg: #ffffff;
+    --dropdown-text: #0f172a;
+    --dropdown-hover: #f1f5f9;
 }
 
 :root[data-theme="light"] {
@@ -26,14 +31,14 @@ body.no-scroll {
     --nav-border: rgba(15,23,42,0.08);
     --text-white: #0f172a;
     --text-dim: #475569;
+    --nav-shadow: rgba(15,23,42,0.14);
+    --nav-overlay: rgba(15,23,42,0.045);
+    --dropdown-bg: #ffffff;
+    --dropdown-text: #0f172a;
+    --dropdown-hover: #f1f5f9;
 }
 
 .navbar-container {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0 6%;
-    height: 80px;
     position: fixed;
     top: 0;
     width: 100%;
@@ -42,6 +47,18 @@ body.no-scroll {
     font-family: 'Outfit', sans-serif;
     border-bottom: 1px solid var(--nav-border);
     transition: background-color 0.25s ease, border-color 0.25s ease;
+}
+
+/* Caps content width on large/ultra-wide screens so the navbar stays visually
+   aligned with the rest of the page's sections instead of stretching edge-to-edge */
+.navbar-inner {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 6%;
+    height: 80px;
 }
 
 .brand-wrapper { display: flex; align-items: center; gap: 12px; text-decoration: none; min-width: fit-content; }
@@ -109,7 +126,7 @@ body.no-scroll {
 }
 
 .portal-trigger {
-    background: #6366f1;
+    background: var(--primary);
     color: white;
     border: none;
     padding: 10px 20px;
@@ -133,11 +150,12 @@ body.no-scroll {
     position: absolute;
     top: 100%;
     right: 0;
-    background: white;
+    background: var(--dropdown-bg);
+    border: 1px solid var(--nav-border);
     width: 240px;
     border-radius: 12px;
     padding: 10px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    box-shadow: 0 10px 30px var(--nav-shadow);
     z-index: 10001;
     /* Animation Styles */
     display: block;
@@ -154,8 +172,8 @@ body.no-scroll {
     pointer-events: auto;
 }
 
-.drop-item { display: flex; align-items: center; gap: 10px; padding: 12px; text-decoration: none; color: #0f172a; font-size: 0.9rem; font-weight: 700; border-radius: 8px; }
-.drop-item:hover { background: #f1f5f9; color: var(--primary); }
+.drop-item { display: flex; align-items: center; gap: 10px; padding: 12px; text-decoration: none; color: var(--dropdown-text); font-size: 0.9rem; font-weight: 700; border-radius: 8px; }
+.drop-item:hover { background: var(--dropdown-hover); color: var(--primary); }
 
 /* Hamburger Button */
 .mobile-toggle {
@@ -187,7 +205,7 @@ body.no-scroll {
 
     .nav-links-wrapper.active {
         left: 0;
-        box-shadow: 10px 0 30px rgba(0,0,0,0.5);
+        box-shadow: 10px 0 30px var(--nav-shadow);
     }
 
     .nav-item { font-size: 1.2rem; width: 100%; }
@@ -198,7 +216,8 @@ body.no-scroll {
     .dropdown-menu {
         position: static;
         width: 100%;
-        background: rgba(255,255,255,0.05);
+        background: var(--nav-overlay);
+        border-color: var(--nav-border);
         box-shadow: none;
         margin-top: 10px;
         display: none; /* Reset for mobile stack behavior */
@@ -215,11 +234,15 @@ body.no-scroll {
     .drop-item:hover { background: rgba(99, 102, 241, 0.15); color: var(--text-white); }
 }
 
-@media (max-width: 992px) {
-    /* Ensure the mobile drawer has a nice shadow when it slides in */
-    .nav-links-wrapper.active {
-        box-shadow: 10px 0 30px rgba(0,0,0,0.5);
-    }
+/* SMALL PHONES: tighten spacing so the brand, toggle, and hamburger never crowd or wrap */
+@media (max-width: 480px) {
+    .navbar-inner { padding: 0 4%; }
+    .brand-logo { font-size: 1.15rem; }
+    .logo-box { width: 36px; height: 36px; font-size: 1.1rem; }
+    .navbar-right { gap: 14px; }
+    .navbar-controls { gap: 10px; }
+    .theme-toggle { width: 36px; height: 36px; font-size: 0.9rem; }
+    .mobile-toggle { font-size: 1.5rem; }
 }
 
 /* Update your CSS to include this if it's not already there */

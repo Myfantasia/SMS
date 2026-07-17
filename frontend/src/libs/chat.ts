@@ -1,13 +1,22 @@
 // ==========================================
-// 1. FIREBASE: THE REAL-TIME MESSAGES
+// 1. DJANGO CHANNELS: THE REAL-TIME MESSAGES
 // ==========================================
-// This exactly matches the rules we wrote in Firestore Security Rules
-export interface IFirebaseMessage {
-  id?: string; // The Firestore document ID (optional before it's saved)
-  sender_email: string; // The VIP check
-  message_body: string; // Max 2000 chars
-  attachment_url?: string; // Optional file upload
-  sent_at: number; // Unix timestamp for the 2-hour math check
+// Matches ChatConsumer/serialize_message_audit's wire format (school/views/chat_views.py)
+export interface IMessage {
+  id: number;
+  thread_id: string;
+  sender_id: number | null;
+  sender_name: string;
+  sender_role: string | null;
+  message_body: string;
+  attachment_url?: string | null;
+  attachment_name?: string | null;
+  is_actionable: boolean;
+  is_urgent: boolean;
+  is_edited: boolean;
+  is_deleted: boolean;
+  sent_at: string; // ISO DateTime string
+  updated_at: string; // ISO DateTime string
 }
 
 // ==========================================
@@ -43,6 +52,17 @@ export interface IInboxThread {
   type: "Direct" | "Group" | "Broadcast";
   updated_at: string; // ISO DateTime string for sorting
   has_unread: boolean; // Powers the red dot notification
+  last_message: string | null; // Preview text, e.g. "You: hey there" — null for empty threads
+}
+
+// ==========================================
+// 6. DJANGO: THE PARTICIPANTS ROSTER API
+// ==========================================
+// Matches the response from `GET /api/chat/participants/<thread_id>/`
+export interface IParticipant {
+  user_id: number;
+  name: string;
+  role: string;
 }
 
 // ==========================================
@@ -51,7 +71,6 @@ export interface IInboxThread {
 // Matches the response from `GET /api/chat/admin/audit/<thread_id>/`
 export interface IAuditLog {
   audit_id: number;
-  firebase_id: string;
   sender_email: string;
   sender_name: string;
   message_body: string;

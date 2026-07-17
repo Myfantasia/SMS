@@ -7,17 +7,17 @@
     <title>Student Portal | MyFantasia</title>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="{% static 'css/navbar.css' %}?v=2">
-    <link rel="stylesheet" href="{% static 'css/auth_style.css' %}">
+    <link rel="stylesheet" href="{% static 'css/navbar.css' %}?v=3">
+    <link rel="stylesheet" href="{% static 'css/auth_style.css' %}?v=4">
 </head>
-<body>
+<body class="role-student">
 
     {% include "school/navbar.html" %}
 
     <div class="login-wrapper">
         <div class="login-card" style="text-align: center;">
             <div class="login-header">
-                <i class="fas fa-user-graduate" style="font-size: 3.5rem; color: #6366f1; margin-bottom: 20px;"></i>
+                <div class="header-icon-badge"><i class="fas fa-user-graduate"></i></div>
                 <h2>Student Gateway</h2>
                 <p>Access your classes, results, and attendance.</p>
             </div>
@@ -25,10 +25,16 @@
             <a href="/studentsignup" class="click-btn btn-primary-ghost">
                 <i class="fas fa-user-plus"></i> New Admission
             </a>
+            <p class="input-hint" style="justify-content: center; margin-top: -10px; margin-bottom: 20px;">
+                <i class="fas fa-circle-info"></i> New student? Register with the admission details given by the school office.
+            </p>
 
             <a href="/studentlogin" class="click-btn btn-login">
                 <i class="fas fa-sign-in-alt"></i> Login to Portal
             </a>
+            <p class="input-hint" style="justify-content: center; margin-top: -10px;">
+                <i class="fas fa-circle-info"></i> Already registered? Sign in with your admission number.
+            </p>
 
             <div class="signup-link" style="margin-top: 30px;">
                 <p>Not a Student? <a href="/">Return Home</a></p>

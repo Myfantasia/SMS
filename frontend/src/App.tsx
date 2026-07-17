@@ -10,6 +10,8 @@ import AdminProfile from './pages/admin/AdminProfile';
 import RolesPermissions from './pages/admin/RolesPermissions';
 import RoleEditor from './pages/admin/RoleEditor';
 import CurriculumHub from './pages/admin/CurriculumHub';
+import PathwayRequestsHub from './components/curriculum/PathwayRequestsHub';
+import StudentPathwayChoice from './pages/student/StudentPathwayChoice';
 import SearchResults from './components/SearchResults';
 import AcademicHub from './components/academics/AcademicHub';
 import SubjectsPage from './components/lists pages/SubjectsPage';
@@ -45,6 +47,7 @@ import StudentElectiveChoices from './pages/student/StudentElectiveChoices';
 import ParentDashboard from './pages/parent/ParentDashboard';
 import ParentProfile from './pages/parent/ParentProfile';
 import ParentAssignments from './pages/parent/ParentAssignments';
+import StaffDashboard from './pages/staff/StaffDashboard';
 import ChatDashboard from './components/chats/ChatDashboard';
 import AssignSubjectsPage from './components/action routes/AssignSubjectsPage';
 import LeaveRequestsHub from './components/leave/LeaveRequestsHub';
@@ -124,6 +127,7 @@ export default function App() {
             <Route path="teachers" element={<UserDirectory userType="teachers" />} />
             <Route path="students" element={<UserDirectory userType="students" />} />
             <Route path="parents" element={<UserDirectory userType="parents" />} />
+            <Route path="staff" element={<UserDirectory userType="staff" />} />
 
             <Route path="academics" element={<AcademicHub />} />
             <Route path="curriculum" element={<CurriculumHub />} />
@@ -169,6 +173,9 @@ export default function App() {
             {/* --- LEAVE MANAGEMENT ROUTES --- */}
             <Route path="leave-requests" element={<LeaveRequestsHub role="admin" />} />
             <Route path="approvals/leave" element={<ApproveLeaves />} />
+
+            {/* --- PATHWAY REQUESTS: admin sees & decides every request --- */}
+            <Route path="pathway-requests" element={<PathwayRequestsHub role="admin" />} />
 
             <Route path="classes/assign-subjects/:gradeId/:studentId"
               element={<AssignSubjectsPage />} 
@@ -227,6 +234,9 @@ export default function App() {
 
             {/* --- LEAVE MANAGEMENT: APPLY & TRACK --- */}
             <Route path="leave-requests" element={<LeaveRequestsHub role="teacher" />} />
+
+            {/* --- PATHWAY REQUESTS: class teachers decide requests from their own classes --- */}
+            <Route path="pathway-requests" element={<PathwayRequestsHub role="teacher" />} />
           </Route>
 
           {/* STUDENT ROUTE GROUP */}
@@ -239,6 +249,7 @@ export default function App() {
             <Route path="subjects" element={<SubjectsPage />} />
             <Route path="subjects/view/:id" element={<ViewSubject />} />
             <Route path="my-electives" element={<StudentElectiveChoices />} />
+            <Route path="my-pathway" element={<StudentPathwayChoice />} />
 
             <Route path="exams" element={<ExamsHub role="student" />} />
             <Route path="results" element={<ResultsHub role="student" />} />
@@ -267,6 +278,36 @@ export default function App() {
 
             <Route path="assignments" element={<ParentAssignments />} />
             <Route path="assignments/:id/review" element={<AssignmentReview role="parent" />} />
+          </Route>
+
+          {/* STAFF ROUTE GROUP — non-teaching staff (librarian, finance officer, secretary,
+              etc). Unlike the other four groups, Staff has no fixed capability set: every
+              route below is reachable only if the sidebar (permission-driven, see Menu.tsx)
+              actually links to it, and every underlying API call is gated server-side by the
+              RBAC permission code the admin assigned via Roles & Permissions — the "admin"
+              role prop passed to these shared components just selects the fuller manage-UI
+              variant where one exists; it does not grant access on its own. */}
+          <Route path="/staff-dashboard/*" element={<DashboardLayout role="staff" />}>
+            <Route index element={<StaffDashboard />} />
+            <Route path="messages" element={<ChatDashboard />} />
+            <Route path="profile" element={<TeacherProfile />} />
+            <Route path="search" element={<SearchResults />} />
+
+            <Route path="finance" element={<FinanceHub />} />
+            <Route path="notices" element={<NoticesHub role="admin" />} />
+            <Route path="events" element={<EventsHub role="admin" />} />
+            <Route path="leave-requests" element={<LeaveRequestsHub role="admin" />} />
+            <Route path="classes" element={<ClassesPage />} />
+            <Route path="classes/view/:id" element={<ViewClass />} />
+            <Route path="curriculum" element={<CurriculumHub />} />
+            <Route path="timetable" element={<TimetableManager />} />
+            <Route path="attendance" element={<AttendanceHub role="admin" />} />
+            <Route path="exams" element={<ExamsHub role="admin" />} />
+            <Route path="results" element={<ResultsHub role="admin" />} />
+            <Route path="assignments" element={<AssignmentsHub role="admin" />} />
+            <Route path="allocations" element={<AllocationDashboard />} />
+
+            <Route path=":userType/view/:id" element={<ViewProfile />} />
           </Route>
 
           {/* Catch-all route to prevent 404 errors */}

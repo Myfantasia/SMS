@@ -1,0 +1,10 @@
+# Local secrets (SMTP credentials, etc.) — see .env.example for the template.
+# Never commit real values here.
+.env
+
+# Python bytecode cache
+__pycache__/
+*.pyc
+
+# Firebase service account key — never commit real credentials.
+serviceKey.json

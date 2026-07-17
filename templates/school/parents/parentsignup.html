@@ -6,17 +6,17 @@
     <title>Parent Registration | MyFantasia</title>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="{% static 'css/navbar.css' %}?v=2">
-    <link rel="stylesheet" href="{% static 'css/auth_style.css' %}">
+    <link rel="stylesheet" href="{% static 'css/navbar.css' %}?v=3">
+    <link rel="stylesheet" href="{% static 'css/auth_style.css' %}?v=4">
     <link rel="stylesheet" href="{% static 'css/spinner.css' %}">
 </head>
-<body>
+<body class="role-parent">
     {% include "school/navbar.html" %}
 
     <div class="login-wrapper">
         <div class="login-card wide-card">
             <div class="login-header">
-                <i class="fas fa-user-friends"></i>
+                <div class="header-icon-badge"><i class="fas fa-user-friends"></i></div>
                 <h2>Parent Registration</h2>
                 <p>Link your account to your child's profile.</p>
             </div>
@@ -48,29 +48,45 @@
                 <div class="form-row">
                     <div class="form-group col-half">
                         <label class="field-label">Create Username</label>
-                        <input type="text" name="username" class="form-control" placeholder="e.g. (studentname)_parent" required>
+                        <div class="input-icon-wrap">
+                            <i class="fas fa-user input-icon"></i>
+                            <input type="text" name="username" class="form-control" placeholder="e.g. (studentname)_parent" required>
+                        </div>
+                        <div class="input-hint"><i class="fas fa-circle-info"></i> Letters, numbers and @/./+/-/_ only. You'll use this to log in.</div>
                     </div>
                     <div class="form-group col-half">
                         <label class="field-label">Email Address</label>
-                        <input type="email" name="email" class="form-control" placeholder="e.g. john@example.com" required>
+                        <div class="input-icon-wrap">
+                            <i class="fas fa-envelope input-icon"></i>
+                            <input type="email" name="email" class="form-control" placeholder="e.g. john@example.com" required>
+                        </div>
+                        <div class="input-hint"><i class="fas fa-circle-info"></i> Used for password resets and school notifications.</div>
                     </div>
                 </div>
 
                 <div class="form-row">
                     <div class="form-group col-half">
                         <label class="field-label">Create Password</label>
-                        <input type="password" name="password" class="form-control" placeholder="Create a strong password" required>
+                        <div class="input-icon-wrap">
+                            <i class="fas fa-lock input-icon"></i>
+                            <input type="password" name="password" class="form-control" placeholder="Create a strong password" required>
+                        </div>
+                        <div class="input-hint"><i class="fas fa-circle-info"></i> We recommend at least 8 characters, avoiding common words.</div>
                     </div>
                     <div class="form-group col-half">
                         <label class="field-label">Parent Mobile Number</label>
-                        <input type="text" name="mobile" class="form-control" placeholder="e.g. 0722 000 000" required>
+                        <div class="input-icon-wrap">
+                            <i class="fas fa-phone input-icon"></i>
+                            <input type="text" name="mobile" class="form-control" placeholder="e.g. 0722 000 000" required>
+                        </div>
+                        <div class="input-hint"><i class="fas fa-circle-info"></i> A Kenyan mobile number the school can reach you on.</div>
                     </div>
                 </div>
 
                 <div class="form-row">
                     <div class="form-group col-half">
                         <label class="field-label">Relationship to Child</label>
-                        <select name="relationship" class="form-control" required style="height: 48px; border: 2px solid #e2e8f0; border-radius: 8px; width: 100%; padding: 0 15px; font-family: 'Outfit', sans-serif;">
+                        <select name="relationship" class="form-control" required>
                             <option value="" disabled selected>Select relationship...</option>
                             <option value="Father">Father</option>
                             <option value="Mother">Mother</option>
@@ -86,7 +102,11 @@
 
                     <div class="form-group">
                         <label class="field-label">Child's Admission No.</label>
-                        <input type="text" name="child_roll" class="form-control" placeholder="e.g. ADM-2026001" required>
+                        <div class="input-icon-wrap">
+                            <i class="fas fa-id-card input-icon"></i>
+                            <input type="text" name="child_roll" class="form-control" placeholder="e.g. ADM-2026001" required>
+                        </div>
+                        <div class="input-hint"><i class="fas fa-circle-info"></i> Exactly as printed on their admission letter or report card.</div>
                     </div>
 
                     <div class="form-row">
@@ -99,9 +119,11 @@
                             <input type="text" name="child_last_name" class="form-control" placeholder="e.g. Ochieng" required>
                         </div>
                     </div>
+                    <div class="input-hint"><i class="fas fa-circle-info"></i> Must match the name on their student record exactly, or verification will fail.</div>
                 </div>
 
                 <button type="submit" class="btn-login">
+                    <i class="fas fa-user-plus"></i>
                     <span class="btn-text">Register & Verify</span>
                     <i class="fas fa-circle-notch fa-spin btn-spinner" style="display: none;"></i>
                 </button>

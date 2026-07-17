@@ -13,4 +13,18 @@ from django.core.asgi import get_asgi_application
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'schoolmanagement.settings')
 
-application = get_asgi_application()
+# Must fetch the Django ASGI app before importing anything that touches models,
+# so Django's app registry is populated first.
+django_asgi_app = get_asgi_application()
+
+from channels.auth import AuthMiddlewareStack
+from channels.routing import ProtocolTypeRouter, URLRouter
+
+import school.routing
+
+application = ProtocolTypeRouter({
+    'http': django_asgi_app,
+    'websocket': AuthMiddlewareStack(
+        URLRouter(school.routing.websocket_urlpatterns)
+    ),
+})

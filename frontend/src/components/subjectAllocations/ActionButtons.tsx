@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import toast from 'react-hot-toast';
-import { Save, Wand2, Copy, Loader2, X, Eraser, RotateCcw, Users, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Save, Wand2, Copy, Loader2, X, Eraser, RotateCcw, Users, AlertTriangle, CheckCircle2, Layers } from 'lucide-react';
 import type { MatrixRow } from '../../libs/types';
 import api from '../../libs/axiosInstance';
 
@@ -24,6 +24,7 @@ interface ActionButtonsProps {
   matrixData: MatrixRow[];
   setMatrixData: React.Dispatch<React.SetStateAction<MatrixRow[]>>;
   onRefresh: () => void; // Trigger to reload the grid from the database
+  onOpenSplittingModal: () => void;
 }
 
 const ActionButtons: React.FC<ActionButtonsProps> = ({
@@ -35,7 +36,8 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
   classDisplayName,
   matrixData,
   setMatrixData,
-  onRefresh
+  onRefresh,
+  onOpenSplittingModal
 }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [isAutoAllocating, setIsAutoAllocating] = useState(false);
@@ -94,32 +96,43 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
   };
 
   // --- 2. AUTO-ALLOCATE LOGIC ---
+  // One step, like Bulk Allocate: run the algorithm, then immediately save + publish the result
+  // (no separate manual Save Grid click needed) instead of only staging it in local state.
   const handleAutoAllocate = async () => {
     if (!isContextReady) return;
 
     setIsAutoAllocating(true);
     try {
-      const response = await api.get('/api/allocations/auto-draft/', {
+      const draftResponse = await api.get('/api/allocations/auto-draft/', {
         params: { class_id: classId, term_id: termId, year_id: yearId }
       });
 
-      const draftResults = response.data.draft;
+      const draftResults = draftResponse.data.draft;
 
-      setMatrixData(prevData => 
-        prevData.map(row => {
-          const draftMatch = draftResults.find((d: any) => d.subject_id === row.subject_id);
-          if (draftMatch) {
-            return {
-              ...row,
-              assigned_teacher_id: draftMatch.teacher_id,
-              status: draftMatch.status
-            };
-          }
-          return row;
-        })
-      );
+      const updatedMatrixData = matrixData.map(row => {
+        const draftMatch = draftResults.find((d: any) => d.subject_id === row.subject_id);
+        return draftMatch
+          ? { ...row, assigned_teacher_id: draftMatch.teacher_id, status: draftMatch.status }
+          : row;
+      });
+      setMatrixData(updatedMatrixData);
 
-      toast.success("Algorithm applied! Review the draft before saving.");
+      const allocationsPayload = updatedMatrixData
+        .filter(row => row.assigned_teacher_id !== "")
+        .map(row => ({
+          subject_id: row.subject_id,
+          teacher_id: row.assigned_teacher_id
+        }));
+
+      const saveResponse = await api.post('/api/allocations/matrix/', {
+        class_id: classId,
+        term_id: termId,
+        year_id: yearId,
+        allocations: allocationsPayload
+      });
+
+      toast.success(saveResponse.data.message || "Auto-allocated and published to the live grid.");
+      onRefresh();
     } catch (error: any) {
       console.error("Auto-Allocate Error:", error);
       toast.error(error.response?.data?.error || "Algorithm failed to run.");
@@ -231,70 +244,89 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
 
   return (
     <>
-      <div className="flex flex-wrap items-center gap-2 md:gap-3">
-        
-        {/* Utilities Group (Rollover, Clear, Revert) */}
-        <div className="flex items-center gap-2 pr-2 border-r border-slate-600">
-            <button
-              onClick={fetchTermsForRollover}
-              disabled={!isContextReady || isBusy}
-              className="flex items-center gap-2 px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
-              title="Copy assignments from a previous term"
-            >
-              <Copy className="w-4 h-4" />
-              <span className="hidden xl:inline">Rollover</span>
-            </button>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 bg-white border border-slate-200 rounded-2xl shadow-sm">
 
-            <button
-              onClick={() => { setClearScope('class'); setShowClearConfirm(true); }}
-              disabled={!isContextReady || isBusy}
-              className="flex items-center gap-2 px-3 py-2 border border-red-400/50 text-red-400 hover:bg-red-400/10 text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
-              title="Permanently delete saved allocations — choose this class or the whole school"
-            >
-              {isClearing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eraser className="w-4 h-4" />}
-              <span className="hidden xl:inline">Clear Grid</span>
-            </button>
+        {/* Generate Group */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">Generate</span>
 
-            <button
-              onClick={() => setShowRevertConfirm(true)}
-              disabled={!isContextReady || isBusy}
-              className="flex items-center gap-2 px-3 py-2 border border-amber-400/50 text-amber-400 hover:bg-amber-400/10 text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
-              title="Discard unsaved changes and reload from database"
-            >
-              <RotateCcw className="w-4 h-4" />
-              <span className="hidden xl:inline">Revert</span>
-            </button>
+          <button
+            onClick={handleAutoAllocate}
+            disabled={!isContextReady || isBusy}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm disabled:opacity-50"
+            title="Auto-assign teachers for this class only — saves and publishes immediately"
+          >
+            {isAutoAllocating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
+            <span className="hidden sm:inline">Auto-Allocate</span>
+          </button>
+
+          <button
+            onClick={() => setIsBulkConfirmOpen(true)}
+            disabled={!isContextReady || !gradeId || isBusy}
+            className="flex items-center gap-2 px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm disabled:opacity-50"
+            title={`Coordinated allocation across every class in ${gradeName || 'this grade'} — commits directly, no review step`}
+          >
+            {isBulkAllocating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Users className="w-4 h-4" />}
+            <span className="hidden sm:inline">Bulk Allocate Grade</span>
+          </button>
+
+          <button
+            onClick={onOpenSplittingModal}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-sm font-medium rounded-lg transition-colors border border-indigo-200 disabled:opacity-50"
+            title="Manage elective split groups for this grade"
+          >
+            <Layers className="w-4 h-4" />
+            <span className="hidden sm:inline">Manage Elective Splits</span>
+          </button>
         </div>
 
-        {/* Primary Actions Group */}
-        <button
-          onClick={handleAutoAllocate}
-          disabled={!isContextReady || isBusy}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm disabled:opacity-50"
-          title="Draft assignments for this class only — review before saving"
-        >
-          {isAutoAllocating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
-          <span className="hidden sm:inline">Auto-Allocate</span>
-        </button>
+        {/* Utilities + Danger Zone + Save */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">Utilities</span>
 
-        <button
-          onClick={() => setIsBulkConfirmOpen(true)}
-          disabled={!isContextReady || !gradeId || isBusy}
-          className="flex items-center gap-2 px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm disabled:opacity-50"
-          title={`Coordinated allocation across every class in ${gradeName || 'this grade'} — commits directly, no review step`}
-        >
-          {isBulkAllocating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Users className="w-4 h-4" />}
-          <span className="hidden sm:inline">Bulk Allocate Grade</span>
-        </button>
+          <button
+            onClick={fetchTermsForRollover}
+            disabled={!isContextReady || isBusy}
+            className="flex items-center gap-2 px-4 py-2 border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+            title="Copy assignments from a previous term"
+          >
+            <Copy className="w-4 h-4" />
+            <span className="hidden sm:inline">Rollover</span>
+          </button>
 
-        <button
-          onClick={handleSave}
-          disabled={!isContextReady || isBusy}
-          className="flex items-center gap-2 px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm disabled:opacity-50"
-        >
-          {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-          <span>Save Grid</span>
-        </button>
+          <button
+            onClick={() => setShowRevertConfirm(true)}
+            disabled={!isContextReady || isBusy}
+            className="flex items-center gap-2 px-4 py-2 border border-amber-200 text-amber-600 hover:bg-amber-50 text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+            title="Discard unsaved changes and reload from database"
+          >
+            <RotateCcw className="w-4 h-4" />
+            <span className="hidden sm:inline">Revert</span>
+          </button>
+
+          <span className="w-px h-6 bg-slate-200 mx-1 hidden sm:block" />
+
+          <button
+            onClick={() => { setClearScope('class'); setShowClearConfirm(true); }}
+            disabled={!isContextReady || isBusy}
+            className="flex items-center gap-2 px-4 py-2 border border-red-200 text-red-600 hover:bg-red-50 text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+            title="Permanently delete saved allocations — choose this class or the whole school"
+          >
+            {isClearing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eraser className="w-4 h-4" />}
+            <span className="hidden sm:inline">Clear Grid</span>
+          </button>
+
+          <span className="w-px h-6 bg-slate-200 mx-1 hidden sm:block" />
+
+          <button
+            onClick={handleSave}
+            disabled={!isContextReady || isBusy}
+            className="flex items-center gap-2 px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-lg transition-colors shadow-sm disabled:opacity-50"
+          >
+            {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            <span>Save Grid</span>
+          </button>
+        </div>
 
       </div>
 

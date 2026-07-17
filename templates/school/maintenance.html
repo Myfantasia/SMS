@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Under Maintenance | MyFantasia</title>
+    <script>
+        (function () {
+            var saved = localStorage.getItem('theme');
+            document.documentElement.setAttribute('data-theme', saved === 'light' ? 'light' : 'dark');
+        })();
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{% static 'css/maintenance.css' %}">
+</head>
+<body>
+    <div class="maintenance-card">
+        <div class="maintenance-icon"><i class="fas fa-screwdriver-wrench"></i></div>
+        <h1>Under Maintenance</h1>
+        <p>MyFantasia is currently undergoing scheduled maintenance. Portal access for students, teachers, and parents is temporarily unavailable. We'll be back shortly — thank you for your patience.</p>
+        <div class="maintenance-links">
+            <a href="/">Home</a>
+            <a href="/system-status/">System Status</a>
+            <a href="/contactus">Contact Us</a>
+        </div>
+    </div>
+</body>
+</html>

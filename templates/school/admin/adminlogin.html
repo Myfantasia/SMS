@@ -9,19 +9,53 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-    <link rel="stylesheet" href="{% static 'css/navbar.css' %}?v=2">
-    <link rel="stylesheet" href="{% static 'css/auth_style.css' %}">
-    <link rel="stylesheet" href="{% static 'css/success_popup.css' %}">
+    <link rel="stylesheet" href="{% static 'css/navbar.css' %}?v=3">
+    <link rel="stylesheet" href="{% static 'css/auth_style.css' %}?v=4">
+    <link rel="stylesheet" href="{% static 'css/success_popup.css' %}?v=2">
 </head>
-<body>
+<body class="role-admin">
 
     {% include "school/navbar.html" %}
     {% include "school/success_popup.html" %}
 
     <div class="login-wrapper">
         <div class="login-card">
+            {% if needs_verification %}
             <div class="login-header">
-                <i class="fas fa-user-shield" style="font-size: 3.5rem; color: #6366f1; margin-bottom: 15px;"></i>
+                <div class="header-icon-badge"><i class="fas fa-shield-halved"></i></div>
+                <h2>Verify Your Account</h2>
+                <p>An administrator approved your application. Enter the code they gave you to finish activating your account.</p>
+            </div>
+
+            <form method="post" action="{% url 'adminlogin' %}">
+                {% csrf_token %}
+                <input type="hidden" name="verify_email" value="{{ verification_email }}">
+
+                <div class="form-group">
+                    <label class="field-label" for="verification_code">Verification Code</label>
+                    <div class="input-icon-wrap">
+                        <i class="fas fa-key input-icon"></i>
+                        <input type="text" id="verification_code" name="verification_code" class="form-control" placeholder="6-digit code" inputmode="numeric" maxlength="6" autofocus required>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-login"><i class="fas fa-circle-check"></i> Verify & Activate</button>
+
+                {% if messages %}
+                    {% for message in messages %}
+                        {% if 'signup_success' not in message.tags %}
+                        <div class="error-message" style="display:block;">{{ message }}</div>
+                        {% endif %}
+                    {% endfor %}
+                {% endif %}
+
+                <div class="signup-link">
+                    Don't have a code yet? <a href="{% url 'adminlogin' %}">Back to Login</a>
+                </div>
+            </form>
+            {% else %}
+            <div class="login-header">
+                <div class="header-icon-badge"><i class="fas fa-user-shield"></i></div>
                 <h2>Admin Portal</h2>
                 <p>Secure Access Gateway</p>
             </div>
@@ -29,14 +63,20 @@
             <form id="adminLoginForm" method="post" action="{% url 'adminlogin' %}">
                 {% csrf_token %}
                 <div class="form-group">
-                    <input type="email" id="email" name="email" class="form-control" placeholder="Email Address" required>
+                    <div class="input-icon-wrap">
+                        <i class="fas fa-envelope input-icon"></i>
+                        <input type="email" id="email" name="email" class="form-control" placeholder="Email Address" required>
+                    </div>
                 </div>
 
                 <div class="form-group">
-                    <input type="password" id="password" name="password" class="form-control" placeholder="Password" required>
+                    <div class="input-icon-wrap">
+                        <i class="fas fa-lock input-icon"></i>
+                        <input type="password" id="password" name="password" class="form-control" placeholder="Password" required>
+                    </div>
                 </div>
 
-                <button type="submit" class="btn-login">Login</button>
+                <button type="submit" class="btn-login"><i class="fas fa-right-to-bracket"></i> Login</button>
 
                 {% if messages %}
                     {% for message in messages %}
@@ -49,15 +89,17 @@
                 <div id="successMessage" class="success-message"></div>
 
                 <div class="extra-links">
-                    <a href="{% url 'password_reset' %}" class="forgot-password">Forgot Password?</a>
+                    <a href="{% url 'password_reset' %}?role=admin" class="forgot-password">Forgot Password?</a>
                     <span class="signup-link">New? <a href="/adminsignup">Sign Up</a></span>
                 </div>
             </form>
+            {% endif %}
         </div>
     </div>
 
     {% include "school/footer.html" %}
 
 <script src="{% static 'js/success_popup.js' %}"></script>
+<script src="{% static 'js/form_handler.js' %}"></script>
 </body>
 </html>
