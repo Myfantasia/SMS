@@ -217,11 +217,6 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 # --------------------------------------------------------
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
-
-# Fallback to standard session authentication (useful for the Django Admin panel)
         'rest_framework.authentication.SessionAuthentication',
-
-        # Tells Django to check Firebase tokens first using our new file
-        'schoolmanagement.firebase_auth.FirebaseAuthentication',
     ),
 }
