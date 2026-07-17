@@ -1,14 +1,15 @@
-import { GraduationCap, Users, UserSquare2 } from 'lucide-react';
+import { GraduationCap, Users, UserSquare2, Briefcase } from 'lucide-react';
 import UserDirectoryTable from '../../components/UserDirectoryTable';
 
 interface UserDirectoryProps {
-  userType: 'students' | 'teachers' | 'parents';
+  userType: 'students' | 'teachers' | 'parents' | 'staff';
 }
 
 const DIRECTORY_META = {
   teachers: { icon: GraduationCap, color: 'text-purple-600 bg-purple-50', label: 'Faculty' },
   students: { icon: Users, color: 'text-blue-600 bg-blue-50', label: 'Learners' },
   parents: { icon: UserSquare2, color: 'text-emerald-600 bg-emerald-50', label: 'Guardians' },
+  staff: { icon: Briefcase, color: 'text-amber-600 bg-amber-50', label: 'Support Staff' },
 } as const;
 
 export default function UserDirectory({ userType }: UserDirectoryProps) {

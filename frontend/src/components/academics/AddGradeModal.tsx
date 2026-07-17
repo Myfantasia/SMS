@@ -1,7 +1,22 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Save, Layers } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import api from '../../libs/axiosInstance';
+
+interface Curriculum {
+  id: number;
+  code: string;
+  name: string;
+  is_active_for_new_grades: boolean;
+  is_archived: boolean;
+}
+
+interface Tier {
+  id: number;
+  curriculum: number;
+  name: string;
+  code: string;
+}
 
 interface AddGradeModalProps {
   isOpen: boolean;
@@ -11,20 +26,59 @@ interface AddGradeModalProps {
 
 export default function AddGradeModal({ isOpen, onClose, onSuccess }: AddGradeModalProps) {
   const [formData, setFormData] = useState({
-    grade_name: '', numeric_order: '', streams: '', capacity: 40
+    grade_name: '', numeric_order: '', streams: '', capacity: 40, curriculum_id: '', tier_id: ''
   });
   const [loading, setLoading] = useState(false);
+  const [curricula, setCurricula] = useState<Curriculum[]>([]);
+  const [tiers, setTiers] = useState<Tier[]>([]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    api.get('/api/core/curriculum/curricula/')
+      .then(res => {
+        const available: Curriculum[] = (res.data ?? []).filter(
+          (c: Curriculum) => c.is_active_for_new_grades && !c.is_archived
+        );
+        setCurricula(available);
+      })
+      .catch(err => console.error('Failed to load curricula', err));
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || !formData.curriculum_id) {
+      setTiers([]);
+      return;
+    }
+    api.get(`/api/core/curriculum/tiers/?curriculum=${formData.curriculum_id}`)
+      .then(res => setTiers(res.data ?? []))
+      .catch(err => console.error('Failed to load tiers', err));
+  }, [isOpen, formData.curriculum_id]);
 
   if (!isOpen) return null;
 
+  const hasTiers = tiers.length > 0;
+
 const handleSubmit = async (e: React.FormEvent) => {
   e.preventDefault();
+
+  if (!formData.curriculum_id) {
+    toast.error('Please select a curriculum.');
+    return;
+  }
+  if (hasTiers && !formData.tier_id) {
+    toast.error('Please select a tier.');
+    return;
+  }
+
   setLoading(true);
 
   const toastId = toast.loading('Creating grade...');
 
   try {
-    const response = await api.post('/api/academic-hub/add-grade/', formData);
+    const response = await api.post('/api/academic-hub/add-grade/', {
+      ...formData,
+      tier_id: hasTiers ? formData.tier_id : null,
+    });
     const data = response.data;
 
     if (data.status === 'success') {
@@ -84,6 +138,37 @@ const handleSubmit = async (e: React.FormEvent) => {
                 className="w-full border border-slate-300 rounded-xl p-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-white text-slate-800 transition-all shadow-sm"
                 onChange={(e) => setFormData({...formData, numeric_order: e.target.value})} />
             </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-5">
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block">
+                Curriculum <span className="text-red-500">*</span>
+              </label>
+              <select required aria-label="Curriculum" value={formData.curriculum_id}
+                onChange={(e) => setFormData({...formData, curriculum_id: e.target.value, tier_id: ''})}
+                className="w-full border border-slate-300 rounded-xl p-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-white text-slate-800 transition-all shadow-sm">
+                <option value="">Select curriculum...</option>
+                {curricula.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+            {hasTiers && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block">
+                  Tier <span className="text-red-500">*</span>
+                </label>
+                <select required aria-label="Tier" value={formData.tier_id}
+                  onChange={(e) => setFormData({...formData, tier_id: e.target.value})}
+                  className="w-full border border-slate-300 rounded-xl p-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-white text-slate-800 transition-all shadow-sm">
+                  <option value="">Select tier...</option>
+                  {tiers.map(t => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           <div className="space-y-1.5">

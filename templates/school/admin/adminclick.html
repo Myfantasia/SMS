@@ -8,17 +8,17 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-    <link rel="stylesheet" href="{% static 'css/navbar.css' %}?v=2">
-    <link rel="stylesheet" href="{% static 'css/auth_style.css' %}">
+    <link rel="stylesheet" href="{% static 'css/navbar.css' %}?v=3">
+    <link rel="stylesheet" href="{% static 'css/auth_style.css' %}?v=4">
 </head>
-<body>
+<body class="role-admin">
 
     {% include "school/navbar.html" %}
 
     <div class="login-wrapper">
         <div class="login-card" style="text-align: center;">
             <div class="login-header">
-                <i class="fas fa-user-cog" style="font-size: 3.5rem; color: #6366f1; margin-bottom: 20px;"></i>
+                <div class="header-icon-badge"><i class="fas fa-user-cog"></i></div>
                 <h2>Admin Gateway</h2>
                 <p>Manage the entire school ecosystem from here.</p>
             </div>

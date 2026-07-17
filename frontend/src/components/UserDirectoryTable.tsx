@@ -20,6 +20,7 @@ interface DirectoryUser {
   enrollment_state?: EnrollmentState;
   relationship?: string;
   children_count?: number;
+  job_title?: string;
 }
 
 const ENROLLMENT_BADGE: Record<EnrollmentState, string> = {
@@ -30,13 +31,14 @@ const ENROLLMENT_BADGE: Record<EnrollmentState, string> = {
 };
 
 interface UserDirectoryTableProps {
-  userType: 'students' | 'teachers' | 'parents';
+  userType: 'students' | 'teachers' | 'parents' | 'staff';
 }
 
 const AVATAR_COLOR: Record<UserDirectoryTableProps['userType'], string> = {
   teachers: 'bg-purple-100 text-purple-700',
   students: 'bg-blue-100 text-blue-700',
   parents: 'bg-emerald-100 text-emerald-700',
+  staff: 'bg-amber-100 text-amber-700',
 };
 
 export default function UserDirectoryTable({ userType }: UserDirectoryTableProps) {
@@ -152,7 +154,7 @@ export default function UserDirectoryTable({ userType }: UserDirectoryTableProps
     setUserToDelete(null);
   };
 
-  const secondaryColumnLabel = userType === 'students' ? 'Class' : userType === 'teachers' ? 'Subjects Taught' : 'Linked Students';
+  const secondaryColumnLabel = userType === 'students' ? 'Class' : userType === 'teachers' ? 'Subjects Taught' : userType === 'staff' ? 'Job Title' : 'Linked Students';
 
   if (loading) {
     return (
@@ -264,6 +266,9 @@ export default function UserDirectoryTable({ userType }: UserDirectoryTableProps
                     )}
                     {userType === 'parents' && (
                       <span className="text-slate-500 text-sm">{user.children || <span className="text-slate-300 italic">No children linked</span>}</span>
+                    )}
+                    {userType === 'staff' && (
+                      <span className="text-slate-500 text-sm">{user.job_title || <span className="text-slate-300 italic">Not specified</span>}</span>
                     )}
                   </td>
                   <td className="py-3 px-5 text-right">

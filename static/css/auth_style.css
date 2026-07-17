@@ -1,7 +1,54 @@
 /* static/css/auth_style.css */
+/* --- Uses CSS variables from home.css so all login/signup/click/approval pages follow the site-wide light/dark theme --- */
+
+/* Self-contained: none of the login/signup/click/approval pages that use this file
+   load home.css, so this file cannot rely on home.css's :root variables being present. */
+:root {
+    --bg-dark: #020617;
+    --card-bg: #0f172a;
+    --primary: #6366f1;
+    --text-main: #f1f5f9;
+    --text-muted: #94a3b8;
+    --border-soft: rgba(255,255,255,0.08);
+    --border-soft-strong: rgba(255,255,255,0.15);
+    --surface-tint: rgba(255,255,255,0.02);
+    --surface-tint-strong: rgba(255,255,255,0.04);
+    --shadow-color: rgba(2,6,23,0.35);
+    --hero-glow: rgba(99, 102, 241, 0.08);
+
+    --auth-glass: rgba(30, 41, 59, 0.75);
+    --input-bg: rgba(15, 23, 42, 0.6);
+    --file-btn-bg: #334155;
+    --file-btn-text: #f1f5f9;
+    --option-bg: #1e293b;
+    --option-text: #f1f5f9;
+    --select-arrow: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+}
+
+:root[data-theme="light"] {
+    --bg-dark: #f8fafc;
+    --card-bg: #ffffff;
+    --primary: #6366f1;
+    --text-main: #0f172a;
+    --text-muted: #475569;
+    --border-soft: rgba(15,23,42,0.08);
+    --border-soft-strong: rgba(15,23,42,0.16);
+    --surface-tint: rgba(15,23,42,0.035);
+    --surface-tint-strong: rgba(15,23,42,0.06);
+    --shadow-color: rgba(15,23,42,0.10);
+    --hero-glow: rgba(99, 102, 241, 0.10);
+
+    --auth-glass: rgba(255, 255, 255, 0.85);
+    --input-bg: rgba(255, 255, 255, 0.9);
+    --file-btn-bg: #e2e8f0;
+    --file-btn-text: #0f172a;
+    --option-bg: #ffffff;
+    --option-text: #0f172a;
+    --select-arrow: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230f172a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+}
 
 body {
-    background-color: #0f172a;
+    background-color: var(--bg-dark);
     font-family: 'Outfit', 'Roboto', sans-serif;
     display: flex;
     flex-direction: column;
@@ -9,6 +56,18 @@ body {
     margin: 0;
     overflow-x: hidden;
 }
+
+/* --- ROLE ACCENT --- */
+/* Each auth page sets one of these on <body> (role-admin/role-teacher/role-student/
+   role-parent) to pick up a distinct accent color, matching the role colors already
+   used on the portal role-selection page — while the primary action button stays the
+   consistent brand indigo everywhere, for a subtle per-role identity without losing
+   site-wide brand consistency. */
+body { --role-accent: var(--primary); }
+body.role-admin { --role-accent: #f43f5e; }
+body.role-teacher { --role-accent: #10b981; }
+body.role-student { --role-accent: #3b82f6; }
+body.role-parent { --role-accent: #f59e0b; }
 
 /* --- WRAPPER --- */
 .login-wrapper {
@@ -18,22 +77,25 @@ body {
     justify-content: center;
     padding: 20px 16px 18px 16px;
 
-
-    /* Animated Background */
-    background: radial-gradient(circle at 50% 50%, rgba(99, 102, 241, 0.15) 0%, transparent 50%);
+    /* Layered background: role-tinted glow plus the brand glow underneath */
+    background:
+        radial-gradient(circle at 15% 15%, color-mix(in srgb, var(--role-accent) 16%, transparent), transparent 45%),
+        radial-gradient(circle at 85% 85%, var(--hero-glow), transparent 50%);
     background-size: 200% 200%;
-    animation: gradientMove 15s ease infinite;
+    animation: gradientMove 18s ease infinite;
 }
 
 /* --- THE MAIN CARD --- */
 .login-card {
-    background: rgba(30, 41, 59, 0.7);
+    background: var(--auth-glass);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--border-soft);
+    border-top: 3px solid var(--role-accent);
     border-radius: 20px;
     padding: 50px;
     width: 100%;
+    position: relative;
 
     /* WIDTH SETTINGS (Wider on Desktop) */
     max-width: 450px;
@@ -41,8 +103,8 @@ body {
     /* MARGIN TOP SETTING */
     margin-top: 40px;
 
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-    color: #fff;
+    box-shadow: 0 25px 50px -12px var(--shadow-color);
+    color: var(--text-main);
 
     /* Entrance Animation */
     animation: fadeInUp 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -61,19 +123,34 @@ body {
     margin-bottom: 35px;
 }
 
-.login-header i {
+.login-header .header-icon-badge {
+    width: 72px;
+    height: 72px;
+    margin: 0 auto 18px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-size: 1.9rem;
+    background: color-mix(in srgb, var(--role-accent) 14%, transparent);
+    color: var(--role-accent);
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--role-accent) 7%, transparent);
+}
+
+/* Legacy bare icons (not wrapped in .header-icon-badge yet) keep a soft glow so
+   older markup still looks intentional rather than broken. */
+.login-header > i {
     filter: drop-shadow(0 0 10px rgba(99, 102, 241, 0.5));
 }
 
 .login-header h2 {
-    color: #fff;
-    font-weight: 700;
+    color: var(--text-main);
+    font-weight: 800;
     margin-bottom: 10px;
     font-size: 2rem;
 }
 
 .login-header p {
-    color: #94a3b8;
+    color: var(--text-muted);
     font-size: 1rem;
 }
 
@@ -86,10 +163,10 @@ body {
 .form-control {
     width: 100%;
     padding: 15px 18px; /* Bigger touch target */
-    background: rgba(15, 23, 42, 0.6);
-    border: 1px solid #334155;
+    background: var(--input-bg);
+    border: 1px solid var(--border-soft-strong);
     border-radius: 10px;
-    color: #fff;
+    color: var(--text-main);
     font-size: 1rem;
     transition: all 0.3s ease;
     box-sizing: border-box;
@@ -97,10 +174,41 @@ body {
 
 .form-control:focus {
     outline: none;
-    border-color: #818cf8;
-    background: rgba(15, 23, 42, 0.9);
-    box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15);
+    border-color: var(--role-accent);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--role-accent) 15%, transparent);
     transform: translateY(-1px);
+}
+
+.form-control::placeholder {
+    color: var(--text-muted);
+    opacity: 0.7;
+}
+
+/* --- ICON-IN-INPUT --- */
+/* Wrap an <i> + <input class="form-control"> in .input-icon-wrap to sit the icon
+   inside the left edge of the field, a standard "professional form" cue that also
+   makes each field's purpose recognizable at a glance. */
+.input-icon-wrap {
+    position: relative;
+}
+
+.input-icon-wrap .input-icon {
+    position: absolute;
+    left: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    pointer-events: none;
+    transition: color 0.2s ease;
+}
+
+.input-icon-wrap .form-control {
+    padding-left: 46px;
+}
+
+.input-icon-wrap:focus-within .input-icon {
+    color: var(--role-accent);
 }
 
 /* --- BUTTONS --- */
@@ -116,11 +224,26 @@ body {
     font-size: 1.1rem;
     cursor: pointer;
     transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
 }
 
 .btn-login:hover {
     transform: translateY(-2px);
     box-shadow: 0 10px 20px -5px rgba(79, 70, 229, 0.4);
+}
+
+.btn-login:focus-visible {
+    outline: 2px solid var(--role-accent);
+    outline-offset: 3px;
+}
+
+.btn-login.is-loading,
+.btn-login.loading {
+    pointer-events: none;
+    opacity: 0.85;
 }
 
 /* --- GHOST BUTTON (For Click Pages) --- */
@@ -135,23 +258,47 @@ body {
     border-radius: 12px;
     font-weight: 600;
     font-size: 1.1rem;
-    transition: all 0.3s ease;
-    color: #fff;
+    transition: all 0.25s ease;
+    color: var(--text-main);
 
     /* FIX: Force width to 100% so they match */
     width: 100%;
     box-sizing: border-box;
 }
 
+.click-btn i:first-child {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-size: 0.95rem;
+    flex-shrink: 0;
+    background: color-mix(in srgb, var(--role-accent) 16%, transparent);
+    color: var(--role-accent);
+    transition: transform 0.25s ease;
+}
+
+.click-btn:hover i:first-child {
+    transform: scale(1.1);
+}
+
 .btn-primary-ghost {
-    background: rgba(99, 102, 241, 0.1);
-    border: 1px solid rgba(99, 102, 241, 0.5);
+    background: var(--surface-tint-strong);
+    border: 1px solid var(--border-soft-strong);
 }
 
 .btn-primary-ghost:hover {
-    background: rgba(99, 102, 241, 0.25);
-    border-color: #818cf8;
+    background: color-mix(in srgb, var(--role-accent) 12%, transparent);
+    border-color: var(--role-accent);
     transform: translateY(-2px);
+    box-shadow: 0 10px 20px -8px color-mix(in srgb, var(--role-accent) 60%, transparent);
+}
+
+.btn-primary-ghost:focus-visible,
+.click-btn.btn-login:focus-visible {
+    outline: 2px solid var(--role-accent);
+    outline-offset: 3px;
 }
 
 /* --- FOOTER LINKS --- */
@@ -160,27 +307,27 @@ body {
     justify-content: space-between;
     margin-top: 25px;
     font-size: 0.9rem;
-    color: #94a3b8;
+    color: var(--text-muted);
 }
 
 .forgot-password {
-    color: #cbd5e1;
+    color: var(--text-muted);
     text-decoration: none;
     transition: color 0.2s;
 }
 
 .forgot-password:hover {
-    color: #818cf8;
+    color: var(--role-accent);
 }
 
 .signup-link {
     text-align: center;
     margin-top: 20px;
-    color: #94a3b8;
+    color: var(--text-muted);
 }
 
 .signup-link a {
-    color: #818cf8;
+    color: var(--role-accent);
     text-decoration: none;
     font-weight: 600;
 }
@@ -199,13 +346,40 @@ body {
 .error-message {
     background: rgba(220, 38, 38, 0.1);
     border: 1px solid rgba(220, 38, 38, 0.2);
-    color: #f87171;
+    color: #dc2626;
 }
+:root:not([data-theme="light"]) .error-message { color: #f87171; }
 
 .success-message {
     background: rgba(22, 163, 74, 0.1);
     border: 1px solid rgba(22, 163, 74, 0.2);
-    color: #4ade80;
+    color: #16a34a;
+}
+:root:not([data-theme="light"]) .success-message { color: #4ade80; }
+
+/* --- UNIVERSAL SERVER-SIDE ERROR BOX (form_errors.html) --- */
+.universal-error-box {
+    background: rgba(220, 38, 38, 0.08);
+    border: 1px solid rgba(220, 38, 38, 0.25);
+    border-radius: 10px;
+    padding: 16px 18px;
+    margin-bottom: 25px;
+}
+.universal-error-box .error-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #ef4444;
+    font-weight: 700;
+    font-size: 0.95rem;
+    margin-bottom: 8px;
+}
+.universal-error-box .error-list {
+    margin: 0;
+    padding-left: 20px;
+    color: var(--text-main);
+    font-size: 0.88rem;
+    line-height: 1.6;
 }
 
 /* --- ANIMATIONS --- */
@@ -264,7 +438,7 @@ body {
     padding: 15px 5px !important;
     text-align: center;
     cursor: pointer;
-    background-color: rgba(15, 23, 42, 0.8);
+    background-color: var(--input-bg);
 }
 
 .phone-input {
@@ -292,12 +466,14 @@ body {
 
 /* 1. Labels for inputs (makes it look cleaner) */
 .field-label {
-    display: block;
+    display: flex;
+    justify-content: flex-start; /* Keep label and (Optional) close together */
+    align-items: center;
+    width: 100%;
     margin-bottom: 8px;
     font-size: 0.85rem;
-    color: #cbd5e1; /* Light grey text */
+    color: var(--text-muted);
     font-weight: 500;
-    margin-left: 5px;
 }
 
 /* 2. Styling the Dropdown (Select) to match Inputs */
@@ -305,30 +481,30 @@ select.form-control {
     appearance: none; /* Removes default browser arrow */
     -webkit-appearance: none;
     -moz-appearance: none;
-    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-image: var(--select-arrow);
     background-repeat: no-repeat;
     background-position: right 15px center;
     background-size: 15px;
     cursor: pointer;
 }
 
-/* 3. Dropdown Options Background (Fix for dark mode) */
+/* 3. Dropdown Options Background (adapts per theme — <option> styling support is limited but background-color/color are respected) */
 select.form-control option {
-    background-color: #1e293b; /* Dark Blue Slate */
-    color: white;
+    background-color: var(--option-bg);
+    color: var(--option-text);
     padding: 10px;
 }
 
 /* 4. File Input Styling */
 input[type="file"].form-control {
     line-height: 1;
-    color: #94a3b8;
+    color: var(--text-muted);
 }
 
 /* 5. File input button color */
 input[type="file"]::file-selector-button {
-    background-color: #334155;
-    color: white;
+    background-color: var(--file-btn-bg);
+    color: var(--file-btn-text);
     border: none;
     padding: 5px 10px;
     border-radius: 5px;
@@ -338,33 +514,23 @@ input[type="file"]::file-selector-button {
 }
 
 input[type="file"]::file-selector-button:hover {
-    background-color: #475569;
+    background-color: var(--border-soft-strong);
 }
 
 /* --- DROPDOWN MENU STYLING --- */
 
 /* 1. The Category Headers (Junior/Senior High) */
 select.form-control optgroup {
-    background-color: #0f172a; /* Very dark blue (contrast) */
+    background-color: var(--option-bg);
     color: #818cf8; /* Indigo accent color */
     font-weight: 700; /* Bold text */
     font-style: normal; /* Remove default italics */
     padding: 10px; /* Space around the header */
 }
 
-/* 2. The Individual Options (Grade 7, 8, etc.) */
-select.form-control option {
-    background-color: #1e293b; /* Matches your card background */
-    color: #f1f5f9; /* Bright white/grey text */
-    padding: 12px; /* Comfortable clicking area */
-    font-size: 1rem;
-    margin-bottom: 2px;
-}
-
-/* 3. Hover effect (Only works on some modern browsers like Chrome) */
+/* 2. Hover effect (Only works on some modern browsers like Chrome) */
 select.form-control option:hover {
-    background-color: #334155;
-    color: #fff;
+    background-color: rgba(99, 102, 241, 0.15);
 }
 
 /* --- CUSTOM FILE UPLOAD DESIGN --- */
@@ -380,23 +546,24 @@ select.form-control option:hover {
 .file-input-styled {
     padding: 12px;
     height: auto; /* Allow height to adjust */
-    background: rgba(15, 23, 42, 0.4); /* Darker background */
-    border: 2px dashed #475569; /* Dashed border indicates "Upload Area" */
+    background: var(--surface-tint-strong);
+    border: 2px dashed var(--border-soft-strong); /* Dashed border indicates "Upload Area" */
     border-radius: 10px;
     cursor: pointer;
     transition: all 0.3s ease;
+    color: var(--text-main);
 }
 
 .file-input-styled:hover {
-    border-color: #818cf8; /* Indigo border on hover */
-    background: rgba(30, 41, 59, 0.6);
+    border-color: var(--role-accent);
+    background: color-mix(in srgb, var(--role-accent) 6%, transparent);
 }
 
 /* 3. The 'Choose File' Button inside the input */
 .file-input-styled::file-selector-button {
-    background: #334155;
-    color: #f1f5f9;
-    border: 1px solid rgba(255,255,255,0.1);
+    background: var(--file-btn-bg);
+    color: var(--file-btn-text);
+    border: 1px solid var(--border-soft-strong);
     padding: 8px 16px;
     border-radius: 6px;
     font-weight: 600;
@@ -416,13 +583,14 @@ select.form-control option:hover {
 /* 4. The Disclaimer Text */
 .file-warning {
     font-size: 0.85rem;
-    color: #fbbf24; /* Amber color for caution */
+    color: #b45309; /* Amber, darkened for light-mode contrast */
     display: flex;
     align-items: center;
     gap: 8px;
     margin-top: 5px;
     padding-left: 5px;
 }
+:root:not([data-theme="light"]) .file-warning { color: #fbbf24; }
 
 .file-warning i {
     font-size: 0.9rem;
@@ -440,23 +608,23 @@ select.form-control option:hover {
     top: 50%;
     transform: translateY(-50%);
     cursor: pointer;
-    color: #94a3b8;
+    color: var(--text-muted);
     z-index: 10;
     font-size: 1rem;
     transition: color 0.3s;
 }
 
 .toggle-pass:hover {
-    color: #818cf8;
+    color: var(--role-accent);
 }
 
 /* --- EMAIL INFO BOX --- */
 .email-info-box {
-    background: rgba(15, 23, 42, 0.4);
-    border: 1px dashed #475569;
+    background: var(--surface-tint-strong);
+    border: 1px dashed var(--border-soft-strong);
     border-radius: 10px;
     padding: 12px 15px;
-    color: #94a3b8;
+    color: var(--text-muted);
     font-size: 0.85rem;
     display: flex;
     align-items: center;
@@ -468,24 +636,35 @@ select.form-control option:hover {
     color: #818cf8;
 }
 
-/* --- FIELD LABEL & OPTIONAL SPAN --- */
-.field-label {
-    display: flex;
-    justify-content: flex-start; /* Keep label and (Optional) close together */
-    align-items: center;
-    width: 100%;
-    margin-bottom: 8px;
-    font-size: 0.85rem;
-    color: #cbd5e1;
-    font-weight: 500;
-}
-
+/* --- OPTIONAL SPAN --- */
 .optional-label {
     font-size: 0.75rem;
-    color: #64748b;
+    color: var(--text-muted);
     font-weight: 400;
     font-style: italic;
     margin-left: 8px; /* Fixed gap */
+    opacity: 0.8;
+}
+
+/* --- INPUT HINT --- */
+/* A persistent recommendation/format hint under a field. Unlike a placeholder,
+   this stays visible once the user starts typing. */
+.input-hint {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    margin-top: 6px;
+    margin-left: 2px;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+
+.input-hint i {
+    margin-top: 2px;
+    color: #818cf8;
+    font-size: 0.75rem;
+    flex-shrink: 0;
 }
 
 /* --- MOBILE RESPONSIVE FIXES --- */
@@ -537,9 +716,8 @@ select.form-control option:hover {
     border-radius: 10px;
     padding: 20px;
     margin: 25px 0;
-    color: #fde68a;
+    color: #b45309; /* Darkened amber for light-mode contrast */
     font-size: 0.95rem;
     line-height: 1.5;
 }
-
-
+:root:not([data-theme="light"]) .status-box { color: #fde68a; }

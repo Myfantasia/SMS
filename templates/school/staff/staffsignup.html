@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="en" dir="ltr">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>Staff Application | SMS</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <link rel="stylesheet" href="{% static 'css/navbar.css' %}?v=3">
+    <link rel="stylesheet" href="{% static 'css/auth_style.css' %}?v=4">
+    <link rel="stylesheet" href="{% static 'css/spinner.css' %}">
+    <link rel="stylesheet" href="{% static 'css/form_extra.css' %}?v=2">
+</head>
+
+<body class="role-teacher">
+    {% include "school/navbar.html" %}
+
+    <div class="login-wrapper">
+        <div class="login-card wide-card">
+            <div class="login-header">
+                <div class="header-icon-badge"><i class="fas fa-briefcase"></i></div>
+                <h2>Staff Application</h2>
+                <p>Join the school's support staff. Fill in your details below for Admin approval.</p>
+            </div>
+
+            <form method="post" action="{% url 'staffsignup' %}">
+                {% csrf_token %}
+                {% include "school/form_errors.html" %}
+
+                <div class="form-row">
+                    <div class="col-half">
+                        <div class="form-group">
+                            <label class="field-label" for="first_name">First Name</label>
+                            <input type="text" name="first_name" id="first_name" class="form-control" placeholder="e.g. John" required>
+                        </div>
+                    </div>
+                    <div class="col-half">
+                        <div class="form-group">
+                            <label class="field-label" for="last_name">Last Name</label>
+                            <input type="text" name="last_name" id="last_name" class="form-control" placeholder="e.g. Ochieng" required>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="col-half">
+                        <div class="form-group">
+                            <label class="field-label" for="job_title">Job Title</label>
+                            <input type="text" name="job_title" id="job_title" class="form-control" placeholder="e.g. Librarian, Finance Officer" required>
+                        </div>
+                    </div>
+                    <div class="col-half">
+                        <div class="form-group">
+                            <label class="field-label" for="email">Email Address</label>
+                            <div class="input-icon-wrap">
+                                <i class="fas fa-envelope input-icon"></i>
+                                <input type="email" name="email" id="email" class="form-control" placeholder="e.g. staff@example.com" required>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="col-half">
+                        <div class="form-group">
+                            <label class="field-label" for="id_number">National ID Number</label>
+                            <input type="number" name="id_number" id="id_number" class="form-control" placeholder="e.g. 12345678" required>
+                        </div>
+                    </div>
+                    <div class="col-half">
+                        <div class="form-group">
+                            <label class="field-label" for="username">Username</label>
+                            <input type="text" name="username" id="username" class="form-control" placeholder="e.g. j.ochieng" required>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="col-half">
+                        <div class="form-group">
+                            <label class="field-label" for="password">Password</label>
+                            <div class="password-wrapper input-icon-wrap">
+                                <i class="fas fa-lock input-icon"></i>
+                                <input type="password" name="password" id="password" class="form-control" placeholder="Create a strong password" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-half">
+                        <div class="form-group">
+                            <label class="field-label" for="mobile">Mobile Number</label>
+                            <div class="phone-group">
+                                <select class="form-control code-select" disabled>
+                                    <option>+254</option>
+                                </select>
+                                <input type="text" name="mobile" id="mobile" class="form-control phone-input" placeholder="712 345 678" required>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="col-full" style="width: 100%;">
+                        <div class="form-group">
+                            <label class="field-label" for="address">Home Address</label>
+                            <input type="text" name="address" id="address" class="form-control" placeholder="e.g. Buruburu, Nairobi" required>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-login"><i class="fas fa-paper-plane"></i> Submit Application</button>
+
+                <div class="signup-link">
+                    Already approved? <a href="{% url 'stafflogin' %}">Login Here</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="{% static 'js/form_handler.js' %}"></script>
+
+    {% include "school/footer.html" %}
+</body>
+
+</html>

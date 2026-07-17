@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Phone, Mail, MapPin, BookOpen, Layers, Star, Edit, ShieldAlert, UserX, Heart } from 'lucide-react';
+import { ArrowLeft, Phone, Mail, MapPin, BookOpen, Layers, Star, Edit, ShieldAlert, UserX, Heart, KeyRound, Copy, CheckCircle2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import api from '../../libs/axiosInstance';
 
 const ENROLLMENT_BADGE: Record<string, string> = {
@@ -21,9 +22,18 @@ export default function ViewProfile() {
   const navigate = useNavigate();
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [resetting, setResetting] = useState(false);
+  // Admin-triggered reset hands back a one-time plaintext password that has to be
+  // relayed to the user out-of-band, so it needs a persistent reveal, not a toast.
+  const [passwordReveal, setPasswordReveal] = useState<{ newPassword: string; emailNotified: boolean } | null>(null);
 
   const isAdmin = window.location.pathname.includes('admin-dashboard');
+  const isTeacherViewer = window.location.pathname.includes('teacher-dashboard');
   const basePath = '/' + (window.location.pathname.split('/')[1] || 'admin-dashboard');
+
+  // Admins can reset anyone; a teacher can only reset a student in their own class
+  // (enforced server-side too — this just decides whether to show the button at all).
+  const canResetPassword = isAdmin || (isTeacherViewer && userType === 'students' && profile?.viewer_is_class_teacher);
 
 useEffect(() => {
   const fetchProfileAndAllocations = async () => {
@@ -67,6 +77,34 @@ useEffect(() => {
   fetchProfileAndAllocations();
 }, [userType, id]);
 
+  const handleResetPassword = async () => {
+    if (!window.confirm(`Reset ${profile?.name || 'this user'}'s password? Their current password will stop working immediately.`)) {
+      return;
+    }
+    setResetting(true);
+    try {
+      const endpoint = isAdmin ? '/api/admin/reset-user-password/' : '/api/teacher/reset-student-password/';
+      const payload = isAdmin ? { user_type: userType, id } : { id };
+      const response = await api.post(endpoint, payload);
+      const data = response.data;
+      if (data.status === 'success') {
+        setPasswordReveal({ newPassword: data.new_password, emailNotified: data.email_notified });
+      } else {
+        toast.error(data.message || 'Failed to reset password.');
+      }
+    } catch (error: any) {
+      console.error('Failed to reset password', error);
+      toast.error(error.response?.data?.message || 'Failed to reset password.');
+    }
+    setResetting(false);
+  };
+
+  const copyPassword = () => {
+    if (!passwordReveal) return;
+    navigator.clipboard?.writeText(passwordReveal.newPassword);
+    toast.success('Password copied to clipboard.');
+  };
+
   if (loading) {
     return (
       <div className="max-w-3xl space-y-6 animate-pulse">
@@ -87,13 +125,26 @@ useEffect(() => {
         <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-blue-600 transition-colors">
           <ArrowLeft className="w-4 h-4" /> Back to Directory
         </button>
-        {isAdmin && (
-          <button
-            onClick={() => navigate(`${basePath}/${userType}/edit/${id}`)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
-          >
-            <Edit className="w-4 h-4" /> Edit Profile
-          </button>
+        {(isAdmin || canResetPassword) && (
+          <div className="flex items-center gap-2">
+            {canResetPassword && (
+              <button
+                disabled={resetting}
+                onClick={handleResetPassword}
+                className="flex items-center gap-2 px-4 py-2 bg-amber-50 text-amber-700 text-sm font-semibold rounded-lg hover:bg-amber-100 transition-colors disabled:opacity-60"
+              >
+                <KeyRound className="w-4 h-4" /> Reset Password
+              </button>
+            )}
+            {isAdmin && (
+              <button
+                onClick={() => navigate(`${basePath}/${userType}/edit/${id}`)}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+              >
+                <Edit className="w-4 h-4" /> Edit Profile
+              </button>
+            )}
+          </div>
         )}
       </div>
 
@@ -173,10 +224,10 @@ useEffect(() => {
             <BookOpen className="w-5 h-5 text-slate-400" />
             <div>
               <p className="text-xs text-slate-400 font-semibold uppercase tracking-wide">
-                {userType === 'students' ? 'Class Enrolled' : userType === 'teachers' ? 'Subjects Specialized' : 'Linked Children'}
+                {userType === 'students' ? 'Class Enrolled' : userType === 'teachers' ? 'Subjects Specialized' : userType === 'staff' ? 'Job Title' : 'Linked Children'}
               </p>
               <p className="text-slate-800 font-medium">
-                {profile.class || profile.subjects || profile.children || "N/A"}
+                {profile.class || profile.subjects || profile.job_title || profile.children || "N/A"}
               </p>
             </div>
           </div>
@@ -235,6 +286,37 @@ useEffect(() => {
         )}
 
       </div>
+
+      {passwordReveal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 text-center">
+            <div className="w-14 h-14 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-4">
+              <KeyRound className="w-7 h-7" />
+            </div>
+            <h3 className="text-lg font-bold text-slate-800 mb-1">Password Reset</h3>
+            <p className="text-sm text-slate-500 mb-5">
+              This is shown only once. Relay it to <span className="font-semibold text-slate-700">{profile.name}</span> out-of-band and ask them to change it after logging in.
+            </p>
+            <div className="flex items-center justify-center gap-2 bg-slate-50 border border-slate-200 rounded-xl py-4 mb-5">
+              <span className="text-xl font-extrabold tracking-wide text-slate-800 break-all">{passwordReveal.newPassword}</span>
+              <button onClick={copyPassword} className="p-2 rounded-lg hover:bg-slate-200 transition-colors shrink-0" title="Copy password">
+                <Copy className="w-4 h-4 text-slate-500" />
+              </button>
+            </div>
+            {passwordReveal.emailNotified && (
+              <p className="flex items-center justify-center gap-1.5 text-xs text-emerald-600 font-medium mb-5">
+                <CheckCircle2 className="w-3.5 h-3.5" /> A notice was also emailed to their address on file.
+              </p>
+            )}
+            <button
+              onClick={() => setPasswordReveal(null)}
+              className="w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-sm font-bold transition-colors"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

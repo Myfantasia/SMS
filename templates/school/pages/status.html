@@ -1,0 +1,59 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Status | MyFantasia</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{% static 'css/navbar.css' %}?v=3">
+    <link rel="stylesheet" href="{% static 'css/home.css' %}?v=5">
+    <link rel="stylesheet" href="{% static 'css/legal.css' %}?v=3">
+</head>
+<body>
+    {% include "school/navbar.html" %}
+
+    <main>
+        <section class="legal-hero">
+            <span class="pill-tag"><i class="fas fa-signal"></i> Status</span>
+            <h1>System <span class="gradient-text">Status</span></h1>
+            <p>Current operational status of the MyFantasia portal and its core services.</p>
+        </section>
+
+        <div class="status-summary {% if not all_operational %}degraded{% endif %}">
+            <div class="status-dot"></div>
+            <div>
+                {% if all_operational %}
+                <h3>All Systems Operational</h3>
+                <p>Every core service is running normally as of your latest page load.</p>
+                {% else %}
+                <h3>Some Systems Are Experiencing Issues</h3>
+                <p>One or more services below are currently degraded. Please check back shortly.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="status-list">
+            {% for service in services %}
+            <div class="status-row">
+                <span class="service-name">{{ service.name }}</span>
+                {% if service.operational %}
+                <span class="status-badge"><i class="fas fa-circle"></i> Operational</span>
+                {% else %}
+                <span class="status-badge down"><i class="fas fa-circle"></i> Degraded</span>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+
+        <p class="status-note">
+            This page reflects a live check of the platform performed when it loads (including a real database connectivity check) rather than a fixed historical uptime log.
+            If something looks wrong on your end that isn't shown here, please let us know via <a href="/contactus" style="color: var(--primary);">Contact Us</a>.
+        </p>
+    </main>
+
+    {% include "school/footer.html" %}
+</body>
+</html>

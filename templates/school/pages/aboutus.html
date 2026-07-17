@@ -7,8 +7,8 @@
     <title>Our Legacy | Myfantasia High School</title>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="{% static 'css/home.css' %}?v=2">
-    <link rel="stylesheet" href="{% static 'css/aboutus.css' %}">
+    <link rel="stylesheet" href="{% static 'css/home.css' %}?v=5">
+    <link rel="stylesheet" href="{% static 'css/aboutus.css' %}?v=4">
 </head>
 <body>
     {% include "school/navbar.html" %}
@@ -45,6 +45,29 @@
             </div>
         </section>
 
+        <section class="info-section" style="margin-top: 0;">
+            <div class="info-content">
+                <h2 class="section-title center">Our <span class="highlight">Mission</span> & Vision</h2>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <i class="fas fa-bullseye"></i>
+                        <h4>Our Mission</h4>
+                        <p>To nurture globally competent, ethically grounded learners through a rigorous blend of academic excellence, co-curricular achievement, and character formation — preparing every Fantasian for both the CBC and 8-4-4 pathways to higher education and beyond.</p>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-binoculars"></i>
+                        <h4>Our Vision</h4>
+                        <p>To be East Africa's benchmark for holistic secondary education, where sciences, the arts, technology, and sport are given equal weight in shaping the next generation of Kenyan leaders.</p>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-hands-holding-circle"></i>
+                        <h4>Our Values</h4>
+                        <p>Integrity, Discipline, Innovation, and Community — the four pillars every Fantasian carries from the classroom into university, career, and beyond.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
         <section class="story-grid">
             <div class="story-text">
                 <h2 class="section-title">A Tradition of <span class="highlight">Resilience</span></h2>
@@ -73,6 +96,45 @@
                     <i class="fas fa-football-ball icon-float"></i>
                     <h3>Rugby Excellence</h3>
                     <p>Our "Fantasians" XV team are current regional champions.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="features-section">
+            <div class="section-header">
+                <h2>Academics & <span class="gradient-text">Facilities</span></h2>
+                <p>What sets a Fantasian education apart, inside and outside the classroom.</p>
+            </div>
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <div class="card-glow blue-glow"></div>
+                    <div class="icon-box blue"><i class="fas fa-graduation-cap"></i></div>
+                    <h3>CBC Grade 9–12 Pathway</h3>
+                    <p>Fully accredited Competency-Based Curriculum tracks in STEM, Social Sciences, and Arts & Sports Science, run by CBC-certified teaching staff.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="card-glow green-glow"></div>
+                    <div class="icon-box green"><i class="fas fa-book"></i></div>
+                    <h3>8-4-4 Legacy Programme</h3>
+                    <p>Our long-running 8-4-4 stream continues to post consistently strong KCSE results, backed by dedicated revision and mentorship structures.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="card-glow red-glow"></div>
+                    <div class="icon-box red"><i class="fas fa-flask"></i></div>
+                    <h3>Science & Coding Labs</h3>
+                    <p>Fully equipped Physics, Chemistry, and Biology labs alongside the "Silicon Savannah" Coding Lab, opened in 2024 with Westlands tech partners.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="card-glow yellow-glow"></div>
+                    <div class="icon-box yellow"><i class="fas fa-book-open"></i></div>
+                    <h3>Library & Learning Commons</h3>
+                    <p>A well-resourced library and quiet study commons supporting independent research, revision, and university application preparation.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="card-glow purple-glow"></div>
+                    <div class="icon-box purple"><i class="fas fa-futbol"></i></div>
+                    <h3>Sports Complex & Rugby Pitch</h3>
+                    <p>Home to our reigning regional Rugby champions, plus athletics, football, and basketball facilities used for county and national competitions.</p>
                 </div>
             </div>
         </section>

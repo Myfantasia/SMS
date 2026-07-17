@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, type MouseEvent } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import {
   BookMarked, Plus, Trash2, X, Pencil, Eye, Sunset, Archive, Layers, GitBranch, Sparkles,
+  Rows3, GraduationCap, ArrowLeft, ChevronRight,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../libs/axiosInstance';
@@ -22,6 +23,22 @@ interface Pathway {
   description: string;
 }
 
+interface Tier {
+  id: number;
+  curriculum: number;
+  name: string;
+  code: string;
+  display_order: number;
+}
+
+interface GradeSummary {
+  id: number;
+  grade_name: string;
+  curriculum_id: number | null;
+  tier_id: number | null;
+  total_streams: number;
+}
+
 interface SubjectPool {
   id?: number;
   preset?: number;
@@ -38,7 +55,7 @@ interface CurriculumPreset {
   max_subjects: number;
   display_order: number;
   curriculum: number | null;
-  tier: 'JSS' | 'SSS' | null;
+  tier: number | null;
   pathway: number | null;
   pools: SubjectPool[];
 }
@@ -60,33 +77,41 @@ const emptyPreset = (): Omit<CurriculumPreset, 'id'> => ({
   curriculum: null, tier: null, pathway: null, pools: [],
 });
 
-type Tab = 'curricula' | 'pathways' | 'presets';
+type Tab = 'curricula' | 'tiers' | 'pathways' | 'presets';
 
 export default function CurriculumHub() {
   const { permissions } = useOutletContext<DashboardContextType>();
   const canEdit = permissions.includes('curriculum.edit');
   const canArchive = permissions.includes('curriculum.archive');
+  const canEditClasses = permissions.includes('classes.edit');
 
   const [tab, setTab] = useState<Tab>('curricula');
+  const [selectedTierId, setSelectedTierId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
   const [curricula, setCurricula] = useState<Curriculum[]>([]);
   const [pathways, setPathways] = useState<Pathway[]>([]);
+  const [tiers, setTiers] = useState<Tier[]>([]);
   const [presets, setPresets] = useState<CurriculumPreset[]>([]);
   const [subjects, setSubjects] = useState<SubjectOption[]>([]);
+  const [grades, setGrades] = useState<GradeSummary[]>([]);
 
   const fetchAll = useCallback(async () => {
     try {
-      const [curRes, pathRes, presetRes, subRes] = await Promise.all([
+      const [curRes, pathRes, tierRes, presetRes, subRes, academicHubRes] = await Promise.all([
         api.get('/api/core/curriculum/curricula/'),
         api.get('/api/core/curriculum/pathways/'),
+        api.get('/api/core/curriculum/tiers/'),
         api.get('/api/core/curriculum/presets/'),
         api.get('/api/manage-subjects/'),
+        api.get('/api/academic-hub/'),
       ]);
       setCurricula(curRes.data);
       setPathways(pathRes.data);
+      setTiers(tierRes.data);
       setPresets(presetRes.data);
       setSubjects(subRes.data?.data ?? []);
+      setGrades(academicHubRes.data?.data?.classes ?? []);
     } catch (error) {
       console.error('Failed to load curriculum data', error);
       toast.error('Failed to load curriculum data.');
@@ -127,14 +152,17 @@ export default function CurriculumHub() {
         </div>
       </div>
 
-      <div className="flex bg-white rounded-lg p-1 shadow-sm border border-slate-100 w-max">
-        <button onClick={() => setTab('curricula')} className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition ${tab === 'curricula' ? 'bg-slate-100 text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}>
+      <div className="flex bg-white rounded-lg p-1 shadow-sm border border-slate-100 w-max flex-wrap">
+        <button onClick={() => { setTab('curricula'); setSelectedTierId(null); }} className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition ${tab === 'curricula' ? 'bg-slate-100 text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}>
           <Layers className="w-4 h-4" /> Curricula
         </button>
-        <button onClick={() => setTab('presets')} className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition ${tab === 'presets' ? 'bg-slate-100 text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}>
+        <button onClick={() => { setTab('tiers'); setSelectedTierId(null); }} className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition ${tab === 'tiers' ? 'bg-slate-100 text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}>
+          <Rows3 className="w-4 h-4" /> Tiers
+        </button>
+        <button onClick={() => { setTab('presets'); setSelectedTierId(null); }} className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition ${tab === 'presets' ? 'bg-slate-100 text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}>
           <Sparkles className="w-4 h-4" /> Presets
         </button>
-        <button onClick={() => setTab('pathways')} className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition ${tab === 'pathways' ? 'bg-slate-100 text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}>
+        <button onClick={() => { setTab('pathways'); setSelectedTierId(null); }} className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition ${tab === 'pathways' ? 'bg-slate-100 text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}>
           <GitBranch className="w-4 h-4" /> Pathways
         </button>
       </div>
@@ -145,6 +173,25 @@ export default function CurriculumHub() {
           onChanged={fetchAll}
         />
       )}
+      {tab === 'tiers' && (() => {
+        const selectedTier = selectedTierId ? tiers.find((t) => t.id === selectedTierId) : undefined;
+        return selectedTier ? (
+          <TierDetailView
+            tier={selectedTier}
+            curricula={curricula}
+            grades={grades}
+            canEdit={canEditClasses}
+            onBack={() => setSelectedTierId(null)}
+            onChanged={fetchAll}
+          />
+        ) : (
+          <TiersTab
+            tiers={tiers} curricula={curricula} canEdit={canEdit}
+            onChanged={fetchAll}
+            onOpenTier={(t) => setSelectedTierId(t.id)}
+          />
+        );
+      })()}
       {tab === 'pathways' && (
         <PathwaysTab
           pathways={pathways} curricula={curricula} canEdit={canEdit}
@@ -153,7 +200,7 @@ export default function CurriculumHub() {
       )}
       {tab === 'presets' && (
         <PresetsTab
-          presets={presets} curricula={curricula} pathways={pathways} subjects={subjects}
+          presets={presets} curricula={curricula} pathways={pathways} tiers={tiers} subjects={subjects}
           canEdit={canEdit} onChanged={fetchAll}
         />
       )}
@@ -396,11 +443,122 @@ function PathwaysTab({ pathways, curricula, canEdit, onChanged }: {
 }
 
 // ==========================================
+// TIERS TAB
+// ==========================================
+
+function TiersTab({ tiers, curricula, canEdit, onChanged, onOpenTier }: {
+  tiers: Tier[]; curricula: Curriculum[]; canEdit: boolean; onChanged: () => void; onOpenTier: (tier: Tier) => void;
+}) {
+  const [adding, setAdding] = useState(false);
+  const [curriculumId, setCurriculumId] = useState<number | ''>('');
+  const [name, setName] = useState('');
+  const [code, setCode] = useState('');
+  const [displayOrder, setDisplayOrder] = useState(0);
+  const [saving, setSaving] = useState(false);
+
+  const curriculumName = (id: number) => curricula.find((c) => c.id === id)?.name ?? 'Unknown';
+
+  const handleCreate = async () => {
+    if (!curriculumId || !name.trim() || !code.trim()) {
+      toast.error('Curriculum, name, and code are required.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await api.post('/api/core/curriculum/tiers/', {
+        curriculum: curriculumId, name: name.trim(), code: code.trim(), display_order: displayOrder,
+      });
+      toast.success(`Tier '${name}' created.`);
+      setName(''); setCode(''); setDisplayOrder(0); setAdding(false);
+      onChanged();
+    } catch (error: any) {
+      const data = error?.response?.data;
+      toast.error(data?.curriculum?.[0] || data?.detail || data?.code?.[0] || data?.name?.[0] || 'Failed to create tier.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (e: MouseEvent, tier: Tier) => {
+    e.stopPropagation();
+    if (!window.confirm(`Delete tier '${tier.name}'?`)) return;
+    try {
+      await api.delete(`/api/core/curriculum/tiers/${tier.id}/`);
+      toast.success('Tier deleted.');
+      onChanged();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.detail || 'Failed to delete tier.');
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 divide-y divide-slate-50">
+        {tiers.map((t) => (
+          <div
+            key={t.id}
+            role="button"
+            tabIndex={0}
+            onClick={() => onOpenTier(t)}
+            onKeyDown={(e) => { if (e.key === 'Enter') onOpenTier(t); }}
+            title="Open this tier's configuration"
+            className="w-full text-left px-6 py-4 flex items-center justify-between hover:bg-slate-50 transition-colors cursor-pointer"
+          >
+            <div>
+              <span className="font-semibold text-slate-800 text-sm">{t.name}</span>
+              <span className="text-xs text-slate-400 ml-2 font-mono">{t.code}</span>
+              <span className="text-xs text-slate-400 ml-2">{curriculumName(t.curriculum)}</span>
+            </div>
+            <div className="flex items-center gap-3">
+              {canEdit && (
+                <button onClick={(e) => handleDelete(e, t)} className="text-slate-400 hover:text-red-600 transition" title="Delete tier">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
+              <ChevronRight className="w-4 h-4 text-slate-300" />
+            </div>
+          </div>
+        ))}
+        {tiers.length === 0 && <div className="text-slate-400 p-10 text-center text-sm">No tiers yet — a tier is an optional stage split within a curriculum (e.g. CBC's Junior/Senior Secondary). Curricula that don't split into stages don't need any.</div>}
+      </div>
+
+      {canEdit && (
+        adding ? (
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 space-y-3">
+            <h3 className="text-sm font-bold text-slate-800">New Tier</h3>
+            <select aria-label="Curriculum" value={curriculumId} onChange={(e) => setCurriculumId(e.target.value ? Number(e.target.value) : '')} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
+              <option value="">Select curriculum...</option>
+              {curricula.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name, e.g. Junior Secondary" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" />
+            <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="Code, e.g. JSS" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" />
+            <label className="text-xs block">
+              <span className="block text-slate-500 font-bold mb-1">Display order</span>
+              <input type="number" value={displayOrder} onChange={(e) => setDisplayOrder(Number(e.target.value))} className="w-full sm:w-32 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-500" />
+            </label>
+            <div className="flex gap-3 justify-end">
+              <button onClick={() => setAdding(false)} className="px-4 py-2 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-100">Cancel</button>
+              <button onClick={handleCreate} disabled={saving} className="px-4 py-2 rounded-lg text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50">
+                {saving ? 'Creating...' : 'Create'}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button onClick={() => setAdding(true)} className="flex items-center gap-2 text-sm font-bold text-indigo-600 hover:text-indigo-700">
+            <Plus className="w-4 h-4" /> Add Tier
+          </button>
+        )
+      )}
+    </div>
+  );
+}
+
+// ==========================================
 // PRESETS TAB
 // ==========================================
 
-function PresetsTab({ presets, curricula, pathways, subjects, canEdit, onChanged }: {
-  presets: CurriculumPreset[]; curricula: Curriculum[]; pathways: Pathway[]; subjects: SubjectOption[];
+function PresetsTab({ presets, curricula, pathways, tiers, subjects, canEdit, onChanged }: {
+  presets: CurriculumPreset[]; curricula: Curriculum[]; pathways: Pathway[]; tiers: Tier[]; subjects: SubjectOption[];
   canEdit: boolean; onChanged: () => void;
 }) {
   const [editing, setEditing] = useState<CurriculumPreset | Omit<CurriculumPreset, 'id'> | null>(null);
@@ -464,7 +622,7 @@ function PresetsTab({ presets, curricula, pathways, subjects, canEdit, onChanged
               <tr key={p.id} className="hover:bg-slate-50 transition-colors">
                 <td className="px-6 py-4 font-semibold text-slate-800">{p.name}</td>
                 <td className="px-6 py-4 text-xs text-slate-500">
-                  {curriculumName(p.curriculum)}{p.tier ? ` · ${p.tier}` : ''}{p.pathway ? ` · ${pathways.find((pw) => pw.id === p.pathway)?.name ?? ''}` : ''}
+                  {curriculumName(p.curriculum)}{p.tier ? ` · ${tiers.find((t) => t.id === p.tier)?.code ?? ''}` : ''}{p.pathway ? ` · ${pathways.find((pw) => pw.id === p.pathway)?.name ?? ''}` : ''}
                 </td>
                 <td className="px-6 py-4">{p.min_subjects} - {p.max_subjects}</td>
                 <td className="px-6 py-4 text-xs text-slate-500">{p.pools.length > 0 ? p.pools.map((pool) => POOL_TYPE_LABELS[pool.pool_type]).join(', ') : '—'}</td>
@@ -498,6 +656,7 @@ function PresetsTab({ presets, curricula, pathways, subjects, canEdit, onChanged
           preset={editing}
           curricula={curricula}
           pathways={pathways}
+          tiers={tiers}
           subjects={subjects}
           saving={saving}
           onChange={setEditing}
@@ -509,14 +668,12 @@ function PresetsTab({ presets, curricula, pathways, subjects, canEdit, onChanged
   );
 }
 
-function PresetEditorPanel({ preset, curricula, pathways, subjects, saving, onChange, onSave, onCancel }: {
+function PresetEditorPanel({ preset, curricula, pathways, tiers, subjects, saving, onChange, onSave, onCancel }: {
   preset: CurriculumPreset | Omit<CurriculumPreset, 'id'>;
-  curricula: Curriculum[]; pathways: Pathway[]; subjects: SubjectOption[]; saving: boolean;
+  curricula: Curriculum[]; pathways: Pathway[]; tiers: Tier[]; subjects: SubjectOption[]; saving: boolean;
   onChange: (p: any) => void; onSave: () => void; onCancel: () => void;
 }) {
-  const selectedCurriculum = curricula.find((c) => c.id === preset.curriculum);
-  const isCbc = selectedCurriculum?.code === 'CBC';
-  const isSss = isCbc && preset.tier === 'SSS';
+  const availableTiers = tiers.filter((t) => t.curriculum === preset.curriculum);
   const availablePathways = pathways.filter((pw) => pw.curriculum === preset.curriculum);
 
   const addPool = () => {
@@ -565,15 +722,14 @@ function PresetEditorPanel({ preset, curricula, pathways, subjects, saving, onCh
         </label>
         <label className="text-xs">
           <span className="block text-slate-500 font-bold mb-1">Tier</span>
-          <select aria-label="Tier" value={preset.tier ?? ''} disabled={!isCbc} onChange={(e) => onChange({ ...preset, tier: e.target.value || null })} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed">
+          <select aria-label="Tier" value={preset.tier ?? ''} disabled={availableTiers.length === 0} onChange={(e) => onChange({ ...preset, tier: e.target.value ? Number(e.target.value) : null })} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed">
             <option value="">—</option>
-            <option value="JSS">JSS</option>
-            <option value="SSS">SSS</option>
+            {availableTiers.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
         </label>
       </div>
 
-      {isCbc && preset.tier === 'SSS' && (
+      {availablePathways.length > 0 && (
         <label className="text-xs block">
           <span className="block text-slate-500 font-bold mb-1">Pathway (optional)</span>
           <select aria-label="Pathway" value={preset.pathway ?? ''} onChange={(e) => onChange({ ...preset, pathway: e.target.value ? Number(e.target.value) : null })} className="w-full sm:w-1/2 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-500">
@@ -583,42 +739,40 @@ function PresetEditorPanel({ preset, curricula, pathways, subjects, saving, onCh
         </label>
       )}
 
-      {isSss && (
-        <div className="border-t border-slate-100 pt-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Subject Pools</h4>
-            <button onClick={addPool} className="flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-700"><Plus className="w-3.5 h-3.5" /> Add Pool</button>
-          </div>
-          {preset.pools.length === 0 && <p className="text-xs text-slate-400 italic">No pools yet — SSS presets group subjects into Core Compulsory / Pathway Core / Guided Elective pools, each with its own pick count.</p>}
-          {preset.pools.map((pool, index) => (
-            <div key={index} className="bg-slate-50 border border-slate-100 rounded-xl p-4 space-y-3">
-              <div className="flex items-center gap-3">
-                <select aria-label="Pool type" value={pool.pool_type} onChange={(e) => updatePool(index, { pool_type: e.target.value as SubjectPool['pool_type'] })} className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-500">
-                  {(Object.keys(POOL_TYPE_LABELS) as SubjectPool['pool_type'][]).map((key) => <option key={key} value={key}>{POOL_TYPE_LABELS[key]}</option>)}
-                </select>
-                <input type="number" min={0} aria-label="Pool min" value={pool.min_subjects} onChange={(e) => updatePool(index, { min_subjects: Number(e.target.value) })} className="w-20 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-500" />
-                <span className="text-slate-400 text-xs">to</span>
-                <input type="number" min={0} aria-label="Pool max" value={pool.max_subjects} onChange={(e) => updatePool(index, { max_subjects: Number(e.target.value) })} className="w-20 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-500" />
-                <button onClick={() => removePool(index)} className="text-slate-400 hover:text-red-600" title="Remove pool"><Trash2 className="w-4 h-4" /></button>
-              </div>
-              <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
-                {subjects.map((s) => {
-                  const checked = pool.subjects.includes(s.id);
-                  return (
-                    <button
-                      key={s.id}
-                      onClick={() => toggleSubject(index, s.id)}
-                      className={`px-2.5 py-1 rounded-full text-xs font-medium border transition ${checked ? 'bg-indigo-100 border-indigo-300 text-indigo-700' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'}`}
-                    >
-                      {s.name}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
+      <div className="border-t border-slate-100 pt-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Subject Pools</h4>
+          <button onClick={addPool} className="flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-700"><Plus className="w-3.5 h-3.5" /> Add Pool</button>
         </div>
-      )}
+        {preset.pools.length === 0 && <p className="text-xs text-slate-400 italic">No pools yet — pools group subjects into Core Compulsory / Pathway Core / Guided Elective buckets, each with its own pick count.</p>}
+        {preset.pools.map((pool, index) => (
+          <div key={index} className="bg-slate-50 border border-slate-100 rounded-xl p-4 space-y-3">
+            <div className="flex items-center gap-3">
+              <select aria-label="Pool type" value={pool.pool_type} onChange={(e) => updatePool(index, { pool_type: e.target.value as SubjectPool['pool_type'] })} className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-500">
+                {(Object.keys(POOL_TYPE_LABELS) as SubjectPool['pool_type'][]).map((key) => <option key={key} value={key}>{POOL_TYPE_LABELS[key]}</option>)}
+              </select>
+              <input type="number" min={0} aria-label="Pool min" value={pool.min_subjects} onChange={(e) => updatePool(index, { min_subjects: Number(e.target.value) })} className="w-20 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-500" />
+              <span className="text-slate-400 text-xs">to</span>
+              <input type="number" min={0} aria-label="Pool max" value={pool.max_subjects} onChange={(e) => updatePool(index, { max_subjects: Number(e.target.value) })} className="w-20 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-500" />
+              <button onClick={() => removePool(index)} className="text-slate-400 hover:text-red-600" title="Remove pool"><Trash2 className="w-4 h-4" /></button>
+            </div>
+            <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
+              {subjects.map((s) => {
+                const checked = pool.subjects.includes(s.id);
+                return (
+                  <button
+                    key={s.id}
+                    onClick={() => toggleSubject(index, s.id)}
+                    className={`px-2.5 py-1 rounded-full text-xs font-medium border transition ${checked ? 'bg-indigo-100 border-indigo-300 text-indigo-700' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'}`}
+                  >
+                    {s.name}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
 
       <div className="flex gap-3 justify-end border-t border-slate-100 pt-4">
         <button onClick={onCancel} className="px-4 py-2 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-100">Cancel</button>
@@ -626,6 +780,116 @@ function PresetEditorPanel({ preset, curricula, pathways, subjects, saving, onCh
           {saving ? 'Saving...' : 'Save Preset'}
         </button>
       </div>
+    </div>
+  );
+}
+
+// ==========================================
+// TIER DETAIL VIEW
+// ==========================================
+// Opened by clicking a Tier in the Tiers tab. This is the tier-scoped configuration
+// surface: every component that's tier-aware gets a section here, starting with Grades
+// (which grades currently belong to this tier, and assigning/removing them), so admins
+// configure each component according to how the tier actually functions instead of
+// hunting through a flat, curriculum-wide tab.
+
+function TierDetailView({ tier, curricula, grades, canEdit, onBack, onChanged }: {
+  tier: Tier; curricula: Curriculum[]; grades: GradeSummary[]; canEdit: boolean;
+  onBack: () => void; onChanged: () => void;
+}) {
+  const [savingId, setSavingId] = useState<number | null>(null);
+
+  const curriculumName = curricula.find((c) => c.id === tier.curriculum)?.name ?? 'Unknown';
+  const scopedGrades = grades.filter((g) => g.curriculum_id === tier.curriculum);
+
+  const handleToggle = async (grade: GradeSummary, assign: boolean) => {
+    setSavingId(grade.id);
+    try {
+      await api.put(`/api/academic-hub/edit-grade/${grade.id}/`, {
+        curriculum_id: tier.curriculum, tier_id: assign ? tier.id : null,
+      });
+      toast.success(`'${grade.grade_name}' ${assign ? `assigned to ${tier.name}` : `removed from ${tier.name}`}.`);
+      onChanged();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Failed to update grade.');
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <button onClick={onBack} className="flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-slate-700 transition">
+        <ArrowLeft className="w-4 h-4" /> Back to Tiers
+      </button>
+
+      <div className="flex items-center gap-4">
+        <div className="p-3 rounded-2xl text-indigo-600 bg-indigo-50">
+          <Rows3 className="w-6 h-6" strokeWidth={2.5} />
+        </div>
+        <div>
+          <h2 className="text-xl font-extrabold text-slate-800">{tier.name}</h2>
+          <p className="text-sm text-slate-500">{curriculumName} &middot; <span className="font-mono">{tier.code}</span></p>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+        <div className="px-6 py-3 border-b border-slate-100 bg-slate-50/50 flex items-center gap-2">
+          <GraduationCap className="w-4 h-4 text-blue-600" />
+          <h3 className="text-sm font-bold text-slate-700">Grades</h3>
+        </div>
+        <table className="w-full text-left border-collapse">
+          <thead>
+            <tr className="text-slate-400 text-[11px] uppercase tracking-wider border-b border-slate-100 bg-slate-50">
+              <th className="px-6 py-3 font-bold">Grade</th>
+              <th className="px-6 py-3 font-bold">Streams</th>
+              <th className="px-6 py-3 font-bold">Status</th>
+              <th className="px-6 py-3 font-bold text-right">Action</th>
+            </tr>
+          </thead>
+          <tbody className="text-sm text-slate-700 divide-y divide-slate-50">
+            {scopedGrades.map((g) => {
+              const inThisTier = g.tier_id === tier.id;
+              return (
+                <tr key={g.id} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-6 py-4 font-semibold text-slate-800">{g.grade_name}</td>
+                  <td className="px-6 py-4 text-xs text-slate-500">{g.total_streams}</td>
+                  <td className="px-6 py-4">
+                    {inThisTier ? (
+                      <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full">In this tier</span>
+                    ) : g.tier_id ? (
+                      <span className="text-xs text-slate-400">In another tier</span>
+                    ) : (
+                      <span className="text-xs text-slate-400">Unassigned</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    {canEdit && (
+                      <button
+                        onClick={() => handleToggle(g, !inThisTier)}
+                        disabled={savingId === g.id}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition disabled:opacity-50 ${
+                          inThisTier ? 'text-red-600 hover:bg-red-50' : 'text-white bg-indigo-600 hover:bg-indigo-700'
+                        }`}
+                      >
+                        {savingId === g.id ? 'Saving...' : inThisTier ? 'Remove' : 'Assign here'}
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+            {scopedGrades.length === 0 && (
+              <tr><td colSpan={4} className="p-8 text-center text-slate-400">No grades under {curriculumName} yet — create one from Academic Hub.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      {!canEdit && (
+        <p className="text-xs text-slate-400">Requires classes.edit to assign or remove a grade from this tier.</p>
+      )}
+
+      <p className="text-xs text-slate-400 italic">More tier-scoped components (subjects, allocations, timetable rules, and beyond) will appear here as they're built.</p>
     </div>
   );
 }

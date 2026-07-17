@@ -6,17 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MyFantasia | Smart School Ecosystem</title>
 
-    <script>
-        // Applied before first paint so switching pages never flashes the wrong theme.
-        (function () {
-            var saved = localStorage.getItem('theme');
-            document.documentElement.setAttribute('data-theme', saved === 'light' ? 'light' : 'dark');
-        })();
-    </script>
-
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{% static 'css/navbar.css' %}?v=2">
-    <link rel="stylesheet" href="{% static 'css/home.css' %}?v=2">
+    <link rel="stylesheet" href="{% static 'css/navbar.css' %}?v=3">
+    <link rel="stylesheet" href="{% static 'css/home.css' %}?v=5">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
@@ -122,7 +114,7 @@
         {% if recent_events %}
         <div class="news-grid">
             {% for event in recent_events %}
-            <div class="news-card">
+            <div class="news-card type-{% if event.event_type == 'Exam' %}exam{% elif event.event_type == 'Holiday' %}holiday{% elif event.event_type == 'Meeting' %}meeting{% elif event.event_type == 'Sports' %}sports{% else %}general{% endif %}">
                 <div class="news-img">
                     {% if event.event_type == 'Exam' %}<i class="fas fa-file-signature"></i>
                     {% elif event.event_type == 'Holiday' %}<i class="fas fa-umbrella-beach"></i>
@@ -131,7 +123,7 @@
                     {% else %}<i class="fas fa-calendar-check"></i>{% endif %}
                 </div>
                 <div class="news-content">
-                    <span class="news-date">{{ event.start_time|date:"M j, Y" }}<span class="badge-cbc">{{ event.event_type }}</span></span>
+                    <span class="news-date"><i class="fas fa-calendar-day"></i> {{ event.start_time|date:"M j, Y" }}<span class="badge-cbc">{{ event.event_type }}</span></span>
                     <h4>{{ event.title }}</h4>
                     <p>{{ event.description|default:"More details coming soon."|truncatewords:28 }}</p>
                 </div>

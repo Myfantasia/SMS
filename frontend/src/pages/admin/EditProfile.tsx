@@ -4,11 +4,22 @@ import { ArrowLeft, Save, UserCog, Star } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../libs/axiosInstance';
 
+interface SubjectOption {
+  id: number;
+  code: string;
+  name: string;
+}
+
 export default function EditProfile() {
   const { userType, id } = useParams();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  // Real eligibility source (TeacherExtra.qualified_subjects) — every allocation/eligibility
+  // check reads this, not the legacy free-text 'subjects' field.
+  const [allSubjects, setAllSubjects] = useState<SubjectOption[]>([]);
+  const [qualifiedSubjectIds, setQualifiedSubjectIds] = useState<number[]>([]);
 
   // Read-only context about the teacher's homeroom assignment (set elsewhere, in Class Operations)
   const [classTeacherInfo, setClassTeacherInfo] = useState<{ is_class_teacher: boolean; class_teacher_of: string | null }>({
@@ -23,7 +34,7 @@ export default function EditProfile() {
     class: '', roll: '', fee: '', parent_name: '', parent_mobile: '',
     subjects: '', id_number: '', salary: '',
     relationship: '', children_rolls: '', children_display: '',
-    enrollment_state: 'Active', enrollment_notes: ''
+    enrollment_state: 'Active', enrollment_notes: '', job_title: ''
   });
 
   useEffect(() => {
@@ -54,12 +65,21 @@ export default function EditProfile() {
             children_rolls: d.children_rolls || '',
             children_display: d.children_display || '',
             enrollment_state: d.enrollment_state || 'Active',
-            enrollment_notes: d.enrollment_notes || ''
+            enrollment_notes: d.enrollment_notes || '',
+            job_title: d.job_title || ''
           });
           setClassTeacherInfo({
             is_class_teacher: !!d.is_class_teacher,
             class_teacher_of: d.class_teacher_of || null,
           });
+          setQualifiedSubjectIds(d.qualified_subject_ids || []);
+        }
+
+        if (userType === 'teachers') {
+          const subjRes = await api.get('/api/manage-subjects/');
+          if (subjRes.data.status === 'success') {
+            setAllSubjects(subjRes.data.data);
+          }
         }
       } catch (error) {
         console.error("Failed to fetch profile", error);
@@ -108,12 +128,16 @@ export default function EditProfile() {
       }
       else if (userType === 'teachers') {
         payload.id_number = formData.id_number;
-        payload.subjects = formData.subjects;
+        payload.qualified_subject_ids = qualifiedSubjectIds;
         payload.salary = formData.salary === '' ? 0 : Number(formData.salary);
       }
       else if (userType === 'parents') {
         payload.relationship = formData.relationship;
         payload.children_rolls = formData.children_rolls;
+      }
+      else if (userType === 'staff') {
+        payload.id_number = formData.id_number;
+        payload.job_title = formData.job_title;
       }
 
       // 3. Dispatch the scrubbed payload structure
@@ -122,6 +146,9 @@ export default function EditProfile() {
 
       if (data.status === 'success') {
         toast.success('Profile updated successfully!');
+        if (data.warnings && data.warnings.length > 0) {
+          data.warnings.forEach((w: string) => toast(w, { icon: '⚠️', duration: 6000 }));
+        }
         navigate(`/admin-dashboard/${userType}`);
       } else {
         toast.error('Failed to update profile: ' + data.message);
@@ -219,7 +246,7 @@ export default function EditProfile() {
           {/* SECTION 2: Specific Role Details */}
           <div>
             <h3 className="text-lg font-semibold text-slate-800 border-b border-slate-100 pb-2 mb-4">
-              {userType === 'students' ? 'Academic & Parent Details' : userType === 'teachers' ? 'Professional Details' : 'Relationship Details'}
+              {userType === 'students' ? 'Academic & Parent Details' : userType === 'teachers' ? 'Professional Details' : userType === 'staff' ? 'Job Details' : 'Relationship Details'}
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
@@ -284,8 +311,53 @@ export default function EditProfile() {
                     <input type="number" name="salary" value={formData.salary} onChange={handleChange} title="Monthly Salary (Ksh)" className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none bg-slate-50 transition-all" />
                   </div>
                   <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Subjects Taught (Comma separated)</label>
-                    <input type="text" name="subjects" value={formData.subjects} onChange={handleChange} title="Subjects Taught" className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none bg-slate-50 transition-all" />
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Qualified Subjects</label>
+                    <p className="text-xs text-slate-400 mb-2">
+                      Determines eligibility in Teacher Allocation — only checked subjects can be assigned to this teacher.
+                    </p>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-3 border border-slate-200 rounded-lg bg-slate-50 max-h-56 overflow-y-auto">
+                      {allSubjects.map((subj) => {
+                        const checked = qualifiedSubjectIds.includes(subj.id);
+                        return (
+                          <label
+                            key={subj.id}
+                            className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer text-sm transition-colors ${checked ? 'border-blue-300 bg-blue-50 text-blue-800 font-medium' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-100'}`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => {
+                                setQualifiedSubjectIds(prev =>
+                                  checked ? prev.filter(id => id !== subj.id) : [...prev, subj.id]
+                                );
+                              }}
+                              className="accent-blue-600"
+                            />
+                            {subj.name}
+                          </label>
+                        );
+                      })}
+                      {allSubjects.length === 0 && (
+                        <p className="col-span-full text-sm text-slate-400 py-2">Loading subjects…</p>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* STAFF FIELDS */}
+              {userType === 'staff' && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Job Title</label>
+                    <input type="text" name="job_title" value={formData.job_title} onChange={handleChange} title="Job Title" placeholder="e.g. Librarian, Finance Officer" className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none bg-slate-50 transition-all" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">National ID Number</label>
+                    <input type="text" name="id_number" value={formData.id_number} onChange={handleChange} title="National ID Number" className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none bg-slate-50 transition-all" />
+                  </div>
+                  <div className="md:col-span-2 bg-blue-50 border border-blue-100 rounded-xl p-4 text-sm text-blue-800">
+                    Job title is for display only. To grant this person actual access to modules like Finance or Library, assign them a Role on the <strong>Roles &amp; Permissions</strong> page.
                   </div>
                 </>
               )}

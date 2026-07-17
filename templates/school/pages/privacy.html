@@ -1,0 +1,112 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy | MyFantasia</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{% static 'css/navbar.css' %}?v=3">
+    <link rel="stylesheet" href="{% static 'css/home.css' %}?v=5">
+    <link rel="stylesheet" href="{% static 'css/legal.css' %}?v=3">
+</head>
+<body>
+    {% include "school/navbar.html" %}
+
+    <main>
+        <section class="legal-hero">
+            <span class="pill-tag"><i class="fas fa-shield-alt"></i> Privacy</span>
+            <h1>Privacy <span class="gradient-text">Policy</span></h1>
+            <p>How MyFantasia collects, uses, and protects the information of students, parents, teachers, and administrators on this platform.</p>
+            <span class="legal-updated">Last updated: January 2026</span>
+        </section>
+
+        <div class="legal-toc">
+            <h4>On this page</h4>
+            <ol>
+                <li><a href="#information-we-collect">Information We Collect</a></li>
+                <li><a href="#how-we-use-it">How We Use Your Information</a></li>
+                <li><a href="#childrens-data">Children's & Student Data</a></li>
+                <li><a href="#sharing">How Information Is Shared</a></li>
+                <li><a href="#payments">Fees & Payment Data</a></li>
+                <li><a href="#security">Data Security</a></li>
+                <li><a href="#retention">Data Retention</a></li>
+                <li><a href="#your-rights">Your Rights</a></li>
+                <li><a href="#contact">Contact Us</a></li>
+            </ol>
+        </div>
+
+        <div class="legal-body">
+            <section id="information-we-collect">
+                <h2><i class="fas fa-database"></i> Information We Collect</h2>
+                <p>To run the school's day-to-day operations, we collect the information necessary to enrol, teach, assess, and communicate with students and their families, including:</p>
+                <ul>
+                    <li><strong>Identity & contact details</strong> — names, admission numbers, dates of birth, phone numbers, email addresses, and physical address.</li>
+                    <li><strong>Academic records</strong> — class/stream placement, subject enrolment, attendance, CATs, exam results, and report cards.</li>
+                    <li><strong>Guardian information</strong> — parent/guardian names, relationship, and contact details, used to verify and link parent accounts to the correct learner.</li>
+                    <li><strong>Staff records</strong> — teacher qualifications, TSC/ID numbers, subject allocations, and timetable assignments.</li>
+                    <li><strong>Financial records</strong> — fee balances and M-PESA payment confirmations (we do not store M-PESA PINs or full mobile money credentials).</li>
+                    <li><strong>System usage</strong> — login timestamps and basic activity logs used for security and troubleshooting.</li>
+                </ul>
+            </section>
+
+            <section id="how-we-use-it">
+                <h2><i class="fas fa-tasks"></i> How We Use Your Information</h2>
+                <p>Information collected through this system is used strictly to operate the school, specifically to:</p>
+                <ul>
+                    <li>Administer enrolment, attendance, timetabling, and academic assessment.</li>
+                    <li>Give parents and students real-time visibility into attendance, results, assignments, and fee balances.</li>
+                    <li>Process and reconcile fee payments made via M-PESA.</li>
+                    <li>Send notices, event updates, and important communications to the relevant audience.</li>
+                    <li>Meet regulatory and reporting obligations to bodies such as KNEC, TSC, and NEMIS where applicable.</li>
+                </ul>
+            </section>
+
+            <section id="childrens-data">
+                <h2><i class="fas fa-child"></i> Children's & Student Data</h2>
+                <p>Much of the data in this system belongs to minors. Student accounts and records are created and approved by the school administration, and parent accounts must be verified against an existing student record (matching admission number and name) before access to a child's data is granted. Students and parents can only view information relevant to their own household — a parent account can never browse another family's records.</p>
+            </section>
+
+            <section id="sharing">
+                <h2><i class="fas fa-share-alt"></i> How Information Is Shared</h2>
+                <p>We do not sell or rent student, parent, or staff information. Data is shared only:</p>
+                <ul>
+                    <li>Internally, on a role-appropriate basis — e.g. a teacher sees only the classes/streams they are allocated to, and a parent sees only their own children.</li>
+                    <li>With payment processors (M-PESA/Safaricom) strictly to confirm and reconcile fee payments.</li>
+                    <li>With government/regulatory bodies (KNEC, TSC, NEMIS) where the school is legally required to report.</li>
+                    <li>With service providers who host or maintain this platform, under confidentiality obligations.</li>
+                </ul>
+            </section>
+
+            <section id="payments">
+                <h2><i class="fas fa-mobile-alt"></i> Fees & Payment Data</h2>
+                <p>Fee payments are made via M-PESA Paybill directly to the school's account. This platform stores the resulting transaction reference, amount, and resulting balance so that receipts and statements can be generated — it does not process, store, or have access to M-PESA PINs or Safaricom account credentials.</p>
+            </section>
+
+            <section id="security">
+                <h2><i class="fas fa-lock"></i> Data Security</h2>
+                <p>Access to student, parent, and staff records is protected by authenticated accounts with role-based permissions, so each user only reaches the data their role requires. We encourage everyone to keep login credentials private and to report suspected unauthorised access through the <a href="/contactus" style="color: var(--primary);">Contact Us</a> page immediately.</p>
+            </section>
+
+            <section id="retention">
+                <h2><i class="fas fa-archive"></i> Data Retention</h2>
+                <p>Academic and financial records are retained for as long as a student is enrolled and for a reasonable period afterward to satisfy academic reference and regulatory requirements (e.g. producing historical transcripts). Accounts for rejected or withdrawn applicants are removed by the administration once no longer needed.</p>
+            </section>
+
+            <section id="your-rights">
+                <h2><i class="fas fa-user-check"></i> Your Rights</h2>
+                <p>Parents, students, and staff may request a copy of the personal information held about them, ask for corrections to inaccurate records, or raise questions about how their data is used, by reaching out through the <a href="/contactus" style="color: var(--primary);">Contact Us</a> page or directly with the school administration.</p>
+            </section>
+
+            <section id="contact">
+                <h2><i class="fas fa-envelope"></i> Contact Us</h2>
+                <p>Questions about this policy or how your data is handled can be sent through our <a href="/contactus" style="color: var(--primary);">Contact page</a>, and the administration will respond directly.</p>
+            </section>
+        </div>
+    </main>
+
+    {% include "school/footer.html" %}
+</body>
+</html>

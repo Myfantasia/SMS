@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Layers, BookOpen, Library } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Layers, BookOpen, Library, ArrowRight } from 'lucide-react';
 import ClassesCard from './ClassesCard';
 import SubjectsCard from './SubjectsCard';
 
@@ -7,16 +8,31 @@ import SubjectsCard from './SubjectsCard';
 import AddGradeModal from './AddGradeModal';
 import AddSubjectModal from './AddSubjectModal';
 import AddStreamModal from './AddStreamModal'; // NEW: Import the Stream Modal
+import EditGradeModal from './EditGradeModal';
 import api from '../../libs/axiosInstance';
+
+interface GradeSummary {
+  id: number;
+  grade_name: string;
+}
+
+interface Tier {
+  id: number;
+  curriculum: number;
+  name: string;
+  code: string;
+}
 
 export default function AcademicHub() {
   const [data, setData] = useState({ classes: [], subjects: [] });
   const [loading, setLoading] = useState(true);
+  const [tiers, setTiers] = useState<Tier[]>([]);
 
   // 2. State to control modal visibility
   const [isGradeModalOpen, setGradeModalOpen] = useState(false);
   const [isSubjectModalOpen, setSubjectModalOpen] = useState(false);
-  
+  const [editingGrade, setEditingGrade] = useState<GradeSummary | null>(null);
+
   // NEW: State for the Stream Modal
   const [streamModalConfig, setStreamModalConfig] = useState<{
     isOpen: boolean;
@@ -49,6 +65,9 @@ const fetchAcademicData = () => {
 
   useEffect(() => {
     fetchAcademicData();
+    api.get('/api/core/curriculum/tiers/')
+      .then(res => setTiers(res.data ?? []))
+      .catch(err => console.error('Failed to load tiers', err));
   }, []);
 
   if (loading) {
@@ -76,6 +95,13 @@ const fetchAcademicData = () => {
             <p className="text-sm text-slate-500 mt-0.5">Manage grade levels, streams, and master curriculum.</p>
           </div>
         </div>
+        <Link
+          to="/curriculum"
+          title="Manage curriculum templates, pathways, and presets"
+          className="flex items-center gap-1.5 text-sm font-semibold text-indigo-600 hover:text-indigo-700 transition"
+        >
+          Manage Curricula <ArrowRight className="w-4 h-4" />
+        </Link>
       </div>
 
       {/* Side-by-Side Cards Layout */}
@@ -98,10 +124,12 @@ const fetchAcademicData = () => {
           </div>
           <div className="p-0 overflow-y-auto flex-1">
              {/* NEW: Passed the onAddStream trigger down to the ClassesCard */}
-             <ClassesCard 
-               grades={data.classes} 
-               onRefresh={fetchAcademicData} 
+             <ClassesCard
+               grades={data.classes}
+               tiers={tiers}
+               onRefresh={fetchAcademicData}
                onAddStream={(gradeId, gradeName) => setStreamModalConfig({ isOpen: true, gradeId, gradeName })}
+               onEditGrade={(grade) => setEditingGrade(grade)}
              />
           </div>
         </div>
@@ -142,11 +170,18 @@ const fetchAcademicData = () => {
       />
 
       {/* NEW: Render the Stream Modal */}
-      <AddStreamModal 
+      <AddStreamModal
         isOpen={streamModalConfig.isOpen}
         gradeId={streamModalConfig.gradeId}
         gradeName={streamModalConfig.gradeName}
         onClose={() => setStreamModalConfig({ isOpen: false, gradeId: null, gradeName: '' })}
+        onSuccess={fetchAcademicData}
+      />
+
+      <EditGradeModal
+        isOpen={!!editingGrade}
+        grade={editingGrade}
+        onClose={() => setEditingGrade(null)}
         onSuccess={fetchAcademicData}
       />
 

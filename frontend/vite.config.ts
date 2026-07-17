@@ -21,6 +21,14 @@ export default defineConfig({
       '/static': {
         target: 'http://localhost:8000',
         changeOrigin: true,
+      },
+      // Chat WebSocket (school/routing.py) — the client currently connects direct to
+      // :8000 like axiosInstance.ts does, but this proxy entry is kept for parity in
+      // case a same-origin ws:// path is preferred later.
+      '/ws': {
+        target: 'ws://localhost:8000',
+        ws: true,
+        changeOrigin: true,
       }
     }
   }

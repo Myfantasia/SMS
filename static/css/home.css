@@ -9,6 +9,8 @@
     --border-soft-strong: rgba(255,255,255,0.15);
     --surface-tint: rgba(255,255,255,0.02);
     --surface-tint-strong: rgba(255,255,255,0.04);
+    --shadow-color: rgba(2,6,23,0.35);
+    --hero-glow: rgba(99, 102, 241, 0.08);
 }
 
 :root[data-theme="light"] {
@@ -19,8 +21,10 @@
     --text-muted: #475569;
     --border-soft: rgba(15,23,42,0.08);
     --border-soft-strong: rgba(15,23,42,0.16);
-    --surface-tint: rgba(15,23,42,0.02);
-    --surface-tint-strong: rgba(15,23,42,0.04);
+    --surface-tint: rgba(15,23,42,0.035);
+    --surface-tint-strong: rgba(15,23,42,0.06);
+    --shadow-color: rgba(15,23,42,0.10);
+    --hero-glow: rgba(99, 102, 241, 0.10);
 }
 
 * { box-sizing: border-box; }
@@ -44,10 +48,10 @@ a { -webkit-tap-highlight-color: transparent; }
 
 /* --- HERO SECTION (Fixed Padding) --- */
 .hero-section {
-    /* 100px top padding clears the navbar but isn't too large */
-    padding: 100px 6% 60px;
+    /* body already reserves 100px to clear the fixed navbar; this is just breathing room */
+    padding: 40px 6% 60px;
     position: relative;
-    background: radial-gradient(circle at 10% 20%, rgba(99, 102, 241, 0.08), transparent);
+    background: radial-gradient(circle at 10% 20%, var(--hero-glow), transparent);
 }
 
 .hero-container {
@@ -105,7 +109,7 @@ a { -webkit-tap-highlight-color: transparent; }
 :root[data-theme="light"] .glass-card { background: rgba(255,255,255,0.7); }
 
 .floating-ui {
-    position: absolute; background: var(--card-bg); color: var(--text-main); padding: 12px 20px; border-radius: 16px; border: 1px solid var(--border-soft-strong); display: flex; align-items: center; gap: 12px; box-shadow: 0 20px 40px rgba(0,0,0,0.25); animation: float 5s ease-in-out infinite;
+    position: absolute; background: var(--card-bg); color: var(--text-main); padding: 12px 20px; border-radius: 16px; border: 1px solid var(--border-soft-strong); display: flex; align-items: center; gap: 12px; box-shadow: 0 20px 40px var(--shadow-color); animation: float 5s ease-in-out infinite;
 }
 .floating-ui small { color: var(--text-muted); }
 .ui-icon { width: 35px; height: 35px; background: rgba(99, 102, 241, 0.2); color: var(--primary); border-radius: 8px; display: grid; place-items: center; }
@@ -122,19 +126,20 @@ a { -webkit-tap-highlight-color: transparent; }
 .section-header p { color: var(--text-muted); }
 
 .feature-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 25px; }
-.feature-card { background: var(--card-bg); border: 1px solid var(--border-soft); padding: 40px 30px; border-radius: 24px; position: relative; overflow: hidden; transition: transform 0.25s ease, border-color 0.25s ease; }
-.feature-card:hover { transform: translateY(-10px); border-color: var(--primary); }
+.feature-card { background: var(--card-bg); border: 1px solid var(--border-soft); padding: 40px 30px; border-radius: 24px; position: relative; overflow: hidden; transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease; }
+.feature-card:hover { transform: translateY(-10px); border-color: var(--primary); box-shadow: 0 20px 40px var(--shadow-color); }
 .feature-card h3 { color: var(--text-main); margin: 0 0 10px; }
 .feature-card p { color: var(--text-muted); margin: 0; line-height: 1.5; }
 
 .card-glow { position: absolute; top: -50px; right: -50px; width: 100px; height: 100px; filter: blur(50px); border-radius: 50%; opacity: 0.5; }
-.red-glow { background: #ef4444; } .green-glow { background: #10b981; } .yellow-glow { background: #f59e0b; } .blue-glow { background: #3b82f6; }
+.red-glow { background: #ef4444; } .green-glow { background: #10b981; } .yellow-glow { background: #f59e0b; } .blue-glow { background: #3b82f6; } .purple-glow { background: #a855f7; }
 
 .icon-box { width: 50px; height: 50px; border-radius: 12px; display: grid; place-items: center; font-size: 1.4rem; margin-bottom: 20px; }
 .icon-box.red { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
 .icon-box.green { background: rgba(16, 185, 129, 0.1); color: #10b981; }
 .icon-box.yellow { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
 .icon-box.blue { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
+.icon-box.purple { background: rgba(168, 85, 247, 0.1); color: #a855f7; }
 
 .card-link { color: var(--primary); text-decoration: none; font-weight: 700; display: inline-flex; align-items: center; gap: 8px; margin-top: 20px; transition: gap 0.2s ease; }
 .card-link:hover { gap: 12px; }
@@ -143,16 +148,36 @@ a { -webkit-tap-highlight-color: transparent; }
 .news-section { padding: 80px 6%; background: var(--surface-tint); }
 .news-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 30px; margin-top: 40px; }
 .news-card {
-    background: var(--card-bg); border: 1px solid var(--border-soft);
-    border-radius: 16px; overflow: hidden; transition: transform 0.25s ease, border-color 0.25s ease;
+    background: var(--card-bg); border: 1px solid var(--border-soft); border-top: 3px solid transparent;
+    border-radius: 16px; overflow: hidden; transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
 }
-.news-card:hover { transform: translateY(-5px); border-color: var(--primary); }
+.news-card:hover { transform: translateY(-5px); box-shadow: 0 15px 30px var(--shadow-color); }
 .news-img { height: 180px; background: rgba(99, 102, 241, 0.08); display: flex; align-items: center; justify-content: center; color: var(--primary); font-size: 3rem; }
 .news-content { padding: 25px; }
-.news-date { color: var(--text-muted); font-size: 0.85rem; margin-bottom: 10px; display: block; }
+.news-date { color: var(--text-muted); font-size: 0.85rem; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
+.news-date i { font-size: 0.8rem; color: var(--text-muted); }
 .news-content h4 { color: var(--text-main); font-size: 1.2rem; margin-bottom: 10px; }
 .news-content p { color: var(--text-muted); font-size: 0.95rem; line-height: 1.5; }
-.badge-cbc { background: #16a34a; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; vertical-align: middle; margin-left: 8px; }
+.badge-cbc { background: var(--primary); color: white; padding: 3px 10px; border-radius: 20px; font-size: 0.7rem; font-weight: 700; vertical-align: middle; margin-left: auto; }
+
+/* Event-type accent coding: top border, icon color, and badge all match per category */
+.news-card.type-exam { border-top-color: #ef4444; }
+.news-card.type-exam .news-img { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+.news-card.type-exam .badge-cbc { background: #ef4444; }
+
+.news-card.type-holiday { border-top-color: #3b82f6; }
+.news-card.type-holiday .news-img { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
+.news-card.type-holiday .badge-cbc { background: #3b82f6; }
+
+.news-card.type-meeting { border-top-color: #f59e0b; }
+.news-card.type-meeting .news-img { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
+.news-card.type-meeting .badge-cbc { background: #f59e0b; }
+
+.news-card.type-sports { border-top-color: #a855f7; }
+.news-card.type-sports .news-img { background: rgba(168, 85, 247, 0.1); color: #a855f7; }
+.news-card.type-sports .badge-cbc { background: #a855f7; }
+
+.news-card.type-general { border-top-color: var(--primary); }
 
 .news-empty {
     margin-top: 40px; padding: 50px 20px; text-align: center; color: var(--text-muted);

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Bell, UserPlus, Users, FileEdit, ClipboardCheck, BookOpen, CreditCard, CalendarClock, GraduationCap } from 'lucide-react';
+import { Bell, UserPlus, Users, FileEdit, ClipboardCheck, BookOpen, CreditCard, CalendarClock, GraduationCap, ShieldAlert } from 'lucide-react';
 import api from '../libs/axiosInstance';
 
 interface NotificationBellProps {
@@ -12,6 +12,7 @@ interface PendingApprovals {
   pending_teachers: number;
   pending_students: number;
   pending_parents: number;
+  pending_admins: number;
   pending_leaves: number;
   timetable_warnings: number; // ✅ Linked to Django Cache layer count
   total_pending: number;
@@ -47,7 +48,7 @@ interface RealNotification {
 
 export default function NotificationBell({ role }: NotificationBellProps) {
   const [pendingData, setPendingData] = useState<PendingApprovals>({
-    pending_teachers: 0, pending_students: 0, pending_parents: 0, pending_leaves: 0, timetable_warnings: 0, total_pending: 0
+    pending_teachers: 0, pending_students: 0, pending_parents: 0, pending_admins: 0, pending_leaves: 0, timetable_warnings: 0, total_pending: 0
   });
 
   const [teacherActions, setTeacherActions] = useState<TeacherActionItems>({
@@ -174,6 +175,15 @@ export default function NotificationBell({ role }: NotificationBellProps) {
                   <div>
                     <p className="text-sm font-semibold text-slate-700">Parent Approvals</p>
                     <p className="text-xs text-slate-500">{pendingData.pending_parents} accounts waiting.</p>
+                  </div>
+                </Link>
+              )}
+              {pendingData.pending_admins > 0 && (
+                <Link to="/admin-dashboard/approvals/admins" className="px-4 py-3 border-b border-slate-50 hover:bg-slate-50 transition-colors flex items-start gap-3">
+                  <div className="bg-rose-100 p-2 rounded-full mt-1"><ShieldAlert className="w-4 h-4 text-rose-600" /></div>
+                  <div>
+                    <p className="text-sm font-semibold text-slate-700">Admin Approvals</p>
+                    <p className="text-xs text-slate-500">{pendingData.pending_admins} new admins waiting for review.</p>
                   </div>
                 </Link>
               )}
