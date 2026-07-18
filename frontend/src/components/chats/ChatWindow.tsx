@@ -8,7 +8,6 @@ import {
   X,
   FileText,
   Loader2,
-  ShieldCheck,
   Image as ImageIcon,
   MapPin,
   Megaphone
@@ -19,7 +18,25 @@ import { useChatSocket } from '../../hooks/useChatSocket';
 import type { IMessage } from '../../libs/chat';
 import type { DashboardContextType } from '../../layouts/DashboardLayouts';
 import api from '../../libs/axiosInstance';
-import { getThreadIcon, getThreadColor, getThreadSubtitle } from '../../libs/chatDisplay';
+import { getThreadIcon, getThreadColor, getThreadSubtitle, getInitials, getRolePillClasses } from '../../libs/chatDisplay';
+import ParticipantsPanel from './ParticipantsPanel';
+
+const CONNECTION_DOT_STYLES: Record<string, string> = {
+  open: 'bg-emerald-500',
+  connecting: 'bg-amber-500 animate-pulse',
+  closed: 'bg-red-500',
+};
+
+const CONNECTION_LABELS: Record<string, string> = {
+  open: 'Connected',
+  connecting: 'Connecting...',
+  closed: 'Reconnecting...',
+};
+
+// Consecutive messages from the same sender sent within this window read as one
+// visual "run" — tighter spacing, sender label shown only once — instead of a list
+// of isolated cards.
+const GROUPING_WINDOW_MS = 5 * 60 * 1000;
 
 export default function ChatWindow() {
   const { activeThreadId, inboxThreads } = useChat();
@@ -31,6 +48,7 @@ export default function ChatWindow() {
   const [isUploading, setIsUploading] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
   const [editingMessage, setEditingMessage] = useState<IMessage | null>(null);
+  const [showParticipants, setShowParticipants] = useState(false);
 
   // --- ATTACHMENT MENU STATE ---
   const [isAttachMenuOpen, setIsAttachMenuOpen] = useState(false);
@@ -176,49 +194,76 @@ export default function ChatWindow() {
     });
   };
 
+  const canOpenParticipants = currentThread?.type === 'Group' || currentThread?.type === 'Broadcast';
+
   return (
     <div className="flex flex-col h-full bg-slate-50 relative">
 
       {/* HEADER BAR */}
       <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-white z-10 shadow-sm shrink-0">
-        <div className="flex items-center gap-3">
-          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${getThreadColor(currentThread?.type || 'Direct')}`}>
-            {getThreadIcon(currentThread?.type || 'Direct')}
+        <button
+          type="button"
+          onClick={() => canOpenParticipants && setShowParticipants(true)}
+          disabled={!canOpenParticipants}
+          className={`flex items-center gap-3 min-w-0 rounded-lg -m-1 p-1 transition-colors ${canOpenParticipants ? 'hover:bg-slate-50 cursor-pointer' : 'cursor-default'}`}
+          title={canOpenParticipants ? 'View participants' : undefined}
+        >
+          <div className={`shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${getThreadColor(currentThread?.type || 'Direct')}`}>
+            {currentThread?.type === 'Direct'
+              ? <span className="text-xs font-semibold text-blue-700">{getInitials(currentThread.chat_name)}</span>
+              : getThreadIcon(currentThread?.type || 'Direct')}
           </div>
-          <div>
+          <div className="min-w-0 text-left">
             <div className="flex items-center gap-2">
-              <h3 className="font-bold text-slate-800">{currentThread?.chat_name || 'Active Chat'}</h3>
+              <h3 className="font-bold text-slate-800 truncate">{currentThread?.chat_name || 'Active Chat'}</h3>
               {currentThread && (
-                <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-400 border border-slate-200 rounded-full px-2 py-0.5">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 border border-slate-200 rounded-full px-2 py-0.5 shrink-0">
                   {getThreadSubtitle(currentThread.type)}
                 </span>
               )}
             </div>
-            <p className="text-xs text-emerald-600 flex items-center gap-1 font-medium">
-              <ShieldCheck className="w-3 h-3" />
-              {connectionStatus === 'open' ? 'Connected' : connectionStatus === 'connecting' ? 'Connecting...' : 'Reconnecting...'}
+            <p className="text-xs text-slate-500 flex items-center gap-1.5 font-medium">
+              <span className={`w-2 h-2 rounded-full shrink-0 ${CONNECTION_DOT_STYLES[connectionStatus]}`} />
+              {CONNECTION_LABELS[connectionStatus]}
             </p>
           </div>
-        </div>
+        </button>
       </div>
 
       {/* SCROLLABLE MESSAGE HISTORY */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-6">
-        {messages.map((msg) => (
-          <MessageBubble
-            key={msg.id}
-            message={msg}
-            currentUserId={userId}
-            showSenderRole={currentThread?.type === 'Group' || currentThread?.type === 'Broadcast'}
-            onEdit={() => {
-              setEditingMessage(msg);
-              setNewMessage(msg.message_body.replace(/📎 Attached: .*/, ''));
-            }}
-            onDelete={() => handleDeleteMessage(msg.id)}
-          />
-        ))}
+      <div className="flex-1 overflow-y-auto p-4">
+        {messages.map((msg, idx) => {
+          const prev = messages[idx - 1];
+          const isGrouped = Boolean(
+            prev &&
+            prev.sender_id === msg.sender_id &&
+            new Date(msg.sent_at).getTime() - new Date(prev.sent_at).getTime() < GROUPING_WINDOW_MS
+          );
+          return (
+            <MessageBubble
+              key={msg.id}
+              message={msg}
+              currentUserId={userId}
+              showSenderRole={currentThread?.type === 'Group' || currentThread?.type === 'Broadcast'}
+              showSenderLabel={!isGrouped}
+              isGrouped={isGrouped}
+              onEdit={() => {
+                setEditingMessage(msg);
+                setNewMessage(msg.message_body.replace(/📎 Attached: .*/, ''));
+              }}
+              onDelete={() => handleDeleteMessage(msg.id)}
+            />
+          );
+        })}
         <div ref={scrollRef} />
       </div>
+
+      <ParticipantsPanel
+        isOpen={showParticipants}
+        onClose={() => setShowParticipants(false)}
+        threadId={activeThreadId}
+        threadName={currentThread?.chat_name || ''}
+      />
 
       {/* INPUT CONTROLS */}
       {isReadOnlyBroadcast ? (
@@ -346,12 +391,14 @@ export default function ChatWindow() {
 // ==========================================
 // SUB-COMPONENT: INDIVIDUAL MESSAGE BUBBLE
 // ==========================================
-function MessageBubble({ message, onEdit, onDelete, currentUserId, showSenderRole }: {
+function MessageBubble({ message, onEdit, onDelete, currentUserId, showSenderRole, showSenderLabel, isGrouped }: {
   message: IMessage;
   onEdit: () => void;
   onDelete: () => void;
   currentUserId: number | null;
   showSenderRole: boolean;
+  showSenderLabel: boolean;
+  isGrouped: boolean;
 }) {
   const isMe = Boolean(currentUserId && message.sender_id === currentUserId);
 
@@ -387,14 +434,16 @@ function MessageBubble({ message, onEdit, onDelete, currentUserId, showSenderRol
   };
 
   return (
-    <div className={`flex ${isMe ? 'justify-end' : 'justify-start'} group w-full`}>
+    <div className={`flex ${isMe ? 'justify-end' : 'justify-start'} group w-full ${isGrouped ? 'mt-1' : 'mt-6'}`}>
       <div className={`max-w-[85%] md:max-w-[70%] relative flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
 
-        {!isMe && (
-          <p className="text-[10px] font-medium text-slate-500 mb-1 ml-1">
+        {showSenderLabel && (
+          <p className="text-[11px] font-medium text-slate-500 mb-1 ml-1 flex items-center gap-1.5">
             {message.sender_name}
             {showSenderRole && message.sender_role && (
-              <span className="text-slate-400"> · {message.sender_role}</span>
+              <span className={`text-[10px] font-semibold px-1.5 py-px rounded-full ${getRolePillClasses(message.sender_role)}`}>
+                {message.sender_role}
+              </span>
             )}
           </p>
         )}
@@ -425,11 +474,11 @@ function MessageBubble({ message, onEdit, onDelete, currentUserId, showSenderRol
 
           <div className={`flex items-center gap-2 mt-2 select-none ${isMe ? 'justify-end' : 'justify-start'}`}>
              {message.is_edited && !isDeleted && (
-               <span className={`text-[9px] font-medium ${isMe ? 'text-blue-200' : 'text-slate-400'}`}>
+               <span className={`text-[11px] font-medium ${isMe ? 'text-blue-200' : 'text-slate-400'}`}>
                  (Edited)
                </span>
              )}
-             <span className={`text-[10px] font-medium ${isMe ? 'text-blue-200' : 'text-slate-400'}`}>
+             <span className={`text-[11px] font-medium ${isMe ? 'text-blue-200' : 'text-slate-400'}`}>
                 {new Date(message.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
              </span>
           </div>

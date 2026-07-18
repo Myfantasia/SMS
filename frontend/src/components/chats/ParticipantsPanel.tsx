@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { X, Loader2 } from 'lucide-react';
 import api from '../../libs/axiosInstance';
 import type { IParticipant } from '../../libs/chat';
+import { getInitials, getRolePillClasses } from '../../libs/chatDisplay';
 
 interface Props {
   isOpen: boolean;
@@ -9,13 +10,6 @@ interface Props {
   threadId: string | null;
   threadName: string;
 }
-
-const ROLE_PILL_STYLES: Record<string, string> = {
-  Admin: 'bg-orange-100 text-orange-700',
-  Teacher: 'bg-blue-100 text-blue-700',
-  Parent: 'bg-emerald-100 text-emerald-700',
-  Student: 'bg-purple-100 text-purple-700',
-};
 
 export default function ParticipantsPanel({ isOpen, onClose, threadId, threadName }: Props) {
   const [participants, setParticipants] = useState<IParticipant[]>([]);
@@ -56,9 +50,12 @@ export default function ParticipantsPanel({ isOpen, onClose, threadId, threadNam
           ) : (
             <ul className="divide-y divide-slate-100">
               {participants.map(p => (
-                <li key={p.user_id} className="flex items-center justify-between px-3 py-2.5">
-                  <span className="text-sm font-medium text-slate-700">{p.name}</span>
-                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${ROLE_PILL_STYLES[p.role] || 'bg-slate-100 text-slate-600'}`}>
+                <li key={p.user_id} className="flex items-center gap-3 px-3 py-2.5">
+                  <div className="shrink-0 w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center text-[11px] font-semibold">
+                    {getInitials(p.name)}
+                  </div>
+                  <span className="flex-1 text-sm font-medium text-slate-700 truncate">{p.name}</span>
+                  <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${getRolePillClasses(p.role)}`}>
                     {p.role}
                   </span>
                 </li>

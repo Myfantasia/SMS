@@ -12,7 +12,7 @@ import {
 import toast from 'react-hot-toast';
 import { useChat } from './ChatProvider';
 import api from '../../libs/axiosInstance';
-import { getThreadIcon, getThreadColor, getThreadSubtitle } from '../../libs/chatDisplay';
+import { getThreadIcon, getThreadColor, getThreadSubtitle, getInitials } from '../../libs/chatDisplay';
 import type { IInboxThread } from '../../libs/chat';
 
 // --- NEW: IMPORT THE MODALS ---
@@ -213,9 +213,11 @@ export default function ChatSidebar() {
                       ${isActive ? 'bg-white shadow-[inset_4px_0_0_0_#2563eb]' : 'bg-transparent'}
                     `}
                   >
-                    {/* Dynamic Avatar Container */}
+                    {/* Dynamic Avatar Container — initials for Direct (real identity), type icon otherwise */}
                     <div className={`relative shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${getThreadColor(thread.type)}`}>
-                      {getThreadIcon(thread.type)}
+                      {thread.type === 'Direct'
+                        ? <span className="text-xs font-semibold text-blue-700">{getInitials(thread.chat_name)}</span>
+                        : getThreadIcon(thread.type)}
 
                       {/* Unread Red Dot (Bottom Right of Avatar) */}
                       {thread.has_unread && (
@@ -229,7 +231,7 @@ export default function ChatSidebar() {
                         <h3 className={`text-sm truncate pr-2 ${thread.has_unread ? 'font-bold text-slate-900' : 'font-semibold text-slate-700'}`}>
                           {thread.chat_name}
                         </h3>
-                        <span className={`text-[10px] whitespace-nowrap ${thread.has_unread ? 'text-blue-600 font-semibold' : 'text-slate-400'}`}>
+                        <span className={`text-[11px] whitespace-nowrap ${thread.has_unread ? 'text-blue-600 font-semibold' : 'text-slate-400'}`}>
                           {formatTime(thread.updated_at)}
                         </span>
                       </div>
