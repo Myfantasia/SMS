@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Bell, UserPlus, Users, FileEdit, ClipboardCheck, BookOpen, CreditCard, CalendarClock, GraduationCap, ShieldAlert } from 'lucide-react';
 import api from '../libs/axiosInstance';
@@ -55,15 +55,34 @@ export default function NotificationBell({ role }: NotificationBellProps) {
     pending_assignments: 0, pending_exams: 0, pending_leaves: 0,
   });
 
-  const [studentActions, setStudentActions] = useState<StudentActionItems>({
-    due_assignments: 2, unread_notices: 1 // Default baseline states
+  // These two roles have no real backing endpoint for due_assignments/unread_notices/
+  // fee_reminders yet (flagged, out of scope here) — fixed at 0 like admin/teacher's
+  // genuinely-fetched counts start, instead of seeding fake numbers that render as real
+  // data. No setter: nothing populates these until a real endpoint exists.
+  const [studentActions] = useState<StudentActionItems>({
+    due_assignments: 0, unread_notices: 0
   });
 
-  const [parentActions, setParentActions] = useState<ParentActionItems>({
-    fee_reminders: 1, attendance_alerts: 0
+  const [parentActions] = useState<ParentActionItems>({
+    fee_reminders: 0, attendance_alerts: 0
   });
 
   const [realNotifications, setRealNotifications] = useState<RealNotification[]>([]);
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Click-open + outside-click-to-close, matching ChatSidebar's overflow-menu pattern —
+  // consistent with the rest of the app and touch-friendly (hover-open isn't).
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen]);
 
   useEffect(() => {
     if (role === 'admin') {
@@ -99,39 +118,59 @@ export default function NotificationBell({ role }: NotificationBellProps) {
       .catch((err) => console.error("Failed to mark notification as read", err));
   };
 
-  const unreadRealNotifications = realNotifications.filter(n => !n.is_read).length;
+  const unreadRealNotifications = realNotifications.filter(n => !n.is_read);
+
+  const markAllRead = () => {
+    unreadRealNotifications.forEach(n => markNotificationRead(n.id));
+  };
 
   // Calculate the total notifications based dynamically on the role
   let totalNotifications = 0;
   if (role === 'admin') totalNotifications = pendingData.total_pending;
   if (role === 'teacher') totalNotifications = teacherActions.pending_assignments + teacherActions.pending_exams + teacherActions.pending_leaves;
-  if (role === 'student') totalNotifications = studentActions.due_assignments + unreadRealNotifications;
-  if (role === 'parent') totalNotifications = parentActions.fee_reminders + unreadRealNotifications;
+  if (role === 'student') totalNotifications = studentActions.due_assignments + unreadRealNotifications.length;
+  if (role === 'parent') totalNotifications = parentActions.fee_reminders + unreadRealNotifications.length;
+
+  // Red is reserved for genuinely time-sensitive items (leave/timetable clashes needing
+  // a decision); everything else is informational and reads as amber instead of always-red.
+  let hasUrgent = false;
+  if (role === 'admin') hasUrgent = pendingData.timetable_warnings > 0 || pendingData.pending_leaves > 0;
+  if (role === 'teacher') hasUrgent = teacherActions.pending_leaves > 0;
+  if (role === 'parent') hasUrgent = parentActions.attendance_alerts > 0;
 
   return (
-    <div className="group relative flex items-center justify-center">
-      
+    <div ref={containerRef} className="relative flex items-center justify-center">
+
       {/* Bell Icon Container */}
-      <div className="bg-slate-100 hover:bg-slate-200 transition-colors rounded-full w-9 h-9 flex items-center justify-center cursor-pointer relative z-10">
+      <button
+        type="button"
+        onClick={() => setIsOpen(prev => !prev)}
+        className="bg-slate-100 hover:bg-slate-200 transition-colors rounded-full w-9 h-9 flex items-center justify-center cursor-pointer relative z-10"
+        title="Notifications"
+        aria-label="Notifications"
+      >
         <Bell className="w-4 h-4 text-slate-600" />
-        
+
         {/* Notification Badge */}
         {totalNotifications > 0 && (
-          <div className="absolute -top-1 -right-1 w-5 h-5 flex items-center justify-center bg-red-500 text-white rounded-full text-[10px] font-bold border-2 border-white shadow-sm animate-pulse opacity-100">
+          <div className={`absolute -top-1 -right-1 w-5 h-5 flex items-center justify-center text-white rounded-full text-[11px] font-bold border-2 border-white shadow-sm ${hasUrgent ? 'bg-red-500 animate-pulse' : 'bg-amber-500'}`}>
             {totalNotifications}
           </div>
         )}
-      </div>
+      </button>
 
-      <div className="absolute top-9 right-0 w-24 h-4 bg-transparent z-0"></div>
-
-      {/* Notification Alert Panel */}
-      <div className="absolute top-12 right-0 w-72 bg-white border border-slate-200 shadow-xl rounded-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 flex flex-col z-50 overflow-hidden">
+      {isOpen && (
+      <div className="absolute top-12 right-0 w-72 bg-white border border-slate-200 shadow-xl rounded-xl flex flex-col z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150 origin-top-right">
         <div className="bg-slate-50 px-4 py-3 border-b border-slate-100 flex justify-between items-center">
           <span className="font-bold text-slate-700 text-sm">Action Required</span>
+          {(role === 'student' || role === 'parent') && unreadRealNotifications.length > 0 && (
+            <button type="button" onClick={markAllRead} className="text-xs font-medium text-blue-600 hover:text-blue-700">
+              Mark all read
+            </button>
+          )}
         </div>
-        
-        <div className="flex flex-col">
+
+        <div className="flex flex-col max-h-96 overflow-y-auto">
           
           {/* ========================================== */}
           {/* 1. ADMIN PANEL VIEW COLLECTION */}
@@ -302,6 +341,7 @@ export default function NotificationBell({ role }: NotificationBellProps) {
 
         </div>
       </div>
+      )}
     </div>
   );
 }
