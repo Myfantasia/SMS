@@ -32,7 +32,11 @@ export function useChatSocket(threadId: string | null) {
   const reconnectAttemptRef = useRef(0);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const unmountedRef = useRef(false);
+  // Bumped in every effect cleanup so a stale connection's async callbacks (onopen/
+  // onmessage/onclose) can tell they've been superseded by a later run (thread switch,
+  // or React 18 StrictMode's dev-mode double-invoke) and go inert instead of acting on
+  // a stale `threadId` closure — see the reconnect-race note on `connect` below.
+  const generationRef = useRef(0);
 
   const backfill = useCallback(async (tId: string) => {
     try {
@@ -54,7 +58,7 @@ export function useChatSocket(threadId: string | null) {
   }, []);
 
   useEffect(() => {
-    unmountedRef.current = false;
+    const myGeneration = generationRef.current;
     setMessages([]);
     setTypingUser(null);
     reconnectAttemptRef.current = 0;
@@ -65,17 +69,24 @@ export function useChatSocket(threadId: string | null) {
     }
 
     const connect = () => {
+      // Superseded by a later effect run (cleanup already bumped generationRef) —
+      // this closure still holds the OLD threadId, so bail instead of connecting/
+      // reconnecting to the wrong thread.
+      if (generationRef.current !== myGeneration) return;
+
       setConnectionStatus('connecting');
       const socket = new WebSocket(`${WS_BASE}/ws/chat/${threadId}/`);
       socketRef.current = socket;
 
       socket.onopen = () => {
+        if (generationRef.current !== myGeneration) return;
         reconnectAttemptRef.current = 0;
         setConnectionStatus('open');
         backfill(threadId);
       };
 
       socket.onmessage = (event) => {
+        if (generationRef.current !== myGeneration) return;
         const data = JSON.parse(event.data);
 
         if (data.type === 'message') {
@@ -90,8 +101,8 @@ export function useChatSocket(threadId: string | null) {
       };
 
       socket.onclose = () => {
+        if (generationRef.current !== myGeneration) return;
         setConnectionStatus('closed');
-        if (unmountedRef.current) return;
         const delay = Math.min(1000 * 2 ** reconnectAttemptRef.current, MAX_BACKOFF_MS);
         reconnectAttemptRef.current += 1;
         reconnectTimerRef.current = setTimeout(connect, delay);
@@ -105,7 +116,7 @@ export function useChatSocket(threadId: string | null) {
     connect();
 
     return () => {
-      unmountedRef.current = true;
+      generationRef.current += 1;
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       socketRef.current?.close();

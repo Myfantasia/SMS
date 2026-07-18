@@ -25,14 +25,17 @@ export function useInboxSocket(enabled: boolean, onUpdate: (event: InboxUpdateEv
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectAttemptRef = useRef(0);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const unmountedRef = useRef(false);
+  // Bumped in every effect cleanup so a stale connection's async callbacks can tell
+  // they've been superseded by a later run and go inert — see useChatSocket.ts, which
+  // shares this exact pattern for the same zombie-reconnect race.
+  const generationRef = useRef(0);
   const onUpdateRef = useRef(onUpdate);
   useEffect(() => {
     onUpdateRef.current = onUpdate;
   }, [onUpdate]);
 
   useEffect(() => {
-    unmountedRef.current = false;
+    const myGeneration = generationRef.current;
     reconnectAttemptRef.current = 0;
 
     if (!enabled) {
@@ -40,14 +43,18 @@ export function useInboxSocket(enabled: boolean, onUpdate: (event: InboxUpdateEv
     }
 
     const connect = () => {
+      if (generationRef.current !== myGeneration) return;
+
       const socket = new WebSocket(`${WS_BASE}/ws/inbox/`);
       socketRef.current = socket;
 
       socket.onopen = () => {
+        if (generationRef.current !== myGeneration) return;
         reconnectAttemptRef.current = 0;
       };
 
       socket.onmessage = (event) => {
+        if (generationRef.current !== myGeneration) return;
         const data = JSON.parse(event.data);
         if (data.type === 'inbox.update') {
           onUpdateRef.current(data as InboxUpdateEvent);
@@ -55,7 +62,7 @@ export function useInboxSocket(enabled: boolean, onUpdate: (event: InboxUpdateEv
       };
 
       socket.onclose = () => {
-        if (unmountedRef.current) return;
+        if (generationRef.current !== myGeneration) return;
         const delay = Math.min(1000 * 2 ** reconnectAttemptRef.current, MAX_BACKOFF_MS);
         reconnectAttemptRef.current += 1;
         reconnectTimerRef.current = setTimeout(connect, delay);
@@ -69,7 +76,7 @@ export function useInboxSocket(enabled: boolean, onUpdate: (event: InboxUpdateEv
     connect();
 
     return () => {
-      unmountedRef.current = true;
+      generationRef.current += 1;
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
       socketRef.current?.close();
       socketRef.current = null;
