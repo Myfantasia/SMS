@@ -190,7 +190,7 @@ export default function AdminGroupModal({ isOpen, onClose, mode }: Props) {
                   <optgroup key={grade.id} label={grade.grade_name}>
                     {grade.streams.map((stream: any) => (
                       <option key={stream.id} value={stream.id}>
-                        {grade.grade_name} {stream.name}
+                        {stream.name}
                       </option>
                     ))}
                   </optgroup>

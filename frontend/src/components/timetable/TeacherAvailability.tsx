@@ -6,6 +6,7 @@ import {
 import toast from 'react-hot-toast';
 import type { TimeSlot, Teacher } from '../../libs/types';
 import api from '../../libs/axiosInstance';
+import SearchableSelect from '../common/SearchableSelect';
 
 interface BlockedSlotRecord {
   id: number;
@@ -410,16 +411,19 @@ export default function TeacherAvailabilityView({ slots, onBack }: TeacherAvaila
             {showCopyPanel && (
               <div className="w-full bg-indigo-50/60 border border-indigo-200 rounded-xl p-3 flex flex-wrap items-center gap-2 animate-fade-in">
                 <span className="text-xs font-bold text-indigo-900">Copy {Object.keys(blockedSlots).length} blockout(s) to:</span>
-                <select
+                <SearchableSelect
+                  aria-label="Select Destination Teacher"
                   value={copyTargetTeacherId}
-                  onChange={(e) => setCopyTargetTeacherId(e.target.value)}
-                  className="border border-indigo-200 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-                >
-                  <option value="">-- Select Destination Teacher --</option>
-                  {teachers.filter(t => t.id.toString() !== selectedTeacherId).map(t => (
-                    <option key={t.id} value={t.id.toString()}>{t.name} [{t.department || 'General'}]</option>
-                  ))}
-                </select>
+                  onChange={setCopyTargetTeacherId}
+                  placeholder="-- Select Destination Teacher --"
+                  searchPlaceholder="Search teachers…"
+                  className="min-w-60"
+                  options={teachers.filter(t => t.id.toString() !== selectedTeacherId).map(t => ({
+                    value: t.id.toString(),
+                    label: t.name,
+                    sublabel: t.department || 'General',
+                  }))}
+                />
                 <button
                   type="button"
                   onClick={handleCopyPatternToTeacher}

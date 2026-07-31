@@ -10,6 +10,7 @@ from school.models.models import ( StudentExtra, AttendanceSession, AttendanceRe
                                   ParentExtra, Event, Notice)
 from school.serializers.serializers import EventSerializer, NotificationSerializer, NoticeSerializer
 from school.models.classSubjects_models import ClassStream
+from school.pagination import StandardResultsPagination
 from school.rbac import HasModulePermission, user_has_permission
 
 class CsrfExemptSessionAuthentication(SessionAuthentication):
@@ -292,6 +293,10 @@ class NoticeViewSet(viewsets.ModelViewSet):
     # Same as EventViewSet: read stays open, only writes get the extra RBAC layer.
     permission_classes = [IsAdminForWrite, HasModulePermission]
     rbac_edit_permission = 'notices.edit'
+    # The board only grows over time — paginated (unlike most list endpoints in this
+    # app) so it doesn't become an ever-larger single response. See NoticesHub.tsx /
+    # AdminDashboard.tsx, updated to read response.data.results instead of response.data.
+    pagination_class = StandardResultsPagination
 
     def get_queryset(self):
         # Admins see every notice; everyone else only sees notices actually
@@ -315,6 +320,16 @@ class NotificationViewSet(viewsets.ModelViewSet):
     # Self-service (each user's own notification feed) — no RBAC module gate,
     # every authenticated user needs access to their own notifications.
     permission_classes = [IsAuthenticated]
+    # Unbounded per-user history over time. See Notifications.tsx, updated to read
+    # response.data.results instead of response.data.
+    pagination_class = StandardResultsPagination
+    # Every real notification is created server-side (school/tasks.py, class_views.py,
+    # leave_views.py — direct Notification.objects.create(...) calls) and Notifications.tsx
+    # only ever GETs (list) and PATCHes (mark read). NotificationSerializer uses fields =
+    # '__all__', which includes `recipient` — leaving POST/PUT/DELETE open let any
+    # authenticated user forge a notification into an arbitrary recipient's feed. Restricting
+    # to what's actually used removes that surface entirely.
+    http_method_names = ['get', 'patch', 'head', 'options']
 
     def get_queryset(self):
         # Security: A user should ONLY be able to fetch their own notifications

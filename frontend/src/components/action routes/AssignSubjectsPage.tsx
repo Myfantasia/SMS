@@ -5,6 +5,7 @@ import {
     Trash2, Plus, AlertCircle, Settings, UserCheck 
 } from 'lucide-react';
 import api from '../../libs/axiosInstance';
+import SearchableSelect from '../common/SearchableSelect';
 
 // --- INTERFACES ---
 interface Subject {
@@ -12,12 +13,25 @@ interface Subject {
     code: string;
     name: string;
     is_core: boolean;
-    department: string;
+    department_id: number | null;
+}
+
+interface DepartmentGroup {
+    department_id: number | null;
+    department_name: string;
+    subjects: Subject[];
+}
+
+interface Department {
+    id: number;
+    name: string;
+    is_active: boolean;
 }
 
 interface CategoryLimit {
     id: number;
-    department: string;
+    department_id: number | null;
+    department_name: string | null;
     max_subjects: number;
 }
 
@@ -41,21 +55,22 @@ const AssignSubjectsPage: React.FC = () => {
 
     // --- UI STATE ---
     const [activeMainTab, setActiveMainTab] = useState<'assign' | 'policies'>('assign');
-    const [activeDeptTab, setActiveDeptTab] = useState<string>('');
+    const [activeDeptIndex, setActiveDeptIndex] = useState(0);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [bypassPolicies, setBypassPolicies] = useState(false);
 
     // --- DATA STATE ---
-    const [catalog, setCatalog] = useState<Record<string, Subject[]>>({});
+    const [catalog, setCatalog] = useState<DepartmentGroup[]>([]);
+    const [departments, setDepartments] = useState<Department[]>([]);
     const [draftSelection, setDraftSelection] = useState<number[]>([]);
-    
+
     // Policies State
     const [categoryLimits, setCategoryLimits] = useState<CategoryLimit[]>([]);
     const [exclusionRules, setExclusionRules] = useState<ExclusionRule[]>([]);
 
     // Policy Builder Form State
-    const [newLimitDept, setNewLimitDept] = useState('');
+    const [newLimitDept, setNewLimitDept] = useState<number | ''>('');
     const [newLimitMax, setNewLimitMax] = useState(1);
     const [newExclusionA, setNewExclusionA] = useState('');
     const [newExclusionB, setNewExclusionB] = useState('');
@@ -69,12 +84,19 @@ const fetchData = useCallback(async () => {
         const [catRes, limitsRes, exclRes] = await Promise.all([
           api.get(`/api/subjects/catalog/${gradeId}/`),
           api.get(`/api/subjects/category-limits/${gradeId}/`),
-          api.get(`/api/subjects/exclusion-rules/${gradeId}/`)
+          api.get(`/api/subjects/exclusion-rules/${gradeId}/`),
         ]);
 
         const catData = catRes.data;
         const limitsData = limitsRes.data;
         const exclData = exclRes.data;
+
+        // Departments are curriculum-scoped (CBC and 8-4-4 group subjects differently) — this
+        // grade's own curriculum, known only once the catalog responds, decides which
+        // departments the category-limit picker should offer.
+        const curriculumId = catData.status === 'success' ? catData.data.curriculum_id : null;
+        const deptRes = await api.get(`/api/departments/`, curriculumId ? { params: { curriculum_id: curriculumId } } : {});
+        const deptData = deptRes.data;
 
         // Fetch user profile dependencies sequentially only if student identity is defined
         let currentSelections: number[] = [];
@@ -87,20 +109,19 @@ const fetchData = useCallback(async () => {
         }
 
         if (catData.status === 'success') {
-            setCatalog(catData.data.catalog);
-            const departments = Object.keys(catData.data.catalog);
-            if (departments.length > 0) setActiveDeptTab(departments[0]);
-            
+            const groups: DepartmentGroup[] = catData.data.catalog;
+            setCatalog(groups);
+            setActiveDeptIndex(0);
+
             const coreIds: number[] = [];
-            Object.values(catData.data.catalog).flat().forEach((sub: any) => {
-                if (sub.is_core) coreIds.push(sub.id);
-            });
-            
+            groups.forEach((g) => g.subjects.forEach((sub) => { if (sub.is_core) coreIds.push(sub.id); }));
+
             setDraftSelection(Array.from(new Set([...currentSelections, ...coreIds])));
         }
 
         if (limitsData.status === 'success') setCategoryLimits(limitsData.data);
         if (exclData.status === 'success') setExclusionRules(exclData.data);
+        if (deptData.status === 'success') setDepartments(deptData.data);
 
     } catch (error) {
         console.error("Error fetching data:", error);
@@ -114,7 +135,7 @@ const fetchData = useCallback(async () => {
     }, [fetchData]);
 
     // Flat list of subjects for dropdowns
-    const flatSubjects = useMemo(() => Object.values(catalog).flat(), [catalog]);
+    const flatSubjects = useMemo(() => catalog.flatMap((g) => g.subjects), [catalog]);
 
     // --- THE SMART LOCK-OUT ENGINE ---
     const getSubjectStatus = (subject: Subject) => {
@@ -134,11 +155,11 @@ const fetchData = useCallback(async () => {
         }
 
         // Check 2: Category Limits
-        const limit = categoryLimits.find(l => l.department === subject.department);
+        const limit = categoryLimits.find(l => l.department_id === subject.department_id);
         if (limit && !isChecked) {
             const currentDeptSelectedCount = draftSelection.filter(id => {
                 const sub = flatSubjects.find(s => s.id === id);
-                return sub?.department === subject.department && !sub?.is_core;
+                return sub?.department_id === subject.department_id && !sub?.is_core;
             }).length;
 
             if (currentDeptSelectedCount >= limit.max_subjects) {
@@ -188,12 +209,13 @@ const handleSaveStudentSubjects = async () => {
     if (!newLimitDept) return;
     try {
         await api.post(`/api/subjects/category-limits/${gradeId}/`, {
-            department: newLimitDept,
+            department_id: newLimitDept,
             max_subjects: newLimitMax
         });
+        setNewLimitDept('');
         fetchData(); // Refresh structural policies
-    } catch (error) { 
-        console.error(error); 
+    } catch (error) {
+        console.error(error);
     }
     };
 
@@ -283,23 +305,30 @@ const handleDeleteExclusion = async (id: number) => {
                     {/* --- TAB 1: STUDENT ASSIGNMENT --- */}
                     {activeMainTab === 'assign' && (
                         <div className="space-y-6">
-                            {/* Department Sub-Tabs */}
+                            {/* Department Sub-Tabs — ordered alphabetically with Uncategorized last (see
+                                api_subject_catalog), each showing how many subjects it holds */}
                             <div className="flex flex-wrap gap-2 mb-6">
-                                {Object.keys(catalog).map(dept => (
-                                    <button 
-                                        type="button"
-                                        key={dept}
-                                        onClick={() => setActiveDeptTab(dept)}
-                                        className={`px-4 py-2 rounded-full text-sm font-medium transition border ${activeDeptTab === dept ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
-                                    >
-                                        {dept}
-                                    </button>
-                                ))}
+                                {catalog.map((group, idx) => {
+                                    const selectedInGroup = group.subjects.filter((s) => draftSelection.includes(s.id)).length;
+                                    return (
+                                        <button
+                                            type="button"
+                                            key={group.department_id ?? 'uncategorized'}
+                                            onClick={() => setActiveDeptIndex(idx)}
+                                            className={`px-4 py-2 rounded-full text-sm font-medium transition border flex items-center gap-2 ${activeDeptIndex === idx ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+                                        >
+                                            {group.department_name}
+                                            <span className={`text-xs px-1.5 py-0.5 rounded-full ${activeDeptIndex === idx ? 'bg-white/20' : 'bg-slate-100'}`}>
+                                                {selectedInGroup}/{group.subjects.length}
+                                            </span>
+                                        </button>
+                                    );
+                                })}
                             </div>
 
                             {/* Subject Grid */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {catalog[activeDeptTab]?.map(subject => {
+                                {catalog[activeDeptIndex]?.subjects.map(subject => {
                                     const status = getSubjectStatus(subject);
                                     return (
                                         <div 
@@ -352,9 +381,9 @@ const handleDeleteExclusion = async (id: number) => {
                                 
                                 {/* Add Form */}
                                 <div className="flex gap-2 mb-6 bg-slate-50 p-3 rounded-lg border border-slate-100 shrink-0">
-                                    <select aria-label="Select department" className="flex-1 text-sm border rounded px-2 py-1.5 outline-none bg-white" value={newLimitDept} onChange={e => setNewLimitDept(e.target.value)}>
+                                    <select aria-label="Select department" className="flex-1 text-sm border rounded px-2 py-1.5 outline-none bg-white" value={newLimitDept} onChange={e => setNewLimitDept(e.target.value ? Number(e.target.value) : '')}>
                                         <option value="">Select Dept...</option>
-                                        {Object.keys(catalog).map(d => <option key={d} value={d}>{d}</option>)}
+                                        {departments.filter(d => d.is_active).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                                     </select>
                                     <input type="number" min="1" className="w-20 text-sm border rounded px-2 py-1.5 outline-none bg-white" value={newLimitMax} onChange={e => setNewLimitMax(parseInt(e.target.value))} />
                                     <button type="button" aria-label="Add category limit" title="Add category limit" onClick={handleAddCategoryLimit} className="bg-indigo-600 text-white p-2 rounded hover:bg-indigo-700 transition"><Plus className="w-4 h-4"/></button>
@@ -364,7 +393,7 @@ const handleDeleteExclusion = async (id: number) => {
                                 <div className="space-y-2 overflow-y-auto max-h-64 pr-2 custom-scrollbar flex-1">
                                     {categoryLimits.map(limit => (
                                         <div key={limit.id} className="flex justify-between items-center bg-slate-50 p-3 rounded-lg border border-slate-100 text-sm">
-                                            <span className="font-medium text-slate-700">{limit.department}</span>
+                                            <span className="font-medium text-slate-700">{limit.department_name ?? 'Uncategorized'}</span>
                                             <div className="flex items-center gap-4">
                                                 <span className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded font-bold">Max {limit.max_subjects}</span>
                                                 <button type="button" aria-label="Delete category limit" title="Delete category limit" onClick={() => handleDeleteCategoryLimit(limit.id)} className="text-slate-400 hover:text-red-500 transition"><Trash2 className="w-4 h-4"/></button>
@@ -385,15 +414,23 @@ const handleDeleteExclusion = async (id: number) => {
                                 
                                 {/* Add Form */}
                                 <div className="flex flex-col gap-2 mb-6 bg-slate-50 p-3 rounded-lg border border-slate-100 shrink-0">
-                                    <select className="text-sm border rounded px-2 py-1.5 outline-none bg-white" value={newExclusionA} onChange={e => setNewExclusionA(e.target.value)}>
-                                        <option value="">Select Subject A...</option>
-                                        {flatSubjects.filter(s => !s.is_core).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                    </select>
+                                    <SearchableSelect
+                                        aria-label="Select Subject A"
+                                        value={newExclusionA}
+                                        onChange={setNewExclusionA}
+                                        placeholder="Select Subject A..."
+                                        searchPlaceholder="Search subjects…"
+                                        options={flatSubjects.filter(s => !s.is_core).map(s => ({ value: String(s.id), label: s.name }))}
+                                    />
                                     <div className="text-center text-xs font-bold text-slate-400">CANNOT BE TAKEN WITH</div>
-                                    <select className="text-sm border rounded px-2 py-1.5 outline-none bg-white" value={newExclusionB} onChange={e => setNewExclusionB(e.target.value)}>
-                                        <option value="">Select Subject B...</option>
-                                        {flatSubjects.filter(s => !s.is_core).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                    </select>
+                                    <SearchableSelect
+                                        aria-label="Select Subject B"
+                                        value={newExclusionB}
+                                        onChange={setNewExclusionB}
+                                        placeholder="Select Subject B..."
+                                        searchPlaceholder="Search subjects…"
+                                        options={flatSubjects.filter(s => !s.is_core).map(s => ({ value: String(s.id), label: s.name }))}
+                                    />
                                     <button type="button" onClick={handleAddExclusion} className="mt-2 bg-amber-500 text-white py-1.5 rounded text-sm font-bold hover:bg-amber-600 transition">Add Rule</button>
                                 </div>
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { Search, MessageCircle, User, LogOut, ChevronDown } from 'lucide-react';
+import { Search, MessageCircle, User, LogOut, ChevronDown, Menu as MenuIcon } from 'lucide-react';
 import { useChat } from './chats/ChatProvider';
 import NotificationBell from './Notifications';
 import api from '../libs/axiosInstance';
@@ -9,6 +9,7 @@ import { clearActivity } from '../libs/sessionExpiry';
 interface NavbarProps {
   role: string;
   userName?: string;
+  onMenuClick?: () => void;
 }
 
 // Turns "/admin-dashboard/leave-requests" into "Leave Requests", root into "Dashboard".
@@ -22,7 +23,7 @@ function getPageTitle(pathname: string, role: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-export default function Navbar({ role, userName = "Admin" }: NavbarProps) {
+export default function Navbar({ role, userName = "Admin", onMenuClick }: NavbarProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
@@ -55,7 +56,17 @@ useEffect(() => {
   };
 
   return (
-    <div className="flex items-center justify-between gap-6 h-16 px-6 md:px-8 bg-white/80 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-40">
+    <div className="flex items-center justify-between gap-3 md:gap-6 h-16 px-3 md:px-8 bg-white/80 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-40">
+
+      {/* HAMBURGER — opens the sidebar drawer, only relevant below `lg` where the sidebar is off-canvas */}
+      <button
+        type="button"
+        onClick={onMenuClick}
+        aria-label="Toggle menu"
+        className="lg:hidden shrink-0 w-9 h-9 flex items-center justify-center rounded-full text-slate-600 hover:bg-slate-100 transition-colors"
+      >
+        <MenuIcon className="w-5 h-5" />
+      </button>
 
       {/* PAGE TITLE */}
       <div className="flex flex-col min-w-0 shrink-0">

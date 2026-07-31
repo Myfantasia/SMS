@@ -15,3 +15,5 @@ from .teachers_model import *
 from .students_model import *
 
 from .rbac_models import *
+
+from .jobs_models import *

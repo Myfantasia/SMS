@@ -16,26 +16,27 @@ DASHBOARD_ATTENDANCE_WINDOW_DAYS = 30
 
 def is_tech_subject(subject, grade):
     """
-    Identifies if a subject is part of a Technical Block (Shared Lecture Hall).
+    Identifies if a subject is part of a Technical Block (Shared Lecture Hall) — i.e.
+    whether it's routed through the shared/synchronized elective-splitting engine.
     Ensures the allocation engine speaks the same language as the timetable generator.
     Moved here (from teacherAllocation_view.py) so AllocationValidator below can share it
     without a circular import.
+
+    Config-driven: this reads Subject.requires_synchronized_grade_blocking (set per subject
+    from Curriculum Hub) instead of matching on the subject's name or department string, so
+    adding a new subject or department never requires touching this function. The optional
+    Subject.synchronized_blocking_min_grade lets a subject opt in only from a given grade
+    upward (e.g. a subject only offered from a certain grade shouldn't force shared-block
+    scheduling below it).
     """
-    if not subject or not grade:
+    if not subject or not grade or not subject.requires_synchronized_grade_blocking:
         return False
 
-    name_lower = subject.name.lower()
-    if 'business' in name_lower:
-        return grade.numeric_order >= 10
+    min_grade = subject.synchronized_blocking_min_grade
+    if min_grade is not None and grade.numeric_order < min_grade:
+        return False
 
-    tech_keywords = ['technical', 'pre-tech', 'home science', 'computer', 'agriculture', 'art', 'music']
-    if any(kw in name_lower for kw in tech_keywords):
-        return True
-
-    if getattr(subject, 'department', '') == 'Technical':
-        return True
-
-    return False
+    return True
 
 
 def get_attendance_summary(student):
@@ -95,6 +96,83 @@ def get_block_period_structures(block_ids):
     subject's own quota split.
     """
     return dict(SubjectBlock.objects.filter(id__in=[b for b in block_ids if b]).values_list('id', 'period_structure'))
+
+
+def get_subjects_with_active_virtual_groups(grade_id):
+    """
+    Subject ids in this grade that already have at least one live virtual split group (see
+    api_execute_allocation_splits). Once a subject is routed through virtual groups, THOSE
+    groups are the sole real teaching unit for it — a physical stream's own SubjectQuota entry
+    for the same subject must not also demand its own separate teacher contract, since that
+    would need its own simultaneous timetable slot for the same shared teacher and collide with
+    the virtual group's slot (LessonAllocation only allows one (timetable, time_slot) per
+    teacher). Callers should exclude these subject ids from a PHYSICAL stream's required-subject
+    list; virtual streams are unaffected (they only ever require their own one subject anyway).
+    """
+    from school.models.classSubjects_models import ClassStream, Subject
+
+    names = ClassStream.live.filter(grade_id=grade_id, is_virtual=True).values_list('name', flat=True)
+    subject_names = {n.split(' - Group')[0].strip() for n in names}
+    if not subject_names:
+        return set()
+    return set(Subject.objects.filter(name__in=subject_names).values_list('id', flat=True))
+
+
+def get_virtual_stream_subject(stream):
+    """
+    The single subject a virtual elective split group (e.g. "Agriculture - Group 1") was
+    created for. Virtual streams are never given a SubjectQuota row of their own — they exist
+    purely to hold the split-out enrollment for one subject — so anything that needs "what
+    subject does this class need a teacher for" has to derive it from the naming convention
+    instead of a quota lookup. Returns None if the name doesn't match any real Subject.
+    """
+    from school.models.classSubjects_models import Subject
+
+    subject_name = stream.name.split(' - ')[0].strip()
+    return Subject.objects.filter(name__iexact=subject_name).first()
+
+
+def get_published_classroom_ids(classroom_ids, term_id, year_id):
+    """
+    Which of these classrooms already have a PUBLISHED allocation for this term/year — every
+    allocation-mutating path (Matrix save, Auto-Allocate, Bulk Allocate, Rollover, Clear Grid)
+    calls this first so a finalized, published schedule can't be silently overwritten by a
+    later run. A class with no AllocationPublishState row at all is still in draft (freely
+    editable) — that model only ever gets a row once a class has been published at least once.
+    """
+    from school.models.classSubjects_models import AllocationPublishState
+
+    return set(AllocationPublishState.objects.filter(
+        classroom_id__in=classroom_ids, term_id=term_id, academic_year_id=year_id, is_published=True
+    ).values_list('classroom_id', flat=True))
+
+
+def publish_allocation(classroom_id, term_id, year_id, user):
+    """
+    Marks one class's allocation as published for this term/year — called right after any
+    endpoint successfully commits real SubjectAllocation rows (matching the user's own framing:
+    "it is changed from draft to published when hit saved"). Idempotent: publishing an
+    already-published class just refreshes who/when.
+    """
+    from school.models.classSubjects_models import AllocationPublishState
+
+    AllocationPublishState.objects.update_or_create(
+        classroom_id=classroom_id, term_id=term_id, academic_year_id=year_id,
+        defaults={
+            'is_published': True,
+            'published_at': timezone.now(),
+            'published_by': user if (user and getattr(user, 'is_authenticated', False)) else None,
+        }
+    )
+
+
+def unpublish_allocation(classroom_id, term_id, year_id):
+    """Reverts one class's allocation back to draft, re-opening it for edits."""
+    from school.models.classSubjects_models import AllocationPublishState
+
+    AllocationPublishState.objects.filter(
+        classroom_id=classroom_id, term_id=term_id, academic_year_id=year_id
+    ).update(is_published=False, published_at=None, published_by=None)
 
 
 class AllocationValidator:
@@ -179,13 +257,14 @@ class AllocationValidator:
     def _is_shared_block(self, subject, grade):
         # The REAL, authoritative signal is whether this (grade, subject) pair is actually
         # registered in a SubjectBlock — matching the same source of truth the timetable
-        # generator uses. is_tech_subject() alone is just a department/name heuristic and
-        # returns True for every Technical-department subject regardless of whether that grade
-        # has a block configured — treating a second, unsynchronized stream's lesson as "free"
-        # (zero added weekly-lesson cost) purely because of department, which silently
-        # under-counts a teacher's real load and lets them slip past the weekly cap. PE / an
-        # explicit allows_multiclass flag are still honored even without a formal block, since
-        # those are genuinely meant to be co-taught (one teacher, one shared session).
+        # generator uses. is_tech_subject() alone only reflects the subject-level
+        # requires_synchronized_grade_blocking config flag, regardless of whether THIS grade
+        # has an actual block configured — treating a second, unsynchronized stream's lesson
+        # as "free" (zero added weekly-lesson cost) purely because of that flag, which
+        # silently under-counts a teacher's real load and lets them slip past the weekly cap.
+        # PE / an explicit allows_multiclass flag are still honored even without a formal
+        # block, since those are genuinely meant to be co-taught (one teacher, one shared
+        # session).
         if self.block_map.get((grade.id, subject.id)) is not None:
             return True
         sub_name_lower = subject.name.lower() if subject else ""
@@ -282,6 +361,14 @@ class AllocationValidator:
         existing_classrooms = self.teacher_subject_classrooms.get((t_id, s_id), {})
         other_classroom_grades = {cid: gid for cid, gid in existing_classrooms.items() if cid != c_id}
         other_count = len(other_classroom_grades)
+        # max_classes_per_subject ("at most N streams of the same subject") is a PER-GRADE rule,
+        # not a school-wide total — a teacher covering 2 streams of Biology in Grade 7 and 2 more
+        # in Grade 8 hasn't over-concentrated on Biology anywhere, they're just teaching it in two
+        # grades (exactly what allow_cross_grade_teaching exists to permit). Counting `other_count`
+        # globally used to let a teacher's Grade 8 load silently block them from Grade 7 streams of
+        # the same subject once cross-grade teaching was allowed, since the raw total hit the cap
+        # before either grade individually did.
+        other_count_same_grade = sum(1 for gid in other_classroom_grades.values() if gid == g_id)
 
         target_min = getattr(self.policy, 'min_classes_per_subject', 2)
         # Same "only pays off with a genuine extra stream to spare" gate as fill_remaining_subjects
@@ -289,16 +376,16 @@ class AllocationValidator:
         # collapsing every stream onto one teacher, so the notice would just nag on every pick.
         if (getattr(self.policy, 'enforce_prep_consolidation', True)
                 and self._grade_stream_count(g_id) > target_min):
-            total_streams_assigned = other_count + 1
+            total_streams_assigned = other_count_same_grade + 1
             if total_streams_assigned < target_min:
                 warnings.append(
                     f"Optimization Notice: {teacher_name} will only be teaching {total_streams_assigned} "
                     f"stream(s) of {subject.name}, which misses your {target_min}-stream preparation target."
                 )
 
-        if not is_shared_block and other_count >= self.policy.max_classes_per_subject:
-            msg = (f"{teacher_name} exceeded max physical room assignments "
-                   f"({self.policy.max_classes_per_subject}) for {subject.name}.")
+        if not is_shared_block and other_count_same_grade >= self.policy.max_classes_per_subject:
+            msg = (f"{teacher_name} exceeded max streams ({self.policy.max_classes_per_subject}) "
+                   f"of {subject.name} in {grade.name}.")
             if self.policy.enforcement_mode == 'STRICT':
                 return msg, warnings
             warnings.append(msg)
@@ -440,14 +527,32 @@ def fill_remaining_subjects(*, validator, target_class, required_subjects, reser
             if hard_error:
                 continue
 
+            # The "Optimization Notice" (prep-consolidation) warning restates the exact same
+            # signal prep_consolidation_priority already scores further down this tuple — counting
+            # it here too let it sneak back in at a much higher tier than intended. Concretely: a
+            # teacher who happens to already teach this subject in ANOTHER grade (from baseline
+            # data) never trips the notice, while every genuinely fresh candidate does, so ranking
+            # by raw warning count silently favored whoever's cross-grade history cleared the
+            # notice — the exact repetition reshuffling is supposed to catch — regardless of how
+            # many streams of THIS grade's subject they already hold. Real rule warnings (burnout,
+            # cross-grade violation, max-subjects) still count; only this one optimization hint is
+            # excluded from ranking (it's still shown to the admin via `warnings` below).
+            rankable_warning_count = sum(1 for w in warnings if not w.startswith('Optimization Notice'))
+
             classes_taught_this_subject = teacher_subject_classes.get(teacher.id, {}).get(subject.id, [])
             grade_streams_count = len([c for c in classes_taught_this_subject if c.grade_id == target_grade_id])
             # A virtual split group (see api_execute_allocation_splits) is deliberately NOT
             # part of the shared synchronized session anymore — it exists precisely because one
             # shared teacher/timeslot stopped covering everyone, so it doesn't get the shared-
             # block treatment even though its subject is registered in the grade's block.
+            # Reuses validator._is_shared_block (not just a block_map lookup) so PE and any other
+            # allows_multiclass subject rank the same way here as they're actually scored in
+            # validate_and_record — a block_map-only check here previously missed PE (which has
+            # no formal SubjectBlock row), so shared_block_priority never locked it onto one
+            # incumbent teacher for ranking purposes, even though validate_and_record already
+            # treated it as a zero-extra-cost shared session.
             is_shared_block = (not target_class.is_virtual
-                                and validator.block_map.get((target_grade_id, subject.id)) is not None)
+                                and validator._is_shared_block(subject, target_class.grade))
 
             total_streams_assigned = len(classes_taught_this_subject)
             prep_consolidation_priority = 1
@@ -495,14 +600,25 @@ def fill_remaining_subjects(*, validator, target_class, required_subjects, reser
             # too would stack extra subjects onto them just for being the class teacher, which
             # isn't a requirement — they should compete for anything beyond their guaranteed
             # slot on the same footing as everyone else.
+            # Reshuffle signals (grade_stream_penalty, other_grade_repeat_penalty) rank ahead of
+            # raw workload/capacity, not behind it — a lexicographic tuple lets an EARLIER tier
+            # completely override a LATER one, so putting workload first (a prior version of this
+            # code did) let a subject "specialist" who teaches nothing else keep winning every
+            # stream of their one subject on workload alone, since a light OVERALL load doesn't
+            # mean they aren't already repeated on THIS subject — e.g. a teacher already covering
+            # 4 of 5 Biology streams still looks "available" by raw weekly lessons if Biology is
+            # literally the only thing they teach, so nothing ever pushed the picker off them.
+            # Repetition-avoidance has to be checked before availability, not after, for
+            # reshuffling to mean anything. prep_consolidation_priority stays demoted at the
+            # bottom (a soft nudge for otherwise-tied candidates, not a magnet).
             priority = (
                 shared_block_priority,
-                prep_consolidation_priority,
-                len(warnings),
+                rankable_warning_count,
                 grade_stream_penalty,
                 other_grade_repeat_penalty,
                 remaining_capacity_penalty,
                 current_workload,
+                prep_consolidation_priority,
                 global_workload,
             )
             candidates.append((priority, teacher, warnings))
@@ -594,14 +710,14 @@ def get_applicable_students(subject, classroom, academic_year):
     subject, not fragmented per group.
     """
     from school.models.models import StudentExtra
-    from school.models.classSubjects_models import StudentSubjectEnrollment
+    from school.models.classSubjects_models import StudentSubjectEnrollment, get_effective_is_core
 
     if classroom.is_virtual:
         base_students = StudentExtra.objects.filter(cl__grade=classroom.grade, status=True)
     else:
         base_students = StudentExtra.objects.filter(cl=classroom, status=True)
 
-    if subject.is_core:
+    if get_effective_is_core(subject, classroom.grade.curriculum, classroom.grade.tier):
         return base_students
 
     grade_enrollments = StudentSubjectEnrollment.objects.filter(
@@ -883,8 +999,21 @@ def compute_school_allocation_gaps(term_id, year_id):
     real_streams = list(ClassStream.live.filter(is_virtual=False).select_related('grade', 'class_teacher'))
     virtual_streams = list(ClassStream.live.filter(is_virtual=True).select_related('grade'))
 
+    # Once a subject is routed through virtual split groups, those groups are the sole real
+    # teaching unit for it (see get_subjects_with_active_virtual_groups) — a physical stream's
+    # SubjectQuota entry for the same subject must not also be treated as a gap here, matching
+    # the same exclusion BulkAutoAllocateAPIView and AutoAllocateDraftAPIView already apply when
+    # actually assigning teachers. Without this, this gate would demand every physical stream get
+    # its own separate contract for a subject it was never meant to have one for.
+    split_subject_ids_by_grade = {
+        grade_id: get_subjects_with_active_virtual_groups(grade_id)
+        for grade_id in {s.grade_id for s in real_streams}
+    }
+
     quotas_by_grade = {}
     for q in SubjectQuota.objects.filter(grade_id__in={s.grade_id for s in real_streams}).select_related('subject'):
+        if q.subject_id in split_subject_ids_by_grade.get(q.grade_id, set()):
+            continue
         quotas_by_grade.setdefault(q.grade_id, []).append(q.subject)
 
     allocated_pairs = set()

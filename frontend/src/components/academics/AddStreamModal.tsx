@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Save, Layers } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../libs/axiosInstance';
+import SearchableSelect, { SearchableSelectOption } from '../common/SearchableSelect';
 
 interface AddStreamModalProps {
   isOpen: boolean;
@@ -14,7 +15,26 @@ interface AddStreamModalProps {
 export default function AddStreamModal({ isOpen, onClose, onSuccess, gradeId, gradeName }: AddStreamModalProps) {
   const [streamName, setStreamName] = useState('');
   const [capacity, setCapacity] = useState<number | string>(40);
+  const [teacherId, setTeacherId] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+
+  const [teacherOptions, setTeacherOptions] = useState<SearchableSelectOption[]>([]);
+  const [loadingTeacherOptions, setLoadingTeacherOptions] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen || teacherOptions.length > 0) return;
+    setLoadingTeacherOptions(true);
+    api.get('/api/approved-users/teachers/')
+      .then(res => {
+        const list = Array.isArray(res.data?.data) ? res.data.data : [];
+        setTeacherOptions(list.map((t: { id: number; name: string; username: string }) => ({
+          value: String(t.id), label: t.name, sublabel: t.username,
+        })));
+      })
+      .catch(err => console.error('Failed to load teachers', err))
+      .finally(() => setLoadingTeacherOptions(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
   // If the modal is triggered to be closed, don't render its contents
   if (!isOpen) return null;
@@ -35,7 +55,8 @@ const handleSubmit = async (e: React.FormEvent) => {
     const response = await api.post('/api/add-single-stream/', {
       grade_id: gradeId,
       stream_name: streamName,
-      capacity: Number(capacity) || 40
+      capacity: Number(capacity) || 40,
+      teacher_id: teacherId
     });
 
     const data = response.data;
@@ -44,6 +65,7 @@ const handleSubmit = async (e: React.FormEvent) => {
       toast.success(data.message);
       setStreamName(''); // Reset fields on success
       setCapacity(40);
+      setTeacherId('');
       onSuccess();       // Refresh parent component layout context
       onClose();         // Dismiss open overlay
     } else {
@@ -127,6 +149,23 @@ const handleSubmit = async (e: React.FormEvent) => {
                 Students
               </span>
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label htmlFor="stream-teacher" className="text-xs font-bold text-slate-600 uppercase tracking-wider block">
+              Class Teacher <span className="text-slate-400 normal-case font-medium">(optional)</span>
+            </label>
+            <SearchableSelect
+              id="stream-teacher"
+              options={teacherOptions}
+              value={teacherId}
+              onChange={setTeacherId}
+              placeholder={loadingTeacherOptions ? 'Loading…' : 'Unassigned'}
+              searchPlaceholder="Search teachers…"
+              emptyMessage="No teachers found."
+              disabled={loadingTeacherOptions}
+            />
+            <p className="text-xs text-slate-400">Can also be assigned later from the stream's edit action.</p>
           </div>
 
           <div className="pt-3 flex gap-3">

@@ -68,6 +68,7 @@ body.role-admin { --role-accent: #f43f5e; }
 body.role-teacher { --role-accent: #10b981; }
 body.role-student { --role-accent: #3b82f6; }
 body.role-parent { --role-accent: #f59e0b; }
+body.role-staff { --role-accent: #8b5cf6; }
 
 /* --- WRAPPER --- */
 .login-wrapper {
@@ -116,6 +117,167 @@ body.role-parent { --role-accent: #f59e0b; }
     }
 }
 
+/* --- SPLIT AUTH SHELL ---
+   Pairs the existing .login-card with an illustrated .auth-visual panel (see
+   auth_visual.html) so every login/signup/gateway/reset page reads as a real product,
+   not a bare form. The visual panel is theme-invariant by design (fixed dark gradient
+   + white text) so it stays legible regardless of the visitor's light/dark preference —
+   only the form side needs to track --text-main/--bg-dark etc. */
+.auth-shell {
+    display: flex;
+    align-items: stretch;
+    width: 100%;
+    max-width: 960px;
+    margin-top: 40px;
+    border-radius: 22px;
+    overflow: hidden;
+    box-shadow: 0 25px 60px -12px var(--shadow-color);
+    animation: fadeInUp 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.auth-shell.wide { max-width: 1220px; }
+
+.auth-shell .login-card {
+    flex: 1 1 62%;
+    min-width: 300px;
+    margin-top: 0;
+    border-radius: 0;
+    border-top: none;
+    border-left: 3px solid var(--role-accent);
+    box-shadow: none;
+    animation: none; /* the shell itself animates in as one unit */
+}
+
+.auth-shell.wide .login-card.wide-card {
+    max-width: none; /* flex owns the sizing once inside the shell */
+}
+
+.auth-visual {
+    flex: 0 0 38%;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 30px;
+    padding: 44px 36px;
+    overflow: hidden;
+    color: #f8fafc;
+    background:
+        linear-gradient(180deg, rgba(2,6,23,0.08) 0%, rgba(2,6,23,0.68) 100%),
+        linear-gradient(155deg, color-mix(in srgb, var(--role-accent) 85%, #020617) 0%, color-mix(in srgb, var(--role-accent) 45%, #0f172a) 55%, #0f172a 100%);
+}
+
+.auth-visual-pattern {
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(rgba(255,255,255,0.16) 1px, transparent 1px);
+    background-size: 22px 22px;
+    opacity: 0.5;
+    mask-image: radial-gradient(circle at 30% 20%, black, transparent 70%);
+    -webkit-mask-image: radial-gradient(circle at 30% 20%, black, transparent 70%);
+    pointer-events: none;
+}
+
+.auth-visual-content { position: relative; z-index: 1; }
+
+.auth-visual-eyebrow {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    color: rgba(255,255,255,0.75);
+    margin-bottom: 14px;
+}
+
+.auth-visual-title {
+    font-size: 1.65rem;
+    font-weight: 800;
+    line-height: 1.28;
+    margin: 0 0 12px;
+    color: #fff;
+}
+
+.auth-visual-tagline {
+    font-size: 0.95rem;
+    line-height: 1.55;
+    color: rgba(255,255,255,0.86);
+    max-width: 30ch;
+}
+
+.auth-visual-stage {
+    position: relative;
+    z-index: 1;
+    flex: 1;
+    min-height: 170px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.auth-blob {
+    width: 128px;
+    height: 128px;
+    display: grid;
+    place-items: center;
+    font-size: 2.5rem;
+    color: #fff;
+    background: rgba(255,255,255,0.14);
+    border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 42% 58% 63% 37% / 45% 40% 60% 55%;
+    box-shadow: 0 20px 40px -12px rgba(2,6,23,0.5);
+    animation: blobFloat 7s ease-in-out infinite;
+}
+
+.auth-float-badge {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 8px 13px;
+    background: rgba(15, 23, 42, 0.55);
+    border: 1px solid rgba(255,255,255,0.18);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #fff;
+    white-space: nowrap;
+    box-shadow: 0 10px 25px -8px rgba(2,6,23,0.5);
+    animation: badgeFloat 5s ease-in-out infinite;
+}
+
+.auth-float-badge i { color: #fff; opacity: 0.9; font-size: 0.75rem; }
+
+.auth-float-badge.badge-1 { top: 6%; left: -4%; animation-delay: 0s; }
+.auth-float-badge.badge-2 { bottom: 14%; right: -8%; animation-delay: 1.6s; }
+.auth-float-badge.badge-3 { bottom: -4%; left: 14%; animation-delay: 3.1s; }
+
+@keyframes blobFloat {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    50% { transform: translateY(-10px) rotate(4deg); }
+}
+
+@keyframes badgeFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .auth-blob, .auth-float-badge { animation: none; }
+}
+
+/* Collapse the visual panel below tablet width so the form stays primary on mobile */
+@media (max-width: 880px) {
+    .auth-visual { display: none; }
+    .auth-shell { max-width: 100%; box-shadow: none; border-radius: 0; }
+    .auth-shell .login-card {
+        border-left: none;
+        border-top: 3px solid var(--role-accent);
+        border-radius: 20px;
+        box-shadow: 0 25px 50px -12px var(--shadow-color);
+    }
+}
 
 /* --- HEADER & TEXT --- */
 .login-header {
@@ -140,6 +302,14 @@ body.role-parent { --role-accent: #f59e0b; }
    older markup still looks intentional rather than broken. */
 .login-header > i {
     filter: drop-shadow(0 0 10px rgba(99, 102, 241, 0.5));
+}
+
+/* A "waiting" status is never the role's own identity color — always amber,
+   regardless of which role's account is pending. */
+.header-icon-badge.pending-badge {
+    background: rgba(251, 191, 36, 0.14);
+    color: #f59e0b;
+    box-shadow: 0 0 0 6px rgba(251, 191, 36, 0.08);
 }
 
 .login-header h2 {
@@ -602,6 +772,10 @@ select.form-control option:hover {
     width: 100%;
 }
 
+.password-wrapper .form-control {
+    padding-right: 46px;
+}
+
 .toggle-pass {
     position: absolute;
     right: 15px;
@@ -696,6 +870,169 @@ select.form-control option:hover {
         font-size: 1.5rem;
     }
 }
+
+/* --- PASSWORD STRENGTH METER --- */
+.strength-meter {
+    margin-top: 10px;
+}
+
+.strength-meter-track {
+    height: 5px;
+    width: 100%;
+    border-radius: 999px;
+    background: var(--surface-tint-strong);
+    overflow: hidden;
+}
+
+.strength-meter-track span {
+    display: block;
+    height: 100%;
+    width: 0%;
+    border-radius: 999px;
+    background: #ef4444;
+    transition: width 0.3s ease, background 0.3s ease;
+}
+
+.strength-meter-label {
+    display: block;
+    margin-top: 6px;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+}
+
+/* --- CHILD SEARCH (parent signup, live search-and-select) --- */
+.child-search-results {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 20;
+    margin-top: 6px;
+    background: var(--card-bg);
+    border: 1px solid var(--border-soft-strong);
+    border-radius: 12px;
+    box-shadow: 0 15px 35px -10px var(--shadow-color);
+    max-height: 260px;
+    overflow-y: auto;
+}
+
+.child-search-result {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 12px 14px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border-soft);
+    transition: background 0.15s ease;
+}
+.child-search-result:last-child { border-bottom: none; }
+.child-search-result:hover { background: var(--surface-tint-strong); }
+.child-search-result.is-selected { opacity: 0.5; cursor: default; }
+
+.child-search-result-info { display: flex; flex-direction: column; gap: 2px; }
+.child-search-result-name { font-weight: 600; color: var(--text-main); font-size: 0.92rem; }
+.child-search-result-meta { font-size: 0.78rem; color: var(--text-muted); }
+
+.child-search-result-badge {
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 999px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.child-search-result-badge.linked { background: rgba(251, 191, 36, 0.14); color: #f59e0b; }
+.child-search-result-badge.unlinked { background: rgba(34, 197, 94, 0.12); color: #16a34a; }
+.child-search-result-badge.partial { background: rgba(59, 130, 246, 0.14); color: #3b82f6; }
+
+.child-search-empty {
+    padding: 14px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
+/* --- GENERIC SEARCHABLE SELECT (long dropdown lists: class streams, etc.) --- */
+.searchable-select-wrap {
+    position: relative;
+}
+
+.searchable-select-wrap .form-control.searchable-select-input {
+    cursor: pointer;
+}
+
+.searchable-select-results {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 20;
+    margin-top: 6px;
+    background: var(--card-bg);
+    border: 1px solid var(--border-soft-strong);
+    border-radius: 12px;
+    box-shadow: 0 15px 35px -10px var(--shadow-color);
+    max-height: 260px;
+    overflow-y: auto;
+    display: none;
+}
+
+.searchable-select-wrap.is-open .searchable-select-results {
+    display: block;
+}
+
+.searchable-select-option {
+    padding: 10px 14px;
+    cursor: pointer;
+    font-size: 0.88rem;
+    color: var(--text-main);
+    border-bottom: 1px solid var(--border-soft);
+}
+.searchable-select-option:last-child { border-bottom: none; }
+.searchable-select-option:hover,
+.searchable-select-option.is-active { background: var(--surface-tint-strong); }
+.searchable-select-option.is-selected { font-weight: 700; color: var(--role-accent); }
+
+.searchable-select-empty {
+    padding: 14px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
+.selected-children-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 14px 0;
+}
+
+.child-chip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px 8px 14px;
+    background: color-mix(in srgb, var(--role-accent) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--role-accent) 30%, transparent);
+    border-radius: 999px;
+    font-size: 0.85rem;
+    color: var(--text-main);
+}
+
+.child-chip .chip-remove {
+    display: grid;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--surface-tint-strong);
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.7rem;
+    transition: all 0.15s ease;
+}
+.child-chip .chip-remove:hover { background: #ef4444; color: white; }
 
 /* --- PENDING APPROVAL PAGE STYLES --- */
 

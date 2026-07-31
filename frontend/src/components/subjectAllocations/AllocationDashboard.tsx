@@ -24,7 +24,11 @@ const AllocationDashboard: React.FC = () => {
   
   // NEW: State to track if the selected class is a virtual elective split
   const [isVirtualStream, setIsVirtualStream] = useState<boolean>(false);
-  
+
+  // Draft/Published lock — once published, the Matrix for this class+term+year is read-only
+  // until explicitly unpublished (see UnpublishAllocationAPIView).
+  const [isPublished, setIsPublished] = useState<boolean>(false);
+
   // NEW: State for the Splitting Engine Modal
   const [isSplittingModalOpen, setIsSplittingModalOpen] = useState<boolean>(false);
 
@@ -38,6 +42,7 @@ const AllocationDashboard: React.FC = () => {
       if (!yearId || !termId || !classId) {
         setMatrixData([]);
         setIsVirtualStream(false);
+        setIsPublished(false);
         setGradeId('');
         setGradeName('');
         setClassDisplayName('');
@@ -57,6 +62,7 @@ const AllocationDashboard: React.FC = () => {
         setMatrixData(response.data.matrix);
         // Capture the virtual flag from Django
         setIsVirtualStream(response.data.is_virtual || false);
+        setIsPublished(response.data.is_published || false);
         setGradeId(response.data.grade_id ? String(response.data.grade_id) : '');
         setGradeName(response.data.grade_name || '');
         setClassDisplayName(response.data.class_name || '');
@@ -130,6 +136,8 @@ const AllocationDashboard: React.FC = () => {
                classDisplayName={classDisplayName}
                matrixData={matrixData}
                setMatrixData={setMatrixData}
+               isPublished={isPublished}
+               isVirtualStream={isVirtualStream}
                onRefresh={triggerRefresh}
                onOpenSplittingModal={() => setIsSplittingModalOpen(true)}
              />
@@ -137,7 +145,7 @@ const AllocationDashboard: React.FC = () => {
 
           {/* 3. Matrix Grid Section */}
           <div className="mt-8">
-            
+
             {/* NEW: AMBER WARNING FOR VIRTUAL STREAMS */}
             {isVirtualStream && (
               <div className="mb-6 flex items-start gap-3 bg-amber-50 border border-amber-200 p-4 rounded-xl shadow-sm">
@@ -146,6 +154,18 @@ const AllocationDashboard: React.FC = () => {
                   <h4 className="text-sm font-bold text-amber-800">Virtual Elective Split Group</h4>
                   <p className="text-sm text-amber-700 mt-1">
                     You are modifying an Elective Split Group. Changes saved here apply specifically to students enrolled in this elective section. Core subjects will not be shown.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {isPublished && (
+              <div className="mb-6 flex items-start gap-3 bg-emerald-50 border border-emerald-200 p-4 rounded-xl shadow-sm">
+                <ClipboardList className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="text-sm font-bold text-emerald-800">Published — Locked</h4>
+                  <p className="text-sm text-emerald-700 mt-1">
+                    This class's allocation is published. It's read-only until you unpublish it from the toolbar above.
                   </p>
                 </div>
               </div>
@@ -161,6 +181,7 @@ const AllocationDashboard: React.FC = () => {
                  <MatrixTable
                     data={matrixData}
                     onTeacherChange={handleTeacherChange}
+                    readOnly={isPublished}
                  />
                </div>
             ) : (

@@ -25,7 +25,12 @@ export default function NoticesHub({ role }: NoticesHubProps) {
   const [notices, setNotices] = useState<SchoolNotice[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  
+  // The board is paginated server-side now (see NoticeViewSet's pagination_class) since
+  // it only grows over time — this tracks the "next page" URL DRF hands back so
+  // "Load more" can fetch it directly, without re-deriving offsets client-side.
+  const [nextPageUrl, setNextPageUrl] = useState<string | null>(null);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+
   // NEW: State to track which notice we are currently editing
   const [editingNotice, setEditingNotice] = useState<SchoolNotice | null>(null);
 
@@ -33,12 +38,28 @@ export default function NoticesHub({ role }: NoticesHubProps) {
     setIsLoading(true);
     try {
       const response = await api.get('/api/core/notices/');
-      setNotices(response.data);
+      setNotices(response.data.results);
+      setNextPageUrl(response.data.next);
     } catch (error) {
       console.error("Error fetching notices:", error);
       toast.error("Failed to load the digital bulletin board.");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadMoreNotices = async () => {
+    if (!nextPageUrl) return;
+    setIsLoadingMore(true);
+    try {
+      const response = await api.get(nextPageUrl);
+      setNotices((prev) => [...prev, ...response.data.results]);
+      setNextPageUrl(response.data.next);
+    } catch (error) {
+      console.error("Error fetching more notices:", error);
+      toast.error("Failed to load more notices.");
+    } finally {
+      setIsLoadingMore(false);
     }
   };
 
@@ -93,12 +114,26 @@ export default function NoticesHub({ role }: NoticesHubProps) {
           <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
         </div>
       ) : (
-        <NoticeBoard 
-          role={role} 
-          notices={notices} 
-          onRefresh={fetchNotices} 
-          onEdit={handleEditNotice} // Passed down to the board
-        />
+        <>
+          <NoticeBoard
+            role={role}
+            notices={notices}
+            onRefresh={fetchNotices}
+            onEdit={handleEditNotice} // Passed down to the board
+          />
+          {nextPageUrl && (
+            <div className="flex justify-center mt-6">
+              <button
+                onClick={loadMoreNotices}
+                disabled={isLoadingMore}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-all disabled:opacity-60"
+              >
+                {isLoadingMore && <Loader2 className="w-4 h-4 animate-spin" />}
+                {isLoadingMore ? 'Loading...' : 'Load more'}
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       {/* The form modal for creating or editing notices */}

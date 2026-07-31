@@ -3,16 +3,41 @@ import { GitBranch, Clock, CheckCircle2, XCircle, Send, Undo2 } from 'lucide-rea
 import toast from 'react-hot-toast';
 import api from '../../libs/axiosInstance';
 
+interface ComboSubject {
+  id: number;
+  name: string;
+  code: string;
+}
+
+interface ComboOption {
+  id: number;
+  name: string;
+  code: string;
+  subjects: ComboSubject[];
+}
+
+interface TrackOption {
+  id: number;
+  name: string;
+  description: string;
+  preset_combinations: ComboOption[];
+}
+
 interface PathwayOption {
   id: number;
   name: string;
   description: string;
+  tracks: TrackOption[];
 }
 
 interface Selection {
   selection_id: number;
   pathway_id: number;
   pathway_name: string;
+  track_id: number | null;
+  track_name: string | null;
+  preset_combination_id: number | null;
+  preset_combination_name: string | null;
   status: 'Pending' | 'Approved' | 'Rejected';
 }
 
@@ -29,6 +54,8 @@ export default function StudentPathwayChoice() {
   const [academicYear, setAcademicYear] = useState('');
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<number | null>(null);
+  const [trackChoice, setTrackChoice] = useState<Record<number, number | ''>>({});
+  const [comboChoice, setComboChoice] = useState<Record<number, number | ''>>({});
 
   const fetchPathways = useCallback(async () => {
     setLoading(true);
@@ -55,10 +82,25 @@ export default function StudentPathwayChoice() {
     fetchPathways();
   }, [fetchPathways]);
 
-  const handleRequest = async (pathwayId: number) => {
-    setBusyId(pathwayId);
+  const handleRequest = async (pathway: PathwayOption) => {
+    const trackId = trackChoice[pathway.id];
+    if (pathway.tracks.length > 0 && !trackId) {
+      toast.error(`Choose a track for ${pathway.name} first.`);
+      return;
+    }
+    const track = pathway.tracks.find((t) => t.id === trackId);
+    const comboId = trackId ? comboChoice[trackId as number] : '';
+    if (track && track.preset_combinations.length > 0 && !comboId) {
+      toast.error(`Choose one of the approved subject combinations for ${track.name} first.`);
+      return;
+    }
+    setBusyId(pathway.id);
     try {
-      const res = await api.post('/api/subjects/my-pathway/request/', { pathway_id: pathwayId });
+      const res = await api.post('/api/subjects/my-pathway/request/', {
+        pathway_id: pathway.id,
+        ...(trackId ? { track_id: trackId } : {}),
+        ...(comboId ? { preset_combination_id: comboId } : {}),
+      });
       toast.success(res.data.message);
       fetchPathways();
     } catch (error: any) {
@@ -140,6 +182,47 @@ export default function StudentPathwayChoice() {
                   )}
                 </div>
 
+                {isMine && selection!.track_name && (
+                  <p className="text-xs text-slate-500 -mt-2">Track: <span className="font-semibold text-slate-700">{selection!.track_name}</span></p>
+                )}
+                {isMine && selection!.preset_combination_name && (
+                  <p className="text-xs text-slate-500 -mt-2">Combination: <span className="font-semibold text-slate-700">{selection!.preset_combination_name}</span></p>
+                )}
+
+                {!isMine && p.tracks.length > 0 && !isLocked && (
+                  <select
+                    aria-label={`Track for ${p.name}`}
+                    value={trackChoice[p.id] ?? ''}
+                    onChange={(e) => setTrackChoice((prev) => ({ ...prev, [p.id]: e.target.value ? Number(e.target.value) : '' }))}
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  >
+                    <option value="">Select a track...</option>
+                    {p.tracks.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
+                )}
+
+                {!isMine && !isLocked && (() => {
+                  const trackId = trackChoice[p.id];
+                  const track = p.tracks.find((t) => t.id === trackId);
+                  if (!track || track.preset_combinations.length === 0) return null;
+                  return (
+                    <div className="space-y-1.5">
+                      <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">Choose an approved combination</p>
+                      <select
+                        aria-label={`Subject combination for ${track.name}`}
+                        value={comboChoice[track.id] ?? ''}
+                        onChange={(e) => setComboChoice((prev) => ({ ...prev, [track.id]: e.target.value ? Number(e.target.value) : '' }))}
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                      >
+                        <option value="">Select a combination...</option>
+                        {track.preset_combinations.map((c) => (
+                          <option key={c.id} value={c.id}>{c.subjects.map((s) => s.name).join(' + ')}</option>
+                        ))}
+                      </select>
+                    </div>
+                  );
+                })()}
+
                 <div className="pt-1">
                   {isMine && selection!.status === 'Approved' ? (
                     <span className="text-xs text-slate-300 italic">Locked in</span>
@@ -153,7 +236,7 @@ export default function StudentPathwayChoice() {
                     </button>
                   ) : (
                     <button
-                      onClick={() => handleRequest(p.id)}
+                      onClick={() => handleRequest(p)}
                       disabled={busy || isLocked}
                       title={isLocked ? 'Your pathway is already approved and locked.' : undefined}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-lg transition-colors border border-indigo-200 disabled:opacity-50"

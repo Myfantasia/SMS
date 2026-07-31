@@ -5,6 +5,7 @@ from rest_framework.authentication import SessionAuthentication
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework import status
 from django.conf import settings
 from django.contrib.auth.models import User
@@ -475,7 +476,22 @@ class AdminAuditLogAPI(APIView):
         except ChatThread.DoesNotExist:
             return Response({"error": "Thread not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        audits = MessageAudit.objects.filter(thread=thread).order_by('sent_at')
+        # No frontend consumer currently calls this endpoint (confirmed via grep), so
+        # adding pagination here doesn't require any client-side coordination — but a
+        # long-lived thread's full history was still an unbounded single response, so
+        # cap it the same way ThreadMessageHistoryAPI already does for live chat.
+        try:
+            limit = min(int(request.GET.get('limit', 100)), 200)
+        except (TypeError, ValueError):
+            limit = 100
+        try:
+            offset = max(int(request.GET.get('offset', 0)), 0)
+        except (TypeError, ValueError):
+            offset = 0
+
+        all_audits = MessageAudit.objects.filter(thread=thread).order_by('sent_at')
+        total_count = all_audits.count()
+        audits = all_audits[offset:offset + limit]
 
         audit_data = []
         for msg in audits:
@@ -493,7 +509,9 @@ class AdminAuditLogAPI(APIView):
         return Response({
             "thread_id": str(thread.id),
             "thread_type": thread.thread_type,
-            "audit_logs": audit_data
+            "audit_logs": audit_data,
+            "total_count": total_count,
+            "has_more": offset + limit < total_count,
         }, status=status.HTTP_200_OK)
 
 
@@ -555,6 +573,8 @@ class ChatAttachmentUploadAPI(APIView):
     """
     permission_classes = [IsAuthenticated]
     authentication_classes = [CsrfExemptSessionAuthentication]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'uploads'
 
     def post(self, request, thread_id):
         if not ThreadParticipant.objects.filter(thread_id=thread_id, user=request.user).exists():

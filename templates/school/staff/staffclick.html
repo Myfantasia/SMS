@@ -11,13 +11,15 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <link rel="stylesheet" href="{% static 'css/navbar.css' %}?v=3">
-    <link rel="stylesheet" href="{% static 'css/auth_style.css' %}?v=4">
+    <link rel="stylesheet" href="{% static 'css/auth_style.css' %}?v=7">
 </head>
 
-<body class="role-teacher">
+<body class="role-staff">
     {% include "school/navbar.html" %}
 
     <div class="login-wrapper">
+      <div class="auth-shell">
+        {% include "school/auth_visual.html" with visual_role="staff" visual_icon="fa-briefcase" visual_kind="GATEWAY" %}
         <div class="login-card">
             <div class="login-header">
                 <div class="header-icon-badge"><i class="fas fa-briefcase"></i></div>
@@ -46,6 +48,7 @@
                 <a href="/"><i class="fas fa-arrow-left"></i> Back to Home</a>
             </div>
         </div>
+      </div>
     </div>
 
     {% include "school/footer.html" %}

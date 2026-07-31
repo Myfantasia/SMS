@@ -8,13 +8,15 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="{% static 'css/navbar.css' %}?v=3">
-    <link rel="stylesheet" href="{% static 'css/auth_style.css' %}?v=4">
+    <link rel="stylesheet" href="{% static 'css/auth_style.css' %}?v=7">
 </head>
 <body class="role-parent">
 
     {% include "school/navbar.html" %}
 
     <div class="login-wrapper">
+      <div class="auth-shell">
+        {% include "school/auth_visual.html" with visual_role="parent" visual_icon="fa-people-roof" visual_kind="GATEWAY" %}
         <div class="login-card" style="text-align: center;">
             <div class="login-header">
                 <div class="header-icon-badge"><i class="fas fa-user-friends"></i></div>
@@ -40,6 +42,7 @@
                 <p>Not a Parent? <a href="/">Return Home</a></p>
             </div>
         </div>
+      </div>
     </div>
 
     {% include "school/footer.html" %}

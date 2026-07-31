@@ -1,14 +1,16 @@
 import React, { useMemo } from 'react';
-import { AlertCircle, CheckCircle2, UserCheck, Info, Layers } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Info, Layers, Puzzle } from 'lucide-react';
 import type { MatrixRow } from '../../libs/types';
+import SearchableSelect from '../common/SearchableSelect';
 
 
 interface MatrixTableProps {
   data: MatrixRow[];
   onTeacherChange: (subjectId: number, teacherId: string | number) => void;
+  readOnly?: boolean;
 }
 
-const MatrixTable: React.FC<MatrixTableProps> = ({ data, onTeacherChange }) => {
+const MatrixTable: React.FC<MatrixTableProps> = ({ data, onTeacherChange, readOnly = false }) => {
 
   // Arrange: Core subjects first (the fixed backbone of the timetable), then each
   // elective block grouped together, alphabetically — instead of whatever arbitrary
@@ -67,48 +69,58 @@ const MatrixTable: React.FC<MatrixTableProps> = ({ data, onTeacherChange }) => {
 
                   {/* TEACHER SELECTION DROPDOWN */}
                   <td className="px-6 py-4">
-                    <div className="relative max-w-xs">
-                      <select
-                        aria-label={`Assign teacher for ${row.subject_name}`}
-                        className="w-full pl-3 pr-10 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white appearance-none cursor-pointer"
-                        value={row.assigned_teacher_id}
-                        onChange={(e) => onTeacherChange(row.subject_id, e.target.value)}
-                      >
-                        <option value="">-- Unassigned --</option>
-                        {row.eligible_teachers.map((t) => {
-                          const nearCap = t.max_weekly_lessons > 0 && t.current_load >= t.max_weekly_lessons;
+                    {row.routed_to_groups ? (
+                      <p className="text-xs text-indigo-600 max-w-xs">
+                        Staffed per elective group, not here — switch to <span className="font-semibold">Elective Groups</span> above to assign teachers for each group.
+                      </p>
+                    ) : (
+                      <>
+                        <div className="max-w-xs">
+                          <SearchableSelect
+                            aria-label={`Assign teacher for ${row.subject_name}`}
+                            value={String(row.assigned_teacher_id ?? '')}
+                            onChange={(val) => onTeacherChange(row.subject_id, val)}
+                            disabled={readOnly}
+                            placeholder="-- Unassigned --"
+                            searchPlaceholder="Search teachers…"
+                            options={row.eligible_teachers.map((t) => {
+                              const nearCap = t.max_weekly_lessons > 0 && t.current_load >= t.max_weekly_lessons;
+                              return {
+                                value: String(t.id),
+                                label: t.name,
+                                sublabel: `Load: ${t.current_load}${t.max_weekly_lessons ? `/${t.max_weekly_lessons}` : ''}${nearCap ? ' ⚠ At/over cap' : ''}`,
+                              };
+                            })}
+                          />
+                        </div>
+                        {/* Surface the cap proximity for the CURRENTLY assigned teacher up front,
+                            instead of the admin only discovering a violation after clicking Save. */}
+                        {(() => {
+                          const assigned = row.eligible_teachers.find(t => String(t.id) === String(row.assigned_teacher_id));
+                          if (!assigned || !assigned.max_weekly_lessons) return null;
+                          const ratio = assigned.current_load / assigned.max_weekly_lessons;
+                          if (ratio < 0.8) return null;
+                          const atOrOverCap = assigned.current_load >= assigned.max_weekly_lessons;
                           return (
-                            <option key={t.id} value={t.id}>
-                              {t.name} (Load: {t.current_load}{t.max_weekly_lessons ? `/${t.max_weekly_lessons}` : ''}){nearCap ? ' ⚠ At/over cap' : ''}
-                            </option>
+                            <p className={`text-[11px] font-bold mt-1 flex items-center gap-1 ${atOrOverCap ? 'text-red-600' : 'text-amber-600'}`}>
+                              <AlertCircle className="w-3 h-3" />
+                              {assigned.name.split(' ')[0]} is {atOrOverCap ? 'at/over' : 'near'} the weekly lesson cap
+                              ({assigned.current_load}/{assigned.max_weekly_lessons})
+                            </p>
                           );
-                        })}
-                      </select>
-                      <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
-                        <UserCheck className="h-4 w-4 text-slate-400" />
-                      </div>
-                    </div>
-                    {/* Surface the cap proximity for the CURRENTLY assigned teacher up front,
-                        instead of the admin only discovering a violation after clicking Save. */}
-                    {(() => {
-                      const assigned = row.eligible_teachers.find(t => String(t.id) === String(row.assigned_teacher_id));
-                      if (!assigned || !assigned.max_weekly_lessons) return null;
-                      const ratio = assigned.current_load / assigned.max_weekly_lessons;
-                      if (ratio < 0.8) return null;
-                      const atOrOverCap = assigned.current_load >= assigned.max_weekly_lessons;
-                      return (
-                        <p className={`text-[11px] font-bold mt-1 flex items-center gap-1 ${atOrOverCap ? 'text-red-600' : 'text-amber-600'}`}>
-                          <AlertCircle className="w-3 h-3" />
-                          {assigned.name.split(' ')[0]} is {atOrOverCap ? 'at/over' : 'near'} the weekly lesson cap
-                          ({assigned.current_load}/{assigned.max_weekly_lessons})
-                        </p>
-                      );
-                    })()}
+                        })()}
+                      </>
+                    )}
                   </td>
 
                   {/* STATUS INDICATORS (Algorithm Feedback) */}
                   <td className="px-6 py-4">
-                    {row.status?.includes('Failed') ? (
+                    {row.routed_to_groups ? (
+                      <div className={`flex items-center gap-2 ${row.group_status?.startsWith('0 of') ? 'text-red-600' : row.group_status?.match(/^(\d+) of \1/) ? 'text-emerald-600' : 'text-amber-600'}`}>
+                        <Puzzle className="w-4 h-4" />
+                        <span className="text-xs font-medium">{row.group_status || 'Split into elective groups'}</span>
+                      </div>
+                    ) : row.status?.includes('Failed') ? (
                       <div className="flex items-center gap-2 text-red-600 bg-red-50 p-2 rounded-md border border-red-100">
                         <AlertCircle className="w-4 h-4 shrink-0" />
                         <span className="text-xs font-medium leading-tight">Requires Manual Action</span>

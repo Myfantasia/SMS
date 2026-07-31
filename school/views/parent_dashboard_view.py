@@ -28,7 +28,7 @@ class ParentDashboardOverviewAPI(APIView):
         }
 
         children_details = []
-        for child in parent.students.select_related('cl__grade').all():
+        for child in parent.students.select_related('cl__grade', 'user').order_by('user__first_name', 'user__last_name'):
             children_details.append({
                 "id": child.id,
                 "name": child.get_name,

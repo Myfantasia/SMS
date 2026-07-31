@@ -17,7 +17,7 @@ interface SubjectBlockData {
     id: number;
     name: string;
     code: string;
-    department: string;
+    department_name: string | null;
   }[];
   period_structure: PeriodStructure;
 }

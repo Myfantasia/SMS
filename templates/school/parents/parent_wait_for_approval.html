@@ -3,37 +3,20 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Pending Approval | MyFantasia</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Application Pending | MyFantasia</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="{% static 'css/navbar.css' %}?v=3">
-    <link rel="stylesheet" href="{% static 'css/auth_style.css' %}?v=4">
-    <link rel="stylesheet" href="{% static 'css/approval.css' %}?v=2">
+    <link rel="stylesheet" href="{% static 'css/auth_style.css' %}?v=7">
+    <link rel="stylesheet" href="{% static 'css/success_popup.css' %}?v=3">
 </head>
-<body>
+<body class="role-parent">
     {% include "school/navbar.html" %}
 
-    <div class="login-wrapper">
-        <div class="approval-card">
-            <div class="approval-icon"><i class="fas fa-user-shield"></i></div>
+    {% include "school/_wait_for_approval_card.html" with role="parent" visual_icon="fa-people-roof" wait_note="An administrator needs to confirm your connection to your child's record before you can view their progress." %}
 
-            <h2>Hello, {{ request.user.first_name }}!</h2>
-
-            <div style="background: rgba(251, 191, 36, 0.1); border-left: 4px solid #fbbf24; padding: 15px; text-align: left; margin: 20px 0; border-radius: 4px;">
-                <h4 style="color: #fbbf24; margin: 0 0 5px 0;">Status: Verification in Progress</h4>
-                <p style="color: var(--text-muted); font-size: 0.9rem; margin: 0;">Child details verified. Waiting for Admin approval.</p>
-            </div>
-
-            <p class="info-text">
-                An Administrator needs to review your connection to ensure student security.
-                <br><strong>Please check back later.</strong>
-            </p>
-
-            <a href="{% url 'logout' %}" class="btn-logout-ghost">
-                <i class="fas fa-sign-out-alt"></i> Logout & Check Later
-            </a>
-        </div>
-    </div>
-
+    <script src="{% static 'js/success_popup.js' %}"></script>
     {% include "school/footer.html" %}
 </body>
 </html>

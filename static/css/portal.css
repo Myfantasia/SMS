@@ -14,21 +14,82 @@
     margin: 0 auto;
 }
 
-.portal-header {
-    text-align: center;
+/* --- HERO BANNER --- */
+.portal-hero {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 40px;
     margin-bottom: 60px;
+    border-radius: 28px;
+    overflow: hidden;
+    padding: 56px 48px;
+    background:
+        linear-gradient(100deg, rgba(2,6,23,0.94) 0%, rgba(2,6,23,0.8) 45%, rgba(2,6,23,0.45) 100%),
+        url("../images/portal-hero-banner.jpg") right center / cover no-repeat;
+    box-shadow: 0 25px 60px -15px var(--shadow-color);
 }
 
-.portal-header h1 {
+.portal-hero-text {
+    position: relative;
+    z-index: 1;
+    max-width: 560px;
+}
+
+.portal-hero-text h1 {
     font-size: 3rem;
-    margin-bottom: 10px;
+    margin: 0 0 12px;
     font-weight: 800;
-    color: var(--text-main);
+    color: #fff;
 }
 
-.portal-header p {
-    color: var(--text-muted);
+.portal-hero-text p {
+    color: rgba(255,255,255,0.82);
     font-size: 1.1rem;
+    margin: 0;
+}
+
+.portal-hero-illustration {
+    position: relative;
+    z-index: 1;
+    flex-shrink: 0;
+    width: 230px;
+    display: none;
+}
+
+.portal-hero-illustration .frame {
+    background: #fff;
+    border-radius: 20px;
+    padding: 12px;
+    box-shadow: 0 25px 55px -15px rgba(2,6,23,0.65);
+    transform: rotate(2deg);
+    transition: transform 0.4s ease;
+}
+
+.portal-hero-illustration .frame:hover {
+    transform: rotate(0deg) scale(1.03);
+}
+
+.portal-hero-illustration img {
+    display: block;
+    width: 100%;
+    border-radius: 12px;
+}
+
+@media (min-width: 900px) {
+    .portal-hero-illustration { display: block; }
+}
+
+@media (max-width: 768px) {
+    .portal-hero {
+        flex-direction: column;
+        text-align: center;
+        padding: 40px 24px;
+        background-position: center;
+    }
+    .portal-hero-text { max-width: 100%; }
+    .portal-hero-text h1 { font-size: 2.2rem; }
 }
 
 /* Grid Layout */
@@ -116,6 +177,8 @@
 
 /* Mobile */
 @media (max-width: 768px) {
-    .portal-header h1 { font-size: 2.2rem; }
     .roles-grid { grid-template-columns: 1fr; }
 }
+
+/* --- STAFF ROLE COLOR --- */
+.staff-card .icon-bubble { color: #8b5cf6; }   /* Violet — matches role-staff accent elsewhere */

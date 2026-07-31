@@ -10,8 +10,8 @@ from school.models.models import (
     GradingRule, ExamResult, StudentReportSummary, ClassExamStatus
 )
 # UPDATED: Appended StudentSubjectEnrollment to the end of your exact imports group
-from school.models.classSubjects_models import ( ClassStream, Subject, SubjectQuota,
-                                SubjectAllocation, SubjectSelectionRule, SubjectBlock, GradeLevel, SubjectExclusionRule, CurriculumPreset, StudentSubjectEnrollment )
+from school.models.classSubjects_models import ( ClassStream, Subject, SubjectQuota, Department,
+                                SubjectAllocation, SubjectSelectionRule, SubjectBlock, GradeLevel, SubjectExclusionRule, CurriculumPreset, StudentSubjectEnrollment, SubjectCurriculumProfile, QuotaDefaultRule, PresetCombination )
 
 from school.models.assignments_models import (
     Assignment, Question, QuestionOption, StudentSubmission, StudentAnswer
@@ -215,6 +215,15 @@ class ClassStreamAdmin(ModelAdmin):
     list_filter = ('grade',)
     search_fields = ('name', 'grade__name')
 
+@admin.register(Department)
+class DepartmentAdmin(ModelAdmin):
+    """Admin-managed subject departments — see Department model docstring for how these
+    interact with the Auto-Fill Subject Quotas ladder."""
+    list_display = ('name', 'code', 'is_active')
+    list_filter = ('is_active',)
+    search_fields = ('name', 'code')
+
+
 @admin.register(Subject)
 class SubjectAdmin(ModelAdmin):
     """
@@ -224,6 +233,35 @@ class SubjectAdmin(ModelAdmin):
     list_display = ('code', 'name', 'department', 'is_core')
     list_filter = ('department', 'is_core')
     search_fields = ('code', 'name')
+
+
+@admin.register(SubjectCurriculumProfile)
+class SubjectCurriculumProfileAdmin(ModelAdmin):
+    list_display = ('subject', 'curriculum', 'tier', 'is_core', 'total_lessons', 'double_lessons_required', 'remedial_lessons_required')
+    list_filter = ('curriculum', 'tier')
+    search_fields = ('subject__code', 'subject__name')
+
+
+@admin.register(QuotaDefaultRule)
+class QuotaDefaultRuleAdmin(ModelAdmin):
+    """Config-driven fallback 'Auto-Fill Subject Quotas' uses for a subject with no
+    SubjectCurriculumProfile override — see the model docstring."""
+    list_display = ('department', 'grade_band', 'applies_when_blocked', 'total_lessons', 'double_lessons_required', 'remedial_lessons_required')
+    list_filter = ('department', 'grade_band', 'applies_when_blocked')
+
+
+@admin.register(PresetCombination)
+class PresetCombinationAdmin(ModelAdmin):
+    """The official KNEC 3-subject combination catalog — see model docstring for why this
+    is deliberately independent of CurriculumPreset/SubjectPool."""
+    list_display = ('display_name', 'track', 'pathway_name', 'code', 'is_active')
+    list_filter = ('track__pathway', 'track', 'is_active')
+    search_fields = ('name', 'code', 'subjects__name')
+    filter_horizontal = ('subjects',)
+
+    @admin.display(description='Pathway')
+    def pathway_name(self, obj):
+        return obj.track.pathway.name
 
 
 # ==========================================

@@ -1,15 +1,13 @@
 """
-Shared login brute-force throttling for every login path (admin/teacher/student FBVs
-and the parent LoginView subclass) — counts recent FAILED attempts per identifier
-(email/username) and per client IP, using the same DB-backed cache the rest of the
-app's rate limiting already relies on (see ChatConsumer._check_rate_limit,
-RateLimitedPasswordResetView in password_reset_views.py). Thresholds are deliberately
-generous: this throttles credential stuffing / scripted guessing, not a real user who
-mistypes their password a few times.
+Shared login brute-force throttling for every login path (admin/teacher/student/parent
+FBVs) — counts recent FAILED attempts per identifier (email/username) and per client IP,
+using the same DB-backed cache the rest of the app's rate limiting already relies on (see
+ChatConsumer._check_rate_limit, RateLimitedPasswordResetView in password_reset_views.py).
+Thresholds are deliberately generous: this throttles credential stuffing / scripted
+guessing, not a real user who mistypes their password a few times.
 """
 import logging
 
-from django.contrib.auth import views as auth_views
 from django.core.cache import cache
 
 security_logger = logging.getLogger('school.security')
@@ -49,25 +47,17 @@ def record_login_failure(request, identifier):
     security_logger.info('Failed login attempt for identifier=%r ip=%s', identifier, client_ip(request))
 
 
-class RateLimitedLoginView(auth_views.LoginView):
-    """Parent login currently uses Django's built-in LoginView directly (see
-    urls.py) with no hook for the throttling the other three login paths
-    (admin/teacher/student) apply. AuthenticationForm.clean() calls authenticate()
-    internally with no way to skip it ahead of time, so a throttled request still
-    executes authenticate() — but form_valid is overridden to still refuse the
-    login while throttled, and form_invalid always records the failure, so the
-    lockout itself is never actually bypassable even though authenticate() runs.
-    """
+MAX_STUDENT_SEARCHES_PER_IP_PER_MINUTE = 20
 
-    def form_valid(self, form):
-        identifier = (self.request.POST.get('username') or '').strip()
-        if identifier and is_login_rate_limited(self.request, identifier):
-            form.add_error(None, 'Please enter a correct username and password. Note that both fields may be case-sensitive.')
-            return self.form_invalid(form)
-        return super().form_valid(form)
 
-    def form_invalid(self, form):
-        identifier = (self.request.POST.get('username') or '').strip()
-        if identifier:
-            record_login_failure(self.request, identifier)
-        return super().form_invalid(form)
+def is_student_search_rate_limited(request):
+    """Throttles the public, pre-login student-lookup search used on the parent signup
+    page's child-verification step. Without this it's a scriptable way to enumerate
+    student names/admission numbers — generous enough for a real parent typing and
+    backspacing while they search, tight enough to make bulk scraping impractical."""
+    ip_key = f'student_search:ip:{client_ip(request)}'
+    count = cache.get(ip_key, 0)
+    limited = count >= MAX_STUDENT_SEARCHES_PER_IP_PER_MINUTE
+    if not limited:
+        cache.set(ip_key, count + 1, 60)
+    return limited

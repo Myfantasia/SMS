@@ -8,7 +8,8 @@ export interface Subject {
   id: number;
   name: string;
   code?: string;
-  department?: string;
+  department_id?: number | null;
+  department_name?: string | null;
   allow_double_periods?: boolean;
   earliest_allowed_time?: string | null;
 }
@@ -26,6 +27,7 @@ export interface ClassStream {
   id: number;
   name: string;
   grade_name: string;
+  grade_id?: number;
 }
 
 // Timetable and Scheduling Containers
@@ -56,6 +58,7 @@ export interface Lesson {
   is_double: boolean;
   subject_block_id: number | null;     // Replaces frontend string hacking
   subject_block_name: number | string | null;
+  is_locked: boolean;
 }
 
 export interface DailyCoverEntry {
@@ -113,6 +116,12 @@ export interface MatrixRow {
   eligible_teachers: EligibleTeacher[];
   assigned_teacher_id: number | string;
   status?: "Success" | "Failed: No eligible teachers without breaking workload rules." | null;
+  // Set on a physical stream's row when this subject is taught exclusively through virtual
+  // elective split groups rather than a direct contract on this stream — see
+  // AllocationMatrixAPIView.get. group_status is a human-readable staffing summary like
+  // "1 of 2 groups staffed", only present when routed_to_groups is true.
+  routed_to_groups?: boolean;
+  group_status?: string | null;
 }
 
 export interface AllocationPayload {

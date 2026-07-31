@@ -45,6 +45,7 @@ const ROLE_TEMPLATES: { name: string; description: string; permissions: string[]
   { name: 'Transport Coordinator', description: 'Manages school transport logistics', permissions: [] },
   { name: 'IT Support', description: 'Manages system access and technical support', permissions: [] },
   { name: 'Receptionist', description: 'Front-desk visitor and enquiry management', permissions: ['classes.view'] },
+  { name: 'Board Member', description: 'Governance oversight — read-only visibility into results, finance, and audit activity', permissions: ['results.view', 'finance.view', 'audit.view'] },
 ];
 
 interface CloneState {

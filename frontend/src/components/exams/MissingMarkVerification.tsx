@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ShieldCheck, Filter, AlertTriangle, CheckCircle2, XCircle, Users } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../libs/axiosInstance';
+import SearchableSelect from '../common/SearchableSelect';
 
 // --- Interfaces ---
 interface SelectionOption {
@@ -103,21 +104,19 @@ const MissingMarksVerification: React.FC = () => {
           <label htmlFor="class-select" className="flex text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1 items-center gap-1">
             <Filter className="w-3 h-3" /> Class Stream
           </label>
-          <select 
+          <SearchableSelect
             id="class-select"
-            className="w-full p-2.5 border border-slate-300 rounded-md focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
+            aria-label="Class Stream"
             value={selectedClass}
-            onChange={(e) => setSelectedClass(e.target.value)}
-          >
-            {availableClasses.length === 0 && <option value="">No classes found</option>}
-            {availableClasses.map((cls) => (
-              <option key={cls.id} value={cls.id}>{cls.name}</option>
-            ))}
-          </select>
+            onChange={setSelectedClass}
+            placeholder={availableClasses.length === 0 ? 'No classes found' : '-- Select Class --'}
+            searchPlaceholder="Search class streams…"
+            options={availableClasses.map((cls) => ({ value: String(cls.id), label: cls.name }))}
+          />
         </div>
         <div className="flex-1">
           <label htmlFor="exam-select" className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Assessment</label>
-          <select 
+          <select
             id="exam-select"
             className="w-full p-2.5 border border-slate-300 rounded-md focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
             value={selectedExam}

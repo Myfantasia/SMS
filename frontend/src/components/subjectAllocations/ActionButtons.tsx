@@ -2,9 +2,10 @@
 
 import React, { useState } from 'react';
 import toast from 'react-hot-toast';
-import { Save, Wand2, Copy, Loader2, X, Eraser, RotateCcw, Users, AlertTriangle, CheckCircle2, Layers } from 'lucide-react';
+import { Save, Wand2, Copy, Loader2, X, Eraser, RotateCcw, Users, AlertTriangle, CheckCircle2, Layers, Lock, Unlock } from 'lucide-react';
 import type { MatrixRow } from '../../libs/types';
 import api from '../../libs/axiosInstance';
+import { pollJob } from '../../libs/pollJob';
 
 interface BulkAllocateResult {
   message: string;
@@ -12,6 +13,7 @@ interface BulkAllocateResult {
   classes_with_gaps: { class_id: number; class_name: string; assigned: number; unresolved: number; class_teacher_assigned: boolean }[];
   teachers_near_cap: { teacher_name: string; weekly_lessons: number; cap: number }[];
   ejected_lesson_count: number;
+  skipped_published?: { class_id: number; class_name: string }[];
 }
 
 interface ActionButtonsProps {
@@ -23,6 +25,8 @@ interface ActionButtonsProps {
   classDisplayName: string;
   matrixData: MatrixRow[];
   setMatrixData: React.Dispatch<React.SetStateAction<MatrixRow[]>>;
+  isPublished: boolean;
+  isVirtualStream: boolean;
   onRefresh: () => void; // Trigger to reload the grid from the database
   onOpenSplittingModal: () => void;
 }
@@ -36,11 +40,14 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
   classDisplayName,
   matrixData,
   setMatrixData,
+  isPublished,
+  isVirtualStream,
   onRefresh,
   onOpenSplittingModal
 }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [isAutoAllocating, setIsAutoAllocating] = useState(false);
+  const [isUnpublishing, setIsUnpublishing] = useState(false);
 
   // Rollover Modal States
   const [isRolloverModalOpen, setIsRolloverModalOpen] = useState(false);
@@ -56,17 +63,29 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
 
   // Clear (backend-hitting) States
   const [showClearConfirm, setShowClearConfirm] = useState(false);
-  const [clearScope, setClearScope] = useState<'class' | 'all'>('class');
+  const [clearScope, setClearScope] = useState<'class' | 'grade' | 'all'>('class');
   const [isClearing, setIsClearing] = useState(false);
+
+  // Unpublish Scope States
+  const [showUnpublishConfirm, setShowUnpublishConfirm] = useState(false);
+  const [unpublishScope, setUnpublishScope] = useState<'class' | 'grade' | 'all'>('class');
+
+  // Save Scope States — 'class' (default) saves+publishes just this class exactly as before;
+  // 'grade'/'all' additionally publish every other already-drafted class in that wider scope
+  // in the same click, so a whole grade/school can be finalized without re-opening each class.
+  const [showSaveConfirm, setShowSaveConfirm] = useState(false);
+  const [saveScope, setSaveScope] = useState<'class' | 'grade' | 'all'>('class');
 
   // Revert Confirmation States
   const [showRevertConfirm, setShowRevertConfirm] = useState(false);
 
   const isContextReady = yearId && termId && classId;
-  const isBusy = isSaving || isAutoAllocating || isBulkAllocating || isClearing;
+  const isBusy = isSaving || isAutoAllocating || isBulkAllocating || isClearing || isUnpublishing;
 
   // --- 1. SAVE LOGIC ---
-  const handleSave = async () => {
+  // Saving this class always happens; `scope` only controls whether OTHER already-drafted
+  // classes get swept up and published in the same request (see AllocationMatrixAPIView.post).
+  const handleSave = async (scope: 'class' | 'grade' | 'all' = 'class') => {
     if (!isContextReady) return;
 
     const allocationsPayload = matrixData
@@ -82,7 +101,8 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
         class_id: classId,
         term_id: termId,
         year_id: yearId,
-        allocations: allocationsPayload
+        allocations: allocationsPayload,
+        publish_scope: scope
       });
 
       toast.success(response.data.message || "Allocations saved successfully!");
@@ -92,6 +112,17 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
       toast.error(error.response?.data?.error || "Failed to save allocations.");
     } finally {
       setIsSaving(false);
+      setShowSaveConfirm(false);
+    }
+  };
+
+  // Grade/school scope also publishes OTHER classes' already-saved drafts, so gate it behind a
+  // confirmation like Clear Grid/Unpublish do — plain "just this class" stays a single click.
+  const handleSaveClick = () => {
+    if (saveScope === 'class') {
+      handleSave('class');
+    } else {
+      setShowSaveConfirm(true);
     }
   };
 
@@ -150,6 +181,8 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
       const params: Record<string, string> = { term_id: termId, year_id: yearId };
       if (clearScope === 'class') {
         params.class_id = classId;
+      } else if (clearScope === 'grade') {
+        params.grade_id = gradeId;
       }
       const response = await api.delete('/api/allocations/clear/', { params });
       toast.success(response.data.message || "Allocations cleared.");
@@ -168,6 +201,28 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
     onRefresh();
     toast.success("Discarded unsaved changes.");
     setShowRevertConfirm(false);
+  };
+
+  // --- UNPUBLISH LOGIC (scoped like Clear Grid: class / grade / entire term) ---
+  const confirmUnpublish = async () => {
+    if (!isContextReady) return;
+    setIsUnpublishing(true);
+    try {
+      const payload: Record<string, string> = { term_id: termId, year_id: yearId };
+      if (unpublishScope === 'class') {
+        payload.class_id = classId;
+      } else if (unpublishScope === 'grade') {
+        payload.grade_id = gradeId;
+      }
+      const response = await api.post('/api/allocations/unpublish/', payload);
+      toast.success(response.data.message || "Reverted to draft.");
+      onRefresh();
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || "Failed to unpublish.");
+    } finally {
+      setIsUnpublishing(false);
+      setShowUnpublishConfirm(false);
+    }
   };
 
   // --- 5. ROLLOVER LOGIC ---
@@ -200,6 +255,8 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
 
     setIsRollingOver(true);
     try {
+        // The actual clone/validate/timetable-sync work now runs in a Celery worker (see
+        // school/tasks.py:rollover_allocations_task) — this just queues it and gets a job id back.
         const response = await api.post('/api/allocations/rollover/', {
             source_term_id: sourceTermId,
             source_year_id: sourceTerm?.academic_year_id,
@@ -208,11 +265,12 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
             class_id: rolloverScope === 'class' ? classId : undefined
         });
 
-        toast.success(response.data.message);
+        const result = await pollJob<{ message: string }>(response.data.job_id);
+        toast.success(result.message);
         setIsRolloverModalOpen(false);
         onRefresh();
     } catch (error: any) {
-        toast.error(error.response?.data?.error || "Failed to rollover allocations.");
+        toast.error(error.response?.data?.error || error.message || "Failed to rollover allocations.");
     } finally {
         setIsRollingOver(false);
     }
@@ -224,19 +282,22 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
 
     setIsBulkAllocating(true);
     try {
+      // Runs in a Celery worker (school/tasks.py:bulk_auto_allocate_task) — this just
+      // queues it and gets a job id back to poll.
       const response = await api.post('/api/allocations/bulk-auto-allocate/', {
         grade_id: gradeId,
         term_id: termId,
         year_id: yearId
       });
 
-      setBulkResult(response.data);
+      const result = await pollJob<BulkAllocateResult>(response.data.job_id);
+      setBulkResult(result);
       setIsBulkConfirmOpen(false);
-      toast.success(response.data.message || "Bulk allocation complete.");
+      toast.success(result.message || "Bulk allocation complete.");
       onRefresh(); // Reload the currently viewed class so it reflects the new allocations
     } catch (error: any) {
       console.error("Bulk Allocate Error:", error);
-      toast.error(error.response?.data?.error || "Bulk allocation failed.");
+      toast.error(error.response?.data?.error || error.message || "Bulk allocation failed.");
     } finally {
       setIsBulkAllocating(false);
     }
@@ -252,9 +313,9 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
 
           <button
             onClick={handleAutoAllocate}
-            disabled={!isContextReady || isBusy}
+            disabled={!isContextReady || isBusy || isPublished}
             className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm disabled:opacity-50"
-            title="Auto-assign teachers for this class only — saves and publishes immediately"
+            title={isPublished ? "This class is published — unpublish it first to auto-allocate again" : "Auto-assign teachers for this class only — saves and publishes immediately"}
           >
             {isAutoAllocating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
             <span className="hidden sm:inline">Auto-Allocate</span>
@@ -308,9 +369,9 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
 
           <button
             onClick={() => { setClearScope('class'); setShowClearConfirm(true); }}
-            disabled={!isContextReady || isBusy}
+            disabled={!isContextReady || isBusy || isPublished}
             className="flex items-center gap-2 px-4 py-2 border border-red-200 text-red-600 hover:bg-red-50 text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
-            title="Permanently delete saved allocations — choose this class or the whole school"
+            title={isPublished ? "This class is published — unpublish it first to clear it" : "Permanently delete saved allocations — choose this class or the whole school"}
           >
             {isClearing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eraser className="w-4 h-4" />}
             <span className="hidden sm:inline">Clear Grid</span>
@@ -318,14 +379,53 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
 
           <span className="w-px h-6 bg-slate-200 mx-1 hidden sm:block" />
 
-          <button
-            onClick={handleSave}
-            disabled={!isContextReady || isBusy}
-            className="flex items-center gap-2 px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-lg transition-colors shadow-sm disabled:opacity-50"
-          >
-            {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            <span>Save Grid</span>
-          </button>
+          {isPublished ? (
+            <button
+              onClick={() => { setUnpublishScope('class'); setShowUnpublishConfirm(true); }}
+              disabled={!isContextReady || isBusy}
+              className="flex items-center gap-2 px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-bold rounded-lg transition-colors shadow-sm disabled:opacity-50"
+              title="Revert to draft so allocations can be edited again — choose this class, the whole grade, or the whole term"
+            >
+              {isUnpublishing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Unlock className="w-4 h-4" />}
+              <span>Unpublish</span>
+            </button>
+          ) : (
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={handleSaveClick}
+                disabled={!isContextReady || isBusy}
+                className="flex items-center gap-2 px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-lg transition-colors shadow-sm disabled:opacity-50"
+                title={
+                  saveScope === 'all'
+                    ? "Saves this class, then also publishes every other already-drafted class in the school"
+                    : saveScope === 'grade'
+                      ? `Saves this class, then also publishes every other already-drafted class in ${gradeName || 'this grade'}`
+                      : "Saves and publishes — locks this class until unpublished"
+                }
+              >
+                {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                <span>{saveScope === 'all' ? 'Save + Publish School' : saveScope === 'grade' ? 'Save + Publish Grade' : 'Save Grid'}</span>
+              </button>
+              <select
+                value={saveScope}
+                onChange={(e) => setSaveScope(e.target.value as 'class' | 'grade' | 'all')}
+                disabled={!isContextReady || isBusy}
+                className="text-xs font-medium border border-slate-200 rounded-lg px-2 py-2.5 bg-white text-slate-600 disabled:opacity-50"
+                title="Choose what else gets published when you click Save"
+              >
+                <option value="class">This class only</option>
+                {gradeId && <option value="grade">+ Publish rest of grade</option>}
+                <option value="all">+ Publish rest of school</option>
+              </select>
+            </div>
+          )}
+
+          {isPublished && (
+            <span className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold rounded-lg">
+              <Lock className="w-3.5 h-3.5" />
+              Published
+            </span>
+          )}
         </div>
 
       </div>
@@ -413,9 +513,24 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
                         <input type="radio" name="clear-scope" className="mt-1" checked={clearScope === 'class'} onChange={() => setClearScope('class')} />
                         <span>
                             <span className="block text-sm font-bold text-slate-800">Just {classDisplayName || 'this class'}</span>
-                            <span className="block text-xs text-slate-500">Removes allocations for this class only. Other classes are untouched.</span>
+                            <span className="block text-xs text-slate-500">
+                                Removes allocations for this class only. Other classes are untouched
+                                {/* Elective groups pool students from every stream in the grade, so
+                                    clearing one stream deliberately leaves them alone — see the
+                                    "This Grade" option below to also reset those. */}
+                                {!isVirtualStream && ' — including this grade\'s elective groups, which stay as-is'}.
+                            </span>
                         </span>
                     </label>
+                    {gradeId && (
+                        <label className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${clearScope === 'grade' ? 'border-red-300 bg-red-50/60' : 'border-slate-200 hover:bg-slate-50'}`}>
+                            <input type="radio" name="clear-scope" className="mt-1" checked={clearScope === 'grade'} onChange={() => setClearScope('grade')} />
+                            <span>
+                                <span className="block text-sm font-bold text-slate-800">This Grade ({gradeName || 'incl. elective groups'})</span>
+                                <span className="block text-xs text-slate-500">Removes allocations for every stream AND elective group in this grade. Other grades are untouched.</span>
+                            </span>
+                        </label>
+                    )}
                     <label className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${clearScope === 'all' ? 'border-red-300 bg-red-50/60' : 'border-slate-200 hover:bg-slate-50'}`}>
                         <input type="radio" name="clear-scope" className="mt-1" checked={clearScope === 'all'} onChange={() => setClearScope('all')} />
                         <span>
@@ -433,7 +548,90 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
                         className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 disabled:opacity-50"
                     >
                         {isClearing ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                        {clearScope === 'all' ? 'Clear Entire School' : `Clear ${classDisplayName || 'Class'}`}
+                        {clearScope === 'all' ? 'Clear Entire School' : clearScope === 'grade' ? `Clear ${gradeName || 'Grade'}` : `Clear ${classDisplayName || 'Class'}`}
+                    </button>
+                </div>
+            </div>
+        </div>
+      )}
+
+      {/* --- UNPUBLISH CONFIRMATION MODAL (scoped, like Clear Grid) --- */}
+      {showUnpublishConfirm && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-fade-in p-6 text-center space-y-4">
+                <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto">
+                    <Unlock className="w-6 h-6" />
+                </div>
+                <h3 className="font-bold text-xl text-slate-800">Unpublish Allocations?</h3>
+                <p className="text-sm text-slate-500">
+                    Reverts published allocations back to draft so they can be edited or re-generated again.
+                </p>
+
+                <div className="flex flex-col gap-2 text-left">
+                    <label className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${unpublishScope === 'class' ? 'border-amber-300 bg-amber-50/60' : 'border-slate-200 hover:bg-slate-50'}`}>
+                        <input type="radio" name="unpublish-scope" className="mt-1" checked={unpublishScope === 'class'} onChange={() => setUnpublishScope('class')} />
+                        <span>
+                            <span className="block text-sm font-bold text-slate-800">Just {classDisplayName || 'this class'}</span>
+                            <span className="block text-xs text-slate-500">Reverts this class only. Other classes are untouched.</span>
+                        </span>
+                    </label>
+                    {gradeId && (
+                        <label className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${unpublishScope === 'grade' ? 'border-amber-300 bg-amber-50/60' : 'border-slate-200 hover:bg-slate-50'}`}>
+                            <input type="radio" name="unpublish-scope" className="mt-1" checked={unpublishScope === 'grade'} onChange={() => setUnpublishScope('grade')} />
+                            <span>
+                                <span className="block text-sm font-bold text-slate-800">This Grade ({gradeName || 'incl. elective groups'})</span>
+                                <span className="block text-xs text-slate-500">Reverts every published stream AND elective group in this grade. Other grades are untouched.</span>
+                            </span>
+                        </label>
+                    )}
+                    <label className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${unpublishScope === 'all' ? 'border-amber-300 bg-amber-50/60' : 'border-slate-200 hover:bg-slate-50'}`}>
+                        <input type="radio" name="unpublish-scope" className="mt-1" checked={unpublishScope === 'all'} onChange={() => setUnpublishScope('all')} />
+                        <span>
+                            <span className="block text-sm font-bold text-slate-800">The entire school</span>
+                            <span className="block text-xs text-slate-500">Reverts every published class for this term back to draft.</span>
+                        </span>
+                    </label>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                    <button onClick={() => setShowUnpublishConfirm(false)} className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-600 rounded-lg font-bold hover:bg-slate-50">Cancel</button>
+                    <button
+                        onClick={confirmUnpublish}
+                        disabled={isUnpublishing}
+                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-600 text-white rounded-lg font-bold hover:bg-amber-700 disabled:opacity-50"
+                    >
+                        {isUnpublishing ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                        {unpublishScope === 'all' ? 'Unpublish Entire School' : unpublishScope === 'grade' ? `Unpublish ${gradeName || 'Grade'}` : `Unpublish ${classDisplayName || 'Class'}`}
+                    </button>
+                </div>
+            </div>
+        </div>
+      )}
+
+      {/* --- SAVE + PUBLISH SCOPE CONFIRMATION MODAL (only shown for grade/school scope) --- */}
+      {showSaveConfirm && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-fade-in p-6 text-center space-y-4">
+                <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
+                    <Save className="w-6 h-6" />
+                </div>
+                <h3 className="font-bold text-xl text-slate-800">Save &amp; Publish {saveScope === 'all' ? 'Entire School' : `${gradeName || 'Grade'}`}?</h3>
+                <p className="text-sm text-slate-500">
+                    Saves {classDisplayName || 'this class'} as usual, then also publishes every other class
+                    {saveScope === 'grade' ? ` in ${gradeName || 'this grade'}` : ' in the school'} that
+                    already has a saved draft but isn't published yet. Classes with nothing saved are left alone.
+                    Published classes are locked until unpublished.
+                </p>
+
+                <div className="flex gap-3 pt-2">
+                    <button onClick={() => setShowSaveConfirm(false)} className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-600 rounded-lg font-bold hover:bg-slate-50">Cancel</button>
+                    <button
+                        onClick={() => handleSave(saveScope)}
+                        disabled={isSaving}
+                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-lg font-bold hover:bg-emerald-700 disabled:opacity-50"
+                    >
+                        {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                        {saveScope === 'all' ? 'Save + Publish School' : `Save + Publish ${gradeName || 'Grade'}`}
                     </button>
                 </div>
             </div>
@@ -561,6 +759,22 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
                             </table>
                         </div>
                     </div>
+
+                    {bulkResult.skipped_published && bulkResult.skipped_published.length > 0 && (
+                        <div className="flex items-start gap-3 bg-emerald-50 border border-emerald-200 p-4 rounded-xl">
+                            <Lock className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                            <div className="text-sm text-emerald-800">
+                                <p className="font-semibold mb-1">
+                                    {bulkResult.skipped_published.length} published class(es) were skipped
+                                </p>
+                                <p>
+                                    {bulkResult.skipped_published.map(c => c.class_name).join(', ')} — already
+                                    published and left untouched. Unpublish a class first if it needs to be
+                                    re-run.
+                                </p>
+                            </div>
+                        </div>
+                    )}
 
                     {bulkResult.classes_with_gaps.length > 0 && (
                         <div className="flex items-start gap-3 bg-red-50 border border-red-200 p-4 rounded-xl">

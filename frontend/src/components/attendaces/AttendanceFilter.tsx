@@ -1,5 +1,6 @@
 import { Users, Calendar, Filter, Loader2 } from 'lucide-react';
 import type { ClassOption } from '../../libs/types';
+import SearchableSelect from '../common/SearchableSelect';
 
 interface FilterProps {
   role: 'admin' | 'teacher' | 'student' | 'parent';
@@ -25,18 +26,15 @@ export default function AttendanceFilter({
       {role === 'admin' && (
         <div className="flex-1 w-full">
           <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Select Class</label>
-          <div className="relative">
-            <Users className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <select
-              value={selectedClass}
-              onChange={(e) => setSelectedClass(e.target.value)}
-              disabled={loadingClasses}
-              className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none bg-white text-slate-700 disabled:opacity-60"
-            >
-              <option value="">-- Choose Class Stream --</option>
-              {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </div>
+          <SearchableSelect
+            aria-label="Select Class"
+            value={selectedClass}
+            onChange={setSelectedClass}
+            disabled={loadingClasses}
+            placeholder="-- Choose Class Stream --"
+            searchPlaceholder="Search class streams…"
+            options={classes.map(c => ({ value: String(c.id), label: c.name }))}
+          />
         </div>
       )}
 

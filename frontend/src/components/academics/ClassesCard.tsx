@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Users, Eye, Edit, Trash2, X, Star, BookOpen, Plus, Loader2, Settings } from 'lucide-react';
+import { Users, Eye, Edit, Trash2, X, Star, BookOpen, Plus, Loader2, Settings, GraduationCap } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../libs/axiosInstance';
+import SearchableSelect, { SearchableSelectOption } from '../common/SearchableSelect';
 
 interface Stream {
   id: number;
@@ -9,11 +10,13 @@ interface Stream {
   capacity: number;
   enrolled_count: number;
   class_teacher: string | null;
+  class_teacher_id: number | null;
 }
 
 interface Grade {
   id: number;
   grade_name: string;
+  numeric_order?: number;
   total_streams: number;
   curriculum_type?: string;
   curriculum_id: number | null;
@@ -49,11 +52,16 @@ export default function ClassesCard({ grades, tiers, onRefresh, onAddStream, onE
   // Form States for Editing
   const [editName, setEditName] = useState('');
   const [editCapacity, setEditCapacity] = useState<number | string>('');
+  const [editTeacherId, setEditTeacherId] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // NEW: States for dynamic teacher fetching
   const [assignedTeachers, setAssignedTeachers] = useState<AssignedTeacher[]>([]);
   const [isLoadingTeachers, setIsLoadingTeachers] = useState(false);
+
+  // Teacher picker for reassigning a stream's Class Teacher from the edit modal
+  const [teacherOptions, setTeacherOptions] = useState<SearchableSelectOption[]>([]);
+  const [loadingTeacherOptions, setLoadingTeacherOptions] = useState(false);
 
   if (grades.length === 0) {
     return <div className="p-8 text-center text-slate-400" title="No Data Available">No classes configured yet.</div>;
@@ -82,14 +90,36 @@ const fetchStreamTeachers = async (streamId: number) => {
   }
 };
 
+  // Lazily loads the full teacher directory the first time the edit modal needs it,
+  // so switching between streams doesn't re-fetch on every open.
+  const fetchTeacherOptions = async () => {
+    if (teacherOptions.length > 0) return;
+    setLoadingTeacherOptions(true);
+    try {
+      const res = await api.get('/api/approved-users/teachers/');
+      const list = Array.isArray(res.data?.data) ? res.data.data : [];
+      setTeacherOptions(list.map((t: { id: number; name: string; username: string }) => ({
+        value: String(t.id),
+        label: t.name,
+        sublabel: t.username,
+      })));
+    } catch (err) {
+      console.error('Failed to load teachers', err);
+    } finally {
+      setLoadingTeacherOptions(false);
+    }
+  };
+
   const openAction = (stream: Stream, grade: Grade, type: 'view' | 'edit' | 'delete') => {
     setSelectedStream({ stream, grade });
     setModalType(type);
-    
+
     // Pre-fill edit states when opening the edit modal
     if (type === 'edit') {
       setEditName(stream.name);
       setEditCapacity(stream.capacity);
+      setEditTeacherId(stream.class_teacher_id ? String(stream.class_teacher_id) : '');
+      fetchTeacherOptions();
     }
 
     // NEW: Trigger fetch if opening the view modal
@@ -113,7 +143,8 @@ const handleEditSubmit = async () => {
     const response = await api.put(`/api/academic-hub/edit-stream/${selectedStream.stream.id}/`, {
       name: editName,
       capacity: editCapacity,
-      grade_id: selectedStream.grade.id
+      grade_id: selectedStream.grade.id,
+      teacher_id: editTeacherId
     });
     
     const data = response.data;
@@ -199,18 +230,22 @@ const handleDeleteConfirm = async () => {
           <table className="w-full text-sm text-left">
             <thead className="text-xs text-slate-400 uppercase bg-white border-b border-slate-100">
               <tr>
-                <th className="px-4 py-3 font-medium w-1/4">Stream</th>
-                <th className="px-4 py-3 font-medium w-1/4">Class Teacher</th>
-                <th className="px-4 py-3 font-medium w-1/4">Capacity</th>
-                <th className="px-4 py-3 font-medium text-right w-1/4">Actions</th>
+                <th className="px-4 py-3 font-medium w-1/5">Stream</th>
+                <th className="px-4 py-3 font-medium w-1/5">Class Teacher</th>
+                <th className="px-4 py-3 font-medium w-1/5">Enrollment</th>
+                <th className="px-4 py-3 font-medium w-1/5">Fill Rate</th>
+                <th className="px-4 py-3 font-medium text-right w-1/5">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {grade.streams.map((stream) => (
+              {grade.streams.map((stream) => {
+                const fillPct = stream.capacity > 0 ? Math.round((stream.enrolled_count / stream.capacity) * 100) : 0;
+                const barColor = fillPct >= 100 ? 'bg-red-500' : fillPct >= 80 ? 'bg-amber-500' : 'bg-emerald-500';
+                return (
                 <tr key={stream.id} className="hover:bg-slate-50/80 transition-colors group">
                   <td className="px-4 py-3 font-medium text-slate-800">
                     <div className="flex items-center gap-2" title={`Stream Name: ${grade.grade_name} ${stream.name}`}>
-                      {grade.grade_name} {stream.name}
+                      {stream.name}
                     </div>
                   </td>
                   <td className="px-4 py-3">
@@ -224,7 +259,15 @@ const handleDeleteConfirm = async () => {
                   </td>
                   <td className="px-4 py-3 text-slate-500">
                     <div className="flex items-center gap-1" title={`Enrolled: ${stream.enrolled_count} out of ${stream.capacity}`}>
-                      <Users className="w-4 h-4" /> {stream.enrolled_count} / {stream.capacity} Enrolled
+                      <Users className="w-4 h-4" /> {stream.enrolled_count} / {stream.capacity}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2" title={`${fillPct}% full`}>
+                      <div className="w-16 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                        <div className={`h-full rounded-full ${barColor}`} style={{ width: `${Math.min(fillPct, 100)}%` }} />
+                      </div>
+                      <span className="text-xs font-semibold text-slate-500">{fillPct}%</span>
                     </div>
                   </td>
                   <td className="px-4 py-3 text-right">
@@ -241,10 +284,11 @@ const handleDeleteConfirm = async () => {
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
               {grade.streams.length === 0 && (
                 <tr>
-                   <td colSpan={4} className="px-4 py-6 text-center text-slate-400 text-xs italic">
+                   <td colSpan={5} className="px-4 py-6 text-center text-slate-400 text-xs italic">
                      No streams in this grade yet. Click "Add Stream" above.
                    </td>
                 </tr>
@@ -275,7 +319,13 @@ const handleDeleteConfirm = async () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <h2 className="text-2xl font-black text-slate-800">{selectedStream.grade.grade_name} {selectedStream.stream.name}</h2>
-                    <p className="text-sm text-slate-500 mt-1">Capacity: {selectedStream.stream.enrolled_count} / {selectedStream.stream.capacity} Enrolled</p>
+                    <p className="text-sm text-slate-500 mt-1 flex items-center gap-2 flex-wrap">
+                      <span>Capacity: {selectedStream.stream.enrolled_count} / {selectedStream.stream.capacity} Enrolled</span>
+                      <span className="text-[10px] uppercase tracking-wider text-slate-400 border border-slate-300 px-1.5 py-0.5 rounded">
+                        {selectedStream.grade.curriculum_type || 'CBC'}
+                        {selectedStream.grade.tier_id ? ` · ${tiers.find(t => t.id === selectedStream.grade.tier_id)?.code ?? ''}` : ''}
+                      </span>
+                    </p>
                   </div>
                   <div className={`px-3 py-1.5 rounded-lg text-sm font-bold flex items-center gap-2 ${
                     selectedStream.stream.enrolled_count >= selectedStream.stream.capacity
@@ -288,7 +338,7 @@ const handleDeleteConfirm = async () => {
 
                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
                   <div className="flex items-center gap-2 text-blue-600 mb-2 font-semibold">
-                    <BookOpen className="w-4 h-4" /> Leadership
+                    <GraduationCap className="w-4 h-4" /> Leadership
                   </div>
                   {selectedStream.stream.class_teacher ? (
                     <p className="text-sm text-slate-600 flex items-center gap-1.5">
@@ -297,14 +347,14 @@ const handleDeleteConfirm = async () => {
                     </p>
                   ) : (
                     <p className="text-sm text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-                      No class teacher assigned yet. Assign one from Class Operations &rarr; Edit.
+                      No class teacher assigned yet. Click the edit icon on this stream to assign one.
                     </p>
                   )}
                 </div>
 
                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                   <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/80 font-semibold text-slate-700 flex justify-between items-center">
-                     <span>Subject Teachers Assigned</span>
+                   <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/80 font-semibold text-slate-700 flex items-center gap-2 justify-between">
+                     <span className="flex items-center gap-2"><BookOpen className="w-4 h-4 text-indigo-500" /> Subject Teachers Assigned</span>
                      {isLoadingTeachers && <Loader2 className="w-4 h-4 animate-spin text-slate-400" />}
                    </div>
                    <div className="p-4 text-sm text-slate-500 min-h-25">
@@ -334,32 +384,73 @@ const handleDeleteConfirm = async () => {
             {/* Modal Body - EDIT */}
             {modalType === 'edit' && (
               <div className="p-6 space-y-4">
+                <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5">
+                  <span className="text-xs font-semibold text-slate-500 flex items-center gap-1.5">
+                    <Users className="w-3.5 h-3.5" /> Currently Enrolled
+                  </span>
+                  <span className="text-sm font-bold text-slate-700">
+                    {selectedStream.stream.enrolled_count} / {selectedStream.stream.capacity} students
+                  </span>
+                </div>
                 <div className="space-y-2">
                   <label htmlFor="stream-name" className="text-sm font-medium text-slate-700">Stream Name</label>
-                  <input 
-                    id="stream-name" 
-                    type="text" 
+                  <input
+                    id="stream-name"
+                    type="text"
                     title="Edit stream name"
-                    value={editName} 
-                    onChange={(e) => setEditName(e.target.value)} 
-                    className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none" 
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none"
                   />
                 </div>
                 <div className="space-y-2">
                   <label htmlFor="capacity" className="text-sm font-medium text-slate-700">Capacity</label>
-                  <input 
-                    id="capacity" 
-                    type="number" 
+                  <input
+                    id="capacity"
+                    type="number"
                     title="Edit stream capacity"
-                    value={editCapacity} 
-                    onChange={(e) => setEditCapacity(e.target.value)} 
-                    className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none" 
+                    value={editCapacity}
+                    onChange={(e) => setEditCapacity(e.target.value)}
+                    className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none"
                   />
+                  {Number(editCapacity) < selectedStream.stream.enrolled_count && (
+                    <p className="text-xs text-red-600 font-medium">
+                      Capacity can't go below {selectedStream.stream.enrolled_count} — that many students are already enrolled here.
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <label htmlFor="class-teacher" className="text-sm font-medium text-slate-700">Class Teacher</label>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1">
+                      <SearchableSelect
+                        id="class-teacher"
+                        options={teacherOptions}
+                        value={editTeacherId}
+                        onChange={setEditTeacherId}
+                        placeholder={loadingTeacherOptions ? 'Loading…' : 'Unassigned'}
+                        searchPlaceholder="Search teachers…"
+                        emptyMessage="No teachers found."
+                        disabled={loadingTeacherOptions}
+                      />
+                    </div>
+                    {editTeacherId && (
+                      <button
+                        type="button"
+                        onClick={() => setEditTeacherId('')}
+                        title="Unassign class teacher"
+                        className="text-xs font-semibold text-slate-500 hover:text-red-600 border border-slate-200 hover:border-red-300 rounded-md px-2.5 py-2 transition shrink-0"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-400">A teacher already leading another stream must be removed there first.</p>
                 </div>
 
                 <button
-                  onClick={handleEditSubmit} 
-                  disabled={isSubmitting} 
+                  onClick={handleEditSubmit}
+                  disabled={isSubmitting || Number(editCapacity) < selectedStream.stream.enrolled_count}
                   title="Save configurations"
                   className="w-full bg-blue-600 text-white font-medium py-2 rounded-md hover:bg-blue-700 mt-4 disabled:bg-blue-400 transition"
                 >

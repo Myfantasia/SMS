@@ -7,7 +7,7 @@ from django.shortcuts import get_object_or_404
 from school.models.models import (TeacherExtra, StudentExtra,
                                   ParentExtra, Notification, AcademicYear)
 from school.models.classSubjects_models import ClassStream, Subject, GradeLevel, StudentSubjectEnrollment, SubjectQuota, \
-    SystemAuditLog, Curriculum, StudentPathwaySelection, Tier
+    SystemAuditLog, Curriculum, StudentPathwaySelection, Tier, SubjectCurriculumProfile
 from django.db import transaction
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -41,11 +41,13 @@ def api_academic_hub_data(request):
                     'capacity': s.capacity,
                     'enrolled_count': s.studentextra_set.filter(status=True).count(),
                     'class_teacher': s.class_teacher.get_name if s.class_teacher else None,
+                    'class_teacher_id': s.class_teacher_id,
                 } for s in streams]
 
                 grades_data.append({
                     'id': grade.id,
                     'grade_name': grade.name,
+                    'numeric_order': grade.numeric_order,
                     'streams': stream_list,
                     'total_streams': len(stream_list),
                     'curriculum_type': grade.curriculum_type if hasattr(grade, 'curriculum_type') else 'CBC',
@@ -53,7 +55,7 @@ def api_academic_hub_data(request):
                     'tier_id': grade.tier_id,
                 })
 
-            subjects = Subject.objects.all().order_by('name')
+            subjects = Subject.objects.select_related('department').all().order_by('name')
             subjects_data = []
 
             # Fetch the active academic year to count real enrollments
@@ -72,18 +74,21 @@ def api_academic_hub_data(request):
 
                 # Single source of truth for eligibility (see TeacherExtra.qualified_subjects)
                 assigned_teachers = list(
-                    TeacherExtra.objects.filter(qualified_subjects=sub, status=True).values_list('user__first_name', 'user__last_name')
+                    TeacherExtra.objects.filter(qualified_subjects=sub, status=True).values_list('id', 'user__first_name', 'user__last_name')
                 )
-                assigned_teacher_names = [f"{first} {last}".strip() for first, last in assigned_teachers]
+                assigned_teacher_names = [f"{first} {last}".strip() for _, first, last in assigned_teachers]
+                assigned_teacher_ids = [tid for tid, _, _ in assigned_teachers]
 
                 subjects_data.append({
                     'id': sub.id,
                     'code': sub.code,
                     'name': sub.name,
-                    'department': sub.department,
+                    'department_id': sub.department_id,
+                    'department_name': sub.department.name if sub.department_id else None,
                     'is_core': sub.is_core,
                     'live_enrollment': live_enrollment,
                     'assigned_teachers': assigned_teacher_names,
+                    'assigned_teacher_ids': assigned_teacher_ids,
                 })
 
             return JsonResponse({
@@ -106,7 +111,11 @@ def api_manage_classes(request):
     """
     Returns all classes categorized by grade.
     RBAC ENABLED: Teachers only receive streams they manage or instruct.
-    SHIELDED: Virtual classes and deleted classes are explicitly blocked.
+    SHIELDED by default: virtual (elective split group) and deleted classes are blocked, since
+    most callers (Class Management, Attendance, Assignments, Timetable class pickers) only ever
+    mean real homeroom classes. Pass ?include_virtual=true (used by the Allocation page's class
+    picker) to also list live virtual groups — those need to appear somewhere selectable, since
+    they're the actual unit a teacher gets assigned to for a split elective subject.
     """
     if request.method == 'GET':
         try:
@@ -118,21 +127,26 @@ def api_manage_classes(request):
             # notion, so they get the full list rather than an empty one.
             is_admin = user.is_superuser or user.is_staff or user.groups.filter(name='ADMIN').exists() or hasattr(user,
                                                                                                                   'adminextra') or not is_teacher
+            include_virtual = request.GET.get('include_virtual') == 'true'
 
             grades = GradeLevel.objects.all().order_by('numeric_order')
             data = []
             for grade in grades:
                 # Apply structural Role-Based Access Control filters
                 if is_admin:
-                    streams = grade.streams.filter(is_deleted=False, is_virtual=False)
+                    streams = grade.streams.filter(is_deleted=False)
+                    if not include_virtual:
+                        streams = streams.filter(is_virtual=False)
                 elif is_teacher:
                     teacher = user.teacherextra
                     # Discover streams where the teacher is the homeroom lead or holds an allocation
                     streams = grade.streams.filter(
                         Q(class_teacher=teacher) | Q(allocations__teacher=teacher),
                         is_deleted=False,
-                        is_virtual=False
-                    ).distinct()
+                    )
+                    if not include_virtual:
+                        streams = streams.filter(is_virtual=False)
+                    streams = streams.distinct()
                 else:
                     streams = grade.streams.none()
 
@@ -162,11 +176,12 @@ def api_manage_classes(request):
                         'id': s.id,
                         'name': stream_display_name,
                         'capacity': s.capacity,
-                        'enrolled_count': len(enrolled_students),
+                        'enrolled_count': s.capacity if s.is_virtual else len(enrolled_students),
                         'students': enrolled_students,
                         'class_teacher': teacher_name,
                         'class_teacher_id': s.class_teacher.id if s.class_teacher else None,
-                        'is_current_user_class_teacher': is_current_user_class_teacher
+                        'is_current_user_class_teacher': is_current_user_class_teacher,
+                        'is_virtual': s.is_virtual,
                     })
 
                 # Only include grades in the layout that contain authorized streams
@@ -179,6 +194,35 @@ def api_manage_classes(request):
             return JsonResponse({'status': 'success', 'data': data})
         except Exception as e:
             return JsonResponse({'status': 'error', 'message': str(e)})
+
+
+def _eligible_subjects_for(curriculum, tier):
+    """
+    Resolves which subjects (and their effective is_core/total_lessons/double_lessons_required/
+    remedial_lessons_required) apply to a given curriculum/tier context. Subjects with no
+    SubjectCurriculumProfile rows at all are shared/legacy and always included, matching the
+    "don't break old data" convention used elsewhere for retrofitted curriculum links. Subjects
+    with profile rows are included only if one matches this curriculum (either curriculum-wide,
+    i.e. tier is null, or the exact tier) — its overrides win over the Subject's own flat
+    defaults / the generic quota fallback.
+    """
+    results = []
+    for subject in Subject.objects.prefetch_related('curriculum_profiles'):
+        profiles = list(subject.curriculum_profiles.all())
+        if not profiles:
+            results.append((subject, subject.is_core, None, None, None))
+            continue
+        match = next((
+            p for p in profiles
+            if p.curriculum_id == curriculum.id and (p.tier_id is None or (tier and p.tier_id == tier.id))
+        ), None)
+        if match:
+            effective_is_core = match.is_core if match.is_core is not None else subject.is_core
+            results.append((
+                subject, effective_is_core, match.total_lessons,
+                match.double_lessons_required, match.remedial_lessons_required
+            ))
+    return results
 
 
 @csrf_exempt
@@ -228,7 +272,7 @@ def api_add_grade_with_streams(request):
 
                 # 2. Build the master Grade shell
                 grade = GradeLevel.objects.create(
-                    name=data['grade_name'],
+                    name=data['grade_name'].strip(),
                     numeric_order=data['numeric_order'],
                     curriculum=curriculum,
                     tier=tier,
@@ -243,20 +287,22 @@ def api_add_grade_with_streams(request):
                     for name in stream_names:
                         ClassStream.objects.create(name=name, grade=grade, capacity=capacity)
 
-                # 4. AUTOMATED SEEDING CORES: Discover all globally registered Core Subjects
-                # This guarantees the matrix engine immediately has quota rows to discover.
-                core_subjects = Subject.objects.filter(is_core=True)
+                # 4. AUTOMATED SEEDING CORES: Discover the core subjects that actually apply to
+                # this grade's curriculum/tier (respecting SubjectCurriculumProfile assignments),
+                # so the matrix engine immediately has quota rows to discover.
+                eligible = _eligible_subjects_for(curriculum, tier)
 
-                if core_subjects.exists():
-                    quota_records = [
-                        SubjectQuota(
-                            grade=grade,
-                            subject=sub,
-                            total_lessons=4,  # Factory baseline standard high school allotment
-                            double_lessons_required=0,
-                            remedial_lessons_required=0
-                        ) for sub in core_subjects
-                    ]
+                quota_records = [
+                    SubjectQuota(
+                        grade=grade,
+                        subject=sub,
+                        total_lessons=total_override if total_override is not None else 4,  # Factory baseline standard high school allotment
+                        double_lessons_required=double_override or 0,
+                        remedial_lessons_required=remedial_override if remedial_override is not None else 0
+                    ) for sub, effective_is_core, total_override, double_override, remedial_override in eligible
+                    if effective_is_core
+                ]
+                if quota_records:
                     # Bulk create minimizes operational overhead to a single DB query hits
                     SubjectQuota.objects.bulk_create(quota_records)
 
@@ -291,7 +337,7 @@ def api_edit_grade(request, pk):
     try:
         data = json.loads(request.body)
 
-        grade.name = data.get('name', grade.name)
+        grade.name = data.get('name', grade.name).strip()
         grade.numeric_order = data.get('numeric_order', grade.numeric_order)
 
         curriculum_id = data.get('curriculum_id')
@@ -363,11 +409,31 @@ def api_add_single_stream(request):
             grade_id = data.get('grade_id')
             stream_name = data.get('stream_name')
             capacity = data.get('capacity', 40)
+            teacher_id = data.get('teacher_id')
 
             grade = GradeLevel.objects.get(id=grade_id)
-            ClassStream.objects.create(name=stream_name.strip(), grade=grade, capacity=capacity)
 
-            return JsonResponse({'status': 'success', 'message': f'Stream "{stream_name}" added to {grade.name} successfully.'})
+            teacher = None
+            if teacher_id:
+                try:
+                    teacher = TeacherExtra.objects.get(id=teacher_id)
+                except TeacherExtra.DoesNotExist:
+                    return JsonResponse({'status': 'error', 'message': 'The selected teacher does not exist.'})
+
+                # Same homeroom-uniqueness rule enforced when editing a stream's class teacher.
+                other_stream = ClassStream.live.filter(class_teacher=teacher).first()
+                if other_stream:
+                    return JsonResponse({
+                        'status': 'error',
+                        'message': f'{teacher.get_name} is already the Class Teacher of {other_stream}. '
+                                   f'Remove them from that class first before assigning them here.',
+                    })
+
+            stream = ClassStream.objects.create(
+                name=stream_name.strip(), grade=grade, capacity=capacity, class_teacher=teacher
+            )
+
+            return JsonResponse({'status': 'success', 'message': f'Stream "{stream.name}" added to {grade.name} successfully.'})
 
         except GradeLevel.DoesNotExist:
             return JsonResponse({'status': 'error', 'message': 'The selected Grade does not exist.'})
@@ -383,12 +449,33 @@ def api_edit_stream(request, pk):
         try:
             data = json.loads(request.body)
             stream = ClassStream.objects.get(id=pk)
-            stream.name = data.get('name', stream.name)
-            stream.capacity = data.get('capacity', stream.capacity)
+            stream.name = data.get('name', stream.name).strip()
+
+            new_capacity = data.get('capacity', stream.capacity)
+            enrolled_count = stream.studentextra_set.filter(status=True).count()
+            if int(new_capacity) < enrolled_count:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': f'Capacity cannot be set below {enrolled_count} — that many students are already enrolled in this stream.',
+                })
+            stream.capacity = new_capacity
 
             teacher_id = data.get('teacher_id')
             if teacher_id:
                 teacher = TeacherExtra.objects.get(id=teacher_id)
+
+                # A class teacher is a homeroom responsibility — one teacher can't be the
+                # assigned class teacher of two streams at once. Reassigning them here first
+                # requires clearing their existing homeroom, so the admin makes that choice
+                # explicitly instead of it happening silently as a side effect.
+                other_stream = ClassStream.live.filter(class_teacher=teacher).exclude(id=stream.id).first()
+                if other_stream:
+                    return JsonResponse({
+                        'status': 'error',
+                        'message': f'{teacher.get_name} is already the Class Teacher of {other_stream}. '
+                                   f'Remove them from that class first before assigning them here.',
+                    })
+
                 stream.class_teacher = teacher
             elif teacher_id == "":
                 stream.class_teacher = None
@@ -474,8 +561,14 @@ def api_class_enrollments(request, stream_id):
             siblings = ClassStream.objects.filter(grade=grade).exclude(id=stream_id)
             sibling_data = [{'id': sib.id, 'name': sib.name, 'capacity': sib.capacity} for sib in siblings]
 
-            # 4. UNASSIGNED POOL (Available to be "Pulled" in)
-            unassigned_students = StudentExtra.objects.filter(cl__isnull=True).select_related('user')
+            # 4. UNASSIGNED POOL (Available to be "Pulled" in) — school-wide, not scoped
+            # to this grade, so it grows with total enrollment over time. Capped rather
+            # than fully paginated: ManageEnrollments.tsx renders this as a flat picker
+            # list with no "load more" UI, and a school realistically has a small,
+            # bounded number of students awaiting placement at any given time — the cap
+            # exists only to guard the true unbounded worst case.
+            unassigned_students = StudentExtra.objects.filter(
+                cl__isnull=True).select_related('user').order_by('id')[:300]
             unassigned_data = []
             for s in unassigned_students:
                 unassigned_data.append({

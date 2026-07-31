@@ -11,7 +11,8 @@ from school.serializers.exams_serializers import StudentGridSerializer, ExamResu
 from django.utils import timezone
 from datetime import timedelta
 from school.models.classSubjects_models import (
-    ClassStream, Subject, SystemAuditLog, SubjectAllocation, SubjectQuota, StudentSubjectEnrollment
+    ClassStream, Subject, SystemAuditLog, SubjectAllocation, SubjectQuota, StudentSubjectEnrollment,
+    get_effective_is_core
 )
 from school.utils import get_teacher_exam_clearance, get_scaled_score, get_applicable_students, \
     resolve_classroom_students
@@ -63,7 +64,7 @@ class RapidMarksEntryView(APIView):
             # for students who never took the subject.
             try:
                 subject = Subject.objects.get(id=subject_id)
-                is_core_subject = subject.is_core
+                is_core_subject = get_effective_is_core(subject, classroom.grade.curriculum, classroom.grade.tier)
                 academic_year = None
                 if exam_id:
                     exam_obj = ExamEvent.objects.select_related('term__academic_year').filter(id=exam_id).first()

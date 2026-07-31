@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { User, Mail, ShieldAlert, KeyRound, CheckCircle2 } from 'lucide-react';
 import api from '../../libs/axiosInstance';
+import PasswordInput from '../../components/common/PasswordInput';
 
 export default function StudentProfile() {
   const [profile, setProfile] = useState<any>(null);
@@ -122,54 +123,39 @@ export default function StudentProfile() {
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Current Password</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <KeyRound className="w-4 h-4 text-slate-400" />
-                </div>
-                <input
-                  type="password"
-                  value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)}
-                  className="pl-10 w-full p-2.5 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter current password"
-                  required
-                />
-              </div>
+              <PasswordInput
+                icon={KeyRound}
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                className="pl-10 w-full p-2.5 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Enter current password"
+                required
+              />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">New Password</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <KeyRound className="w-4 h-4 text-slate-400" />
-                </div>
-                <input
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className="pl-10 w-full p-2.5 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter new password"
-                  required
-                  minLength={6}
-                />
-              </div>
+              <PasswordInput
+                icon={KeyRound}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="pl-10 w-full p-2.5 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Enter new password"
+                required
+                minLength={8}
+              />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Confirm New Password</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <CheckCircle2 className="w-4 h-4 text-slate-400" />
-                </div>
-                <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="pl-10 w-full p-2.5 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Confirm new password"
-                  required
-                />
-              </div>
+              <PasswordInput
+                icon={CheckCircle2}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="pl-10 w-full p-2.5 border border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Confirm new password"
+                required
+              />
             </div>
 
             {message.text && (

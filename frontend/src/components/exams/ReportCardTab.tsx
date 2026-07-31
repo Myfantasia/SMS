@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Printer, Save, User, FileText, QrCode, TrendingUp, AlertCircle, Users, X, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../libs/axiosInstance';
+import SearchableSelect from '../common/SearchableSelect';
 
 // --- Interfaces ---
 interface SelectionOption {
@@ -336,10 +337,13 @@ const ReportCardsTab: React.FC<ReportCardsTabProps> = ({ role = 'teacher' }) => 
           <div className="flex gap-4 w-full md:w-auto">
             <div className="flex-1 md:w-48">
               <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1 block">Class Stream</label>
-              <select className="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none bg-white" aria-label="Class Stream"
-                value={selectedClass} onChange={(e) => setSelectedClass(e.target.value)}>
-                {availableClasses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+              <SearchableSelect
+                aria-label="Class Stream"
+                value={selectedClass}
+                onChange={setSelectedClass}
+                searchPlaceholder="Search class streams…"
+                options={availableClasses.map(c => ({ value: String(c.id), label: c.name }))}
+              />
             </div>
             <div className="flex-1 md:w-48">
               <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1 block">Assessment</label>

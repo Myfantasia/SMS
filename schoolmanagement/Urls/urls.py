@@ -31,16 +31,17 @@ from school.views.results_views import GenerateTermResultsAPIView, BulkGenerateT
 
 from school.views.teacherAllocation_view import AllocationMatrixAPIView, RolloverAllocationsAPIView, \
     AutoAllocateDraftAPIView, BulkAutoAllocateAPIView, ClearAllocationsAPIView, api_manage_splitting_rules, \
-    api_execute_allocation_splits, GlobalAllocationPolicyAPIView, api_get_stream_teachers, api_get_teacher_allocations
+    api_execute_allocation_splits, GlobalAllocationPolicyAPIView, api_get_stream_teachers, api_get_teacher_allocations, \
+    UnpublishAllocationAPIView
 
 from school.views.chat_views import ClassParentsAPI
 from school.views.password_reset_views import RateLimitedPasswordResetView, \
-    NotifyingPasswordResetConfirmView, api_admin_reset_user_password, api_teacher_reset_student_password
-from school.views.auth_rate_limit import RateLimitedLoginView
+    NotifyingPasswordResetConfirmView, api_admin_reset_user_password
 from school.views import class_views
 from school.views.teacher_dashboard_view import teacher_login_view, TeacherPersonalTimetableAPIView, \
     api_manage_teacher_availability
 from school.views import subject_views
+from school.views import admin_invite_views
 from school.views import curriculum_view
 from school.views.leave_views import TeacherLeaveViewSet
 from school.views.student_dashboard_view import StudentDashboardOverviewAPI
@@ -48,7 +49,11 @@ from school.views.parent_dashboard_view import ParentDashboardOverviewAPI
 from school.views.finance_views import FinanceOverviewAPI
 from school.views.student_tasks_view import StudentTaskViewSet
 from school.views.rbac_views import RoleViewSet, PermissionViewSet, UserRoleAssignmentAPIView
-from school.views.curriculum_view import CurriculumViewSet, PathwayViewSet, CurriculumPresetViewSet, TierViewSet
+from school.views.curriculum_view import (
+    CurriculumViewSet, PathwayViewSet, CurriculumPresetViewSet, PresetCombinationViewSet,
+    SubjectCurriculumProfileViewSet, TierViewSet, TrackViewSet,
+)
+from school.views.jobs_views import BackgroundJobStatusAPIView
 
 router = DefaultRouter()
 router.register(r'events', EventViewSet, basename='event')
@@ -59,8 +64,11 @@ router.register(r'rbac/roles', RoleViewSet, basename='rbac-role')
 router.register(r'rbac/permissions', PermissionViewSet, basename='rbac-permission')
 router.register(r'curriculum/curricula', CurriculumViewSet, basename='curriculum')
 router.register(r'curriculum/pathways', PathwayViewSet, basename='curriculum-pathway')
+router.register(r'curriculum/tracks', TrackViewSet, basename='curriculum-track')
 router.register(r'curriculum/tiers', TierViewSet, basename='curriculum-tier')
 router.register(r'curriculum/presets', CurriculumPresetViewSet, basename='curriculum-preset')
+router.register(r'curriculum/preset-combinations', PresetCombinationViewSet, basename='curriculum-preset-combination')
+router.register(r'curriculum/subject-profiles', SubjectCurriculumProfileViewSet, basename='curriculum-subject-profile')
 
 student_router = DefaultRouter()
 student_router.register(r'tasks', StudentTaskViewSet, basename='student-task')
@@ -100,12 +108,13 @@ urlpatterns = [
     path('studentsignup', views.student_signup_view, name='studentsignup'),
     path('teachersignup', views.teacher_signup_view, name='teachersignup'),
     path('parentsignup', views.parent_signup_view, name='parentsignup'),
+    path('api/parentsignup/search-students/', views.api_search_students_for_parent_signup, name='api_search_students_for_parent_signup'),
     path('staffsignup', views.staff_signup_view, name='staffsignup'),
 
     path('adminlogin', views.admin_login_view, name='adminlogin'),
     path('studentlogin', views.student_login_view, name='studentlogin'),
     path('teacherlogin/', teacher_login_view, name='teacherlogin'),
-    path('parentlogin', RateLimitedLoginView.as_view(template_name='school/parents/parentlogin.html'), name='parentlogin'),
+    path('parentlogin', views.parent_login_view, name='parentlogin'),
     path('stafflogin/', views.staff_login_view, name='stafflogin'),
 
     path('afterlogin', views.afterlogin_view, name='afterlogin'),
@@ -142,6 +151,13 @@ urlpatterns = [
     path('api/pending-users/<str:user_type>/', views.api_get_pending_users, name='api_pending_users'),
     path('api/process-approval/', views.api_process_approval, name='api_process_approval'),
 
+# API endpoints for Admin Invite Codes & Verification (React "Invite Codes & Verification" tab)
+    path('api/admin-invites/', admin_invite_views.api_list_admin_invites, name='api_list_admin_invites'),
+    path('api/admin-invites/generate/', admin_invite_views.api_generate_admin_invite, name='api_generate_admin_invite'),
+    path('api/admin-invites/<int:pk>/revoke/', admin_invite_views.api_revoke_admin_invite, name='api_revoke_admin_invite'),
+    path('api/admin-verification-status/', admin_invite_views.api_admin_verification_status, name='api_admin_verification_status'),
+    path('api/admin-verification-status/<int:admin_extra_id>/regenerate/', admin_invite_views.api_regenerate_admin_code, name='api_regenerate_admin_code'),
+
 # API endpoints for React Directories
     path('api/approved-users/<str:user_type>/', views.api_get_approved_users, name='api_approved_users'),
     path('api/delete-user/', views.api_delete_user, name='api_delete_user'),
@@ -152,12 +168,9 @@ urlpatterns = [
 # API endpoint for editing a user profile
     path('api/user/<str:user_type>/<int:user_id>/edit/', views.api_edit_single_user, name='api_edit_single_user'),
 
-# API endpoint for an admin to reset another user's password (students, or anyone
-# who can't complete self-service reset yet)
+# API endpoint for an admin to reset another user's password (students, teachers,
+# parents, staff — never another admin)
     path('api/admin/reset-user-password/', api_admin_reset_user_password, name='api_admin_reset_user_password'),
-
-# API endpoint for a Class Teacher to reset a password for a student in their own class only
-    path('api/teacher/reset-student-password/', api_teacher_reset_student_password, name='api_teacher_reset_student_password'),
 
     path('api/my-profile/', views.api_my_profile, name='api_my_profile'),
 
@@ -182,7 +195,10 @@ urlpatterns = [
     path('api/enrollments/manage-enrollment/<int:student_id>/', class_views.ManageEnrollmentAPIView.as_view(), name='api_manage_enrollment'),
 
     # Subjects
+    path('api/departments/', subject_views.api_manage_departments, name='api_manage_departments'),
+    path('api/departments/<int:pk>/', subject_views.api_department_detail, name='api_department_detail'),
     path('api/manage-subjects/', subject_views.api_manage_subjects, name='api_manage_subjects'),
+    path('api/manage-subjects/<int:pk>/students/', subject_views.api_subject_students, name='api_subject_students'),
     path('api/academic-hub/add-subject/', subject_views.api_add_subject, name='api_add_subject'),
     path('api/academic-hub/edit-subject/<int:pk>/', subject_views.api_edit_subject, name='api_edit_subject'),
     path('api/academic-hub/delete-subject/<int:pk>/', subject_views.api_delete_subject, name='api_delete_subject'),
@@ -219,6 +235,7 @@ urlpatterns = [
 
     path('api/timetable/save-lesson/', views_timetable.api_save_lesson, name='api_save_lesson'),
     path('api/timetable/remove-lesson/<int:allocation_id>/', views_timetable.api_remove_lesson, name='api_remove_lesson'),
+    path('api/timetable/toggle-lesson-lock/<int:allocation_id>/', views_timetable.api_toggle_lesson_lock, name='api_toggle_lesson_lock'),
     path('api/timetable/class-lessons/<int:stream_id>/<int:timetable_id>/', views_timetable.api_get_class_lessons),
     path('api/timetable/master/<int:timetable_id>/', views_timetable.api_get_master_timetable, name='api_get_master_timetable'),
 
@@ -256,6 +273,8 @@ urlpatterns = [
     path('api/exams/report-card/save-summary/', SaveReportSummaryView.as_view()),
 
     #Results
+    path('api/jobs/<uuid:job_id>/', BackgroundJobStatusAPIView.as_view(), name='background_job_status'),
+
     path('api/results/generate/', GenerateTermResultsAPIView.as_view(), name='generate_term_results'),
     path('api/results/bulk-generate/', BulkGenerateTermResultsAPIView.as_view(), name='bulk_generate_term_results'),
     path('api/results/class-summary/', ClassPerformanceSummaryAPIView.as_view(), name='class_summary'),
@@ -272,6 +291,7 @@ urlpatterns = [
     path('api/allocations/auto-draft/', AutoAllocateDraftAPIView.as_view(), name='auto_allocate_draft'),
     path('api/allocations/bulk-auto-allocate/', BulkAutoAllocateAPIView.as_view(), name='bulk_auto_allocate'),
     path('api/allocations/clear/', ClearAllocationsAPIView.as_view(), name='clear_allocations'),
+    path('api/allocations/unpublish/', UnpublishAllocationAPIView.as_view(), name='unpublish_allocation'),
     path('api/allocations/splitting-rules/<int:grade_id>/', api_manage_splitting_rules, name='api_manage_splitting_rules'),
     path('api/allocations/execute-splits/<int:grade_id>/', api_execute_allocation_splits, name='api_execute_allocation_splits'),
     path('api/allocations/global-policy/', GlobalAllocationPolicyAPIView.as_view(), name='global-policy'),

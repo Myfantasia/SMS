@@ -9,18 +9,25 @@ interface Teacher {
   name: string;
 }
 
+interface Department {
+  id: number;
+  name: string;
+  is_active: boolean;
+}
+
 export default function EditSubject() {
   const { id } = useParams();
   const navigate = useNavigate();
-  
+
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [allTeachers, setAllTeachers] = useState<Teacher[]>([]);
-  
+  const [departments, setDepartments] = useState<Department[]>([]);
+
   // Form States
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
-  const [department, setDepartment] = useState('');
+  const [departmentId, setDepartmentId] = useState<number | ''>('');
   const [isCore, setIsCore] = useState(true);
   const [allowDoublePeriods, setAllowDoublePeriods] = useState(true);
   const [earliestAllowedTime, setEarliestAllowedTime] = useState('');
@@ -31,13 +38,18 @@ export default function EditSubject() {
 useEffect(() => {
   const initializeSubjectEditorData = async () => {
     try {
-      const [teachersRes, subjectsRes] = await Promise.all([
+      const [teachersRes, subjectsRes, departmentsRes] = await Promise.all([
         api.get('/api/approved-users/teachers/'),
-        api.get('/api/manage-subjects/')
+        api.get('/api/manage-subjects/'),
+        api.get('/api/departments/'),
       ]);
 
       if (teachersRes.data.status === 'success') {
         setAllTeachers(teachersRes.data.data);
+      }
+
+      if (departmentsRes.data.status === 'success') {
+        setDepartments(departmentsRes.data.data);
       }
 
       if (subjectsRes.data.status === 'success') {
@@ -45,7 +57,7 @@ useEffect(() => {
         if (subject) {
           setCode(subject.code);
           setName(subject.name);
-          setDepartment(subject.department);
+          setDepartmentId(subject.department_id ?? '');
           setIsCore(subject.is_core);
           setAllowDoublePeriods(subject.allow_double_periods ?? true);
           setEarliestAllowedTime(subject.earliest_allowed_time || '');
@@ -81,7 +93,7 @@ const handleSubmit = async (e: React.FormEvent) => {
     const response = await api.put(`/api/academic-hub/edit-subject/${id}/`, {
       code,
       name,
-      department,
+      department_id: departmentId || null,
       is_core: isCore,
       allow_double_periods: allowDoublePeriods,
       earliest_allowed_time: earliestAllowedTime || null,
@@ -140,7 +152,12 @@ const handleSubmit = async (e: React.FormEvent) => {
 
             <div className="space-y-2">
               <label className="text-sm font-bold text-slate-700">Department</label>
-              <input type="text" value={department} onChange={(e) => setDepartment(e.target.value)} placeholder="e.g., Computer Science" className="w-full border border-slate-300 rounded-lg p-3 focus:ring-2 focus:ring-emerald-500 outline-none transition-shadow" required />
+              <select value={departmentId} onChange={(e) => setDepartmentId(e.target.value ? Number(e.target.value) : '')} className="w-full border border-slate-300 rounded-lg p-3 focus:ring-2 focus:ring-emerald-500 outline-none transition-shadow bg-white">
+                <option value="">Uncategorized</option>
+                {departments.filter((d) => d.is_active || d.id === departmentId).map((d) => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </select>
             </div>
 
             <div className="space-y-2 flex flex-col justify-center">
