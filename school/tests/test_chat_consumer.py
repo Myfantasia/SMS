@@ -2,6 +2,7 @@ from channels.db import database_sync_to_async
 from channels.routing import URLRouter
 from channels.testing import WebsocketCommunicator
 from django.contrib.auth.models import User
+from django.core.cache import cache
 from django.test import TransactionTestCase
 from django.utils import timezone
 
@@ -22,6 +23,10 @@ class ChatConsumerTests(TransactionTestCase):
     """
 
     def setUp(self):
+        # Redis-backed cache (rate limits, connection-slot counters) isn't truncated
+        # between tests the way DatabaseCache used to be under TransactionTestCase —
+        # clear it explicitly so one test's counters can't bleed into the next.
+        cache.clear()
         self.alice = User.objects.create_user(username='alice_chat', password='x')
         self.bob = User.objects.create_user(username='bob_chat', password='x')
         self.mallory = User.objects.create_user(username='mallory_chat', password='x')  # not a participant
@@ -161,3 +166,69 @@ class ChatConsumerTests(TransactionTestCase):
         from django.contrib.auth.models import AnonymousUser
         communicator, connected = await self._connect_inbox(AnonymousUser())
         self.assertFalse(connected)
+
+    async def test_edit_rate_limit_enforced(self):
+        # 'edit' is capped at 10/10s (RATE_LIMITS in chat_consumer.py) — previously
+        # unlimited. Create enough messages that each edit attempt targets a real,
+        # editable one.
+        communicator, connected = await self._connect(self.alice, self.thread.id)
+        self.assertTrue(connected)
+
+        try:
+            messages = [
+                await database_sync_to_async(MessageAudit.objects.create)(
+                    thread=self.thread, sender=self.alice, message_body=f'msg {i}'
+                )
+                for i in range(11)
+            ]
+            for msg in messages[:10]:
+                await communicator.send_json_to({
+                    'type': 'edit', 'message_id': msg.id, 'message_body': 'edited',
+                })
+                response = await communicator.receive_json_from()
+                self.assertEqual(response['type'], 'message')
+
+            await communicator.send_json_to({
+                'type': 'edit', 'message_id': messages[10].id, 'message_body': 'edited',
+            })
+            response = await communicator.receive_json_from()
+            self.assertEqual(response['type'], 'error')
+            self.assertIn('too quickly', response['message'])
+        finally:
+            await communicator.disconnect()
+
+    async def test_typing_rate_limit_silently_dropped_past_limit(self):
+        # 'typing' is capped at 30/10s. Past the limit, _handle_typing silently drops
+        # instead of erroring (not worth surfacing to the user), so the other
+        # participant simply stops receiving new typing pings.
+        alice_comm, alice_connected = await self._connect(self.alice, self.thread.id)
+        bob_comm, bob_connected = await self._connect(self.bob, self.thread.id)
+        self.assertTrue(alice_connected)
+        self.assertTrue(bob_connected)
+
+        try:
+            for _ in range(30):
+                await alice_comm.send_json_to({'type': 'typing'})
+                ping = await bob_comm.receive_json_from()
+                self.assertEqual(ping['type'], 'typing')
+
+            await alice_comm.send_json_to({'type': 'typing'})
+            self.assertTrue(await bob_comm.receive_nothing(timeout=0.5))
+        finally:
+            await alice_comm.disconnect()
+            await bob_comm.disconnect()
+
+    async def test_connection_cap_rejects_beyond_limit_per_user(self):
+        # MAX_CONCURRENT_CONNECTIONS_PER_USER = 5 — previously unlimited.
+        communicators = []
+        try:
+            for _ in range(5):
+                comm, connected = await self._connect(self.alice, self.thread.id)
+                self.assertTrue(connected)
+                communicators.append(comm)
+
+            sixth_comm, sixth_connected = await self._connect(self.alice, self.thread.id)
+            self.assertFalse(sixth_connected)
+        finally:
+            for comm in communicators:
+                await comm.disconnect()

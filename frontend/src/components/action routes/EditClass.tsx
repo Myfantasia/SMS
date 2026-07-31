@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Save, UserCheck, LayoutDashboard } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../libs/axiosInstance';
+import SearchableSelect from '../common/SearchableSelect';
 
 interface Teacher {
   id: number;
@@ -145,17 +146,14 @@ const handleSubmit = async (e: React.FormEvent) => {
             </h3>
             <p className="text-sm text-slate-500 mb-4">The selected teacher will be responsible for attendance, pastoral care, and report card compilation for this specific class.</p>
             
-            <select 
-              value={classTeacherId} 
-              onChange={(e) => setClassTeacherId(e.target.value)}
-              className="w-full border border-slate-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 outline-none bg-white text-slate-700 cursor-pointer shadow-sm"
+            <SearchableSelect
+              value={classTeacherId}
+              onChange={setClassTeacherId}
               aria-label="Assign homeroom teacher"
-            >
-              <option value="">-- No Teacher Assigned --</option>
-              {teachers.map(t => (
-                <option key={t.id} value={t.id}>{t.name}</option>
-              ))}
-            </select>
+              placeholder="-- No Teacher Assigned --"
+              searchPlaceholder="Search teachers…"
+              options={teachers.map(t => ({ value: String(t.id), label: t.name }))}
+            />
           </div>
 
           <div className="flex justify-end gap-4 pt-4">

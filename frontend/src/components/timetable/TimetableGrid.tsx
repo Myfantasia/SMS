@@ -1,4 +1,4 @@
-import { Clock, Plus, Trash2, Eye, UserCheck, Info } from 'lucide-react';
+import { Clock, Plus, Trash2, Eye, UserCheck, Info, Lock, Unlock } from 'lucide-react';
 import type { ClassStream, DailyCoverEntry, Lesson, TimeSlot } from '../../libs/types';
 import { getSubjectColor } from './subjectColors';
 
@@ -12,6 +12,7 @@ interface GridProps {
   setLessonToDelete: (id: number) => void;
   setViewBlockLessons: (lessons: Lesson[]) => void;
   role?: string;
+  onToggleLock?: (id: number) => void;
 
   // --- PHASE 5: DAILY REASSIGNMENT PARITY FLAGS ---
   isDailyCoverMode?: boolean;
@@ -21,12 +22,16 @@ interface GridProps {
 
 export default function TimetableGrid({
   viewType, slots, lessons, classes, selectedClassId,
-  setActiveSlotId, setLessonToDelete, setViewBlockLessons, role,
+  setActiveSlotId, setLessonToDelete, setViewBlockLessons, role, onToggleLock,
   isDailyCoverMode = false, setCoverAllocationId, dailyCovers = []
 }: GridProps) {
   const isAdmin = role === 'admin';
   const activeDays = viewType === 'Weekdays' ? ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'] : ['Saturday', 'Sunday'];
-  const gridColClass = viewType === 'Weekdays' ? "grid-cols-[90px_repeat(5,minmax(0,1fr))]" : "grid-cols-[90px_repeat(2,minmax(0,1fr))]";
+  // minmax's lower bound must be a real pixel value, not 0 — 0 lets the grid tracks shrink
+  // to fit any viewport, which is what made this squish unreadably on phone widths instead
+  // of triggering the parent's overflow-auto to scroll horizontally (same pattern already
+  // used correctly by the min-w-* columns in MasterTimetableView.tsx).
+  const gridColClass = viewType === 'Weekdays' ? "grid-cols-[90px_repeat(5,minmax(150px,1fr))]" : "grid-cols-[90px_repeat(2,minmax(150px,1fr))]";
   const uniqueTimes = Array.from(new Set(slots.filter(s => activeDays.includes(s.day)).map(s => `${s.start_time} - ${s.end_time}`))).sort();
 
   return (
@@ -135,7 +140,10 @@ export default function TimetableGrid({
                                 </>
                               ) : (
                                 <div className="min-w-0">
-                                  <p className="font-bold text-sm leading-tight wrap-break-word">{lesson.subject_name} {isFirstHalf && '(Double)'}</p>
+                                  <p className="font-bold text-sm leading-tight wrap-break-word flex items-center gap-1">
+                                    {lesson.is_locked && <Lock className="w-3 h-3 shrink-0" aria-label="Locked" />}
+                                    {lesson.subject_name} {isFirstHalf && '(Double)'}
+                                  </p>
                                   {activeCover ? (
                                     <p className="text-xs mt-1 font-medium truncate opacity-80">
                                       <span className="line-through opacity-60">{lesson.teacher_name}</span>
@@ -173,7 +181,17 @@ export default function TimetableGrid({
                                         <Plus className="w-4 h-4" />
                                       </button>
                                     )}
-                                    {slotLessons.length === 1 && (
+                                    {slotLessons.length === 1 && onToggleLock && (
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); onToggleLock(lesson.id); }}
+                                        title={lesson.is_locked ? "Unlock lesson (allow automation to move it)" : "Lock lesson (pin it against auto-generate/sync)"}
+                                        aria-label={lesson.is_locked ? `Unlock ${lesson.subject_name} lesson` : `Lock ${lesson.subject_name} lesson`}
+                                        className={`p-1.5 rounded-md transition-colors ${isOptionBlock ? 'bg-slate-600 hover:bg-slate-500 text-white shadow-sm' : 'bg-white hover:bg-amber-50 text-amber-600 shadow-sm border border-slate-200'}`}
+                                      >
+                                        {lesson.is_locked ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+                                      </button>
+                                    )}
+                                    {slotLessons.length === 1 && !lesson.is_locked && (
                                       <button
                                         onClick={(e) => { e.stopPropagation(); setLessonToDelete(lesson.id); }}
                                         title="Remove lesson"
@@ -221,6 +239,7 @@ export default function TimetableGrid({
         <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-slate-800 shrink-0"></span> Elective option block</span>
         <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-amber-100 border border-amber-300 shrink-0"></span> Cover needed</span>
         <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-100 border border-emerald-300 shrink-0"></span> Cover assigned</span>
+        <span className="flex items-center gap-1.5"><Lock className="w-3 h-3 shrink-0" /> Locked (pinned against auto-generate/sync)</span>
         {isAdmin && !isDailyCoverMode && (
           <span className="flex items-center gap-1.5 ml-auto text-slate-400">
             <Info className="w-3 h-3" /> Hover an empty slot and click <Plus className="w-3 h-3 inline" /> to schedule a lesson

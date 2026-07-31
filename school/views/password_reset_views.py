@@ -4,6 +4,10 @@ self-service reset yet (currently: students, whose signup email is an auto-gener
 @student.myfantasia.com address with no real inbox behind it — not a limitation of
 this flow itself, just of student email addresses today. Once those become real,
 the same self-service reset below will start working for them with no changes needed).
+
+Resetting someone else's password is admin-only (api_admin_reset_user_password) and
+deliberately can't target another admin account — every other role only ever changes
+their own password via their own "My Profile" self-service form.
 """
 import json
 import secrets
@@ -16,9 +20,10 @@ from django.core.mail import send_mail
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 
-from school.models.models import AdminExtra, TeacherExtra, StudentExtra, ParentExtra, StaffExtra
-from school.permissions import api_login_required, api_admin_required
-from school.rbac import is_class_teacher_of_student
+from school.models.models import TeacherExtra, StudentExtra, ParentExtra, StaffExtra, ForcedPasswordChange
+from school.models.classSubjects_models import SystemAuditLog
+from school.decorators import require_permission
+from school.permissions import api_login_required
 
 # Deliberately generous — this throttles abuse (spamming a target's inbox, or probing
 # many emails to fingerprint which ones exist via response timing), not normal use.
@@ -55,6 +60,11 @@ def _reset_password_and_notify(user, actor_description):
     user.set_password(new_password)
     user.save()
 
+    # A relayed temporary password must not quietly become permanent — flag the account
+    # so the dashboard blocks access until the user sets their own new password (cleared
+    # by api_my_profile's POST handler once they do).
+    ForcedPasswordChange.objects.get_or_create(user=user)
+
     email_sent = False
     if user.email and not user.email.endswith('@student.myfantasia.com'):
         try:
@@ -63,8 +73,8 @@ def _reset_password_and_notify(user, actor_description):
                 message=(
                     f"Hi {user.first_name or user.username},\n\n"
                     f"{actor_description} reset your MyFantasia account password.\n\n"
-                    "Please log in with the new password given to you and change it "
-                    "as soon as possible.\n\n"
+                    "Please log in with the new password given to you — you'll be asked "
+                    "to set your own new password immediately after.\n\n"
                     "— MyFantasia"
                 ),
                 from_email=settings.DEFAULT_FROM_EMAIL,
@@ -137,19 +147,22 @@ _ROLE_MODELS = {
     'students': StudentExtra,
     'teachers': TeacherExtra,
     'parents': ParentExtra,
-    'admins': AdminExtra,
     'staff': StaffExtra,
 }
 
 
 @csrf_exempt
 @api_login_required
-@api_admin_required
+@require_permission('users.reset_password')
 def api_admin_reset_user_password(request):
-    """Admin-triggered password reset for a user who can't (yet) use self-service
-    reset — generates a new random password, sets it directly, and hands it back to
-    the admin to relay out-of-band. Also emails the account holder a notice if they
-    have a real, non-placeholder email on file."""
+    """Admin-triggered password reset for a student/teacher/parent/staff account.
+    Generates a new random password, sets it directly, and hands it back to the
+    admin to relay out-of-band. Also emails the account holder a notice if they
+    have a real, non-placeholder email on file.
+
+    Deliberately excludes 'admins' from _ROLE_MODELS: no one, including another
+    admin, may reset an admin account's password this way — only that admin's own
+    "My Profile" self-service change can do it."""
     if request.method != 'POST':
         return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
 
@@ -171,46 +184,15 @@ def api_admin_reset_user_password(request):
 
     new_password, email_sent = _reset_password_and_notify(extra.user, 'An administrator')
 
+    SystemAuditLog.objects.create(
+        operator=request.user, action_type='UPDATE', module='PasswordReset',
+        description=f"Admin reset password for {user_type[:-1]} account '{extra.user.username}'.",
+        ip_address=_client_ip(request),
+    )
+
     return JsonResponse({
         'status': 'success',
         'new_password': new_password,
         'username': extra.user.username,
-        'email_notified': email_sent,
-    })
-
-
-@csrf_exempt
-@api_login_required
-def api_teacher_reset_student_password(request):
-    """Lets a Class Teacher reset the password of a student in their own assigned
-    class/stream only — the same fallback students are pointed at on the login page
-    (they can't use self-service reset yet, see module docstring). Deliberately scoped
-    to is_class_teacher_of_student rather than any-teacher-any-student."""
-    if request.method != 'POST':
-        return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
-
-    try:
-        data = json.loads(request.body)
-        student_id = data.get('id')
-    except (json.JSONDecodeError, TypeError):
-        return JsonResponse({'status': 'error', 'message': 'Invalid request body'}, status=400)
-
-    try:
-        student = StudentExtra.objects.select_related('user', 'cl').get(id=student_id)
-    except StudentExtra.DoesNotExist:
-        return JsonResponse({'status': 'error', 'message': 'Student not found'}, status=404)
-
-    if not is_class_teacher_of_student(request.user, student):
-        return JsonResponse({
-            'status': 'error',
-            'message': 'You can only reset the password of a student in a class you are the assigned Class Teacher of.',
-        }, status=403)
-
-    new_password, email_sent = _reset_password_and_notify(student.user, 'Your class teacher')
-
-    return JsonResponse({
-        'status': 'success',
-        'new_password': new_password,
-        'username': student.user.username,
         'email_notified': email_sent,
     })

@@ -2,28 +2,42 @@
 
 document.addEventListener("DOMContentLoaded", function() {
 
-    // 1. Toggle Password Visibility
-    // We attach this to the global window object or use event delegation
-    const toggleIcons = document.querySelectorAll('.toggle-pass');
+    // Toggle-icon behavior now lives in password_toggle.js (shared with every other
+    // auth page) — this file loads it too, see password_reset_confirm.html.
 
-    toggleIcons.forEach(icon => {
-        icon.addEventListener('click', function() {
-            const inputId = this.getAttribute('data-target');
-            const input = document.getElementById(inputId);
+    // 2. Password Strength Meter
+    const pass1Input = document.getElementById('pass1');
+    const strengthBar = document.getElementById('strengthBar');
+    const strengthLabel = document.getElementById('strengthLabel');
 
-            if (input.type === "password") {
-                input.type = "text";
-                this.classList.remove('fa-eye');
-                this.classList.add('fa-eye-slash');
-            } else {
-                input.type = "password";
-                this.classList.remove('fa-eye-slash');
-                this.classList.add('fa-eye');
-            }
+    if (pass1Input && strengthBar && strengthLabel) {
+        const levels = [
+            { width: '0%', color: '#ef4444', label: 'At least 8 characters, and not all numbers' },
+            { width: '25%', color: '#ef4444', label: 'Weak — add length or mix in numbers/symbols' },
+            { width: '50%', color: '#f59e0b', label: 'Fair — getting there' },
+            { width: '75%', color: '#84cc16', label: 'Good' },
+            { width: '100%', color: '#22c55e', label: 'Strong' },
+        ];
+
+        pass1Input.addEventListener('input', function () {
+            const value = pass1Input.value;
+            let score = 0;
+
+            if (value.length >= 8) score++;
+            if (value.length >= 12) score++;
+            if (/[a-z]/.test(value) && /[A-Z]/.test(value)) score++;
+            if (/\d/.test(value)) score++;
+            if (/[^A-Za-z0-9]/.test(value)) score++;
+            if (value.length > 0 && /^\d+$/.test(value)) score = Math.min(score, 1); // all-digit passwords are rejected server-side
+
+            const level = value.length === 0 ? levels[0] : levels[Math.min(score, 4)];
+            strengthBar.style.width = level.width;
+            strengthBar.style.background = level.color;
+            strengthLabel.textContent = level.label;
         });
-    });
+    }
 
-    // 2. Form Validation (Match Passwords)
+    // 3. Form Validation (Match Passwords)
     const resetForm = document.getElementById('resetForm');
     if (resetForm) {
         resetForm.addEventListener('submit', function(e) {

@@ -13,6 +13,11 @@ interface PathwayRequest {
   class_name: string | null;
   pathway_id: number;
   pathway_name: string;
+  track_id: number | null;
+  track_name: string | null;
+  preset_combination_id: number | null;
+  preset_combination_name: string | null;
+  preset_combination_subjects: string[];
   academic_year: string;
   status: 'Pending' | 'Approved' | 'Rejected';
   updated_at: string;
@@ -114,15 +119,17 @@ export default function PathwayRequestsHub({ role }: { role: 'admin' | 'teacher'
               <th className="px-6 py-3 font-bold">Student</th>
               <th className="px-6 py-3 font-bold">Class</th>
               <th className="px-6 py-3 font-bold">Pathway</th>
+              <th className="px-6 py-3 font-bold">Track</th>
+              <th className="px-6 py-3 font-bold">Combination</th>
               <th className="px-6 py-3 font-bold">Status</th>
               <th className="px-6 py-3 font-bold text-right">Action</th>
             </tr>
           </thead>
           <tbody className="text-sm text-slate-700 divide-y divide-slate-50">
             {loading ? (
-              <tr><td colSpan={5} className="p-8 text-center text-slate-400">Loading...</td></tr>
+              <tr><td colSpan={7} className="p-8 text-center text-slate-400">Loading...</td></tr>
             ) : requests.length === 0 ? (
-              <tr><td colSpan={5} className="p-8 text-center text-slate-400">No {filter !== 'All' ? filter.toLowerCase() : ''} pathway requests.</td></tr>
+              <tr><td colSpan={7} className="p-8 text-center text-slate-400">No {filter !== 'All' ? filter.toLowerCase() : ''} pathway requests.</td></tr>
             ) : (
               requests.map((r) => (
                 <tr key={r.id} className="hover:bg-slate-50 transition-colors">
@@ -132,6 +139,12 @@ export default function PathwayRequestsHub({ role }: { role: 'admin' | 'teacher'
                   </td>
                   <td className="px-6 py-4 text-slate-500">{r.class_name ?? '—'}</td>
                   <td className="px-6 py-4 font-medium text-slate-700">{r.pathway_name}</td>
+                  <td className="px-6 py-4 text-slate-500">{r.track_name ?? '—'}</td>
+                  <td className="px-6 py-4 text-slate-500 text-xs max-w-[220px]">
+                    {r.preset_combination_subjects.length > 0
+                      ? r.preset_combination_subjects.join(' + ')
+                      : '—'}
+                  </td>
                   <td className="px-6 py-4">
                     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${STATUS_STYLE[r.status]}`}>
                       {r.status === 'Pending' && <Clock className="w-3 h-3" />}

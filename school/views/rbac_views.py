@@ -11,6 +11,7 @@ from rest_framework.views import APIView
 from school.models.classSubjects_models import SystemAuditLog
 from school.models.rbac_models import Permission, Role, UserRole
 from school.permissions import IsApprovedAdmin
+from school.rbac import invalidate_user_permission_cache
 from school.serializers.rbac_serializers import PermissionSerializer, RoleSerializer
 
 
@@ -169,6 +170,7 @@ class UserRoleAssignmentAPIView(APIView):
             return Response({'error': 'User or role not found.'}, status=404)
         _, created = UserRole.objects.get_or_create(user=user, role=role)
         if created:
+            invalidate_user_permission_cache(user.id)
             SystemAuditLog.objects.create(
                 operator=request.user,
                 action_type='CREATE',
@@ -196,6 +198,7 @@ class UserRoleAssignmentAPIView(APIView):
 
         deleted_count, _ = UserRole.objects.filter(user_id=user_id, role_id=role_id).delete()
         if deleted_count:
+            invalidate_user_permission_cache(user_id)
             user = User.objects.filter(id=user_id).first()
             role = Role.objects.filter(id=role_id).first()
             SystemAuditLog.objects.create(

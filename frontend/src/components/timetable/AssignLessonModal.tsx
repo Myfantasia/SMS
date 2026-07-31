@@ -1,5 +1,6 @@
 import { X, Save, CalendarPlus } from 'lucide-react';
 import type { Bucket, Teacher } from '../../libs/types';
+import SearchableSelect from '../common/SearchableSelect';
 
 interface AssignProps {
   setActiveSlotId: (id: number | null) => void;
@@ -33,29 +34,35 @@ export default function AssignLessonModal({
         <form onSubmit={handleSaveLesson} className="p-6 space-y-5">
           <div className="space-y-2">
             <label className="text-sm font-bold text-slate-700">Select Subject from Bucket</label>
-            <select required value={selectedSubject} onChange={(e) => setSelectedSubject(e.target.value)} className="w-full border border-slate-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-              <option value="">-- Choose Subject --</option>
-              {buckets.filter(b => b.remaining > 0).map(b => (
-                <option key={b.subject_id} value={b.subject_id.toString()}>{b.subject_name} ({b.remaining} left)</option>
-              ))}
-            </select>
+            <SearchableSelect
+              name="lessonSubject"
+              required
+              aria-label="Select Subject from Bucket"
+              value={selectedSubject}
+              onChange={setSelectedSubject}
+              placeholder="-- Choose Subject --"
+              searchPlaceholder="Search subjects…"
+              options={buckets.filter(b => b.remaining > 0).map(b => ({ value: b.subject_id.toString(), label: `${b.subject_name} (${b.remaining} left)` }))}
+            />
           </div>
           
           <div className="space-y-2">
             <label className="text-sm font-bold text-slate-700">Assign Teacher</label>
-            <select required value={selectedTeacher} onChange={(e) => setSelectedTeacher(e.target.value)} className="w-full border border-slate-300 rounded-lg p-3 outline-none focus:ring-2 focus:ring-blue-500 bg-white" disabled={!selectedSubject || teachers.length === 0}>
-              <option value="">{selectedSubject ? (teachers.length > 0 ? '-- Choose Teacher --' : 'No qualified teachers found') : '-- Select a subject first --'}</option>
-              {teachers.map(t => {
-                // Real-time capacity check against backend tracking fields
+            <SearchableSelect
+              value={selectedTeacher}
+              onChange={setSelectedTeacher}
+              disabled={!selectedSubject || teachers.length === 0}
+              placeholder={selectedSubject ? (teachers.length > 0 ? '-- Choose Teacher --' : 'No qualified teachers found') : '-- Select a subject first --'}
+              searchPlaceholder="Search teachers…"
+              options={teachers.map(t => {
                 const hasLoadData = t.current_load !== undefined && t.max_weekly_lessons !== undefined;
-                const loadLabel = hasLoadData ? ` (${t.current_load}/${t.max_weekly_lessons} periods)` : '';
-                return (
-                  <option key={t.id} value={t.id.toString()}>
-                    {t.name}{loadLabel}
-                  </option>
-                );
+                return {
+                  value: t.id.toString(),
+                  label: t.name,
+                  sublabel: hasLoadData ? `${t.current_load}/${t.max_weekly_lessons} periods` : undefined,
+                };
               })}
-            </select>
+            />
           </div>
           
           <label className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-100 transition">

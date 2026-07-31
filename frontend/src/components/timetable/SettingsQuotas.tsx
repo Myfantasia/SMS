@@ -3,6 +3,7 @@ import { Save, Edit, Trash2, BookOpen } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { Grade, Quota, Subject } from '../../libs/types';
 import api from '../../libs/axiosInstance';
+import SearchableSelect from '../common/SearchableSelect';
 
 interface QuotasProps {
   grades: Grade[];
@@ -137,7 +138,7 @@ export default function SettingsQuotas({ grades, subjects, quotas, daytimeCapaci
       <form onSubmit={handleSaveQuota} className="lg:col-span-1 space-y-4 bg-slate-50 p-5 rounded-xl border border-slate-200 sticky top-4 h-fit">
         <h3 className="font-bold text-slate-800 border-b border-slate-200 pb-2">Assign Lesson Rule</h3>
         <select required value={quotaGrade} onChange={(e) => setQuotaGrade(e.target.value)} className="w-full border border-slate-300 rounded-lg p-2.5 bg-white font-medium text-slate-700"><option value="">-- Choose Grade --</option>{grades.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}</select>
-        <select required value={quotaSubject} onChange={(e) => setQuotaSubject(e.target.value)} className="w-full border border-slate-300 rounded-lg p-2.5 bg-white font-medium text-slate-700"><option value="">-- Choose Subject --</option>{subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
+        <SearchableSelect name="quotaSubject" required aria-label="Choose Subject" value={quotaSubject} onChange={setQuotaSubject} placeholder="-- Choose Subject --" searchPlaceholder="Search subjects…" options={subjects.map(s => ({ value: String(s.id), label: s.name }))} />
         
         <div className="grid grid-cols-3 gap-3">
           <div><label className="text-xs font-bold text-slate-600">Total</label><input type="number" min="1" required value={quotaTotal} onChange={(e) => setQuotaTotal(parseInt(e.target.value))} className="w-full border border-slate-300 rounded-lg p-2.5 text-center font-bold" /></div>

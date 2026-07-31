@@ -5,6 +5,7 @@ import api from '../../libs/axiosInstance';
 import type { TeacherLeaveRequest, LeaveStats, EligibleReliefTeacher } from '../../libs/types';
 import LeaveStatCards from './LeaveStatCards';
 import LeaveRequestCard from './LeaveRequestCard';
+import SearchableSelect from '../common/SearchableSelect';
 
 const EMPTY_STATS: LeaveStats = { pending: 0, approved: 0, rejected: 0, total: 0 };
 
@@ -26,16 +27,15 @@ function DecisionRow({ leave, reliefTeachers, onDecide, isBusy }: DecisionRowPro
           <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
             Relief Teacher (optional)
           </label>
-          <select
-            value={reliefTeacherId}
-            onChange={(e) => setReliefTeacherId(e.target.value)}
-            className="w-full sm:w-64 px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">No relief teacher assigned</option>
-            {eligibleRelief.map((t) => (
-              <option key={t.id} value={t.id}>{t.name}</option>
-            ))}
-          </select>
+          <div className="w-full sm:w-64">
+            <SearchableSelect
+              value={reliefTeacherId}
+              onChange={setReliefTeacherId}
+              placeholder="No relief teacher assigned"
+              searchPlaceholder="Search teachers…"
+              options={eligibleRelief.map((t) => ({ value: String(t.id), label: t.name }))}
+            />
+          </div>
         </div>
       )}
       <div className="flex items-center gap-2 sm:ml-auto">

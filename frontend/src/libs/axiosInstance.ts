@@ -6,6 +6,10 @@ const api = axios.create({
   withCredentials: true,            // This is the magic key for Django Auth!
   xsrfCookieName: 'csrftoken',      // The name of the cookie Django sets
   xsrfHeaderName: 'X-CSRFToken',
+  // Since axios 1.6, the XSRF header is only auto-attached on same-origin requests
+  // unless this is set — the frontend (5173) and API (8000) are different origins,
+  // so without this every POST silently omitted X-CSRFToken and 403'd.
+  withXSRFToken: true,
 });
 
 // A 401 means the Django session has gone idle (or was otherwise invalidated) — send the

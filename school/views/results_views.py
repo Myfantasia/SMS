@@ -1,15 +1,19 @@
 from rest_framework.authentication import SessionAuthentication
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from django.db import transaction
+from django.core.cache import cache
 from django.db.models import Avg, Q, Max, Min, F, FloatField, ExpressionWrapper
 from school.rbac import HasModulePermission, user_has_permission
 from school.models.models import StudentExtra, ExamTerm, ExamResult, AcademicYear, Notification, ParentExtra
 from school.models.resultsModels import SubjectTermResult, StudentTermResult, ClassPerformanceAnalytics
 from school.utils import calculate_dynamic_grade, get_scaled_score
 from school.models.classSubjects_models import ClassStream, SubjectAllocation, SystemAuditLog
+from school.jobs import dispatch_background_job
+from school.tasks import bulk_generate_term_results_task
 from decimal import Decimal, ROUND_HALF_UP
 
 
@@ -232,8 +236,9 @@ class BulkGenerateTermResultsAPIView(APIView):
     permission_classes = [IsAuthenticated, HasModulePermission]
     authentication_classes = [SessionAuthentication]
     rbac_edit_permission = 'results.edit'
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'bulk_ops'
 
-    @transaction.atomic
     def post(self, request):
         year = request.data.get('year')
         term_name = request.data.get('term')
@@ -256,51 +261,41 @@ class BulkGenerateTermResultsAPIView(APIView):
                             status=status.HTTP_404_NOT_FOUND)
 
         if stream_ids:
-            target_streams = list(ClassStream.live.filter(id__in=stream_ids, is_virtual=False)
-                                   .select_related('grade'))
+            target_stream_ids = list(ClassStream.live.filter(id__in=stream_ids, is_virtual=False)
+                                      .values_list('id', flat=True))
         elif grade_id:
-            target_streams = list(ClassStream.live.filter(grade_id=grade_id, is_virtual=False)
-                                   .select_related('grade'))
+            target_stream_ids = list(ClassStream.live.filter(grade_id=grade_id, is_virtual=False)
+                                      .values_list('id', flat=True))
         else:
-            target_streams = list(ClassStream.live.filter(is_virtual=False).select_related('grade'))
+            target_stream_ids = list(ClassStream.live.filter(is_virtual=False).values_list('id', flat=True))
 
-        if not target_streams:
+        if not target_stream_ids:
             return Response({"error": "No class streams found for the given scope."},
                             status=status.HTTP_404_NOT_FOUND)
 
-        per_class_summary = []
-        total_students_assessed = 0
-        for stream in target_streams:
-            summary = generate_results_for_stream(stream, term)
-            per_class_summary.append({
-                "class_id": stream.id,
-                "class_name": f"{stream.grade.name} {stream.name}" if stream.grade else stream.name,
-                "students_assessed": summary["students_assessed"],
-                "error": summary["error"],
-            })
-            total_students_assessed += summary["students_assessed"]
+        # Scoped per term — a grade-scoped run and a whole-school run for the same term both
+        # write SubjectTermResult/StudentTermResult rows that could overlap, so they share
+        # one lock rather than being considered independent just because their scopes differ.
+        # The task itself acquires this (with retry) once it starts running, so a second
+        # submission gets queued and auto-processed rather than rejected.
+        lock_key = f"bulk_results_lock_term_{term.id}"
 
-        classes_with_issues = [c for c in per_class_summary if c["error"]]
-
-        SystemAuditLog.objects.create(
-            operator=request.user if request.user.is_authenticated else None,
-            action_type='EXECUTION',
-            module='BulkGenerateTermResults',
-            description=(
-                f"Bulk-compiled results for {term.name} ({term.academic_year.year}) across "
-                f"{len(target_streams)} class(es): {total_students_assessed} student(s) assessed, "
-                f"{len(classes_with_issues)} class(es) with no active students."
-            )
+        # The per-stream compilation loop (potentially whole-school) runs in a Celery
+        # worker — see school/tasks.py:bulk_generate_term_results_task.
+        job, error_response = dispatch_background_job(
+            job_type='bulk_generate_term_results',
+            task=bulk_generate_term_results_task,
+            task_args=(term.id, target_stream_ids, request.user.id, lock_key),
+            operator=request.user,
         )
+        if error_response is not None:
+            return error_response
 
-        return Response({
-            "message": (
-                f"Bulk results compilation complete: {total_students_assessed} student(s) assessed "
-                f"across {len(target_streams)} class(es)."
-            ),
-            "per_class": per_class_summary,
-            "classes_with_issues": classes_with_issues,
-        }, status=status.HTTP_200_OK)
+        payload = {"status": "queued", "job_id": str(job.id)}
+        if cache.get(lock_key):
+            payload["note"] = "A bulk results compilation for this term is already running — yours has " \
+                               "been queued and will start automatically once it finishes."
+        return Response(payload, status=status.HTTP_202_ACCEPTED)
 
 
 class ClassPerformanceSummaryAPIView(APIView):
@@ -746,7 +741,7 @@ class StudentReportCardAPIView(APIView):
         }, status=status.HTTP_200_OK)
 
     def post(self, request):
-        if not request.user.is_superuser and not request.user.groups.filter(name='ADMIN').exists():
+        if not user_has_permission(request.user, 'results.edit'):
             return Response({"error": "Administrative clearance required to verify and publish report card registries."},
                             status=status.HTTP_403_FORBIDDEN)
 

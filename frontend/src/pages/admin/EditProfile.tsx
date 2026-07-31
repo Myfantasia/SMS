@@ -1,13 +1,19 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, UserCog, Star } from 'lucide-react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import { ArrowLeft, Save, UserCog, Star, Calendar, Eye } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../libs/axiosInstance';
+import SearchableSelect from '../../components/common/SearchableSelect';
 
 interface SubjectOption {
   id: number;
   code: string;
   name: string;
+}
+
+interface ClassStreamOption {
+  value: string;
+  label: string;
 }
 
 export default function EditProfile() {
@@ -21,17 +27,28 @@ export default function EditProfile() {
   const [allSubjects, setAllSubjects] = useState<SubjectOption[]>([]);
   const [qualifiedSubjectIds, setQualifiedSubjectIds] = useState<number[]>([]);
 
+  // Class/stream picker for students — must submit the real ClassStream id, not its
+  // display name (the backend only accepts an integer class_id; a free-text name was
+  // silently ignored, so class re-assignment via this form never actually applied).
+  const [classOptions, setClassOptions] = useState<ClassStreamOption[]>([]);
+  const [classId, setClassId] = useState<string>('');
+
   // Read-only context about the teacher's homeroom assignment (set elsewhere, in Class Operations)
   const [classTeacherInfo, setClassTeacherInfo] = useState<{ is_class_teacher: boolean; class_teacher_of: string | null }>({
     is_class_teacher: false,
     class_teacher_of: null,
   });
+  // Read-only context shown in the header — not editable here, just useful to see at a glance.
+  const [joinDate, setJoinDate] = useState<string | null>(null);
 
   // Expanded Unified Form State
   const [formData, setFormData] = useState({
     first_name: '', last_name: '', username: '', email: '',
     mobile: '', address: '', status: 'true',
     class: '', roll: '', fee: '', parent_name: '', parent_mobile: '',
+    family_structure: '', single_parent_type: '',
+    father_name: '', father_mobile: '', mother_name: '', mother_mobile: '',
+    guardian_name: '', guardian_mobile: '', guardian_relationship: '',
     subjects: '', id_number: '', salary: '',
     relationship: '', children_rolls: '', children_display: '',
     enrollment_state: 'Active', enrollment_notes: '', job_title: ''
@@ -58,6 +75,15 @@ export default function EditProfile() {
             fee: d.fee !== undefined && d.fee !== null ? String(d.fee) : '',
             parent_name: d.parent_name || '',
             parent_mobile: d.parent_mobile || '',
+            family_structure: d.family_structure || '',
+            single_parent_type: d.single_parent_type || '',
+            father_name: d.father_name || '',
+            father_mobile: d.father_mobile || '',
+            mother_name: d.mother_name || '',
+            mother_mobile: d.mother_mobile || '',
+            guardian_name: d.guardian_name || '',
+            guardian_mobile: d.guardian_mobile || '',
+            guardian_relationship: d.guardian_relationship || '',
             subjects: d.subjects || '',
             id_number: d.id_number || '',
             salary: d.salary !== undefined && d.salary !== null ? String(d.salary) : '',
@@ -73,12 +99,27 @@ export default function EditProfile() {
             class_teacher_of: d.class_teacher_of || null,
           });
           setQualifiedSubjectIds(d.qualified_subject_ids || []);
+          setClassId(d.cl_id ? String(d.cl_id) : '');
+          setJoinDate(d.joindate || null);
         }
 
         if (userType === 'teachers') {
           const subjRes = await api.get('/api/manage-subjects/');
           if (subjRes.data.status === 'success') {
             setAllSubjects(subjRes.data.data);
+          }
+        }
+
+        if (userType === 'students') {
+          const classRes = await api.get('/api/manage-classes/');
+          if (classRes.data.status === 'success') {
+            const options: ClassStreamOption[] = [];
+            classRes.data.data.forEach((grade: { grade_name: string; streams: { id: number; name: string }[] }) => {
+              grade.streams.forEach((s) => {
+                options.push({ value: String(s.id), label: `${grade.grade_name} — ${s.name}` });
+              });
+            });
+            setClassOptions(options);
           }
         }
       } catch (error) {
@@ -117,10 +158,22 @@ export default function EditProfile() {
 
       // 2. Perform context-aware trimming to selectively append relevant fields
       if (userType === 'students') {
-        payload.class = formData.class;
+        payload.class_id = classId;
         payload.roll = formData.roll;
         payload.parent_name = formData.parent_name;
         payload.parent_mobile = formData.parent_mobile;
+        // Sent even when blank — the backend only recomputes the summary above from
+        // these when at least one of them is actually filled in, so this never wipes
+        // out a legacy free-text parent_name that predates the structured fields.
+        payload.family_structure = formData.family_structure;
+        payload.single_parent_type = formData.single_parent_type;
+        payload.father_name = formData.father_name;
+        payload.father_mobile = formData.father_mobile;
+        payload.mother_name = formData.mother_name;
+        payload.mother_mobile = formData.mother_mobile;
+        payload.guardian_name = formData.guardian_name;
+        payload.guardian_mobile = formData.guardian_mobile;
+        payload.guardian_relationship = formData.guardian_relationship;
         // Normalize empty string entries into absolute null states or zero values
         payload.fee = formData.fee === '' ? 0 : Number(formData.fee);
         payload.enrollment_state = formData.enrollment_state;
@@ -187,11 +240,24 @@ export default function EditProfile() {
               <p className="text-slate-500 text-sm mt-0.5">Update personal, academic, and system information below.</p>
             </div>
           </div>
-          {classTeacherInfo.is_class_teacher && (
-            <span className="inline-flex items-center gap-1.5 text-xs font-bold bg-amber-50 text-amber-700 px-3 py-1.5 rounded-full">
-              <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" /> Class Teacher &middot; {classTeacherInfo.class_teacher_of}
-            </span>
-          )}
+          <div className="flex flex-wrap items-center gap-2">
+            {classTeacherInfo.is_class_teacher && (
+              <span className="inline-flex items-center gap-1.5 text-xs font-bold bg-amber-50 text-amber-700 px-3 py-1.5 rounded-full">
+                <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" /> Class Teacher &middot; {classTeacherInfo.class_teacher_of}
+              </span>
+            )}
+            {userType === 'teachers' && joinDate && (
+              <span className="inline-flex items-center gap-1.5 text-xs font-bold bg-slate-50 text-slate-500 px-3 py-1.5 rounded-full">
+                <Calendar className="w-3.5 h-3.5" /> Joined {new Date(joinDate).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+              </span>
+            )}
+            <Link
+              to={`/admin-dashboard/${userType}/view/${id}`}
+              className="inline-flex items-center gap-1.5 text-xs font-bold bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full hover:bg-blue-100 transition-colors"
+            >
+              <Eye className="w-3.5 h-3.5" /> View Full Profile
+            </Link>
+          </div>
         </div>
 
         {userType === 'teachers' && classTeacherInfo.is_class_teacher && (
@@ -259,7 +325,14 @@ export default function EditProfile() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Class Enrolled</label>
-                    <input type="text" name="class" value={formData.class} onChange={handleChange} title="Class Enrolled" className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none bg-slate-50 transition-all" />
+                    <SearchableSelect
+                      value={classId}
+                      onChange={setClassId}
+                      aria-label="Class Enrolled"
+                      placeholder="-- Not Assigned --"
+                      searchPlaceholder="Search grade or stream…"
+                      options={classOptions}
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Fee Balance</label>
@@ -267,12 +340,84 @@ export default function EditProfile() {
                   </div>
                   <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6 mt-2">
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Parent/Guardian Name</label>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Parent/Guardian Name <span className="font-normal text-slate-400">(summary)</span></label>
                       <input type="text" name="parent_name" value={formData.parent_name} onChange={handleChange} title="Parent/Guardian Name" className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none bg-slate-50 transition-all" />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Parent Mobile</label>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Parent Mobile <span className="font-normal text-slate-400">(summary)</span></label>
                       <input type="text" name="parent_mobile" value={formData.parent_mobile} onChange={handleChange} title="Parent Mobile" className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none bg-slate-50 transition-all" />
+                    </div>
+                    <p className="md:col-span-2 text-xs text-slate-400 -mt-3">
+                      This is a display summary. Fill in Father / Mother / Guardian details below and it recomputes automatically — editing it directly only matters for accounts with no structured details yet.
+                    </p>
+                  </div>
+
+                  <div className="md:col-span-2 bg-slate-50 p-5 rounded-xl border border-slate-200 mt-2">
+                    <h4 className="font-bold text-slate-700 mb-3 text-sm uppercase tracking-wider">Family Structure</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-slate-600 mb-1">Structure</label>
+                        <select name="family_structure" value={formData.family_structure} onChange={handleChange} className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none bg-white transition-all cursor-pointer">
+                          <option value="">Not set</option>
+                          <option value="both">Both Parents</option>
+                          <option value="single">Single Parent</option>
+                          <option value="guardian">Guardian</option>
+                        </select>
+                      </div>
+
+                      {formData.family_structure === 'single' && (
+                        <div className="md:col-span-2">
+                          <label className="block text-sm font-medium text-slate-600 mb-1">This parent is the child's</label>
+                          <select name="single_parent_type" value={formData.single_parent_type} onChange={handleChange} className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none bg-white transition-all cursor-pointer">
+                            <option value="">Select one</option>
+                            <option value="Mother">Mother</option>
+                            <option value="Father">Father</option>
+                          </select>
+                        </div>
+                      )}
+
+                      {(formData.family_structure === 'both' || (formData.family_structure === 'single' && formData.single_parent_type === 'Father')) && (
+                        <>
+                          <div>
+                            <label className="block text-sm font-medium text-slate-600 mb-1">Father's Name</label>
+                            <input type="text" name="father_name" value={formData.father_name} onChange={handleChange} className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none bg-white transition-all" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-slate-600 mb-1">Father's Mobile</label>
+                            <input type="text" name="father_mobile" value={formData.father_mobile} onChange={handleChange} className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none bg-white transition-all" />
+                          </div>
+                        </>
+                      )}
+
+                      {(formData.family_structure === 'both' || (formData.family_structure === 'single' && formData.single_parent_type === 'Mother')) && (
+                        <>
+                          <div>
+                            <label className="block text-sm font-medium text-slate-600 mb-1">Mother's Name</label>
+                            <input type="text" name="mother_name" value={formData.mother_name} onChange={handleChange} className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none bg-white transition-all" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-slate-600 mb-1">Mother's Mobile</label>
+                            <input type="text" name="mother_mobile" value={formData.mother_mobile} onChange={handleChange} className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none bg-white transition-all" />
+                          </div>
+                        </>
+                      )}
+
+                      {formData.family_structure === 'guardian' && (
+                        <>
+                          <div>
+                            <label className="block text-sm font-medium text-slate-600 mb-1">Guardian's Name</label>
+                            <input type="text" name="guardian_name" value={formData.guardian_name} onChange={handleChange} className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none bg-white transition-all" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-slate-600 mb-1">Guardian's Mobile</label>
+                            <input type="text" name="guardian_mobile" value={formData.guardian_mobile} onChange={handleChange} className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none bg-white transition-all" />
+                          </div>
+                          <div className="md:col-span-2">
+                            <label className="block text-sm font-medium text-slate-600 mb-1">Relationship to Child</label>
+                            <input type="text" name="guardian_relationship" value={formData.guardian_relationship} onChange={handleChange} placeholder="e.g. Aunt, Grandfather" className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none bg-white transition-all" />
+                          </div>
+                        </>
+                      )}
                     </div>
                   </div>
 

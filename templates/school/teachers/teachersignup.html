@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <link rel="stylesheet" href="{% static 'css/navbar.css' %}?v=3">
-    <link rel="stylesheet" href="{% static 'css/auth_style.css' %}?v=4">
+    <link rel="stylesheet" href="{% static 'css/auth_style.css' %}?v=7">
     <link rel="stylesheet" href="{% static 'css/spinner.css' %}">
 
     <link rel="stylesheet" href="{% static 'css/form_extra.css' %}?v=2">
@@ -21,6 +21,8 @@
     {% include "school/navbar.html" %}
 
     <div class="login-wrapper">
+      <div class="auth-shell wide">
+        {% include "school/auth_visual.html" with visual_role="teacher" visual_icon="fa-chalkboard-user" visual_kind="REGISTRATION" %}
         <div class="login-card wide-card">
             <div class="login-header">
                 <div class="header-icon-badge"><i class="fas fa-chalkboard-teacher"></i></div>
@@ -31,6 +33,14 @@
             <form method="post" action="{% url 'teachersignup' %}" enctype="multipart/form-data">
                 {% csrf_token %}
                 {% include "school/form_errors.html" %}
+
+                {% if messages %}
+                    {% for message in messages %}
+                        <div class="error-message">
+                            <i class="fas fa-exclamation-triangle"></i> {{ message }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
 
                 <div class="form-row">
                     <div class="col-half">
@@ -77,7 +87,21 @@
                             <label class="field-label" for="password">Password</label>
                             <div class="password-wrapper input-icon-wrap">
                                 <i class="fas fa-lock input-icon"></i>
-                                <input type="password" name="password" id="password" class="form-control" placeholder="Create a strong password" required>
+                                <input type="password" name="password" id="password" class="form-control" placeholder="Create a strong password" required minlength="8">
+                                <i class="fas fa-eye toggle-pass" data-target="password"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="col-half">
+                        <div class="form-group">
+                            <label class="field-label" for="password2">Confirm Password</label>
+                            <div class="password-wrapper input-icon-wrap">
+                                <i class="fas fa-lock input-icon"></i>
+                                <input type="password" name="password2" id="password2" class="form-control" placeholder="Repeat password" required>
+                                <i class="fas fa-eye toggle-pass" data-target="password2"></i>
                             </div>
                         </div>
                     </div>
@@ -146,9 +170,12 @@
                 </div>
             </form>
         </div>
+      </div>
     </div>
 
     <script src="{% static 'js/form_handler.js' %}"></script>
+    <script src="{% static 'js/password_toggle.js' %}"></script>
+    <script src="{% static 'js/password_match.js' %}"></script>
     <script src="{% static 'js/teacher_signup.js' %}"></script>
 
     {% include "school/footer.html" %}

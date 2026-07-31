@@ -152,20 +152,20 @@ export default function Menu({ userRole, isClassTeacher = false, permissions = [
           <Link
             to="/staff-dashboard"
             title="Dashboard"
-            className={`relative flex items-center justify-center lg:justify-start gap-3 py-2.5 px-2 lg:px-3 rounded-xl transition-all duration-150 ${
+            className={`relative flex items-center justify-start gap-3 py-2.5 px-2 lg:px-3 rounded-xl transition-all duration-150 ${
               location.pathname === '/staff-dashboard'
                 ? "bg-blue-600 text-white font-semibold shadow-sm shadow-blue-200"
                 : "text-slate-500 hover:bg-slate-100 hover:text-slate-800"
             }`}
           >
             <Home className={`w-[18px] h-[18px] shrink-0 ${location.pathname === '/staff-dashboard' ? "text-white" : "text-slate-400"}`} />
-            <span className="hidden lg:block text-[13px]">Dashboard</span>
+            <span className="block text-[13px]">Dashboard</span>
           </Link>
         </div>
 
         {visibleItems.length > 0 && (
           <div className="flex flex-col gap-1">
-            <span className="hidden lg:block text-slate-400 font-bold mb-1 px-2 text-[10px] tracking-widest uppercase">
+            <span className="block text-slate-400 font-bold mb-1 px-2 text-[10px] tracking-widest uppercase">
               Your Modules
             </span>
             {visibleItems.map((item) => {
@@ -175,14 +175,14 @@ export default function Menu({ userRole, isClassTeacher = false, permissions = [
                   to={item.href}
                   key={item.href}
                   title={item.label}
-                  className={`relative flex items-center justify-center lg:justify-start gap-3 py-2.5 px-2 lg:px-3 rounded-xl transition-all duration-150 ${
+                  className={`relative flex items-center justify-start gap-3 py-2.5 px-2 lg:px-3 rounded-xl transition-all duration-150 ${
                     isActive
                       ? "bg-blue-600 text-white font-semibold shadow-sm shadow-blue-200"
                       : "text-slate-500 hover:bg-slate-100 hover:text-slate-800"
                   }`}
                 >
                   <item.icon className={`w-[18px] h-[18px] shrink-0 ${isActive ? "text-white" : "text-slate-400"}`} />
-                  <span className="hidden lg:block text-[13px] truncate">{item.label}</span>
+                  <span className="block text-[13px] truncate">{item.label}</span>
                 </Link>
               );
             })}
@@ -190,29 +190,29 @@ export default function Menu({ userRole, isClassTeacher = false, permissions = [
         )}
 
         <div className="flex flex-col gap-1">
-          <span className="hidden lg:block text-slate-400 font-bold mb-1 px-2 text-[10px] tracking-widest uppercase">
+          <span className="block text-slate-400 font-bold mb-1 px-2 text-[10px] tracking-widest uppercase">
             User
           </span>
           <Link
             to="/staff-dashboard/profile"
             title="Profile"
-            className={`relative flex items-center justify-center lg:justify-start gap-3 py-2.5 px-2 lg:px-3 rounded-xl transition-all duration-150 ${
+            className={`relative flex items-center justify-start gap-3 py-2.5 px-2 lg:px-3 rounded-xl transition-all duration-150 ${
               location.pathname === '/staff-dashboard/profile'
                 ? "bg-blue-600 text-white font-semibold shadow-sm shadow-blue-200"
                 : "text-slate-500 hover:bg-slate-100 hover:text-slate-800"
             }`}
           >
             <User className={`w-[18px] h-[18px] shrink-0 ${location.pathname === '/staff-dashboard/profile' ? "text-white" : "text-slate-400"}`} />
-            <span className="hidden lg:block text-[13px]">Profile</span>
+            <span className="block text-[13px]">Profile</span>
           </Link>
           <a
             href="http://localhost:8000/logout/"
             title="Logout"
             onClick={clearActivity}
-            className="group flex items-center justify-center lg:justify-start gap-3 py-2.5 px-2 lg:px-3 rounded-xl transition-colors text-red-500 hover:bg-red-50 hover:text-red-700 font-medium"
+            className="group flex items-center justify-start gap-3 py-2.5 px-2 lg:px-3 rounded-xl transition-colors text-red-500 hover:bg-red-50 hover:text-red-700 font-medium"
           >
             <LogOut className="w-[18px] h-[18px] shrink-0" />
-            <span className="hidden lg:block text-[13px]">Logout</span>
+            <span className="block text-[13px]">Logout</span>
           </a>
         </div>
       </div>
@@ -235,7 +235,7 @@ export default function Menu({ userRole, isClassTeacher = false, permissions = [
 
         return (
           <div className="flex flex-col gap-1" key={section.title}>
-            <span className="hidden lg:block text-slate-400 font-bold mb-1 px-2 text-[10px] tracking-widest uppercase">
+            <span className="block text-slate-400 font-bold mb-1 px-2 text-[10px] tracking-widest uppercase">
               {section.title}
             </span>
             {visibleItems.map((item) => {
@@ -248,10 +248,10 @@ export default function Menu({ userRole, isClassTeacher = false, permissions = [
                     key={item.label}
                     title={item.label}
                     onClick={clearActivity}
-                    className="group flex items-center justify-center lg:justify-start gap-3 py-2.5 px-2 lg:px-3 rounded-xl transition-colors text-red-500 hover:bg-red-50 hover:text-red-700 font-medium"
+                    className="group flex items-center justify-start gap-3 py-2.5 px-2 lg:px-3 rounded-xl transition-colors text-red-500 hover:bg-red-50 hover:text-red-700 font-medium"
                   >
                     <item.icon className="w-[18px] h-[18px] shrink-0" />
-                    <span className="hidden lg:block text-[13px]">{item.label}</span>
+                    <span className="block text-[13px]">{item.label}</span>
                   </a>
                 );
               }
@@ -270,14 +270,14 @@ export default function Menu({ userRole, isClassTeacher = false, permissions = [
                   to={dynamicHref}
                   key={item.label}
                   title={item.label}
-                  className={`relative flex items-center justify-center lg:justify-start gap-3 py-2.5 px-2 lg:px-3 rounded-xl transition-all duration-150 ${
+                  className={`relative flex items-center justify-start gap-3 py-2.5 px-2 lg:px-3 rounded-xl transition-all duration-150 ${
                     isActive
                       ? "bg-blue-600 text-white font-semibold shadow-sm shadow-blue-200"
                       : "text-slate-500 hover:bg-slate-100 hover:text-slate-800"
                   }`}
                 >
                   <IconComponent className={`w-[18px] h-[18px] shrink-0 ${isActive ? "text-white" : "text-slate-400 group-hover:text-slate-600"}`} />
-                  <span className="hidden lg:block text-[13px] truncate">{item.label}</span>
+                  <span className="block text-[13px] truncate">{item.label}</span>
                 </Link>
               );
             })}

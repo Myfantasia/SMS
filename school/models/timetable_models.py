@@ -68,6 +68,11 @@ class LessonAllocation(models.Model):
 
     is_double_period = models.BooleanField(default=False)
 
+    # Pins a manually-corrected placement so it survives both a scoped allocation-sync
+    # regeneration and a full Auto-Generate re-run — see generate_lessons_for_scope and
+    # sync_timetable_with_allocation_changes in school/views/views_timetable.py.
+    is_locked = models.BooleanField(default=False)
+
     class Meta:
         # THE COLLISION ENGINE: Database-level strict clash prevention!
         unique_together = (
@@ -86,6 +91,16 @@ class TimetablePedagogyPolicy(models.Model):
     SINGLETON MODEL: Governs cognitive fatigue and instructional distribution rules.
     Allows admins to adjust scheduling boundaries directly from the dashboard.
     """
+    ENFORCEMENT_CHOICES = [
+        ('STRICT', 'Strict Hard Blocks (Prevent Saves)'),
+        ('SOFT', 'Soft Enforcement (Allow Saves with Warnings)'),
+    ]
+
+    # Independent of GlobalAllocationPolicy.enforcement_mode (Allocations' own strictness
+    # switch) — this one governs only whether the fatigue/spacing rules below hard-block
+    # scheduling or just warn, so loosening one side never silently loosens the other.
+    enforcement_mode = models.CharField(max_length=10, choices=ENFORCEMENT_CHOICES, default='STRICT')
+
     # --- EXISTING FATIGUE CONTROLS ---
     max_consecutive_periods = models.PositiveIntegerField(
         default=3,

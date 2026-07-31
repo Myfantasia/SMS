@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useOutletContext, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Wand2 } from 'lucide-react';
 import TimetableHeader from './TimetableHeader';
 import TimetableBuckets from './TimetableBuckets';
 import TimetableGrid from './TimetableGrid';
@@ -11,6 +11,7 @@ import ViewBlockModal from './ViewBlockModal';
 import SubstituteModal from './SubstituteModal'; 
 import type { Bucket, ClassStream, DailyCoverEntry, Lesson, Teacher, TimeSlot, Timetable } from '../../libs/types';
 import api from '../../libs/axiosInstance';
+import { pollJob } from '../../libs/pollJob';
 import TeacherAvailabilityView from './TeacherAvailability';
 import MasterTimetableView from './MasterTimetableView';
 import ScheduleUnderConstruction from './ScheduleUnderConstruction';
@@ -48,6 +49,9 @@ export default function TimetableManager() {
   
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [clearScope, setClearScope] = useState<'stream' | 'all'>('stream');
+
+  const [showGenerateConfirm, setShowGenerateConfirm] = useState(false);
+  const [generateScope, setGenerateScope] = useState<'class' | 'grade' | 'all'>('class');
 
   const [isEngineBusy, setIsEngineBusy] = useState(false);
   const [unscheduledBasket, setUnscheduledBasket] = useState<string[]>([]);
@@ -196,7 +200,7 @@ export default function TimetableManager() {
         const flatClasses: ClassStream[] = [];
         classData.data.forEach((grade: any) => {
           grade.streams.forEach((stream: any) => {
-            flatClasses.push({ id: stream.id, name: stream.name, grade_name: grade.grade_name });
+            flatClasses.push({ id: stream.id, name: stream.name, grade_name: grade.grade_name, grade_id: grade.grade_id });
           });
         });
         setClasses(flatClasses);
@@ -267,7 +271,7 @@ export default function TimetableManager() {
     if (isDailyCoverMode) fetchDailyCovers();
   }, [isDailyCoverMode, selectedDate, selectedClassId]);
 
-  const handleAutoGenerate = async () => {
+  const handleAutoGenerate = () => {
     if (role !== 'admin' || isEngineBusy || isPublished) return;
     if (!activeTimetable) {
       toast.error("Please ensure an active term is selected.");
@@ -277,16 +281,43 @@ export default function TimetableManager() {
       toast.error("Please select a class to generate a timetable for.");
       return;
     }
+    setGenerateScope('class');
+    setShowGenerateConfirm(true);
+  };
+
+  const confirmAutoGenerate = async () => {
+    if (!activeTimetable || isEngineBusy || isPublished) return;
+    setShowGenerateConfirm(false);
+
+    const currentGradeId = classes.find((c) => c.id === selectedClassId)?.grade_id;
+    const scopeParams = generateScope === 'class' && selectedClassId
+      ? `stream_id=${selectedClassId}`
+      : generateScope === 'grade' && currentGradeId
+        ? `grade_id=${currentGradeId}`
+        : 'scope=all';
 
     setIsEngineBusy(true);
     setUnscheduledBasket([]);
     const loadingToast = toast.loading("Scheduling algorithm compiling models...");
 
     try {
-      const res = await api.post(`/api/timetable/auto-generate/${activeTimetable.id}/?stream_id=${selectedClassId}`);
+      const res = await api.post(`/api/timetable/auto-generate/${activeTimetable.id}/?${scopeParams}`);
       const data = res.data;
-      
-      if (data.status === 'success') { 
+
+      if (res.status === 202 && data.job_id) {
+        // The engine run itself now happens in a Celery worker (see school/tasks.py) —
+        // poll until it finishes instead of getting the result inline.
+        try {
+          const result = await pollJob<{ message: string; unscheduled_basket?: string[] }>(data.job_id);
+          toast.success(result.message, { id: loadingToast });
+          if (result.unscheduled_basket && result.unscheduled_basket.length > 0) {
+            setUnscheduledBasket(result.unscheduled_basket);
+          }
+          await fetchGridData();
+        } catch (jobError: any) {
+          toast.error(jobError.message || "Critical compilation abort.", { id: loadingToast });
+        }
+      } else if (data.status === 'success') {
         toast.success(data.message, { id: loadingToast });
         if (data.unscheduled_basket && data.unscheduled_basket.length > 0) {
           setUnscheduledBasket(data.unscheduled_basket);
@@ -370,6 +401,25 @@ export default function TimetableManager() {
       toast.error("Error removing lesson.");
     }
     setLessonToDelete(null);
+  };
+
+  // Pins/unpins a lesson against the auto-generator and the allocation-change sync engine —
+  // doesn't alter what's scheduled, so (unlike add/remove) it's allowed even on a Published
+  // timetable: locking is precisely how an admin protects a finalized placement.
+  const handleToggleLock = async (lessonId: number) => {
+    if (role !== 'admin' || isEngineBusy) return;
+    try {
+      const res = await api.post(`/api/timetable/toggle-lesson-lock/${lessonId}/`);
+      if (res.data.status === 'success') {
+        toast.success(res.data.is_locked ? "Lesson locked." : "Lesson unlocked.");
+        fetchGridData();
+      } else {
+        toast.error(res.data.message || "Failed to toggle lock.");
+      }
+    } catch (error) {
+      console.error("Error toggling lesson lock:", error);
+      toast.error("Error toggling lesson lock.");
+    }
   };
 
   // --- UPGRADED RELATIONAL INTEGRITY PLACEMENT ENGINE ---
@@ -532,6 +582,7 @@ export default function TimetableManager() {
             setLessonToDelete={safeSetLessonToDelete}
             setViewBlockLessons={setViewBlockLessons}
             role={role}
+            onToggleLock={handleToggleLock}
             isDailyCoverMode={isDailyCoverMode}
             setCoverAllocationId={setCoverAllocationId}
             dailyCovers={dailyCovers}
@@ -660,6 +711,57 @@ export default function TimetableManager() {
                 <button onClick={() => setShowClearConfirm(false)} className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-600 rounded-lg font-bold hover:bg-slate-50">Cancel</button>
                 <button onClick={confirmClearGrid} className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700">
                   {clearScope === 'all' ? 'Clear Entire School' : `Clear ${currentClassLabel}`}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {showGenerateConfirm && (() => {
+        const currentClass = classes.find(c => c.id === selectedClassId);
+        const currentClassLabel = currentClass
+          ? (currentClass.name.toLowerCase().includes(currentClass.grade_name.toLowerCase()) ? currentClass.name : `${currentClass.grade_name} ${currentClass.name}`)
+          : 'the selected class';
+        const currentGradeName = currentClass?.grade_name ?? 'this grade';
+        return (
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-70 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-fade-in p-6 text-center space-y-4">
+              <div className="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-2">
+                <Wand2 className="w-6 h-6" />
+              </div>
+              <h3 className="font-bold text-xl text-slate-800">Auto-Generate Timetable</h3>
+
+              {/* Same explicit scope pattern as Clear Grid above — Auto-Generate can run for
+                  just the selected class, every stream in its grade, or the whole school. */}
+              <div className="flex flex-col gap-2 text-left">
+                <label className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${generateScope === 'class' ? 'border-indigo-300 bg-indigo-50/60' : 'border-slate-200 hover:bg-slate-50'}`}>
+                  <input type="radio" name="generate-scope" className="mt-1" checked={generateScope === 'class'} onChange={() => setGenerateScope('class')} />
+                  <span>
+                    <span className="block text-sm font-bold text-slate-800">Just {currentClassLabel}</span>
+                    <span className="block text-xs text-slate-500">Generates lessons for this class only. Other classes are untouched.</span>
+                  </span>
+                </label>
+                <label className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${generateScope === 'grade' ? 'border-indigo-300 bg-indigo-50/60' : 'border-slate-200 hover:bg-slate-50'}`}>
+                  <input type="radio" name="generate-scope" className="mt-1" checked={generateScope === 'grade'} onChange={() => setGenerateScope('grade')} />
+                  <span>
+                    <span className="block text-sm font-bold text-slate-800">All of {currentGradeName}</span>
+                    <span className="block text-xs text-slate-500">Generates every stream in this grade in one run.</span>
+                  </span>
+                </label>
+                <label className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${generateScope === 'all' ? 'border-indigo-300 bg-indigo-50/60' : 'border-slate-200 hover:bg-slate-50'}`}>
+                  <input type="radio" name="generate-scope" className="mt-1" checked={generateScope === 'all'} onChange={() => setGenerateScope('all')} />
+                  <span>
+                    <span className="block text-sm font-bold text-slate-800">The entire school</span>
+                    <span className="block text-xs text-slate-500">Generates every class in this term. Locked lessons are always left untouched.</span>
+                  </span>
+                </label>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button onClick={() => setShowGenerateConfirm(false)} className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-600 rounded-lg font-bold hover:bg-slate-50">Cancel</button>
+                <button onClick={confirmAutoGenerate} className="flex-1 px-4 py-2.5 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700">
+                  {generateScope === 'all' ? 'Generate Whole School' : generateScope === 'grade' ? `Generate ${currentGradeName}` : `Generate ${currentClassLabel}`}
                 </button>
               </div>
             </div>

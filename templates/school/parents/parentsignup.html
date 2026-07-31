@@ -7,13 +7,15 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="{% static 'css/navbar.css' %}?v=3">
-    <link rel="stylesheet" href="{% static 'css/auth_style.css' %}?v=4">
+    <link rel="stylesheet" href="{% static 'css/auth_style.css' %}?v=7">
     <link rel="stylesheet" href="{% static 'css/spinner.css' %}">
 </head>
 <body class="role-parent">
     {% include "school/navbar.html" %}
 
     <div class="login-wrapper">
+      <div class="auth-shell wide">
+        {% include "school/auth_visual.html" with visual_role="parent" visual_icon="fa-people-roof" visual_kind="REGISTRATION" %}
         <div class="login-card wide-card">
             <div class="login-header">
                 <div class="header-icon-badge"><i class="fas fa-user-friends"></i></div>
@@ -66,13 +68,25 @@
 
                 <div class="form-row">
                     <div class="form-group col-half">
-                        <label class="field-label">Create Password</label>
-                        <div class="input-icon-wrap">
+                        <label class="field-label" for="password">Create Password</label>
+                        <div class="password-wrapper input-icon-wrap">
                             <i class="fas fa-lock input-icon"></i>
-                            <input type="password" name="password" class="form-control" placeholder="Create a strong password" required>
+                            <input type="password" id="password" name="password" class="form-control" placeholder="Create a strong password" required minlength="8">
+                            <i class="fas fa-eye toggle-pass" data-target="password"></i>
                         </div>
                         <div class="input-hint"><i class="fas fa-circle-info"></i> We recommend at least 8 characters, avoiding common words.</div>
                     </div>
+                    <div class="form-group col-half">
+                        <label class="field-label" for="password2">Confirm Password</label>
+                        <div class="password-wrapper input-icon-wrap">
+                            <i class="fas fa-lock input-icon"></i>
+                            <input type="password" id="password2" name="password2" class="form-control" placeholder="Repeat password" required>
+                            <i class="fas fa-eye toggle-pass" data-target="password2"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-row">
                     <div class="form-group col-half">
                         <label class="field-label">Parent Mobile Number</label>
                         <div class="input-icon-wrap">
@@ -97,29 +111,24 @@
                 </div>
 
                 <div class="verification-section">
-                    <h4>Child Verification</h4>
-                    <p>Please enter your child's details exactly as registered.</p>
+                    <h4>Link Your Child(ren)</h4>
+                    <p>Search by name or admission number and select each child below — you can link more than one.</p>
 
                     <div class="form-group">
-                        <label class="field-label">Child's Admission No.</label>
+                        <label class="field-label">Search for Your Child</label>
                         <div class="input-icon-wrap">
-                            <i class="fas fa-id-card input-icon"></i>
-                            <input type="text" name="child_roll" class="form-control" placeholder="e.g. ADM-2026001" required>
+                            <i class="fas fa-search input-icon"></i>
+                            <input type="text" id="child_search_input" class="form-control" placeholder="Type a name or admission number..." autocomplete="off">
                         </div>
-                        <div class="input-hint"><i class="fas fa-circle-info"></i> Exactly as printed on their admission letter or report card.</div>
+                        <div id="child_search_results" class="child-search-results" hidden></div>
                     </div>
 
-                    <div class="form-row">
-                        <div class="form-group col-half">
-                            <label class="field-label">Child's First Name</label>
-                            <input type="text" name="child_first_name" class="form-control" placeholder="e.g. Kamau" required>
-                        </div>
-                        <div class="form-group col-half">
-                            <label class="field-label">Child's Last Name</label>
-                            <input type="text" name="child_last_name" class="form-control" placeholder="e.g. Ochieng" required>
-                        </div>
-                    </div>
-                    <div class="input-hint"><i class="fas fa-circle-info"></i> Must match the name on their student record exactly, or verification will fail.</div>
+                    <div id="selected_children_list" class="selected-children-list"></div>
+                    <p id="no_children_hint" class="input-hint">
+                        <i class="fas fa-circle-info"></i> No children linked yet — search above and select at least one.
+                    </p>
+
+                    <input type="hidden" name="selected_student_ids" id="selected_student_ids">
                 </div>
 
                 <button type="submit" class="btn-login">
@@ -131,9 +140,13 @@
                 <div class="signup-link"><p>Already registered? <a href="/parentlogin">Access Portal</a></p></div>
             </form>
         </div>
+      </div>
     </div>
 
     <script src="{% static 'js/form_handler.js' %}"></script>
+    <script src="{% static 'js/password_toggle.js' %}"></script>
+    <script src="{% static 'js/password_match.js' %}"></script>
+    <script src="{% static 'js/parent_signup.js' %}"></script>
     {% include "school/footer.html" %}
 </body>
 </html>

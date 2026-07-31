@@ -8,14 +8,16 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="{% static 'css/navbar.css' %}?v=3">
-    <link rel="stylesheet" href="{% static 'css/auth_style.css' %}?v=4">
-    <link rel="stylesheet" href="{% static 'css/success_popup.css' %}?v=2">
+    <link rel="stylesheet" href="{% static 'css/auth_style.css' %}?v=7">
+    <link rel="stylesheet" href="{% static 'css/success_popup.css' %}?v=3">
 </head>
 <body class="role-student">
     {% include "school/navbar.html" %}
     {% include "school/success_popup.html" %}
 
     <div class="login-wrapper">
+      <div class="auth-shell">
+        {% include "school/auth_visual.html" with visual_role="student" visual_icon="fa-user-graduate" %}
         <div class="login-card">
             <div class="login-header">
                 <div class="header-icon-badge"><i class="fas fa-book-reader"></i></div>
@@ -42,9 +44,10 @@
                 </div>
 
                 <div class="form-group">
-                    <div class="input-icon-wrap">
+                    <div class="password-wrapper input-icon-wrap">
                         <i class="fas fa-lock input-icon"></i>
-                        <input type="password" name="password" class="form-control" placeholder="Password" required>
+                        <input type="password" name="password" id="password" class="form-control" placeholder="Password" required>
+                        <i class="fas fa-eye toggle-pass" data-target="password"></i>
                     </div>
                 </div>
 
@@ -55,10 +58,12 @@
                 <div class="signup-link">New? <a href="/studentsignup">Register</a></div>
             </form>
         </div>
+      </div>
     </div>
 
     {% include "school/footer.html" %}
 <script src="{% static 'js/success_popup.js' %}"></script>
 <script src="{% static 'js/form_handler.js' %}"></script>
+<script src="{% static 'js/password_toggle.js' %}"></script>
 </body>
 </html>

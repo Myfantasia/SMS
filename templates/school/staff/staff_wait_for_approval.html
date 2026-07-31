@@ -1,48 +1,22 @@
 <!DOCTYPE html>
 {% load static %}
-<html lang="en" dir="ltr">
-
+<html lang="en">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-    <title>Application Pending | SMS</title>
-
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Application Pending | MyFantasia</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-
-    <link rel="stylesheet" href="{% static 'css/auth_style.css' %}?v=4">
+    <link rel="stylesheet" href="{% static 'css/navbar.css' %}?v=3">
+    <link rel="stylesheet" href="{% static 'css/auth_style.css' %}?v=7">
+    <link rel="stylesheet" href="{% static 'css/success_popup.css' %}?v=3">
 </head>
-
-<body>
+<body class="role-staff">
     {% include "school/navbar.html" %}
 
-    <div class="login-wrapper">
-        <div class="login-card" style="text-align: center;">
-            <div class="login-header" style="margin-bottom: 10px;">
-                <i class="fas fa-hourglass-half fa-3x pending-icon" style="margin-bottom: 20px;"></i>
-                <h2>Application Under Review</h2>
-            </div>
+    {% include "school/_wait_for_approval_card.html" with role="staff" visual_icon="fa-briefcase" wait_note="Once approved, an administrator will also assign you a Role (e.g. Librarian, Finance Officer) — that's what determines which modules you'll see." %}
 
-            <div class="status-box">
-                <strong>Welcome, {{ request.user.first_name }}!</strong><br><br>
-                Your registration was successful, but your account is currently pending verification.
-                The school administration will review your details shortly.
-            </div>
-
-            <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 30px;">
-                Once approved, an administrator will also assign you a Role (e.g. Librarian, Finance Officer)
-                on the Roles &amp; Permissions page — that's what determines which modules you'll see.
-            </p>
-
-            <div style="display: flex; flex-direction: column; gap: 15px;">
-                <a href="{% url 'logout' %}" class="click-btn btn-primary-ghost" style="color: #f87171; border-color: rgba(248, 113, 113, 0.3);">
-                    <i class="fas fa-sign-out-alt"></i> Logout for Now
-                </a>
-            </div>
-        </div>
-    </div>
-
+    <script src="{% static 'js/success_popup.js' %}"></script>
     {% include "school/footer.html" %}
 </body>
-
 </html>

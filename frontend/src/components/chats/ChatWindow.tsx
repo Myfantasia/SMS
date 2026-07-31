@@ -10,7 +10,8 @@ import {
   Loader2,
   Image as ImageIcon,
   MapPin,
-  Megaphone
+  Megaphone,
+  ArrowLeft
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useChat } from './ChatProvider';
@@ -39,7 +40,7 @@ const CONNECTION_LABELS: Record<string, string> = {
 const GROUPING_WINDOW_MS = 5 * 60 * 1000;
 
 export default function ChatWindow() {
-  const { activeThreadId, inboxThreads } = useChat();
+  const { activeThreadId, inboxThreads, setActiveThread } = useChat();
   const { userId, role } = useOutletContext<DashboardContextType>();
   const { messages, connectionStatus, sendMessage, editMessage, deleteMessage, sendTyping } =
     useChatSocket(activeThreadId);
@@ -200,12 +201,22 @@ export default function ChatWindow() {
     <div className="flex flex-col h-full bg-slate-50 relative">
 
       {/* HEADER BAR */}
-      <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-white z-10 shadow-sm shrink-0">
+      <div className="p-4 border-b border-slate-200 flex items-center gap-1 justify-between bg-white z-10 shadow-sm shrink-0">
+        {/* Below `md` the thread list is hidden once a chat is open (see ChatDashboard.tsx) —
+            this is the only way back to it on a phone-width screen. */}
+        <button
+          type="button"
+          onClick={() => setActiveThread(null)}
+          aria-label="Back to conversations"
+          className="md:hidden shrink-0 -m-1 p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </button>
         <button
           type="button"
           onClick={() => canOpenParticipants && setShowParticipants(true)}
           disabled={!canOpenParticipants}
-          className={`flex items-center gap-3 min-w-0 rounded-lg -m-1 p-1 transition-colors ${canOpenParticipants ? 'hover:bg-slate-50 cursor-pointer' : 'cursor-default'}`}
+          className={`flex items-center gap-3 min-w-0 flex-1 rounded-lg -m-1 p-1 transition-colors ${canOpenParticipants ? 'hover:bg-slate-50 cursor-pointer' : 'cursor-default'}`}
           title={canOpenParticipants ? 'View participants' : undefined}
         >
           <div className={`shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${getThreadColor(currentThread?.type || 'Direct')}`}>

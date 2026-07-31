@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Layers, BookOpen, Library, ArrowRight } from 'lucide-react';
+import { Layers, BookOpen, Library, ArrowRight, Building2 } from 'lucide-react';
 import ClassesCard from './ClassesCard';
 import SubjectsCard from './SubjectsCard';
+import DepartmentsCard from './DepartmentsCard';
 
 // 1. Import the Modals
 import AddGradeModal from './AddGradeModal';
 import AddSubjectModal from './AddSubjectModal';
+import AddDepartmentModal from './AddDepartmentModal';
 import AddStreamModal from './AddStreamModal'; // NEW: Import the Stream Modal
 import EditGradeModal from './EditGradeModal';
 import api from '../../libs/axiosInstance';
@@ -14,6 +16,9 @@ import api from '../../libs/axiosInstance';
 interface GradeSummary {
   id: number;
   grade_name: string;
+  numeric_order?: number;
+  curriculum_id?: number | null;
+  tier_id?: number | null;
 }
 
 interface Tier {
@@ -23,14 +28,45 @@ interface Tier {
   code: string;
 }
 
+interface Curriculum {
+  id: number;
+  code: string;
+  name: string;
+  is_active_for_new_grades: boolean;
+  is_archived: boolean;
+}
+
+interface SubjectCurriculumProfile {
+  id: number;
+  subject: number;
+  curriculum: number;
+  tier: number | null;
+  is_core: boolean | null;
+  total_lessons: number | null;
+}
+
+interface Department {
+  id: number;
+  name: string;
+  code: string;
+  description: string;
+  is_active: boolean;
+  subject_count: number;
+}
+
 export default function AcademicHub() {
   const [data, setData] = useState({ classes: [], subjects: [] });
   const [loading, setLoading] = useState(true);
   const [tiers, setTiers] = useState<Tier[]>([]);
+  const [curricula, setCurricula] = useState<Curriculum[]>([]);
+  const [subjectProfiles, setSubjectProfiles] = useState<SubjectCurriculumProfile[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [activeTab, setActiveTab] = useState<'grades' | 'subjects' | 'departments'>('grades');
 
   // 2. State to control modal visibility
   const [isGradeModalOpen, setGradeModalOpen] = useState(false);
   const [isSubjectModalOpen, setSubjectModalOpen] = useState(false);
+  const [isDepartmentModalOpen, setDepartmentModalOpen] = useState(false);
   const [editingGrade, setEditingGrade] = useState<GradeSummary | null>(null);
 
   // NEW: State for the Stream Modal
@@ -63,21 +99,46 @@ const fetchAcademicData = () => {
     });
 };
 
-  useEffect(() => {
-    fetchAcademicData();
+  // Curricula/tiers/profiles power the subject's curriculum assignment picker and the
+  // "which curricula teach this" badges — refetched alongside subjects/grades so a new
+  // assignment (made here or in Curriculum Hub) shows up immediately.
+  const fetchCurriculumMeta = () => {
     api.get('/api/core/curriculum/tiers/')
       .then(res => setTiers(res.data ?? []))
       .catch(err => console.error('Failed to load tiers', err));
+    api.get('/api/core/curriculum/curricula/')
+      .then(res => setCurricula(res.data ?? []))
+      .catch(err => console.error('Failed to load curricula', err));
+    api.get('/api/core/curriculum/subject-profiles/')
+      .then(res => setSubjectProfiles(res.data ?? []))
+      .catch(err => console.error('Failed to load subject profiles', err));
+  };
+
+  const fetchDepartments = () => {
+    api.get('/api/departments/')
+      .then(res => {
+        if (res.data.status === 'success') setDepartments(res.data.data);
+      })
+      .catch(err => console.error('Failed to load departments', err));
+  };
+
+  const refreshAll = () => {
+    fetchAcademicData();
+    fetchCurriculumMeta();
+    fetchDepartments();
+  };
+
+  useEffect(() => {
+    fetchAcademicData();
+    fetchCurriculumMeta();
+    fetchDepartments();
   }, []);
 
   if (loading) {
     return (
       <div className="max-w-7xl mx-auto space-y-6 animate-pulse">
         <div className="h-12 w-80 bg-slate-200 rounded-2xl"></div>
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-          <div className="h-96 bg-slate-200 rounded-2xl"></div>
-          <div className="h-96 bg-slate-200 rounded-2xl"></div>
-        </div>
+        <div className="h-96 bg-slate-200 rounded-2xl"></div>
       </div>
     );
   }
@@ -104,69 +165,117 @@ const fetchAcademicData = () => {
         </Link>
       </div>
 
-      {/* Side-by-Side Cards Layout */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
-        
-        {/* Classes Card */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col h-96">
-          <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-            <div className="flex items-center gap-2">
-              <Layers className="w-5 h-5 text-blue-600" />
-              <h2 className="font-semibold text-slate-800">Grades & Streams</h2>
-            </div>
-            {/* 4. Wired up the button to open the Grade Modal */}
-            <button 
+      {/* Tabbed Layout — each entity gets the full width to show its own detail */}
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col">
+        <div className="px-4 pt-3 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 flex-wrap gap-y-2">
+          <div className="flex items-center gap-1 flex-wrap">
+            <button
+              onClick={() => setActiveTab('grades')}
+              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-colors ${
+                activeTab === 'grades'
+                  ? 'border-blue-600 text-blue-700'
+                  : 'border-transparent text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <Layers className="w-4 h-4" /> Grades & Streams
+            </button>
+            <button
+              onClick={() => setActiveTab('subjects')}
+              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-colors ${
+                activeTab === 'subjects'
+                  ? 'border-emerald-600 text-emerald-700'
+                  : 'border-transparent text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <BookOpen className="w-4 h-4" /> Master Curriculum
+            </button>
+            <button
+              onClick={() => setActiveTab('departments')}
+              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-colors ${
+                activeTab === 'departments'
+                  ? 'border-indigo-600 text-indigo-700'
+                  : 'border-transparent text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <Building2 className="w-4 h-4" /> Departments
+            </button>
+          </div>
+
+          {activeTab === 'grades' && (
+            <button
               onClick={() => setGradeModalOpen(true)}
               title="Click to add a new Grade Level"
-              className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700 transition">
+              className="mb-2.5 bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700 transition">
               + New Grade
             </button>
-          </div>
-          <div className="p-0 overflow-y-auto flex-1">
-             {/* NEW: Passed the onAddStream trigger down to the ClassesCard */}
-             <ClassesCard
-               grades={data.classes}
-               tiers={tiers}
-               onRefresh={fetchAcademicData}
-               onAddStream={(gradeId, gradeName) => setStreamModalConfig({ isOpen: true, gradeId, gradeName })}
-               onEditGrade={(grade) => setEditingGrade(grade)}
-             />
-          </div>
-        </div>
-
-        {/* Subjects Card */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col h-96">
-          <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-            <div className="flex items-center gap-2">
-              <BookOpen className="w-5 h-5 text-emerald-600" />
-              <h2 className="font-semibold text-slate-800">Master Curriculum</h2>
-            </div>
-            {/* 4. Wired up the button to open the Subject Modal */}
-            <button 
+          )}
+          {activeTab === 'subjects' && (
+            <button
               onClick={() => setSubjectModalOpen(true)}
               title="Click to add a new Master Subject"
-              className="bg-emerald-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-emerald-700 transition">
+              className="mb-2.5 bg-emerald-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-emerald-700 transition">
               + New Subject
             </button>
-          </div>
-          <div className="p-0 overflow-y-auto flex-1">
-            <SubjectsCard subjects={data.subjects} onRefresh={fetchAcademicData} />
-          </div>
+          )}
+          {activeTab === 'departments' && (
+            <button
+              onClick={() => setDepartmentModalOpen(true)}
+              title="Click to add a new Department"
+              className="mb-2.5 bg-indigo-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-indigo-700 transition">
+              + New Department
+            </button>
+          )}
         </div>
 
+        <div className="p-0 overflow-y-auto flex-1 max-h-[32rem]">
+          {activeTab === 'grades' && (
+            <ClassesCard
+              grades={data.classes}
+              tiers={tiers}
+              onRefresh={fetchAcademicData}
+              onAddStream={(gradeId, gradeName) => setStreamModalConfig({ isOpen: true, gradeId, gradeName })}
+              onEditGrade={(grade) => setEditingGrade(grade)}
+            />
+          )}
+          {activeTab === 'subjects' && (
+            <SubjectsCard
+              subjects={data.subjects}
+              curricula={curricula}
+              tiers={tiers}
+              subjectProfiles={subjectProfiles}
+              departments={departments}
+              onRefresh={refreshAll}
+            />
+          )}
+          {activeTab === 'departments' && (
+            <DepartmentsCard
+              departments={departments}
+              onRefresh={fetchDepartments}
+            />
+          )}
+        </div>
       </div>
 
       {/* 5. Render the Modals */}
-      <AddGradeModal 
-        isOpen={isGradeModalOpen} 
-        onClose={() => setGradeModalOpen(false)} 
-        onSuccess={fetchAcademicData} 
+      <AddGradeModal
+        isOpen={isGradeModalOpen}
+        onClose={() => setGradeModalOpen(false)}
+        onSuccess={fetchAcademicData}
       />
 
-      <AddSubjectModal 
-        isOpen={isSubjectModalOpen} 
-        onClose={() => setSubjectModalOpen(false)} 
-        onSuccess={fetchAcademicData} 
+      <AddSubjectModal
+        isOpen={isSubjectModalOpen}
+        curricula={curricula}
+        tiers={tiers}
+        departments={departments}
+        onClose={() => setSubjectModalOpen(false)}
+        onSuccess={refreshAll}
+      />
+
+      <AddDepartmentModal
+        isOpen={isDepartmentModalOpen}
+        onClose={() => setDepartmentModalOpen(false)}
+        onSuccess={fetchDepartments}
       />
 
       {/* NEW: Render the Stream Modal */}

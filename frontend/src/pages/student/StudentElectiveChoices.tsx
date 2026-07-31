@@ -7,7 +7,7 @@ interface ElectiveOption {
   subject_id: number;
   subject_name: string;
   subject_code: string;
-  department: string;
+  department_name: string | null;
   status: 'Pending' | 'Approved' | 'Rejected' | null;
   enrollment_id: number | null;
 }
@@ -119,7 +119,7 @@ export default function StudentElectiveChoices() {
                   <span className="text-xs text-slate-400 font-mono">{e.subject_code}</span>
                 </div>
               </td>
-              <td className="px-6 py-4 text-slate-500">{e.department}</td>
+              <td className="px-6 py-4 text-slate-500">{e.department_name ?? 'Uncategorized'}</td>
               <td className="px-6 py-4">
                 {e.status ? (
                   <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${STATUS_STYLE[e.status]}`}>

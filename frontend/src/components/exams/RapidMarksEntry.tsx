@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import type { FormEvent, ChangeEvent } from 'react'; 
+import type { FormEvent } from 'react';
 import { Save, AlertCircle, CheckCircle2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../libs/axiosInstance';
+import SearchableSelect from '../common/SearchableSelect';
 
 // --- Interfaces mapping to our Django Serializers ---
 interface StudentInfo {
@@ -141,10 +142,10 @@ const RapidMarksEntry: React.FC = () => {
   // --- HANDLERS ---
 
   const handleDropdownChange = (
-    setter: React.Dispatch<React.SetStateAction<string>>, 
-    e: ChangeEvent<HTMLSelectElement>
+    setter: React.Dispatch<React.SetStateAction<string>>,
+    value: string
   ) => {
-    setter(e.target.value);
+    setter(value);
     // Immediately clear the grid when a selection changes so old data isn't displayed
     // while waiting for the new data to fetch (or if they select an empty option).
     setStudents([]);
@@ -201,43 +202,37 @@ const RapidMarksEntry: React.FC = () => {
       <div className="bg-slate-50 border border-slate-200 p-5 rounded-lg grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
           <label htmlFor="select-class" className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Class Stream</label>
-          <select 
+          <SearchableSelect
             id="select-class"
-            className="w-full p-2.5 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
-            value={selectedClass}
-            onChange={(e) => handleDropdownChange(setSelectedClass, e)}
             aria-label="Class Stream"
-          >
-            <option value="">-- Select Class --</option>
-            {availableClasses.map((cls) => (
-              <option key={cls.id} value={cls.id}>{cls.name}</option>
-            ))}
-          </select>
+            value={selectedClass}
+            onChange={(v) => handleDropdownChange(setSelectedClass, v)}
+            placeholder="-- Select Class --"
+            searchPlaceholder="Search class streams…"
+            options={availableClasses.map((cls) => ({ value: String(cls.id), label: cls.name }))}
+          />
         </div>
 
         <div>
           <label htmlFor="select-subject" className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Subject</label>
-          <select 
+          <SearchableSelect
             id="select-subject"
-            className="w-full p-2.5 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
-            value={selectedSubject}
-            onChange={(e) => handleDropdownChange(setSelectedSubject, e)}
             aria-label="Subject"
-          >
-            <option value="">-- Select Subject --</option>
-            {availableSubjects.map((sub) => (
-              <option key={sub.id} value={sub.id}>{sub.name}</option>
-            ))}
-          </select>
+            value={selectedSubject}
+            onChange={(v) => handleDropdownChange(setSelectedSubject, v)}
+            placeholder="-- Select Subject --"
+            searchPlaceholder="Search subjects…"
+            options={availableSubjects.map((sub) => ({ value: String(sub.id), label: sub.name }))}
+          />
         </div>
 
         <div>
           <label htmlFor="select-exam" className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Assessment</label>
-          <select 
+          <select
             id="select-exam"
             className="w-full p-2.5 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
             value={selectedExam}
-            onChange={(e) => handleDropdownChange(setSelectedExam, e)}
+            onChange={(e) => handleDropdownChange(setSelectedExam, e.target.value)}
             aria-label="Assessment"
           >
             <option value="">-- Select Exam --</option>

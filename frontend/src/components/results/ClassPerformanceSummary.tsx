@@ -4,6 +4,8 @@ import { Search, Download, TrendingUp, AlertCircle, Award, Users, Loader2, Check
 import ClassSubjectModal from './ClassSubjectModal';
 import StudentAnalyticsModal from './StudentAnalyticsModal';
 import api from '../../libs/axiosInstance';
+import { pollJob } from '../../libs/pollJob';
+import SearchableSelect from '../common/SearchableSelect';
 
 interface BulkGenerateResult {
   message: string;
@@ -162,13 +164,16 @@ export default function ClassPerformanceSummary({ role }: ClassPerformanceSummar
 
     setIsBulkGenerating(true);
     try {
+      // The per-class compilation loop now runs in a Celery worker (see
+      // school/tasks.py:bulk_generate_term_results_task) — this just queues it.
       const response = await api.post('/api/results/bulk-generate/', {
         year: academicYear,
         term: term,
       });
-      setBulkResult(response.data);
+      const result = await pollJob<BulkGenerateResult>(response.data.job_id);
+      setBulkResult(result);
       setIsBulkConfirmOpen(false);
-      setToastMessage(response.data.message || "Bulk results compilation complete.");
+      setToastMessage(result.message || "Bulk results compilation complete.");
       fetchClassData();
     } catch (err: any) {
       const errorMessage = err.response?.data?.error || err.message || "Failed to run bulk results compilation.";
@@ -229,34 +234,20 @@ export default function ClassPerformanceSummary({ role }: ClassPerformanceSummar
 
         <div className="flex flex-col gap-1 flex-1 min-w-50">
           <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Class Stream</label>
-          <select 
-            value={classStream} 
-            onChange={(e) => setClassStream(e.target.value)}
-            title="Select class stream"
-            className="p-2 border border-slate-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-          >
-            {role === 'admin' && <option value="All">All Streams (Admin View)</option>}
-            
-            {/* ✅ FIXED: Implemented distinct `<optgroup>` paths to prioritize allocations for teachers while keeping browsing lenient */}
-            {role === 'teacher' && myStreams.length > 0 ? (
-              <>
-                <optgroup label="My Allocated Streams">
-                  {myStreams.map((stream) => (
-                    <option key={`my-${stream}`} value={stream}>{stream}</option>
-                  ))}
-                </optgroup>
-                <optgroup label="All School Streams">
-                  {availableStreams.map((stream) => (
-                    <option key={`all-${stream}`} value={stream}>{stream}</option>
-                  ))}
-                </optgroup>
-              </>
-            ) : (
-              availableStreams.map((stream) => (
-                <option key={stream} value={stream}>{stream}</option>
-              ))
-            )}
-          </select>
+          <SearchableSelect
+            aria-label="Class Stream"
+            value={classStream}
+            onChange={setClassStream}
+            searchPlaceholder="Search class streams…"
+            options={[
+              ...(role === 'admin' ? [{ value: 'All', label: 'All Streams (Admin View)' }] : []),
+              ...Array.from(new Set([...myStreams, ...availableStreams])).map((stream) => ({
+                value: stream,
+                label: stream,
+                sublabel: role === 'teacher' && myStreams.includes(stream) ? 'My Stream' : undefined,
+              })),
+            ]}
+          />
         </div>
 
         {/* BUTTON GROUP */}

@@ -8,21 +8,32 @@ interface SubjectData {
   id: number;
   code: string;
   name: string;
-  department: string;
+  department_id: number | null;
+  department_name: string | null;
   is_core: boolean;
   assigned_teachers: string[];
 }
 
-// Fixed, sensible ordering instead of whatever order the department strings happen to sort in.
-const DEPARTMENT_ORDER = ['Languages', 'Mathematics', 'Sciences', 'Humanities', 'Technical', 'None'];
+const UNCATEGORIZED = 'Uncategorized';
 
-const DEPT_STYLE: Record<string, string> = {
-  Sciences: 'bg-cyan-100 text-cyan-700 border-cyan-200',
-  Languages: 'bg-indigo-100 text-indigo-700 border-indigo-200',
-  Mathematics: 'bg-rose-100 text-rose-700 border-rose-200',
-  Humanities: 'bg-amber-100 text-amber-700 border-amber-200',
-  Technical: 'bg-purple-100 text-purple-700 border-purple-200',
-  None: 'bg-slate-100 text-slate-600 border-slate-300',
+// Departments are admin-defined (not a fixed list), so colors are hashed from the name
+// instead of switch-cased — every department still gets a stable, distinct color.
+const DEPT_PALETTE = [
+  'bg-cyan-100 text-cyan-700 border-cyan-200',
+  'bg-indigo-100 text-indigo-700 border-indigo-200',
+  'bg-rose-100 text-rose-700 border-rose-200',
+  'bg-amber-100 text-amber-700 border-amber-200',
+  'bg-emerald-100 text-emerald-700 border-emerald-200',
+  'bg-purple-100 text-purple-700 border-purple-200',
+  'bg-orange-100 text-orange-700 border-orange-200',
+  'bg-teal-100 text-teal-700 border-teal-200',
+  'bg-pink-100 text-pink-700 border-pink-200',
+];
+const deptStyle = (deptName: string) => {
+  if (deptName === UNCATEGORIZED) return 'bg-slate-100 text-slate-600 border-slate-300';
+  let hash = 0;
+  for (let i = 0; i < deptName.length; i++) hash = (hash * 31 + deptName.charCodeAt(i)) >>> 0;
+  return DEPT_PALETTE[hash % DEPT_PALETTE.length];
 };
 
 export default function SubjectsPage() {
@@ -88,20 +99,20 @@ export default function SubjectsPage() {
   }
 };
 
-  // Arrange: group by department (fixed logical order), Core subjects before Electives,
-  // alphabetical within each group — instead of one flat alphabetical dump.
+  // Arrange: group by department, alphabetically with Uncategorized last, Core subjects
+  // before Electives within each group — instead of one flat alphabetical dump.
   const departmentGroups = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
     const matches = !q ? subjects : subjects.filter((s) =>
       s.name.toLowerCase().includes(q) ||
       s.code.toLowerCase().includes(q) ||
-      s.department.toLowerCase().includes(q) ||
+      (s.department_name ?? '').toLowerCase().includes(q) ||
       s.assigned_teachers.some((t) => t.toLowerCase().includes(q))
     );
 
     const byDept = new Map<string, SubjectData[]>();
     matches.forEach((s) => {
-      const key = s.department || 'None';
+      const key = s.department_name || UNCATEGORIZED;
       if (!byDept.has(key)) byDept.set(key, []);
       byDept.get(key)!.push(s);
     });
@@ -110,10 +121,11 @@ export default function SubjectsPage() {
       list.sort((a, b) => (a.is_core === b.is_core ? a.name.localeCompare(b.name) : a.is_core ? -1 : 1));
     });
 
-    const orderedKeys = [
-      ...DEPARTMENT_ORDER.filter((d) => byDept.has(d)),
-      ...[...byDept.keys()].filter((d) => !DEPARTMENT_ORDER.includes(d)).sort(),
-    ];
+    const orderedKeys = [...byDept.keys()].sort((a, b) => {
+      if (a === UNCATEGORIZED) return 1;
+      if (b === UNCATEGORIZED) return -1;
+      return a.localeCompare(b);
+    });
 
     return orderedKeys.map((dept) => ({ department: dept, subjects: byDept.get(dept)! }));
   }, [subjects, searchTerm]);
@@ -162,8 +174,8 @@ export default function SubjectsPage() {
           {departmentGroups.map(({ department, subjects: deptSubjects }) => (
             <div key={department} className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex items-center gap-3">
-                <span className={`px-2.5 py-1 rounded-md text-xs font-bold border ${DEPT_STYLE[department] || DEPT_STYLE.None}`}>
-                  {department === 'None' ? 'Unassigned' : department}
+                <span className={`px-2.5 py-1 rounded-md text-xs font-bold border ${deptStyle(department)}`}>
+                  {department}
                 </span>
                 <span className="text-xs text-slate-400 font-medium">{deptSubjects.length} subject{deptSubjects.length !== 1 ? 's' : ''}</span>
               </div>

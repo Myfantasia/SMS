@@ -16,6 +16,7 @@ import { assignmentService } from '../../libs/assignmentService';
 import QuestionBuilder from './QuestionBuilder';
 import AssignmentOptionsPanel from './AssignmentOptionsPanel';
 import api from '../../libs/axiosInstance';
+import SearchableSelect from '../common/SearchableSelect';
 
 interface EditAssignmentProps {
   role: 'admin' | 'teacher';
@@ -291,20 +292,20 @@ export default function EditAssignment({ role }: EditAssignmentProps) {
               <UserSquare2 className="w-5 h-5 text-amber-600" />
               <h3 className="font-semibold text-amber-800">Admin Override: Assigned Teacher</h3>
             </div>
-            <select 
-              id="assigned-teacher-select"
-              className="w-full md:w-1/2 p-2.5 bg-white border border-amber-200 rounded-lg text-sm outline-none disabled:opacity-50 disabled:bg-slate-100"
-              value={assignment.teacher_id || ''}
-              onChange={(e) => handleAssignmentChange('teacher_id', e.target.value)}
-              disabled={isPublishedMode} 
-            >
-              <option value="">-- Select Teacher --</option>
-              {teachers.map(t => (
-                <option key={t.id} value={t.id}>
-                  {t.name || `${t.first_name || ''} ${t.last_name || ''}`.trim()}
-                </option>
-              ))}
-            </select>
+            <div className="w-full md:w-1/2">
+              <SearchableSelect
+                id="assigned-teacher-select"
+                value={assignment.teacher_id || ''}
+                onChange={(val) => handleAssignmentChange('teacher_id', val)}
+                disabled={isPublishedMode}
+                placeholder="-- Select Teacher --"
+                searchPlaceholder="Search teachers…"
+                options={teachers.map(t => ({
+                  value: String(t.id),
+                  label: t.name || `${t.first_name || ''} ${t.last_name || ''}`.trim(),
+                }))}
+              />
+            </div>
           </div>
         )}
 
@@ -328,22 +329,22 @@ export default function EditAssignment({ role }: EditAssignmentProps) {
                 <span>Class Stream <span className="text-red-500">*</span></span>
                 {isPublishedMode && <Lock className="w-4 h-4 text-slate-400" />}
               </label>
-              <select
+              <SearchableSelect
                 id="class-stream"
-                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none disabled:opacity-50 disabled:bg-slate-100"
+                aria-label="Class Stream"
                 value={assignment.class_stream_id || ''}
-                onChange={(e) => handleAssignmentChange('class_stream_id', e.target.value)}
+                onChange={(v) => handleAssignmentChange('class_stream_id', v)}
                 disabled={isPublishedMode}
-              >
-                <option value="">Select Class</option>
-                {classes.map((grade: any) => (
-                <optgroup key={grade.grade_id} label={grade.grade_name}>
-                  {grade.streams.map((stream: any) => (
-                  <option key={stream.id} value={stream.id}>{stream.name}</option>
-                  ))}
-                </optgroup>
-                ))}
-              </select>
+                placeholder="Select Class"
+                searchPlaceholder="Search grade or stream…"
+                options={classes.flatMap((grade: any) =>
+                  grade.streams.map((stream: any) => ({
+                    value: String(stream.id),
+                    label: stream.name.startsWith(grade.grade_name) ? stream.name.slice(grade.grade_name.length).trim() : stream.name,
+                    sublabel: grade.grade_name,
+                  }))
+                )}
+              />
             </div>
 
             <div>
@@ -351,17 +352,15 @@ export default function EditAssignment({ role }: EditAssignmentProps) {
                 <span>Subject <span className="text-red-500">*</span></span>
                 {isPublishedMode && <Lock className="w-4 h-4 text-slate-400" />}
               </label>
-              <select 
-                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none disabled:opacity-50 disabled:bg-slate-100"
+              <SearchableSelect
+                aria-label="Subject"
                 value={assignment.subject_id || ''}
-                onChange={(e) => handleAssignmentChange('subject_id', e.target.value)}
-                disabled={isPublishedMode || (role === 'admin' && !assignment.teacher_id)} 
-              >
-                <option value="">Select Subject</option>
-                {filteredSubjects.map(s => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
+                onChange={(v) => handleAssignmentChange('subject_id', v)}
+                disabled={isPublishedMode || (role === 'admin' && !assignment.teacher_id)}
+                placeholder="Select Subject"
+                searchPlaceholder="Search subjects…"
+                options={filteredSubjects.map(s => ({ value: String(s.id), label: s.name }))}
+              />
             </div>
           </div>
         </div>

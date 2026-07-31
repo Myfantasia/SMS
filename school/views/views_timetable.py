@@ -2,7 +2,7 @@ import json
 import traceback
 from django.http import JsonResponse
 from django.db import transaction
-from django.db.models import Count
+from django.db.models import Count, F
 from django.views.decorators.csrf import csrf_exempt
 from school.models.timetable_models import TimeSlot, LessonAllocation, Timetable, TimetablePedagogyPolicy, \
      DailyCover
@@ -11,14 +11,19 @@ from school.models.models import (
 )
 import random
 from school.models.classSubjects_models import (ClassStream, Subject, SubjectQuota, GradeLevel,
-                         SubjectBlock, SystemAuditLog, SubjectAllocation, GlobalAllocationPolicy)
+                         SubjectBlock, SystemAuditLog, SubjectAllocation, GlobalAllocationPolicy,
+                         QuotaDefaultRule, get_effective_department)
 from datetime import datetime
 from django.core.cache import cache
 from school.models.teachers_model import TeacherStructuralAvailability, TeacherLeave, LongTermReliefAssignment
 from school.utils import cache_unscheduled_basket_errors, build_grade_subject_block_map, get_subject_block_names, \
-    max_consecutive_run, get_block_period_structures, compute_school_allocation_gaps
+    max_consecutive_run, get_block_period_structures, compute_school_allocation_gaps, \
+    get_subjects_with_active_virtual_groups
 from django.db.models import Q
 from school.decorators import require_permission
+from school.jobs import dispatch_background_job
+from school.tasks import generate_timetable_task
+from school.views.class_views import _eligible_subjects_for
 
 @csrf_exempt
 @require_permission('timetable.view', edit_permission='timetable.edit')
@@ -216,7 +221,6 @@ def api_save_lesson(request):
         subject = Subject.objects.get(id=subject_id)
 
         pedagogy_policy = TimetablePedagogyPolicy.load()
-        global_policy = GlobalAllocationPolicy.load()
         block_map = build_grade_subject_block_map(grade_ids=[class_stream.grade_id])
 
         # ==========================================
@@ -319,7 +323,7 @@ def api_save_lesson(request):
 
                 if heavy_days_count >= 1:  # They already have a heavy day elsewhere
                     msg = f"Workload Violation: {teacher.get_name} already has a Heavy Day this week. Adding another violates the Consecutive/Multiple Heavy Days policy."
-                    if global_policy.enforcement_mode == 'STRICT':
+                    if pedagogy_policy.enforcement_mode == 'STRICT':
                         return JsonResponse({'status': 'error', 'message': msg})
                     warning_messages.append(msg)
 
@@ -330,7 +334,7 @@ def api_save_lesson(request):
 
         if (subject_daily_count + len(target_slots)) > pedagogy_policy.max_daily_subject_frequency:
             msg = f"Cognitive Load: This class exceeds the {pedagogy_policy.max_daily_subject_frequency} daily frequency limit for {subject.name}."
-            if global_policy.enforcement_mode == 'STRICT':
+            if pedagogy_policy.enforcement_mode == 'STRICT':
                 return JsonResponse({'status': 'error', 'message': msg})
             warning_messages.append(msg)
 
@@ -355,7 +359,7 @@ def api_save_lesson(request):
             if run_length > pedagogy_policy.max_consecutive_periods:
                 msg = (f"Fatigue Warning: This drop gives {teacher.get_name} a run of {run_length} consecutive "
                        f"periods on {time_slot.day}, exceeding the {pedagogy_policy.max_consecutive_periods}-period cap.")
-                if global_policy.enforcement_mode == 'STRICT':
+                if pedagogy_policy.enforcement_mode == 'STRICT':
                     return JsonResponse({'status': 'error', 'message': msg})
                 warning_messages.append(msg)
 
@@ -377,7 +381,7 @@ def api_save_lesson(request):
                 if too_close:
                     msg = (f"Spacing Violation: Another single {subject.name} lesson for {class_stream.name} on "
                            f"{time_slot.day} is closer than the required {pedagogy_policy.min_subject_spacing_periods}-period gap.")
-                    if global_policy.enforcement_mode == 'STRICT':
+                    if pedagogy_policy.enforcement_mode == 'STRICT':
                         return JsonResponse({'status': 'error', 'message': msg})
                     warning_messages.append(msg)
 
@@ -424,6 +428,16 @@ def api_remove_lesson(request, allocation_id):
     if request.method in ['DELETE', 'POST']:
         try:
             lesson = LessonAllocation.objects.get(id=allocation_id)
+
+            # Locking is an explicit admin pin against automatic sync/regeneration — removal is
+            # still a deliberate manual action, but requiring an unlock first (mirrors the
+            # AllocationPublishState publish/unpublish gate) prevents an accidental drag-off.
+            if lesson.is_locked:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'This lesson is locked. Unlock it first before removing.'
+                }, status=400)
+
             grade = lesson.class_stream.grade
 
             # --- NEW: AUDIT LOG PREP ---
@@ -437,7 +451,8 @@ def api_remove_lesson(request, allocation_id):
                     timetable_id=lesson.timetable_id,
                     time_slot_id=lesson.time_slot_id,
                     subject=lesson.subject,
-                    class_stream__grade=grade
+                    class_stream__grade=grade,
+                    is_locked=False
                 ).delete()
                 msg = f'{lesson.subject.name} removed across the grade. Buckets refilled.'
             else:
@@ -458,6 +473,37 @@ def api_remove_lesson(request, allocation_id):
         except Exception as e:
             return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
     return JsonResponse({'status': 'error', 'message': 'Invalid request method.'}, status=405)
+
+
+@csrf_exempt
+@require_permission('timetable.edit')
+def api_toggle_lesson_lock(request, allocation_id):
+    """
+    Pins/unpins a single manually-placed lesson (LessonAllocation.is_locked). A locked lesson
+    is skipped by both the auto-generator's clear/regenerate step and the allocation-change
+    sync engine (see generate_lessons_for_scope and sync_timetable_with_allocation_changes),
+    so a manual correction stays exactly where the admin put it until they explicitly unlock it.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Method not allowed.'}, status=405)
+    try:
+        lesson = LessonAllocation.objects.get(id=allocation_id)
+        lesson.is_locked = not lesson.is_locked
+        lesson.save(update_fields=['is_locked'])
+
+        SystemAuditLog.objects.create(
+            operator=request.user if request.user.is_authenticated else None,
+            action_type='UPDATE',
+            module='ManualGridAllocation',
+            description=f"{'Locked' if lesson.is_locked else 'Unlocked'} {lesson.subject.name} "
+                        f"for {lesson.class_stream.name} on the grid."
+        )
+
+        return JsonResponse({'status': 'success', 'is_locked': lesson.is_locked})
+    except LessonAllocation.DoesNotExist:
+        return JsonResponse({'status': 'error', 'message': 'Allocation not found.'}, status=404)
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 
 
 @csrf_exempt
@@ -500,7 +546,8 @@ def api_get_class_lessons(request, stream_id, timetable_id):
                             'teacher_name': teacher_name,
                             'is_double': l.is_double_period,
                             'subject_block_id': block_id,
-                            'subject_block_name': block_names.get(block_id) if block_id else None
+                            'subject_block_name': block_names.get(block_id) if block_id else None,
+                            'is_locked': l.is_locked
                         })
                         seen.add(key)
 
@@ -743,8 +790,12 @@ def generate_lessons_for_scope(timetable, streams, subject_filter=None):
 
     # Clear whatever this call is responsible for regenerating — a full stream (subject_filter has
     # no entry for it, or is None), or just the specific subjects that changed (scoped resync).
+    # is_locked=False: a manually pinned lesson is never wiped by this, whether this is a
+    # targeted resync or a full Auto-Generate re-run of the whole stream.
     for stream in streams:
-        clear_query = LessonAllocation.objects.filter(timetable=timetable, class_stream_id=stream.id)
+        clear_query = LessonAllocation.objects.filter(
+            timetable=timetable, class_stream_id=stream.id, is_locked=False
+        )
         scoped_subject_ids = subject_filter.get(stream.id) if subject_filter else None
         if scoped_subject_ids is not None:
             clear_query = clear_query.filter(subject_id__in=scoped_subject_ids)
@@ -801,7 +852,7 @@ def generate_lessons_for_scope(timetable, streams, subject_filter=None):
     def can_place(state, slot, subject, teacher, s_id, b_id, also_placing=()):
         if slot.is_global:
             return True
-        if global_policy.enforcement_mode == 'STRICT' and \
+        if pedagogy_policy.enforcement_mode == 'STRICT' and \
                 state.teacher_weekly_count.get(teacher.id, 0) >= global_policy.max_weekly_lessons:
             return False
         if (teacher.id, slot.id) in unavailable_slots:
@@ -819,7 +870,7 @@ def generate_lessons_for_scope(timetable, streams, subject_filter=None):
         # Max Consecutive Periods: teacher fatigue cap on back-to-back daytime lessons.
         # `also_placing` lets a double-period check count both halves together, since
         # neither slot is committed to state yet when the pair is evaluated.
-        if global_policy.enforcement_mode == 'STRICT' and not slot.is_remedial:
+        if pedagogy_policy.enforcement_mode == 'STRICT' and not slot.is_remedial:
             pos_info = slot_position_map.get(slot.id)
             if pos_info:
                 day, pos = pos_info
@@ -828,7 +879,7 @@ def generate_lessons_for_scope(timetable, streams, subject_filter=None):
                 if max_consecutive_run(occupied, candidate) > pedagogy_policy.max_consecutive_periods:
                     return False
 
-        if global_policy.enforcement_mode == 'STRICT':
+        if pedagogy_policy.enforcement_mode == 'STRICT':
             daily_load = state.teacher_daily_count.get((teacher.id, slot.day), 0)
 
             # Heavy Workload Day cap — once a teacher's day is already at the threshold, no
@@ -885,12 +936,38 @@ def generate_lessons_for_scope(timetable, streams, subject_filter=None):
     block_structures = get_block_period_structures(block_map.values())
 
     # Seed state from anything left in the DB (e.g. other streams, when regenerating just one)
-    # so in-memory placement doesn't clash with schedules we didn't touch this run.
+    # so in-memory placement doesn't clash with schedules we didn't touch this run. Only rows
+    # whose (class_stream, subject) still has a live SubjectAllocation contract behind them are
+    # trusted — a LessonAllocation row can outlive its contract (e.g. a Clear Grid call scoped to
+    # a term/year that didn't match the active timetable, or any other path that deletes
+    # SubjectAllocation without a matching lesson eject) and a stale row like that would falsely
+    # mark a real teacher busy in a slot/weekly-budget they don't actually occupy anymore,
+    # starving whichever subjects have the thinnest teacher coverage first.
     remaining_rows = LessonAllocation.objects.filter(timetable=timetable).values(
-        'teacher_id', 'time_slot_id', 'time_slot__day', 'time_slot__is_remedial',
-        'class_stream_id', 'class_stream__grade_id', 'subject_id', 'is_double_period'
+        'id', 'teacher_id', 'time_slot_id', 'time_slot__day', 'time_slot__is_remedial',
+        'class_stream_id', 'class_stream__grade_id', 'subject_id', 'is_double_period', 'is_locked'
     )
+    orphaned_lesson_ids = []
     for row in remaining_rows:
+        contract_teacher = contract_map.get((row['class_stream_id'], row['subject_id']))
+        contract_matches = contract_teacher is not None and contract_teacher.id == row['teacher_id']
+        if not contract_matches and not row['is_locked']:
+            # Not just untrusted for busy-tracking — actively delete it. Leaving it in place
+            # (the old behavior) meant it stayed a physical row occupying its own
+            # (timetable, slot, teacher) combination, so a fresh placement that considered that
+            # slot "free" (correctly, since nothing trusted this row) could still collide with it
+            # at the database's unique-constraint level the moment it tried to write there.
+            orphaned_lesson_ids.append(row['id'])
+            continue
+        if not contract_matches and row['is_locked']:
+            # A locked row is an explicit admin decision — never silently delete it just
+            # because its allocation contract drifted. Surface the drift instead so an admin
+            # can decide whether to unlock/fix it, and still trust it as busy below so the
+            # generator doesn't double-book its teacher/slot.
+            unscheduled_basket_errors.append(
+                f"Locked lesson (id={row['id']}) for stream {row['class_stream_id']} no longer "
+                f"matches its allocation contract — review manually."
+            )
         committed_state.teacher_slot_busy.add((row['teacher_id'], row['time_slot_id']))
         committed_state.teacher_weekly_count[row['teacher_id']] = \
             committed_state.teacher_weekly_count.get(row['teacher_id'], 0) + 1
@@ -902,9 +979,13 @@ def generate_lessons_for_scope(timetable, streams, subject_filter=None):
             (row['class_stream_id'], row['time_slot_id']), []
         ).append((row['subject_id'], b_id))
 
-        scope_id = row['class_stream__grade_id'] if b_id else row['class_stream_id']
+        # Progress/quota fulfillment is always tracked per stream, never per grade — even for a
+        # block subject, each stream (real or virtual split group) has its own independent weekly
+        # quota to fill. Grade-scoping this let one split group's lessons satisfy the quota for
+        # every other group of the same subject, silently leaving them at zero (see the matching
+        # note at the scope_id assignment in the main placement loop below).
         prog = committed_state.subject_progress.setdefault(
-            (scope_id, row['subject_id']), {'total': 0, 'rem': 0, 'dbl_rows': 0})
+            (row['class_stream_id'], row['subject_id']), {'total': 0, 'rem': 0, 'dbl_rows': 0})
         prog['total'] += 1
         if row['time_slot__is_remedial']:
             prog['rem'] += 1
@@ -924,13 +1005,26 @@ def generate_lessons_for_scope(timetable, streams, subject_filter=None):
                     (row['class_stream_id'], row['subject_id'], pos_day), []
                 ).append(pos)
 
+    if orphaned_lesson_ids:
+        LessonAllocation.objects.filter(id__in=orphaned_lesson_ids).delete()
+
     N_SHUFFLE_ATTEMPTS = 6
     run_salt = random.random()
+    split_subject_ids_by_grade = {}
 
     with transaction.atomic():
         for stream in streams:
             grade = stream.grade
             quotas = list(SubjectQuota.objects.filter(grade=grade).select_related('subject'))
+            if not stream.is_virtual:
+                # A subject routed through virtual split groups is no longer this physical
+                # stream's to schedule — it has no contract for it by design (see
+                # get_subjects_with_active_virtual_groups), and leaving it in `quotas` here just
+                # produces a false "no teacher assigned" warning below for every such subject on
+                # every physical stream, even though nothing is actually missing.
+                split_subject_ids = split_subject_ids_by_grade.setdefault(
+                    grade.id, get_subjects_with_active_virtual_groups(grade.id))
+                quotas = [q for q in quotas if q.subject_id not in split_subject_ids]
             scoped_subject_ids = subject_filter.get(stream.id) if subject_filter else None
             if scoped_subject_ids is not None:
                 quotas = [q for q in quotas if q.subject_id in scoped_subject_ids]
@@ -969,7 +1063,15 @@ def generate_lessons_for_scope(timetable, streams, subject_filter=None):
                 random.shuffle(ordered)
 
                 for quota, subject, allocated_teacher, block_id in ordered:
-                    scope_id = grade.id if block_id else stream.id
+                    # Always stream-scoped, never grade-scoped — a block only synchronizes WHICH
+                    # slot different streams land their (possibly different) block subjects in
+                    # (see block_seed below); it must not merge their quota progress. Grade-scoping
+                    # this used to let one virtual split group's placements (e.g. "French - Group
+                    # 1") satisfy the shared (grade, subject) counter and leave every other group
+                    # of the same subject (e.g. "French - Group 2") silently scheduled at zero,
+                    # since each group is really a separate class with its own students and its
+                    # own quota to fill, not a shared session across groups.
+                    scope_id = stream.id
                     prog = state.subject_progress.setdefault(
                         (scope_id, subject.id), {'total': 0, 'rem': 0, 'dbl_rows': 0})
 
@@ -1104,7 +1206,7 @@ def generate_lessons_for_scope(timetable, streams, subject_filter=None):
                                     continue
                                 # Minimum Subject Spacing — keep two single lessons of the same
                                 # subject, same class, same day from landing too close together.
-                                if global_policy.enforcement_mode == 'STRICT':
+                                if pedagogy_policy.enforcement_mode == 'STRICT':
                                     pos_info = slot_position_map.get(slot.id)
                                     if pos_info:
                                         day, pos = pos_info
@@ -1158,21 +1260,33 @@ def generate_lessons_for_scope(timetable, streams, subject_filter=None):
 @require_permission('timetable.edit')
 def api_auto_generate_timetable(request, timetable_id):
     """
-    THE MASTER AUTO-GENERATOR ENDPOINT: thin wrapper around generate_lessons_for_scope (full,
-    unscoped regeneration — every stream, every subject) plus the request/lock/audit-log plumbing.
+    THE MASTER AUTO-GENERATOR ENDPOINT: validates synchronously (fast enough to keep as an
+    instant response), then hands the actual scheduling run — the expensive part, a
+    constraint-satisfaction loop across every class/stream — to a Celery worker via
+    generate_timetable_task, returning 202 + a BackgroundJob id immediately instead of
+    blocking this request for the whole computation. Poll GET /api/jobs/<job_id>/ for
+    the result, shaped exactly like the old synchronous success/error JSON below.
     """
     if request.method != 'POST':
         return JsonResponse({'status': 'error', 'message': 'Method not allowed.'}, status=405)
 
     stream_id = request.GET.get('stream_id')
+    grade_id = request.GET.get('grade_id')
+    scope_all = request.GET.get('scope') == 'all'
+    # Scope must be explicit — one of a single class, a whole grade, or a confirmed
+    # whole-school run — instead of silently defaulting to "every stream in the school"
+    # when nothing is passed, mirroring the explicit scope contract Bulk Allocation and
+    # this same screen's Clear Grid feature already use.
+    if not stream_id and not grade_id and not scope_all:
+        return JsonResponse({
+            'status': 'error',
+            'message': 'Scope required: pass stream_id, grade_id, or scope=all.'
+        }, status=400)
 
-    # --- NEW: CONCURRENCY LOCK ---
+    # Scoped per timetable — the task itself acquires this (with retry) once it actually
+    # starts running, not here, so a second submission while one is already generating
+    # gets queued and auto-processed instead of rejected. See school/tasks.py.
     lock_key = f"generate_lock_timetable_{timetable_id}"
-    # cache.add only succeeds if the key doesn't exist. Expires in 5 minutes just in case of a crash.
-    if not cache.add(lock_key, "locked", timeout=300):
-        return JsonResponse(
-            {'status': 'error', 'message': 'Engine is already generating this timetable. Please wait.'}, status=423
-        )
 
     try:
         timetable = Timetable.objects.get(id=timetable_id)
@@ -1209,31 +1323,21 @@ def api_auto_generate_timetable(request, timetable_id):
                 'allocation_gaps': gaps,
             }, status=400)
 
-        streams = ClassStream.live.all().select_related('grade')
-        if stream_id:
-            streams = streams.filter(id=stream_id)
-        streams = list(streams)
-
-        allocations_created, unscheduled_basket_errors = generate_lessons_for_scope(timetable, streams)
-
-        # --- COMMIT DISCREPANCIES DIRECTLY INTO IN-MEMORY SPEED CACHE ---
-        # Automatically creates or cleans stale warning state blocks for the telemetry view
-        cache_unscheduled_basket_errors(timetable.id, unscheduled_basket_errors)
-
-        SystemAuditLog.objects.create(
-            operator=request.user if request.user.is_authenticated else None,
-            action_type='EXECUTION',
-            module='Timetable',
-            description=f"Auto-generated '{timetable.name}'"
-                        f"{f' (stream_id={stream_id})' if stream_id else ' (all streams)'}: "
-                        f"{allocations_created} lessons scheduled, {len(unscheduled_basket_errors)} warning(s)."
+        operator = request.user if request.user.is_authenticated else None
+        job, error_response = dispatch_background_job(
+            job_type='generate_timetable',
+            task=generate_timetable_task,
+            task_args=(timetable_id, stream_id, grade_id, lock_key, operator.id if operator else None),
+            operator=operator,
         )
+        if error_response is not None:
+            return JsonResponse(error_response.data, status=error_response.status_code)
 
-        return JsonResponse({
-            'status': 'success',
-            'message': f'Auto-Generation complete! {allocations_created} lessons intelligently scheduled.',
-            'unscheduled_basket': unscheduled_basket_errors
-        })
+        payload = {'status': 'queued', 'job_id': str(job.id)}
+        if cache.get(lock_key):
+            payload['note'] = "Another generation run for this timetable is currently in progress — " \
+                               "yours has been queued and will start automatically once it finishes."
+        return JsonResponse(payload, status=202)
 
     except Timetable.DoesNotExist:
         return JsonResponse({'status': 'error', 'message': 'Timetable not found.'})
@@ -1260,14 +1364,17 @@ def sync_timetable_with_allocation_changes(*, active_timetable, prior_triples, n
     "after" for every contract in the request's scope (e.g. every SubjectAllocation row for one
     class's Matrix save, or every row across a whole grade's Bulk Allocate).
 
-    Returns {"ejected_count": int, "swapped_count": int, "needs_regeneration": {stream_id: {subject_id, ...}}}.
+    Returns {"ejected_count": int, "swapped_count": int, "locked_skipped_count": int,
+    "needs_regeneration": {stream_id: {subject_id, ...}}}.
     A non-empty needs_regeneration means those (stream, subject) pairs couldn't be moved in place
     (brand-new contract with nothing on the grid yet, or the new teacher is busy/blacked-out in the
     old slots) and were instead cleared and handed to generate_lessons_for_scope for a targeted,
     surgical regeneration — every other lesson on the timetable, for these streams or any other,
-    is left untouched.
+    is left untouched. locked_skipped_count is how many manually-pinned lessons (is_locked=True)
+    were left exactly as-is despite their contract changing/dropping — an explicit admin decision
+    always wins over this automatic sync.
     """
-    result = {"ejected_count": 0, "swapped_count": 0, "needs_regeneration": {}}
+    result = {"ejected_count": 0, "swapped_count": 0, "locked_skipped_count": 0, "needs_regeneration": {}}
     if not active_timetable:
         return result
 
@@ -1275,12 +1382,15 @@ def sync_timetable_with_allocation_changes(*, active_timetable, prior_triples, n
     new_by_cs = {(c_id, s_id): t_id for c_id, t_id, s_id in new_triples}
 
     # Pairs dropped entirely (no longer in the new set at all) — identical to the old ejection-only
-    # behavior these call sites already had ("ghost contract" cleanup).
+    # behavior these call sites already had ("ghost contract" cleanup). Locked lessons are excluded
+    # from the deletion — an admin's manual pin survives even a dropped contract.
     dropped_pairs = set(prior_by_cs) - set(new_by_cs)
     for c_id, s_id in dropped_pairs:
         stale = LessonAllocation.objects.filter(
             timetable=active_timetable, class_stream_id=c_id, subject_id=s_id
         )
+        result["locked_skipped_count"] += stale.filter(is_locked=True).count()
+        stale = stale.filter(is_locked=False)
         result["ejected_count"] += stale.count()
         stale.delete()
 
@@ -1296,10 +1406,21 @@ def sync_timetable_with_allocation_changes(*, active_timetable, prior_triples, n
 
     existing_lessons_by_pair = {}
     claimed_slots = set()
+    locked_pairs_covered = set()
     for lesson in LessonAllocation.objects.filter(timetable=active_timetable).only(
-        'id', 'teacher_id', 'time_slot_id', 'class_stream_id', 'subject_id'
+        'id', 'teacher_id', 'time_slot_id', 'class_stream_id', 'subject_id', 'is_locked'
     ):
         key = (lesson.class_stream_id, lesson.subject_id)
+        if lesson.is_locked:
+            # A locked lesson is never a swap/regen candidate — but it still physically
+            # occupies its teacher+slot, so every other pair's conflict check must keep
+            # treating that combination as claimed, whether or not this locked lesson's own
+            # pair is one of this batch's touched_pairs.
+            claimed_slots.add((lesson.teacher_id, lesson.time_slot_id))
+            if key in touched_pairs:
+                locked_pairs_covered.add(key)
+                result["locked_skipped_count"] += 1
+            continue
         if key in touched_pairs:
             existing_lessons_by_pair.setdefault(key, []).append(lesson)
         else:
@@ -1313,6 +1434,12 @@ def sync_timetable_with_allocation_changes(*, active_timetable, prior_triples, n
     needs_regeneration = {}
 
     for c_id, s_id, new_t_id in changed_pairs:
+        if (c_id, s_id) in locked_pairs_covered:
+            # This pair's placement is pinned by a locked lesson — leave it exactly as the
+            # admin set it, even though the contract behind it just changed teacher. Don't
+            # send it to needs_regeneration, which would otherwise place a second lesson for
+            # the same (stream, subject) alongside the locked one.
+            continue
         existing = existing_lessons_by_pair.get((c_id, s_id), [])
         if not existing:
             # Brand-new contract — nothing on the grid to move, so it just needs a slot found.
@@ -1359,7 +1486,7 @@ def api_auto_generate_quotas(request):
 
     try:
         grades = GradeLevel.objects.all()
-        subjects = Subject.objects.all()
+        subjects = Subject.objects.select_related('department').all()
         block_map = build_grade_subject_block_map()
         block_structures = get_block_period_structures(block_map.values())
         quotas_created_or_updated = 0
@@ -1373,63 +1500,151 @@ def api_auto_generate_quotas(request):
         remedial_capacity = TimeSlot.objects.filter(is_global=False, is_remedial=True).count()
         SAFETY_MARGIN = 0.9
 
+        # Config-driven override for the generic department/grade-band ladder below (see
+        # QuotaDefaultRule docstring) — an admin can add/edit rows here (Django admin) to
+        # adjust or extend those defaults without a code change. Fetched once, not per
+        # subject/grade: an empty table (the default, on every existing install) means every
+        # lookup below returns None and the hardcoded ladder behaves exactly as before.
+        quota_rules = {
+            (r.department_id, r.grade_band, r.applies_when_blocked): r
+            for r in QuotaDefaultRule.objects.all()
+        }
+
+        # 'Technical, Applied & Computer Studies' and 'Business & Agricultural Studies' both
+        # inherit the old undifferentiated 'Technical' bucket's ladder treatment below — see
+        # backfill_departments for why that single old bucket split into these two real
+        # departments. Renaming/removing these three names changes the ladder's behavior for
+        # that department; add a QuotaDefaultRule row instead of relying on the name match.
+        TECHNICAL_LIKE_DEPARTMENTS = {'Technical, Applied & Computer Studies', 'Business & Agricultural Studies'}
+        HUMANITIES_DEPARTMENT = 'Humanities & Religious Education'
+        PE_DEPARTMENT = 'Physical Education & Sports Science'
+
+        def _quota_grade_band(grade_num):
+            if grade_num <= 3:
+                return 'LOWER_PRIMARY'
+            if grade_num <= 6:
+                return 'UPPER_PRIMARY'
+            if grade_num <= 9:
+                return 'JUNIOR_SECONDARY'
+            return 'SENIOR_SCHOOL'
+
+        def _quota_rule_override(dept_id, grade_band, is_blocked):
+            rule = quota_rules.get((dept_id, grade_band, is_blocked))
+            if rule is None and is_blocked:
+                rule = quota_rules.get((None, grade_band, True))  # wildcard blocked-elective default
+            return rule
+
         with transaction.atomic():
             for grade in grades:
                 grade_num = grade.numeric_order
                 grade_plan = []  # [subject, total, double, remedial]
 
+                # Respect SubjectCurriculumProfile tagging: a subject assigned to a specific
+                # curriculum/tier (e.g. Integrated Science -> CBC Junior only) must not get a
+                # quota generated for grades outside that scope. Grades that predate curriculum
+                # assignment (curriculum_id is None) keep the old unfiltered behavior. Also pull
+                # each subject's profile overrides here — when an admin has set exact numbers on
+                # Curriculum Hub, those are authoritative and the generic department/grade-band
+                # table below never runs for that subject.
+                eligible_ids = None
+                profile_overrides = {}
+                if grade.curriculum_id:
+                    resolved = _eligible_subjects_for(grade.curriculum, grade.tier)
+                    eligible_ids = {s.id for s, *_ in resolved}
+                    for s, _is_core, total_override, double_override, remedial_override in resolved:
+                        if total_override is not None:
+                            profile_overrides[s.id] = (
+                                total_override,
+                                double_override or 0,
+                                remedial_override if remedial_override is not None else 1,
+                            )
+
                 for sub in subjects:
-                    total = 0
-                    double = 0
-                    remedial = 1  # Default baseline policy requirement
+                    if eligible_ids is not None and sub.id not in eligible_ids:
+                        continue
 
                     # Fetch database properties safely (block membership is grade-scoped)
                     is_blocked = block_map.get((grade.id, sub.id)) is not None
-                    dept = getattr(sub, 'department', '')
+                    # Curriculum-aware: CBC and 8-4-4 group subjects into different departments
+                    # (see Department model docstring), so this grade's own curriculum decides
+                    # which department applies, not a single flat Subject.department.
+                    effective_dept = get_effective_department(sub, grade.curriculum, grade.tier)
+                    dept = effective_dept.name if effective_dept else ''
 
-                    # 1. PHYSICAL EDUCATION POLICY
-                    if dept == 'PE' or getattr(sub, 'is_pe_only', False):
-                        total = 1
-                        double = 0
-                        remedial = 0
+                    if sub.id in profile_overrides:
+                        # An admin has explicitly configured this subject's quota on Curriculum
+                        # Hub (SubjectCurriculumProfile) — use it verbatim. Department/grade-band
+                        # is irrelevant on this path, so adding new departments or grade bands
+                        # later never requires touching this function again.
+                        total, double, remedial = profile_overrides[sub.id]
+                    else:
+                        total, double, remedial = 0, 0, 1  # Default baseline policy requirement
 
-                    # 2. LOWER PRIMARY (Grades 1 - 3)
-                    elif grade_num <= 3:
-                        if dept in ['Languages', 'Mathematics']:
-                            total, double = 6, 1
-                        elif dept in ['Sciences', 'Humanities', 'Creative Arts']:
-                            total, double = 4, 0
+                        # Generic fallback for subjects with no Curriculum Hub override yet.
+                        # Figures are grounded in real KICD/CBC weekly time-allocation guidance
+                        # (Junior Secondary ~5 lessons/week per core learning area; Senior School
+                        # core/elective subjects at 5, ICT at 2, PE at 3) rather than the inflated
+                        # placeholder numbers this table used to carry.
 
-                    # 3. UPPER PRIMARY (Grades 4 - 6)
-                    elif 4 <= grade_num <= 6:
-                        if dept in ['Languages', 'Mathematics']:
-                            total, double = 7, 2
-                        elif dept in ['Sciences', 'Agriculture']:
-                            total, double = 5, 1
-                        elif dept in ['Humanities', 'Creative Arts']:
-                            total, double = 4, 0
+                        # 1. PHYSICAL EDUCATION POLICY
+                        if dept == PE_DEPARTMENT or getattr(sub, 'is_pe_only', False):
+                            total = 3 if grade_num >= 10 else 2
+                            double, remedial = 0, 0
 
-                    # 4. JUNIOR SECONDARY SCHOOL (Grades 7 - 9)
-                    elif 7 <= grade_num <= 9:
-                        if dept in ['Languages', 'Mathematics']:
-                            total, double = 8, 3
-                        elif dept == 'Sciences':
-                            total, double = 7, 2
-                        elif dept == 'Humanities':
-                            total, double = 5, 1
-                        elif is_blocked or dept in ['Technical', 'Agriculture', 'Creative Arts']:
-                            total, double = 5, 2  # Blocked Optionals structure
-                        else:
-                            total, double = 4, 0  # Standalone minor options
+                        # 2. LOWER PRIMARY (Grades 1 - 3)
+                        elif grade_num <= 3:
+                            if dept in ('Languages', 'Mathematics'):
+                                total, double = 6, 1
+                            elif dept in ('Sciences', HUMANITIES_DEPARTMENT):
+                                total, double = 4, 0
 
-                    # 5. SENIOR SCHOOL (Grades 10 - 12 / Form 1 - 4)
-                    elif grade_num >= 10:
-                        if is_blocked or dept == 'Technical':
-                            total, double = 7, 3  # Intensive labs & option blocks
-                        elif dept in ['Languages', 'Mathematics', 'Sciences']:
-                            total, double = 8, 3  # Core academic tracking
-                        elif dept == 'Humanities' or is_blocked:
-                            total, double = 5, 1  # Electives cluster
+                        # 3. UPPER PRIMARY (Grades 4 - 6)
+                        elif 4 <= grade_num <= 6:
+                            if dept in ('Languages', 'Mathematics'):
+                                total, double = 6, 1
+                            elif dept == 'Sciences':
+                                total, double = 5, 1
+                            elif dept in TECHNICAL_LIKE_DEPARTMENTS:
+                                total, double = 4, 1  # e.g. Agriculture, tagged Technical
+                            elif dept == HUMANITIES_DEPARTMENT:
+                                total, double = 4, 0
+
+                        # 4. JUNIOR SECONDARY SCHOOL (Grades 7 - 9)
+                        elif 7 <= grade_num <= 9:
+                            if dept in ('Languages', 'Mathematics'):
+                                total, double = 5, 1
+                            elif dept == 'Sciences':
+                                total, double = 5, 1
+                            elif dept == HUMANITIES_DEPARTMENT:
+                                total, double = 4, 0
+                            elif is_blocked or dept in TECHNICAL_LIKE_DEPARTMENTS:
+                                total, double = 5, 2  # Blocked optionals / Pre-Technical structure
+                            else:
+                                total, double = 4, 0  # Standalone minor options
+
+                        # 5. SENIOR SCHOOL (Grades 10 - 12 / Form 1 - 4)
+                        elif grade_num >= 10:
+                            if is_blocked:
+                                total, double = 5, 2  # Pathway option blocks (real elective figure)
+                            elif dept in TECHNICAL_LIKE_DEPARTMENTS:
+                                total, double = 2, 0  # Standalone ICT-type subject
+                            elif dept in ('Languages', 'Mathematics'):
+                                total, double = 5, 0  # Core academic tracking
+                            elif dept == 'Sciences':
+                                total, double = 5, 1  # Keeps a double for labs
+                            elif dept == HUMANITIES_DEPARTMENT:
+                                total, double = 1, 0  # Pastoral/RE-style support subject
+
+                        # QuotaDefaultRule override: an admin-configured row for this exact
+                        # (department, grade-band, blocked) combination wins over whichever
+                        # hardcoded figure the ladder above just computed. No-op while the
+                        # table is empty, so this never changes behavior until an admin
+                        # opts in by adding a row.
+                        override_rule = _quota_rule_override(sub.department_id, _quota_grade_band(grade_num), is_blocked)
+                        if override_rule:
+                            total = override_rule.total_lessons
+                            double = override_rule.double_lessons_required
+                            remedial = override_rule.remedial_lessons_required
 
                     # Block period structure override: once a subject sits in a block, the
                     # block's own ALL_DOUBLE/ALL_SINGLE choice (Subject Block Builder) takes
@@ -1485,12 +1700,13 @@ def api_auto_generate_quotas(request):
                         # a standalone elective. Blocks are protected (tier 0) instead of
                         # sacrificed first purely for being "Technical".
                         def _priority_tier(sub):
-                            dept = getattr(sub, 'department', '')
+                            effective_dept = get_effective_department(sub, grade.curriculum, grade.tier)
+                            dept = effective_dept.name if effective_dept else ''
                             if block_map.get((grade.id, sub.id)) is not None:
                                 return 0
-                            if dept == 'Technical':
+                            if dept in TECHNICAL_LIKE_DEPARTMENTS:
                                 return 3
-                            if dept == 'Humanities':
+                            if dept == HUMANITIES_DEPARTMENT:
                                 return 2
                             if dept == 'Sciences':
                                 return 1
@@ -1734,7 +1950,7 @@ def api_manage_subject_blocks(request):
             blocks_data = []
             for block in queryset.select_related('grade_level', 'academic_year', 'term'):
                 # Extract the nested subjects dynamically assigned to this container
-                packed_subjects = list(block.subjects.all().values('id', 'name', 'code', 'department'))
+                packed_subjects = list(block.subjects.all().values('id', 'name', 'code', department_name=F('department__name')))
 
                 blocks_data.append({
                     'id': block.id,
@@ -2183,7 +2399,12 @@ def api_manage_policies(request):
                 'allow_remedial_double_periods': pedagogy.allow_remedial_double_periods,
                 'heavy_day_threshold': pedagogy.heavy_day_threshold,
                 'prevent_consecutive_heavy_days': pedagogy.prevent_consecutive_heavy_days,
-                'enforcement_mode': global_policy.enforcement_mode,
+                # Timetable's OWN strictness switch — independent of Allocations'
+                # GlobalAllocationPolicy.enforcement_mode (see api_manage_splitting_rules /
+                # GlobalAllocationPolicyAPIView for that one). max_weekly_lessons stays on
+                # GlobalAllocationPolicy: it's a real teacher-capacity fact both Allocations
+                # and the Timetable generator must agree on, not a strictness toggle.
+                'enforcement_mode': pedagogy.enforcement_mode,
                 'max_weekly_lessons': global_policy.max_weekly_lessons
             }
         })
@@ -2198,7 +2419,7 @@ def api_manage_policies(request):
                 'allow_remedial_double_periods': pedagogy.allow_remedial_double_periods,
                 'heavy_day_threshold': pedagogy.heavy_day_threshold,
                 'prevent_consecutive_heavy_days': pedagogy.prevent_consecutive_heavy_days,
-                'enforcement_mode': global_policy.enforcement_mode,
+                'enforcement_mode': pedagogy.enforcement_mode,
                 'max_weekly_lessons': global_policy.max_weekly_lessons,
             }
 
@@ -2213,18 +2434,20 @@ def api_manage_policies(request):
             pedagogy.heavy_day_threshold = data.get('heavy_day_threshold', pedagogy.heavy_day_threshold)
             pedagogy.prevent_consecutive_heavy_days = data.get('prevent_consecutive_heavy_days',
                                                                pedagogy.prevent_consecutive_heavy_days)
-            pedagogy.save()
 
-            # Update Global Compliance Mode
-            valid_modes = {choice for choice, _ in GlobalAllocationPolicy.ENFORCEMENT_CHOICES}
-            requested_mode = data.get('enforcement_mode', global_policy.enforcement_mode)
+            # Timetable's own Compliance Mode — stored on TimetablePedagogyPolicy so flipping
+            # it here never touches Allocations' GlobalAllocationPolicy.enforcement_mode.
+            valid_modes = {choice for choice, _ in TimetablePedagogyPolicy.ENFORCEMENT_CHOICES}
+            requested_mode = data.get('enforcement_mode', pedagogy.enforcement_mode)
             if requested_mode not in valid_modes:
                 return JsonResponse(
                     {'status': 'error',
                      'message': f"Invalid enforcement_mode '{requested_mode}'. Must be one of {sorted(valid_modes)}."},
                     status=400
                 )
-            global_policy.enforcement_mode = requested_mode
+            pedagogy.enforcement_mode = requested_mode
+            pedagogy.save()
+
             global_policy.max_weekly_lessons = data.get('max_weekly_lessons', global_policy.max_weekly_lessons)
             global_policy.save()
 
@@ -2235,7 +2458,7 @@ def api_manage_policies(request):
                 'allow_remedial_double_periods': pedagogy.allow_remedial_double_periods,
                 'heavy_day_threshold': pedagogy.heavy_day_threshold,
                 'prevent_consecutive_heavy_days': pedagogy.prevent_consecutive_heavy_days,
-                'enforcement_mode': global_policy.enforcement_mode,
+                'enforcement_mode': pedagogy.enforcement_mode,
                 'max_weekly_lessons': global_policy.max_weekly_lessons,
             }
             changes = [f"{k}: {before[k]} → {after[k]}" for k in before if before[k] != after[k]]

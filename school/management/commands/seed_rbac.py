@@ -7,6 +7,13 @@ from school.models.rbac_models import Permission, Role, UserRole
 # Every code here is one actually referenced by a rbac_view_permission/rbac_edit_permission
 # attribute or require_permission(...) call somewhere in school/views/ — kept in lockstep with
 # the code, not aspirational, so an unchecked box always means "this literally does nothing yet."
+#
+# Adding RBAC coverage for a new/growing component, as the system grows past today's set:
+#   1. Add a (code, label, module) row below. Decide whether TEACHER_PERMISSIONS should also
+#      get it (Admin always does — see admin_role.permissions.set(...) in handle() below).
+#   2. Gate the view with require_permission(code) (FBVs) or HasModulePermission +
+#      rbac_view_permission/rbac_edit_permission class attrs (CBVs/ViewSets).
+#   3. Re-run `python manage.py seed_rbac` so the new code (and any Admin/Teacher grant) exists.
 PERMISSIONS = [
     ('curriculum.view', 'View curriculum data', 'Curriculum'),
     ('curriculum.edit', 'Edit curriculum data', 'Curriculum'),
@@ -54,6 +61,14 @@ PERMISSIONS = [
     ('chat.broadcast', 'Send school-wide broadcast messages — narrower than chat.manage: no audit log or parent cohort access', 'Chat'),
 
     ('audit.view', 'View the system-wide audit log (all modules, including RBAC changes)', 'Audit'),
+
+    ('users.view', 'View the user directory, pending approvals, and dashboard stats', 'Users'),
+    ('users.approve', 'Approve or reject pending account applications (any user type)', 'Users'),
+    ('users.edit', 'Edit user profile data (students, teachers, parents)', 'Users'),
+    ('users.delete', 'Delete/deactivate a user account', 'Users'),
+    ('users.reset_password', "Trigger an admin-initiated password reset for another user's account", 'Users'),
+
+    ('admin_invites.manage', 'Generate/revoke admin signup invite codes; view and regenerate post-approval verification codes', 'AdminInvites'),
 ]
 
 # Admin gets every permission in the catalog automatically (see handle()) — no hardcoded

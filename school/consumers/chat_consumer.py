@@ -10,8 +10,24 @@ from school.models.chat_models import ChatThread, ThreadParticipant, MessageAudi
 from school.views.chat_views import check_is_admin, serialize_message_audit
 
 EDIT_WINDOW = timedelta(hours=2)
-RATE_LIMIT_MAX = 15
-RATE_LIMIT_WINDOW_SECONDS = 10
+
+# Per-message-type (max, window_seconds) — only 'send' was ever limited before; edit/delete/
+# typing had no cap at all. 'typing' gets the most headroom since a debounced keystroke
+# indicator fires far more often than an actual message under normal use.
+RATE_LIMITS = {
+    'send': (15, 10),
+    'edit': (10, 10),
+    'delete': (10, 10),
+    'typing': (30, 10),
+}
+
+# A single user opening unlimited concurrent sockets (multiple tabs/devices, or a scripted
+# client) had no cap at all before this. Generous enough for a real user's legitimate
+# multi-tab/multi-device use, low enough to bound worst-case fan-out per user.
+MAX_CONCURRENT_CONNECTIONS_PER_USER = 5
+# Safety-net expiry only — disconnect() always decrements first; this just guards against
+# an abnormally killed worker leaving a stale count behind forever.
+CONNECTION_COUNT_TTL_SECONDS = 60 * 60 * 6
 
 
 class ChatConsumer(AsyncJsonWebsocketConsumer):
@@ -37,12 +53,19 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
             await self.close(code=4003)
             return
 
+        if not await self._reserve_connection_slot(self.user.id):
+            await self.close(code=4008)
+            return
+        self._connection_slot_reserved = True
+
         await self.channel_layer.group_add(self.group_name, self.channel_name)
         await self.accept()
 
     async def disconnect(self, close_code):
         if getattr(self, 'group_name', None):
             await self.channel_layer.group_discard(self.group_name, self.channel_name)
+        if getattr(self, '_connection_slot_reserved', False):
+            await self._release_connection_slot(self.user.id)
 
     async def receive_json(self, content, **kwargs):
         msg_type = content.get('type')
@@ -63,7 +86,7 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
     # ------------------------------------------------------------------
 
     async def _handle_send(self, content):
-        if not await self._check_rate_limit(self.user.id):
+        if not await self._check_rate_limit(self.user.id, 'send'):
             await self.send_json({'type': 'error', 'message': 'You are sending messages too quickly. Slow down.'})
             return
 
@@ -110,6 +133,10 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
         await self._broadcast_inbox_update(self.thread_id, message)
 
     async def _handle_edit(self, content):
+        if not await self._check_rate_limit(self.user.id, 'edit'):
+            await self.send_json({'type': 'error', 'message': 'You are editing messages too quickly. Slow down.'})
+            return
+
         message_id = self._parse_message_id(content.get('message_id'))
         new_body = (content.get('message_body') or '').strip()
 
@@ -132,6 +159,10 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
         await self._broadcast_inbox_update(self.thread_id, result)
 
     async def _handle_delete(self, content):
+        if not await self._check_rate_limit(self.user.id, 'delete'):
+            await self.send_json({'type': 'error', 'message': 'You are deleting messages too quickly. Slow down.'})
+            return
+
         message_id = self._parse_message_id(content.get('message_id'))
         if message_id is None:
             await self.send_json({'type': 'error', 'message': 'A valid message_id is required.'})
@@ -149,6 +180,9 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
         await self._broadcast_inbox_update(self.thread_id, result)
 
     async def _handle_typing(self):
+        if not await self._check_rate_limit(self.user.id, 'typing'):
+            return  # silent drop — a typing indicator isn't worth surfacing an error for
+
         await self.channel_layer.group_send(self.group_name, {
             'type': 'chat.typing',
             'user_id': self.user.id,
@@ -263,13 +297,33 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
         return marker in url
 
     @database_sync_to_async
-    def _check_rate_limit(self, user_id):
-        # CACHES['default'] is a DatabaseCache (see settings.py), so this hits Postgres —
-        # must go through database_sync_to_async like every other DB access here, or Django's
-        # async-safety guard raises SynchronousOnlyOperation.
-        key = f"chat_rate_{user_id}"
+    def _check_rate_limit(self, user_id, message_type):
+        # CACHES['default'] is Redis (see settings.py) — still routed through
+        # database_sync_to_async like every other blocking I/O call in this consumer, so a
+        # slow cache round trip can't stall the event loop out from under other connections.
+        max_count, window_seconds = RATE_LIMITS[message_type]
+        key = f"chat_rate_{message_type}_{user_id}"
         count = cache.get(key, 0)
-        if count >= RATE_LIMIT_MAX:
+        if count >= max_count:
             return False
-        cache.set(key, count + 1, timeout=RATE_LIMIT_WINDOW_SECONDS)
+        cache.set(key, count + 1, timeout=window_seconds)
         return True
+
+    @database_sync_to_async
+    def _reserve_connection_slot(self, user_id):
+        key = f"chat_conn_count_{user_id}"
+        cache.add(key, 0, timeout=CONNECTION_COUNT_TTL_SECONDS)
+        count = cache.incr(key)
+        if count > MAX_CONCURRENT_CONNECTIONS_PER_USER:
+            cache.decr(key)
+            return False
+        return True
+
+    @database_sync_to_async
+    def _release_connection_slot(self, user_id):
+        key = f"chat_conn_count_{user_id}"
+        try:
+            if cache.get(key, 0) > 0:
+                cache.decr(key)
+        except ValueError:
+            pass  # key already expired/missing — nothing to release

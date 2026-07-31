@@ -1,8 +1,29 @@
+from django.core.cache import cache
 from django.http import JsonResponse
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import BasePermission
 
 from school.models.rbac_models import Permission
+
+# Every RBAC-gated request (HasModulePermission, require_permission) calls
+# get_user_permission_codes at least once — with no caching this was a fresh
+# Permission/Role/UserRole join on every single request. 90s is short enough that a
+# role/permission change reaches an already-cached user almost immediately, but long
+# enough to absorb the request volume a real, populated deployment will see.
+RBAC_CACHE_TTL_SECONDS = 90
+
+
+def _rbac_cache_key(user_id):
+    return f'rbac_perms:{user_id}'
+
+
+def invalidate_user_permission_cache(user_id):
+    """Call after a per-user Role assignment changes (UserRoleAssignmentAPIView) so the
+    affected user doesn't wait out the TTL. A Role's own permission set changing
+    (RoleViewSet) affects everyone holding that role — invalidating every one of those
+    users individually isn't worth the complexity, so that case relies on the TTL
+    self-healing within RBAC_CACHE_TTL_SECONDS instead."""
+    cache.delete(_rbac_cache_key(user_id))
 
 
 def get_user_permission_codes(user):
@@ -16,10 +37,16 @@ def get_user_permission_codes(user):
         return set()
     if user.is_superuser:
         return set(Permission.objects.values_list('code', flat=True))
-    return set(
-        Permission.objects.filter(roles__user_assignments__user=user)
-        .values_list('code', flat=True).distinct()
-    )
+
+    cache_key = _rbac_cache_key(user.id)
+    codes = cache.get(cache_key)
+    if codes is None:
+        codes = set(
+            Permission.objects.filter(roles__user_assignments__user=user)
+            .values_list('code', flat=True).distinct()
+        )
+        cache.set(cache_key, codes, RBAC_CACHE_TTL_SECONDS)
+    return codes
 
 
 def user_has_permission(user, code):
@@ -41,6 +68,8 @@ def get_user_role_label(user):
         return 'Parent'
     if hasattr(user, 'studentextra'):
         return 'Student'
+    if hasattr(user, 'staffextra'):
+        return 'Staff'
     return 'User'
 
 

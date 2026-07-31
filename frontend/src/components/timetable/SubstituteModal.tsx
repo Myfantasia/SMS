@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import { X, UserCheck, AlertCircle, Loader2, Info } from 'lucide-react';
 import type { Lesson } from '../../libs/types';
 import api from '../../libs/axiosInstance';
+import SearchableSelect from '../common/SearchableSelect';
 
 interface SubstituteModalProps {
   allocationId: number;
@@ -144,19 +145,17 @@ export default function SubstituteModal({ allocationId, targetDate, onClose, onS
                 <span>No conflict-free teachers found for this timeframe.</span>
               </div>
             ) : (
-              <select
-                required
+              <SearchableSelect
                 value={selectedSubId}
-                onChange={(e) => setSelectedSubId(e.target.value)}
-                className="w-full border border-slate-300 rounded-lg p-3 text-sm outline-none focus:ring-2 focus:ring-amber-500 bg-white font-medium text-slate-700"
-              >
-                <option value="">-- Select Free Roster Replacement --</option>
-                {substitutes.map(staff => (
-                  <option key={staff.id} value={staff.id.toString()}>
-                    {staff.name} [{staff.department} Dept]{staff.fatigue_warning ? ' ⚠ Fatigue Risk' : ''}
-                  </option>
-                ))}
-              </select>
+                onChange={setSelectedSubId}
+                placeholder="-- Select Free Roster Replacement --"
+                searchPlaceholder="Search substitutes…"
+                options={substitutes.map(staff => ({
+                  value: staff.id.toString(),
+                  label: staff.name,
+                  sublabel: `[${staff.department} Dept]${staff.fatigue_warning ? ' ⚠ Fatigue Risk' : ''}`,
+                }))}
+              />
             )}
             {selectedSubId && substitutes.find(s => s.id.toString() === selectedSubId)?.fatigue_warning && (
               <div className="w-full border border-amber-200 rounded-lg p-2.5 bg-amber-50 text-amber-800 flex items-start gap-2 text-xs font-medium">

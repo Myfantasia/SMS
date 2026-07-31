@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Users, GraduationCap, UserSquare2, Banknote, School, Calendar, Clock, Quote } from 'lucide-react';
+import { Users, GraduationCap, UserSquare2, Briefcase, School, Calendar, Clock, Quote } from 'lucide-react';
 
 // Import our layout components
 import TodayAttendanceCard from '../../components/TodayAttendanceCard';
@@ -15,7 +15,7 @@ interface DashboardMetrics {
   student_count: number;
   teacher_count: number;
   parent_count?: number;
-  revenue?: number;
+  staff_count?: number;
   message: string;
 }
 
@@ -106,7 +106,9 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     api.get('/api/core/notices/')
-      .then((res) => setNotices(res.data))
+      // Paginated now (NoticeViewSet.pagination_class) — this widget only shows a
+      // preview, so the first page's worth is all it ever needed anyway.
+      .then((res) => setNotices(res.data.results))
       .catch((err) => console.error("Failed to fetch notices", err));
 
     api.get('/api/core/events/')
@@ -232,10 +234,10 @@ export default function AdminDashboard() {
           </div>
 
           <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] hover:-translate-y-1 hover:shadow-lg transition-all duration-300 flex items-center gap-5 cursor-default">
-            <div className="p-4 bg-amber-50 text-amber-600 rounded-2xl"><Banknote className="w-7 h-7" strokeWidth={2.5} /></div>
+            <div className="p-4 bg-amber-50 text-amber-600 rounded-2xl"><Briefcase className="w-7 h-7" strokeWidth={2.5} /></div>
             <div className="flex flex-col">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Revenue</span>
-              <span className="text-3xl font-extrabold text-slate-800 leading-none">{metrics?.revenue ? `$${metrics.revenue}` : "--"}</span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Staff</span>
+              <span className="text-3xl font-extrabold text-slate-800 leading-none">{metrics?.staff_count ?? "--"}</span>
             </div>
           </div>
 

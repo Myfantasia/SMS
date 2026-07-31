@@ -11,8 +11,8 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <link rel="stylesheet" href="{% static 'css/navbar.css' %}?v=3">
-    <link rel="stylesheet" href="{% static 'css/auth_style.css' %}?v=4">
-    <link rel="stylesheet" href="{% static 'css/success_popup.css' %}?v=2">
+    <link rel="stylesheet" href="{% static 'css/auth_style.css' %}?v=7">
+    <link rel="stylesheet" href="{% static 'css/success_popup.css' %}?v=3">
 </head>
 
 <body class="role-teacher">
@@ -20,6 +20,8 @@
     {% include "school/success_popup.html" %}
 
     <div class="login-wrapper">
+      <div class="auth-shell">
+        {% include "school/auth_visual.html" with visual_role="teacher" visual_icon="fa-chalkboard-user" %}
         <div class="login-card">
             <div class="login-header">
                 <div class="header-icon-badge"><i class="fas fa-user-lock"></i></div>
@@ -44,6 +46,7 @@
                     <div class="password-wrapper input-icon-wrap">
                         <i class="fas fa-lock input-icon"></i>
                         <input type="password" name="password" id="password" class="form-control" placeholder="Enter your password" required>
+                        <i class="fas fa-eye toggle-pass" data-target="password"></i>
                     </div>
                     <div style="text-align: right; margin-top: 10px;">
                         <a href="{% url 'password_reset' %}?role=teacher" class="forgot-password" style="font-size: 0.85rem;"><i class="fas fa-lock"></i> Forgot Password?</a>
@@ -57,10 +60,12 @@
                 </div>
             </form>
         </div>
+      </div>
     </div>
 
     <script src="{% static 'js/success_popup.js' %}"></script>
     <script src="{% static 'js/form_handler.js' %}"></script>
+    <script src="{% static 'js/password_toggle.js' %}"></script>
     {% include "school/footer.html" %}
 </body>
 

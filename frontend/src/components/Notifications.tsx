@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Bell, UserPlus, Users, FileEdit, ClipboardCheck, BookOpen, CreditCard, CalendarClock, GraduationCap, ShieldAlert } from 'lucide-react';
+import { Bell, UserPlus, Users, FileEdit, ClipboardCheck, BookOpen, CreditCard, CalendarClock, GraduationCap, ShieldAlert, Cog } from 'lucide-react';
 import api from '../libs/axiosInstance';
 
 interface NotificationBellProps {
@@ -85,31 +85,50 @@ export default function NotificationBell({ role }: NotificationBellProps) {
   }, [isOpen]);
 
   useEffect(() => {
-    if (role === 'admin') {
-      api.get('/api/pending-approvals/')
-        .then((res) => setPendingData(res.data))
-        .catch((err) => console.error("Failed to fetch pending approvals", err));
+    const fetchRoleData = () => {
+      if (role === 'admin') {
+        api.get('/api/pending-approvals/')
+          .then((res) => setPendingData(res.data))
+          .catch((err) => console.error("Failed to fetch pending approvals", err));
+        // Real, backend-driven notifications — this is how an admin finds out a background
+        // job (timetable generation, allocation rollover/bulk-allocate, bulk results) they
+        // triggered has finished, since those return instantly and complete later. Same
+        // feed student/parent already use below.
+        api.get('/api/core/notifications/')
+          .then((res) => setRealNotifications(res.data.results))
+          .catch((err) => console.error("Failed to fetch notifications", err));
 
-    } else if (role === 'teacher') {
-      api.get('/api/teacher/dashboard-overview/')
-        .then((res) => {
-          const data = res.data;
-          if (data.status === 'success' && data.data.action_items) {
-            setTeacherActions({
-              pending_assignments: data.data.action_items.pending_assignments || 0,
-              pending_exams: data.data.action_items.pending_exams || 0,
-              pending_leaves: data.data.action_items.pending_leaves || 0,
-            });
-          }
-        })
-        .catch((err) => console.error("Failed to fetch teacher actions", err));
-    } else if (role === 'student' || role === 'parent') {
-      // Real, backend-driven notifications (e.g. "Report Card Published") — replaces the
-      // previous hardcoded placeholder counts for these two roles.
-      api.get('/api/core/notifications/')
-        .then((res) => setRealNotifications(res.data))
-        .catch((err) => console.error("Failed to fetch notifications", err));
-    }
+      } else if (role === 'teacher') {
+        api.get('/api/teacher/dashboard-overview/')
+          .then((res) => {
+            const data = res.data;
+            if (data.status === 'success' && data.data.action_items) {
+              setTeacherActions({
+                pending_assignments: data.data.action_items.pending_assignments || 0,
+                pending_exams: data.data.action_items.pending_exams || 0,
+                pending_leaves: data.data.action_items.pending_leaves || 0,
+              });
+            }
+          })
+          .catch((err) => console.error("Failed to fetch teacher actions", err));
+      } else if (role === 'student' || role === 'parent') {
+        // Real, backend-driven notifications (e.g. "Report Card Published") — replaces the
+        // previous hardcoded placeholder counts for these two roles.
+        api.get('/api/core/notifications/')
+          // Paginated now (NotificationViewSet.pagination_class) — the bell dropdown only
+          // ever showed recent notifications anyway, so the first page covers it.
+          .then((res) => setRealNotifications(res.data.results))
+          .catch((err) => console.error("Failed to fetch notifications", err));
+      }
+    };
+
+    fetchRoleData();
+    // A background job (timetable/rollover/bulk-allocate/bulk-results) can finish minutes
+    // after the triggering page was left — the page that submitted it shows its own result
+    // via pollJob(), but the bell is what lets the operator find out from anywhere else in
+    // the app. Poll instead of only fetching on mount so that notice actually arrives.
+    const intervalId = setInterval(fetchRoleData, 30000);
+    return () => clearInterval(intervalId);
   }, [role]);
 
   const markNotificationRead = (id: number) => {
@@ -126,7 +145,7 @@ export default function NotificationBell({ role }: NotificationBellProps) {
 
   // Calculate the total notifications based dynamically on the role
   let totalNotifications = 0;
-  if (role === 'admin') totalNotifications = pendingData.total_pending;
+  if (role === 'admin') totalNotifications = pendingData.total_pending + unreadRealNotifications.length;
   if (role === 'teacher') totalNotifications = teacherActions.pending_assignments + teacherActions.pending_exams + teacherActions.pending_leaves;
   if (role === 'student') totalNotifications = studentActions.due_assignments + unreadRealNotifications.length;
   if (role === 'parent') totalNotifications = parentActions.fee_reminders + unreadRealNotifications.length;
@@ -134,7 +153,8 @@ export default function NotificationBell({ role }: NotificationBellProps) {
   // Red is reserved for genuinely time-sensitive items (leave/timetable clashes needing
   // a decision); everything else is informational and reads as amber instead of always-red.
   let hasUrgent = false;
-  if (role === 'admin') hasUrgent = pendingData.timetable_warnings > 0 || pendingData.pending_leaves > 0;
+  if (role === 'admin') hasUrgent = pendingData.timetable_warnings > 0 || pendingData.pending_leaves > 0
+    || unreadRealNotifications.some(n => n.title.toLowerCase().includes('failed'));
   if (role === 'teacher') hasUrgent = teacherActions.pending_leaves > 0;
   if (role === 'parent') hasUrgent = parentActions.attendance_alerts > 0;
 
@@ -163,7 +183,7 @@ export default function NotificationBell({ role }: NotificationBellProps) {
       <div className="absolute top-12 right-0 w-72 bg-white border border-slate-200 shadow-xl rounded-xl flex flex-col z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150 origin-top-right">
         <div className="bg-slate-50 px-4 py-3 border-b border-slate-100 flex justify-between items-center">
           <span className="font-bold text-slate-700 text-sm">Action Required</span>
-          {(role === 'student' || role === 'parent') && unreadRealNotifications.length > 0 && (
+          {(role === 'admin' || role === 'student' || role === 'parent') && unreadRealNotifications.length > 0 && (
             <button type="button" onClick={markAllRead} className="text-xs font-medium text-blue-600 hover:text-blue-700">
               Mark all read
             </button>
@@ -235,6 +255,34 @@ export default function NotificationBell({ role }: NotificationBellProps) {
                   </div>
                 </Link>
               )}
+
+              {/* Background job completions (timetable generation, rollover, bulk-allocate,
+                  bulk results) — the operator finds out here even if they left the page
+                  that submitted it. Failures render in rose, successes in emerald. */}
+              {realNotifications.map((n) => {
+                const isFailure = n.title.toLowerCase().includes('failed');
+                const content = (
+                  <>
+                    <div className={`p-2 rounded-full mt-1 ${isFailure ? 'bg-rose-100' : 'bg-emerald-100'}`}>
+                      <Cog className={`w-4 h-4 ${isFailure ? 'text-rose-600' : 'text-emerald-600'}`} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-700">{n.title}</p>
+                      <p className="text-xs text-slate-500">{n.message}</p>
+                    </div>
+                  </>
+                );
+                const rowClass = `px-4 py-3 border-b border-slate-50 hover:bg-slate-50 transition-colors flex items-start gap-3 cursor-pointer ${!n.is_read ? (isFailure ? 'bg-rose-50/40' : 'bg-emerald-50/40') : ''}`;
+                return n.action_url ? (
+                  <Link key={n.id} to={n.action_url} className={rowClass} onClick={() => !n.is_read && markNotificationRead(n.id)}>
+                    {content}
+                  </Link>
+                ) : (
+                  <div key={n.id} className={rowClass} onClick={() => !n.is_read && markNotificationRead(n.id)}>
+                    {content}
+                  </div>
+                );
+              })}
             </>
           )}
 

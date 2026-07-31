@@ -1,8 +1,11 @@
+import hashlib
+
 from django.db import models
 from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator
+from django.utils import timezone
 
-from school.validators import safe_document_validator
+from school.validators import safe_document_validator, profile_pic_validator
 
 
 class TeacherExtra(models.Model):
@@ -12,7 +15,7 @@ class TeacherExtra(models.Model):
     id_number = models.CharField(max_length=20, null=True)
     address = models.CharField(max_length=255, null=True)
     # The upload_to argument automatically creates a 'profile_pic/Teacher' folder in your media directory
-    profile_pic = models.ImageField(upload_to='profile_pic/Teacher/', null=True, blank=True)
+    profile_pic = models.ImageField(upload_to='profile_pic/Teacher/', null=True, blank=True, validators=[profile_pic_validator])
 
     # LEFT UNTOUCHED: Preserves your current React UI and existing text data
     subjects = models.CharField(max_length=255, null=True, blank=True)
@@ -66,10 +69,15 @@ class StaffExtra(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
 
     job_title = models.CharField(max_length=100, blank=True, help_text="e.g. 'Librarian', 'Finance Officer' — display only, doesn't grant access on its own.")
+    # What the applicant picked on the signup form — auto-assigned as their actual Role
+    # on approval (see api_process_approval), so admin doesn't have to hunt for the right
+    # Role by hand. Still just a starting point: admin can add/remove/change Roles freely
+    # afterward on the Roles & Permissions page, same as any other individual assignment.
+    requested_role = models.ForeignKey('Role', on_delete=models.SET_NULL, null=True, blank=True, related_name='staff_applicants')
     id_number = models.CharField(max_length=20, null=True, blank=True)
     mobile = models.CharField(max_length=40, blank=True)
     address = models.CharField(max_length=255, null=True, blank=True)
-    profile_pic = models.ImageField(upload_to='profile_pic/Staff/', null=True, blank=True)
+    profile_pic = models.ImageField(upload_to='profile_pic/Staff/', null=True, blank=True, validators=[profile_pic_validator])
 
     joindate = models.DateField(auto_now_add=True)
     status = models.BooleanField(default=False)  # False means waiting for admin approval
@@ -103,9 +111,42 @@ class StudentExtra(models.Model):
     # -----------------------------
 
     status = models.BooleanField(default=False)
+
+    # --- LEGACY SUMMARY FIELDS ---
+    # Kept for every existing reader (AdminDashboard student list/API, seed scripts) that
+    # displays a single "parent contact" line. No longer edited directly at signup — see
+    # FAMILY_STRUCTURE_CHOICES below — instead auto-derived by refresh_parent_summary()
+    # from the structured fields any time those change, so nothing reading these two loses
+    # information. Still directly editable from the admin Edit Profile screen for accounts
+    # created before this structure existed (which have no structured data to derive from).
     parent_name = models.CharField(max_length=100, null=True)
     parent_mobile = models.CharField(max_length=40, null=True)
-    profile_pic = models.ImageField(upload_to='profile_pic/Student/', null=True, blank=True)
+
+    FAMILY_STRUCTURE_CHOICES = [
+        ('both', 'Both Parents'),
+        ('single', 'Single Parent'),
+        ('guardian', 'Guardian'),
+    ]
+    SINGLE_PARENT_CHOICES = [
+        ('Mother', 'Mother'),
+        ('Father', 'Father'),
+    ]
+
+    family_structure = models.CharField(max_length=10, choices=FAMILY_STRUCTURE_CHOICES, null=True, blank=True)
+    # Only meaningful when family_structure='single' — which of father_name/mother_name
+    # below actually holds that parent's details.
+    single_parent_type = models.CharField(max_length=10, choices=SINGLE_PARENT_CHOICES, null=True, blank=True)
+
+    father_name = models.CharField(max_length=100, null=True, blank=True)
+    father_mobile = models.CharField(max_length=40, null=True, blank=True)
+    mother_name = models.CharField(max_length=100, null=True, blank=True)
+    mother_mobile = models.CharField(max_length=40, null=True, blank=True)
+    guardian_name = models.CharField(max_length=100, null=True, blank=True)
+    guardian_mobile = models.CharField(max_length=40, null=True, blank=True)
+    # Free text (e.g. "Aunt", "Grandfather") — only meaningful when family_structure='guardian'.
+    guardian_relationship = models.CharField(max_length=50, null=True, blank=True)
+
+    profile_pic = models.ImageField(upload_to='profile_pic/Student/', null=True, blank=True, validators=[profile_pic_validator])
 
     ENROLLMENT_STATUS_CHOICES = [
         ('Active', 'Active'),
@@ -117,6 +158,24 @@ class StudentExtra(models.Model):
     enrollment_state = models.CharField(max_length=20, choices=ENROLLMENT_STATUS_CHOICES, default='Active')
     enrollment_notes = models.TextField(null=True, blank=True, help_text="Reason for suspension/expulsion/transfer")
     last_enrollment_change = models.DateTimeField(auto_now=True, null=True)
+
+    def refresh_parent_summary(self):
+        """Recomputes parent_name/parent_mobile from the structured father/mother/guardian
+        fields, so every existing single-line reader (AdminDashboard list, seed scripts)
+        keeps working without changes. Does not save() — callers save alongside their own
+        other field updates."""
+        parts = []
+        if self.father_name:
+            parts.append(f"{self.father_name} (Father)")
+        if self.mother_name:
+            parts.append(f"{self.mother_name} (Mother)")
+        if self.guardian_name:
+            label = self.guardian_relationship or 'Guardian'
+            parts.append(f"{self.guardian_name} ({label})")
+
+        if parts:
+            self.parent_name = ", ".join(parts)
+            self.parent_mobile = self.father_mobile or self.mother_mobile or self.guardian_mobile or None
 
     @property
     def get_name(self):
@@ -292,16 +351,78 @@ class AdminExtra(models.Model):
     #
     # Admin approval is a two-step flow, since this is the highest-privilege role:
     #   1. status=False, verification_code=None      -> awaiting an existing admin's initial review.
-    #   2. status=False, verification_code=<6 digits> -> an admin clicked "Approve"; a code was
+    #   2. status=False, verification_code=<hash>     -> an admin clicked "Approve"; a code was
     #      generated and shown to that admin to relay to the applicant out-of-band. The applicant
     #      must enter it correctly to finish activating their own account.
     #   3. status=True                                -> fully approved; added to the ADMIN group.
+    #
+    # verification_code stores a make_password() hash, not the raw digits — it's a low-entropy
+    # 6-digit OTP, so a salted/slow hash matters here (unlike AdminInviteCode.code_hash below,
+    # which is high-entropy and can safely use a fast unsalted digest).
     status = models.BooleanField(default=False)
-    verification_code = models.CharField(max_length=6, null=True, blank=True)
+    verification_code = models.CharField(max_length=128, null=True, blank=True)
     code_generated_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return self.user.first_name
+
+
+class ForcedPasswordChange(models.Model):
+    """Presence of a row means this user must set their own new password before they
+    can use the dashboard. Created whenever an admin resets someone's password, so a
+    relayed temporary password can't quietly become permanent — and cleared
+    automatically the next time that user changes their password themselves."""
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='forced_password_change')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.user.username} must change password"
+
+
+class AdminInviteCode(models.Model):
+    """
+    A single-use, expiring code an existing admin generates and relays out-of-band to let
+    someone else register for an admin account (school/views/admin_invite_views.py). Replaces
+    the old ADMIN_SIGNUP_INVITE_CODE static shared secret.
+
+    Only a sha256 digest of the raw code is ever stored, plus a 4-char plaintext preview so an
+    admin can tell their own generated codes apart in a list without the raw value being
+    recoverable. Unlike AdminExtra.verification_code, this is high-entropy random data (not a
+    short OTP), so a fast unsalted hash is appropriate and lets signup look it up by exact
+    match instead of scanning every outstanding invite.
+    """
+    code_hash = models.CharField(max_length=64, unique=True, db_index=True)
+    code_preview = models.CharField(max_length=4)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='generated_admin_invites')
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    used_at = models.DateTimeField(null=True, blank=True)
+    used_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    revoked_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+
+    class Meta:
+        ordering = ['-created_at']
+
+    @staticmethod
+    def hash_code(raw_code):
+        """Normalizes (case/whitespace/hyphen-insensitive) and sha256-hashes a raw invite
+        code, used identically at generation time and at signup lookup time."""
+        normalized = raw_code.strip().upper().replace('-', '').replace(' ', '')
+        return hashlib.sha256(normalized.encode()).hexdigest()
+
+    @property
+    def status(self):
+        if self.revoked_at:
+            return 'Revoked'
+        if self.used_at:
+            return 'Used'
+        if timezone.now() > self.expires_at:
+            return 'Expired'
+        return 'Active'
+
+    def __str__(self):
+        return f"Invite ...{self.code_preview} ({self.status})"
 
 
 # ==========================================

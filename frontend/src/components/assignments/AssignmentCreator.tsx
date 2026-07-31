@@ -15,6 +15,7 @@ import { assignmentService } from '../../libs/assignmentService';
 import QuestionBuilder from './QuestionBuilder';
 import AssignmentOptionsPanel from './AssignmentOptionsPanel';
 import api from '../../libs/axiosInstance';
+import SearchableSelect from '../common/SearchableSelect';
 
 interface AssignmentCreatorProps {
   role: 'admin' | 'teacher';
@@ -294,19 +295,19 @@ export default function AssignmentCreator({ role }: AssignmentCreatorProps) {
               <h3 className="font-semibold text-amber-800">Admin Override: Assign To</h3>
             </div>
             <label className="block text-sm font-medium text-amber-700 mb-2">Select Teacher</label>
-            <select 
-              className="w-full md:w-1/2 p-2.5 bg-white border border-amber-200 rounded-lg text-sm focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none"
-              value={assignment.teacher_id}
-              onChange={(e) => handleAssignmentChange('teacher_id', e.target.value)}
-              aria-label="Select teacher for assignment"
-            >
-              <option value="">-- Select Teacher --</option>
-              {teachers.map(t => (
-                <option key={t.id} value={t.id}>
-                  {t.name || `${t.first_name || ''} ${t.last_name || ''}`.trim()}
-                </option>
-              ))}
-            </select>
+            <div className="w-full md:w-1/2">
+              <SearchableSelect
+                value={assignment.teacher_id}
+                onChange={(val) => handleAssignmentChange('teacher_id', val)}
+                aria-label="Select teacher for assignment"
+                placeholder="-- Select Teacher --"
+                searchPlaceholder="Search teachers…"
+                options={teachers.map(t => ({
+                  value: String(t.id),
+                  label: t.name || `${t.first_name || ''} ${t.last_name || ''}`.trim(),
+                }))}
+              />
+            </div>
             <p className="text-xs text-amber-600 mt-2">This assignment will appear on the selected teacher's dashboard as if they created it.</p>
           </div>
         )}
@@ -329,42 +330,34 @@ export default function AssignmentCreator({ role }: AssignmentCreatorProps) {
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Class Stream <span className="text-red-500">*</span></label>
-              <select 
-                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
-                value={assignment.class_stream_id}
-                onChange={(e) => handleAssignmentChange('class_stream_id', e.target.value)}
+              <SearchableSelect
                 aria-label="Class Stream"
-              >
-                <option value="">Select Class</option>
-                {classes.map((grade: any) => (
-                <optgroup key={grade.grade_id} label={grade.grade_name}>
-                  {grade.streams.map((stream: any) => (
-                  <option key={stream.id} value={stream.id}>
-                    {stream.name}
-                  </option>
-                  ))}
-                </optgroup>
-                ))}
-              </select>
+                value={assignment.class_stream_id}
+                onChange={(v) => handleAssignmentChange('class_stream_id', v)}
+                placeholder="Select Class"
+                searchPlaceholder="Search grade or stream…"
+                options={classes.flatMap((grade: any) =>
+                  grade.streams.map((stream: any) => ({
+                    value: String(stream.id),
+                    label: stream.name.startsWith(grade.grade_name) ? stream.name.slice(grade.grade_name.length).trim() : stream.name,
+                    sublabel: grade.grade_name,
+                  }))
+                )}
+              />
             </div>
 
             {/* --- UPDATED: Dynamic Subject Selection based on Teacher --- */}
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Subject <span className="text-red-500">*</span></label>
-              <select 
-                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all disabled:opacity-50 disabled:bg-slate-100 disabled:cursor-not-allowed"
-                value={assignment.subject_id}
+              <SearchableSelect
                 aria-label="Subject"
-                onChange={(e) => handleAssignmentChange('subject_id', e.target.value)}
-                disabled={role === 'admin' && !assignment.teacher_id} // Disable if no teacher selected
-              >
-                <option value="">
-                  {role === 'admin' && !assignment.teacher_id ? "-- Select Teacher First --" : "Select Subject"}
-                </option>
-                {filteredSubjects.map(s => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
+                value={assignment.subject_id}
+                onChange={(v) => handleAssignmentChange('subject_id', v)}
+                disabled={role === 'admin' && !assignment.teacher_id}
+                placeholder={role === 'admin' && !assignment.teacher_id ? '-- Select Teacher First --' : 'Select Subject'}
+                searchPlaceholder="Search subjects…"
+                options={filteredSubjects.map(s => ({ value: String(s.id), label: s.name }))}
+              />
             </div>
           </div>
         </div>

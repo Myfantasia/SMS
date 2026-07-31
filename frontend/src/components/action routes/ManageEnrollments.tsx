@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import BulkTransferModal from './BulkTransferModal';
 import api from '../../libs/axiosInstance';
+import SearchableSelect from '../common/SearchableSelect';
 
 // --- TYPESCRIPT INTERFACES ---
 interface Student {
@@ -424,16 +425,19 @@ const fetchClassData = useCallback(async () => {
                         <h2 className="text-lg font-bold text-slate-800 mb-4">Pull Unassigned Student</h2>
                         <p className="text-sm text-slate-500 mb-4">Select a Reactivated or Unassigned student to pull into {classInfo.grade} {classInfo.name}.</p>
                         
-                        <select 
-                            className="w-full border border-slate-300 rounded-lg p-2.5 text-sm mb-6 bg-white"
-                            value={pullForm.student_id}
-                            onChange={(e) => setPullForm({student_id: e.target.value})}
-                        >
-                            <option value="">-- Select Student --</option>
-                            {unassignedPool.map(s => (
-                                <option key={s.id} value={s.id}>{s.name} ({s.roll}) - {s.enrollment_state}</option>
-                            ))}
-                        </select>
+                        <div className="mb-6">
+                            <SearchableSelect
+                                value={pullForm.student_id}
+                                onChange={(val) => setPullForm({ student_id: val })}
+                                placeholder="-- Select Student --"
+                                searchPlaceholder="Search by name or roll no…"
+                                options={unassignedPool.map(s => ({
+                                    value: String(s.id),
+                                    label: `${s.name} (${s.roll})`,
+                                    sublabel: s.enrollment_state,
+                                }))}
+                            />
+                        </div>
 
                         <div className="flex justify-end gap-3">
                             <button onClick={() => setIsPullModalOpen(false)} className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition">Cancel</button>

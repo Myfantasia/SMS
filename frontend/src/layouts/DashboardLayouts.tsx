@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
-import { School } from 'lucide-react';
+import { School, X } from 'lucide-react';
 import Menu from '../components/Menu';
 import Navbar from '../components/Navbar';
+import ForcedPasswordChangeGate from '../components/ForcedPasswordChangeGate';
 import api from '../libs/axiosInstance';
 import toast from 'react-hot-toast';
 import { recordActivity, redirectToSignInIfSessionExpired, SIGN_IN_URL } from '../libs/sessionExpiry';
@@ -24,6 +25,8 @@ export default function DashboardLayout({ role }: LayoutProps) {
   const [isClassTeacher, setIsClassTeacher] = useState(false);
   const [permissions, setPermissions] = useState<string[]>([]);
   const [authStatus, setAuthStatus] = useState<'checking' | 'authorized' | 'denied'>('checking');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mustChangePassword, setMustChangePassword] = useState(false);
 
   // 1. DYNAMIC FETCH — also acts as the auth gate for this route group.
   useEffect(() => {
@@ -33,11 +36,12 @@ export default function DashboardLayout({ role }: LayoutProps) {
       .then((res) => {
         if (cancelled) return;
         if (res.data?.data) {
-          const { id, first_name, last_name, is_class_teacher, permissions } = res.data.data;
+          const { id, first_name, last_name, is_class_teacher, permissions, must_change_password } = res.data.data;
           setUserId(id ?? null);
           setUserName(`${first_name} ${last_name}`);
           setIsClassTeacher(!!is_class_teacher);
           setPermissions(permissions || []);
+          setMustChangePassword(!!must_change_password);
           setAuthStatus('authorized');
           recordActivity();
         } else {
@@ -111,29 +115,65 @@ export default function DashboardLayout({ role }: LayoutProps) {
     );
   }
 
-  return (
-    <div className="h-screen flex bg-slate-50 font-sans">
+  // A temporary/admin-reset password blocks all dashboard access until the user sets
+  // their own new one — checked after the session gate above so we know who they are.
+  if (mustChangePassword) {
+    return <ForcedPasswordChangeGate onSuccess={() => setMustChangePassword(false)} />;
+  }
 
-      {/* Sidebar Navigation */}
-      <div className="w-[16%] md:w-[10%] lg:w-[18%] xl:w-[16%] px-3 lg:px-4 py-4 bg-white border-r border-slate-200 overflow-y-scroll scrollbar-hide flex flex-col transition-all">
-        <div className="flex items-center justify-center lg:justify-start gap-2.5 mb-6 mt-1 px-1">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center shadow-sm shrink-0">
-            <School className="w-5 h-5 text-white" />
+  return (
+    <div className="h-screen flex bg-slate-50 font-sans overflow-hidden">
+
+      {/* Mobile backdrop — closes the drawer on outside tap, only relevant below `lg` */}
+      {mobileMenuOpen && (
+        <div
+          className="fixed inset-0 bg-slate-900/40 z-40 lg:hidden"
+          onClick={() => setMobileMenuOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Sidebar Navigation — an off-canvas drawer below `lg`, a permanent rail at `lg` and up.
+          Below `lg` the drawer must close itself once a link is actually followed, otherwise
+          it stays open covering the page the user just tapped into — closing on click here
+          (rather than an effect keyed on the route) avoids a state update loop. */}
+      <div
+        onClick={(e) => {
+          if ((e.target as HTMLElement).closest('a')) setMobileMenuOpen(false);
+        }}
+        className={`fixed inset-y-0 left-0 z-50 w-72 max-w-[80%] px-4 py-4 bg-white border-r border-slate-200 overflow-y-scroll scrollbar-hide flex flex-col transition-transform duration-300 ease-in-out
+          ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
+          lg:static lg:translate-x-0 lg:z-auto lg:w-[18%] xl:w-[16%] lg:shrink-0`}
+      >
+        <div className="flex items-center justify-between gap-2.5 mb-6 mt-1 px-1">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center shadow-sm shrink-0">
+              <School className="w-5 h-5 text-white" />
+            </div>
+            <div className="flex flex-col leading-none min-w-0">
+              <span className="font-extrabold text-lg text-slate-800 truncate">SMS Portal</span>
+              <span className="text-[10px] text-slate-400 font-medium tracking-wide">School Management</span>
+            </div>
           </div>
-          <div className="hidden lg:flex flex-col leading-none">
-            <span className="font-extrabold text-lg text-slate-800">SMS Portal</span>
-            <span className="text-[10px] text-slate-400 font-medium tracking-wide">School Management</span>
-          </div>
+          {/* Close button — only relevant below `lg`, where the sidebar is an off-canvas drawer */}
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen(false)}
+            aria-label="Close menu"
+            className="lg:hidden shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+          >
+            <X className="w-4.5 h-4.5" />
+          </button>
         </div>
-        <div className="hidden lg:block h-px bg-slate-100 mb-2" />
+        <div className="h-px bg-slate-100 mb-2" />
         <Menu userRole={role} isClassTeacher={isClassTeacher} permissions={permissions} />
       </div>
 
       {/* Main Content Pane */}
-      <div className="w-[84%] md:w-[90%] lg:w-[82%] xl:w-[84%] bg-slate-50 flex flex-col overflow-hidden">
+      <div className="flex-1 min-w-0 bg-slate-50 flex flex-col overflow-hidden">
 
         {/* Universal Top Navbar */}
-        <Navbar role={role} userName={userName} />
+        <Navbar role={role} userName={userName} onMenuClick={() => setMobileMenuOpen((open) => !open)} />
 
         {/* Dynamic Page Content */}
         <main className="p-4 md:p-8 overflow-y-auto flex-1 scrollbar-hide">

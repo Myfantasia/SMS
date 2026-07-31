@@ -1,5 +1,6 @@
 from datetime import timedelta
 
+from django.contrib.auth.hashers import make_password
 from django.contrib.auth.models import User, Group
 from django.core.cache import cache
 from django.test import TestCase
@@ -88,21 +89,25 @@ class TeacherStudentLoginRateLimitTests(TestCase):
 class ParentLoginRateLimitTests(TestCase):
     def setUp(self):
         cache.clear()
-        User.objects.create_user(username='parent1', password='correct-horse')
+        User.objects.create_user(
+            username='parent1', email='parent1@hardening.test', password='correct-horse')
 
     def test_correct_login_works_under_threshold(self):
+        # parent_login_view is email-based (templates/school/parents/parentlogin.html's
+        # form field is literally named "email"), matching admin/teacher/student login —
+        # not Django's generic username-based AuthenticationForm.
         response = self.client.post(reverse('parentlogin'), {
-            'username': 'parent1', 'password': 'correct-horse',
+            'email': 'parent1@hardening.test', 'password': 'correct-horse',
         })
         self.assertEqual(response.status_code, 302)
 
     def test_locks_out_after_repeated_failures(self):
         for _ in range(8):
             self.client.post(reverse('parentlogin'), {
-                'username': 'parent1', 'password': 'wrong',
+                'email': 'parent1@hardening.test', 'password': 'wrong',
             })
         response = self.client.post(reverse('parentlogin'), {
-            'username': 'parent1', 'password': 'correct-horse',
+            'email': 'parent1@hardening.test', 'password': 'correct-horse',
         })
         self.assertFalse(response.wsgi_request.user.is_authenticated)
         self.assertEqual(response.status_code, 200)
@@ -115,7 +120,7 @@ class VerificationCodeHardeningTests(TestCase):
             username='pending_admin', email='pending@hardening.test', password='correct-horse')
         self.admin_extra = AdminExtra.objects.create(
             user=self.pending_user, status=False,
-            verification_code='123456', code_generated_at=timezone.now(),
+            verification_code=make_password('123456'), code_generated_at=timezone.now(),
         )
 
     def _submit_code(self, code):

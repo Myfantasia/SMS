@@ -1,19 +1,23 @@
 from rest_framework.authentication import SessionAuthentication
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from django.db import transaction
 from django.db.models import Count
 from django.core.exceptions import ValidationError
+from django.core.cache import cache
 from school.models.classSubjects_models import SubjectQuota, SubjectAllocation, ClassStream, Subject, GradeLevel, \
-    SubjectSplittingRule, StudentSubjectEnrollment, GlobalAllocationPolicy, SystemAuditLog, SubjectBlock
+    SubjectSplittingRule, StudentSubjectEnrollment, GlobalAllocationPolicy, SystemAuditLog, SubjectBlock, \
+    get_effective_is_core
 from school.models.models import (
     TeacherExtra, ExamTerm, AcademicYear, AttendanceSession
 )
 from school.models.timetable_models import LessonAllocation, Timetable
 from school.utils import build_grade_subject_block_map, get_subject_block_names, is_tech_subject, \
-    AllocationValidator, reserve_class_teacher_slot, fill_remaining_subjects, get_cached_unscheduled_errors
+    AllocationValidator, reserve_class_teacher_slot, fill_remaining_subjects, get_cached_unscheduled_errors, \
+    get_subjects_with_active_virtual_groups, get_published_classroom_ids, publish_allocation, unpublish_allocation
 from school.views.views_timetable import sync_timetable_with_allocation_changes
 from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import get_object_or_404
@@ -23,6 +27,8 @@ import math
 import random
 from school.decorators import require_permission
 from school.rbac import HasModulePermission
+from school.jobs import dispatch_background_job
+from school.tasks import rollover_allocations_task, bulk_auto_allocate_task
 
 
 class CsrfExemptSessionAuthentication(SessionAuthentication):
@@ -54,6 +60,13 @@ class AllocationMatrixAPIView(APIView):
             policy = GlobalAllocationPolicy.load()
 
             class_subjects = []
+            # Subjects in this grade already routed through virtual elective split groups —
+            # a physical stream never gets its own direct contract for these (the group IS the
+            # teaching unit), but hiding them from the matrix entirely used to read as "nothing
+            # was allocated" when really they just need to be staffed from the Elective Groups
+            # view instead. Surfacing them here with their own group-staffing status closes that
+            # gap directly.
+            split_subject_ids = set()
 
             if classroom.is_virtual:
                 subject_name = classroom.name.split(' - ')[0].strip()
@@ -61,6 +74,7 @@ class AllocationMatrixAPIView(APIView):
                 if target_subject:
                     class_subjects.append(target_subject)
             else:
+                split_subject_ids = get_subjects_with_active_virtual_groups(classroom.grade_id)
                 quotas = SubjectQuota.objects.filter(grade=classroom.grade).select_related('subject') \
                     .order_by('subject__display_order', 'subject__name')
 
@@ -69,6 +83,28 @@ class AllocationMatrixAPIView(APIView):
                         class_subjects.append(quota.subject)
                 else:
                     class_subjects = list(Subject.objects.all().order_by('display_order', 'name'))
+
+            # For every split subject on this physical stream, look up its live groups in this
+            # grade and how many already have a real teacher contract for this term/year, so the
+            # matrix can show "1 of 2 groups staffed" instead of a bare unassigned dropdown.
+            group_status_by_subject = {}
+            if not classroom.is_virtual and split_subject_ids:
+                grade_virtual_streams = list(
+                    ClassStream.live.filter(grade_id=classroom.grade_id, is_virtual=True)
+                )
+                staffed_group_ids = set(SubjectAllocation.objects.filter(
+                    classroom__in=grade_virtual_streams, term=term_obj, academic_year=year_obj, is_active=True
+                ).values_list('classroom_id', flat=True))
+                subject_names_by_id = {
+                    s.id: s.name.lower() for s in Subject.objects.filter(id__in=split_subject_ids)
+                }
+                groups_by_subject_name = {}
+                for s in grade_virtual_streams:
+                    groups_by_subject_name.setdefault(s.name.split(' - Group')[0].strip().lower(), []).append(s)
+                for subject_id, subject_name_lower in subject_names_by_id.items():
+                    subject_groups = groups_by_subject_name.get(subject_name_lower, [])
+                    staffed = sum(1 for s in subject_groups if s.id in staffed_group_ids)
+                    group_status_by_subject[subject_id] = f"{staffed} of {len(subject_groups)} group{'s' if len(subject_groups) != 1 else ''} staffed"
 
             block_map = build_grade_subject_block_map(grade_ids=[classroom.grade_id])
             block_names = get_subject_block_names(block_map.values())
@@ -148,20 +184,26 @@ class AllocationMatrixAPIView(APIView):
                         })
 
                 block_id = block_map.get((classroom.grade_id, subject.id))
+                routed_to_groups = subject.id in split_subject_ids
                 matrix_data.append({
                     "subject_id": subject.id,
                     "subject_name": subject.name,
                     "subject_code": subject.code,
                     "block_name": block_names.get(block_id, "Core Subject") if block_id else "Core Subject",
-                    "eligible_teachers": eligible_teachers,
-                    "assigned_teacher_id": allocation_map.get(subject.id, "")
+                    "eligible_teachers": [] if routed_to_groups else eligible_teachers,
+                    "assigned_teacher_id": "" if routed_to_groups else allocation_map.get(subject.id, ""),
+                    "routed_to_groups": routed_to_groups,
+                    "group_status": group_status_by_subject.get(subject.id) if routed_to_groups else None,
                 })
+
+            is_published = classroom.id in get_published_classroom_ids([classroom.id], term_id, year_id)
 
             return Response({
                 "class_name": classroom.name,
                 "grade_id": classroom.grade_id,
                 "grade_name": classroom.grade.name,
                 "is_virtual": classroom.is_virtual,
+                "is_published": is_published,
                 "matrix": matrix_data
             }, status=status.HTTP_200_OK)
 
@@ -176,9 +218,21 @@ class AllocationMatrixAPIView(APIView):
         term_id = request.data.get('term_id')
         year_id = request.data.get('year_id')
         allocations = request.data.get('allocations', [])
+        # 'class' (default) only publishes/locks this one class, same as before this option
+        # existed. 'grade'/'all' additionally sweep up and publish every OTHER already-saved,
+        # still-draft class in that wider scope in the same request — for an admin who edited
+        # each class individually but wants to finalize a whole grade/school in one click instead
+        # of re-opening and re-saving every class just to lock it.
+        publish_scope = request.data.get('publish_scope', 'class')
 
         if not all([class_id, term_id, year_id]):
             return Response({"error": "Missing ID parameters."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if get_published_classroom_ids([class_id], term_id, year_id):
+            return Response(
+                {"error": "This class's allocation has been published and is locked. Unpublish it first to make changes."},
+                status=status.HTTP_409_CONFLICT,
+            )
 
         try:
             target_class = get_object_or_404(ClassStream, id=class_id)
@@ -287,7 +341,8 @@ class AllocationMatrixAPIView(APIView):
                     active_timetable=active_timetable, prior_triples=prior_triples, new_triples=new_triples
                 )
 
-                if sync_result["ejected_count"] or sync_result["swapped_count"] or sync_result["needs_regeneration"]:
+                if (sync_result["ejected_count"] or sync_result["swapped_count"]
+                        or sync_result["needs_regeneration"] or sync_result["locked_skipped_count"]):
                     SystemAuditLog.objects.create(
                         operator=request.user if request.user.is_authenticated else None,
                         action_type='UPDATE',
@@ -297,7 +352,8 @@ class AllocationMatrixAPIView(APIView):
                             f"{sync_result['ejected_count']} lesson(s) ejected, "
                             f"{sync_result['swapped_count']} lesson(s) swapped to their new teacher in place, "
                             f"{sum(len(v) for v in sync_result['needs_regeneration'].values())} subject(s) "
-                            f"sent to targeted regeneration."
+                            f"sent to targeted regeneration, "
+                            f"{sync_result['locked_skipped_count']} locked lesson(s) left untouched."
                         )
                     )
                     if sync_result["ejected_count"]:
@@ -315,6 +371,11 @@ class AllocationMatrixAPIView(APIView):
                             f"{sum(len(v) for v in sync_result['needs_regeneration'].values())} subject(s) "
                             f"couldn't be moved in place and were automatically regenerated on the live grid."
                         )
+                    if sync_result["locked_skipped_count"]:
+                        warning_flags.append(
+                            f"{sync_result['locked_skipped_count']} locked lesson(s) were left untouched on the "
+                            f"live grid despite this contract change — unlock them manually if they need updating."
+                        )
 
                 # Surface any lingering scheduling failures for this class from the last
                 # (re)generation run, so a Matrix edit that just fixed a contract also shows
@@ -322,15 +383,112 @@ class AllocationMatrixAPIView(APIView):
                 if active_timetable:
                     warning_flags.extend(get_cached_unscheduled_errors(active_timetable.id, [target_class.name]))
 
+                # Saving IS publishing — a class's allocation moves from draft to published the
+                # moment it's saved here, and stays locked until explicitly unpublished.
+                publish_allocation(class_id, term_id, year_id, request.user)
+
+                bulk_published_count = 0
+                if publish_scope in ('grade', 'all'):
+                    if publish_scope == 'grade':
+                        sibling_ids = list(
+                            ClassStream.objects.filter(grade_id=target_grade_id)
+                            .exclude(id=class_id).values_list('id', flat=True)
+                        )
+                    else:
+                        sibling_ids = list(
+                            ClassStream.objects.exclude(id=class_id).values_list('id', flat=True)
+                        )
+
+                    # Only classes that actually have something saved are worth publishing —
+                    # an empty, never-touched class has no draft to finalize.
+                    already_published = get_published_classroom_ids(sibling_ids, term_id, year_id)
+                    drafted_ids = set(SubjectAllocation.objects.filter(
+                        classroom_id__in=sibling_ids, term_id=term_id, academic_year_id=year_id, is_active=True
+                    ).values_list('classroom_id', flat=True).distinct()) - already_published
+
+                    for cid in drafted_ids:
+                        publish_allocation(cid, term_id, year_id, request.user)
+                    bulk_published_count = len(drafted_ids)
+
+                    scope_label = "grade" if publish_scope == 'grade' else "school"
+                    SystemAuditLog.objects.create(
+                        operator=request.user if request.user.is_authenticated else None,
+                        action_type='UPDATE',
+                        module='AllocationPublishState',
+                        description=(
+                            f"Saved {target_class.name} and published {bulk_published_count} other "
+                            f"already-drafted class(es) across the {scope_label} in the same action."
+                        )
+                    )
+
+            message = "Teachers successfully allocated to class!"
+            if bulk_published_count:
+                message += f" Also published {bulk_published_count} other drafted class(es) in the {'grade' if publish_scope == 'grade' else 'school'}."
+
             return Response({
-                "message": "Teachers successfully allocated to class!",
+                "message": message,
                 "warnings": list(set(warning_flags)),
                 "ejected_lesson_count": sync_result["ejected_count"],
                 "swapped_lesson_count": sync_result["swapped_count"],
+                "bulk_published_count": bulk_published_count,
             }, status=status.HTTP_201_CREATED)
 
         except Exception as e:
             return Response({"error": f"Backend Error: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class UnpublishAllocationAPIView(APIView):
+    """
+    Re-opens published allocation(s) for editing — scoped to one class, a whole grade
+    (streams + elective groups together), or every published class in the term, mirroring
+    ClearAllocationsAPIView's class/grade/school scope choice. Publishing is automatic (see
+    AllocationMatrixAPIView.post) — this is the one explicit, deliberate action required to
+    undo it, so a finalized schedule can't be nudged back into "editable" by accident.
+    """
+    authentication_classes = [CsrfExemptSessionAuthentication]
+    permission_classes = [IsAuthenticated, HasModulePermission]
+    rbac_edit_permission = 'allocations.edit'
+
+    def post(self, request):
+        from school.models.classSubjects_models import AllocationPublishState
+
+        term_id = request.data.get('term_id')
+        year_id = request.data.get('year_id')
+        class_id = request.data.get('class_id')
+        grade_id = request.data.get('grade_id')
+
+        if not all([term_id, year_id]):
+            return Response({"error": "term_id and year_id are required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if class_id:
+            classroom = get_object_or_404(ClassStream, id=class_id)
+            unpublish_allocation(class_id, term_id, year_id)
+            msg = f"{classroom.grade.name} {classroom.name} reverted to draft — it can be edited again."
+        elif grade_id:
+            # Whole-grade unpublish: streams AND their virtual elective split groups together,
+            # same unit Bulk Allocate Grade / the grade-scoped Clear Grid already treat as one.
+            grade = get_object_or_404(GradeLevel, id=grade_id)
+            grade_classroom_ids = list(
+                ClassStream.objects.filter(grade_id=grade_id).values_list('id', flat=True)
+            )
+            updated = AllocationPublishState.objects.filter(
+                classroom_id__in=grade_classroom_ids, term_id=term_id, academic_year_id=year_id, is_published=True
+            ).update(is_published=False, published_at=None, published_by=None)
+            msg = f"Reverted {updated} published class(es) across {grade.name} (streams and elective groups) to draft."
+        else:
+            updated = AllocationPublishState.objects.filter(
+                term_id=term_id, academic_year_id=year_id, is_published=True
+            ).update(is_published=False, published_at=None, published_by=None)
+            msg = f"Reverted {updated} published class(es) across every class in the term to draft."
+
+        SystemAuditLog.objects.create(
+            operator=request.user if request.user.is_authenticated else None,
+            action_type='UPDATE',
+            module='AllocationPublishState',
+            description=msg
+        )
+
+        return Response({"message": msg}, status=status.HTTP_200_OK)
 
 
 class _RolloverValidationError(Exception):
@@ -361,6 +519,8 @@ class RolloverAllocationsAPIView(APIView):
     # bulk operations below — lets a Staff role run rollover/auto-allocate/clear/global-policy
     # without also granting allocations.edit's day-to-day manual matrix editing.
     rbac_edit_permission = ('allocations.edit', 'allocations.bulk')
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'bulk_ops'
 
     def post(self, request):
         source_term_id = request.data.get('source_term_id')
@@ -376,122 +536,35 @@ class RolloverAllocationsAPIView(APIView):
         if not all([source_term_id, target_term_id, year_id]):
             return Response({"error": "Missing parameters for rollover."}, status=status.HTTP_400_BAD_REQUEST)
 
-        try:
-            with transaction.atomic():
-                scoped_classroom = None
-                if class_id:
-                    scoped_classroom = get_object_or_404(ClassStream, id=class_id)
+        if class_id:
+            get_object_or_404(ClassStream, id=class_id)
 
-                # 1. Clone SubjectBlock groupings so the target term isn't left with none of
-                # the elective-synchronization structure the source term had (previously only
-                # the dead, unregistered api_rollover_term_data did this). Scoped to the target
-                # class's own grade when a single class is selected.
-                source_blocks = SubjectBlock.objects.filter(
-                    term_id=source_term_id, academic_year_id=source_year_id
-                ).select_related('grade_level')
-                if scoped_classroom:
-                    source_blocks = source_blocks.filter(grade_level=scoped_classroom.grade)
-                blocks_cloned = 0
-                for old_block in source_blocks:
-                    new_block, created = SubjectBlock.objects.get_or_create(
-                        name=old_block.name, grade_level=old_block.grade_level,
-                        academic_year_id=year_id, term_id=target_term_id,
-                        defaults={'period_structure': old_block.period_structure}
-                    )
-                    if not created and new_block.period_structure != old_block.period_structure:
-                        new_block.period_structure = old_block.period_structure
-                        new_block.save(update_fields=['period_structure'])
-                    new_block.subjects.set(old_block.subjects.all())
-                    if created:
-                        blocks_cloned += 1
+        # Scoped per target TERM (not per class) — even a single-class rollover shares this
+        # lock with a whole-term rollover into the same target term, since both can rewrite
+        # SubjectBlock rows for that term. The task itself acquires this (with retry) once
+        # it starts running — a second submission while one is in progress gets queued and
+        # auto-processed the moment the lock frees, instead of being rejected outright.
+        lock_key = f"rollover_lock_term_{target_term_id}"
+        operator = request.user if request.user.is_authenticated else None
 
-                # 2. Snapshot the target term's existing contracts (for ghost-lesson cleanup
-                # below) before wiping them. Scoped to the one class when class_id is given.
-                target_query = SubjectAllocation.objects.filter(term_id=target_term_id, academic_year_id=year_id)
-                if scoped_classroom:
-                    target_query = target_query.filter(classroom_id=class_id)
-                prior_pairs = set(target_query.values_list('classroom_id', 'teacher_id', 'subject_id'))
-                target_query.delete()
+        # The actual clone/validate/timetable-sync work (potentially whole-school in scope)
+        # runs in a Celery worker — see school/tasks.py:rollover_allocations_task. This view
+        # only validates fast enough to keep an instant response, then hands off.
+        job, error_response = dispatch_background_job(
+            job_type='rollover_allocations',
+            task=rollover_allocations_task,
+            task_args=(source_term_id, target_term_id, year_id, class_id, source_year_id,
+                       operator.id if operator else None, lock_key),
+            operator=operator,
+        )
+        if error_response is not None:
+            return error_response
 
-                # 3. Validate + clone allocations through the shared validator
-                old_allocations = SubjectAllocation.objects.filter(
-                    term_id=source_term_id, academic_year_id=source_year_id, is_active=True
-                )
-                if scoped_classroom:
-                    old_allocations = old_allocations.filter(classroom_id=class_id)
-                old_allocations = old_allocations.select_related('classroom__grade', 'subject', 'teacher')
-
-                block_map = build_grade_subject_block_map()
-                block_names = get_subject_block_names(block_map.values())
-                quota_map = {(q.grade_id, q.subject_id): q.total_lessons for q in SubjectQuota.objects.all()}
-                policy = GlobalAllocationPolicy.load()
-                validator = AllocationValidator(policy, block_map, block_names, quota_map)
-
-                new_allocations = []
-                rollover_warnings = []
-                for alloc in old_allocations:
-                    hard_error, row_warnings = validator.validate_and_record(
-                        teacher=alloc.teacher, subject=alloc.subject, target_class=alloc.classroom,
-                        term_id=target_term_id, year_id=year_id
-                    )
-                    if hard_error:
-                        raise _RolloverValidationError(hard_error)
-                    rollover_warnings.extend(row_warnings)
-                    new_allocations.append(SubjectAllocation(
-                        classroom_id=alloc.classroom_id,
-                        subject_id=alloc.subject_id,
-                        teacher_id=alloc.teacher_id,
-                        academic_year_id=year_id,
-                        term_id=target_term_id,
-                        is_active=True
-                    ))
-
-                SubjectAllocation.objects.bulk_create(new_allocations)
-
-                # 4. Sync the live timetable to whatever the rollover produced — for the WHOLE
-                # batch at once (every class in scope), so an earlier class's swap in this same
-                # rollover can't steal a slot a later class's swap also needs. Ejects contracts
-                # that didn't survive, moves swapped contracts onto their existing slots in place
-                # where the new teacher is free, and falls back to targeted regeneration otherwise.
-                new_pairs = {(a.classroom_id, a.teacher_id, a.subject_id) for a in new_allocations}
-                active_timetable = Timetable.objects.filter(
-                    is_active=True, term_id=target_term_id, academic_year_id=year_id
-                ).first()
-                sync_result = sync_timetable_with_allocation_changes(
-                    active_timetable=active_timetable, prior_triples=prior_pairs, new_triples=new_pairs
-                )
-
-                scope_label = f"class {scoped_classroom.grade.name} {scoped_classroom.name}" if scoped_classroom else "the whole term"
-                SystemAuditLog.objects.create(
-                    operator=request.user if request.user.is_authenticated else None,
-                    action_type='UPDATE',
-                    module='RolloverEngine',
-                    description=f"Rolled over term {source_term_id} -> {target_term_id} ({scope_label}): "
-                                f"{blocks_cloned} block(s) cloned, {len(new_allocations)} allocation(s) carried over, "
-                                f"{sync_result['ejected_count']} stale lesson(s) ejected, "
-                                f"{sync_result['swapped_count']} lesson(s) swapped in place, "
-                                f"{sum(len(v) for v in sync_result['needs_regeneration'].values())} subject(s) "
-                                f"regenerated."
-                )
-
-            timetable_warnings = []
-            if active_timetable and scoped_classroom:
-                timetable_warnings = get_cached_unscheduled_errors(active_timetable.id, [scoped_classroom.name])
-
-            return Response({
-                "message": f"Successfully rolled over {len(new_allocations)} allocation(s) and "
-                           f"{blocks_cloned} subject block(s)"
-                           + (f" for {scoped_classroom.grade.name} {scoped_classroom.name}." if scoped_classroom else " to the new term."),
-                "warnings": list(set(rollover_warnings)),
-                "ejected_lesson_count": sync_result["ejected_count"],
-                "swapped_lesson_count": sync_result["swapped_count"],
-                "timetable_warnings": timetable_warnings,
-            }, status=status.HTTP_201_CREATED)
-
-        except _RolloverValidationError as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        payload = {"status": "queued", "job_id": str(job.id)}
+        if cache.get(lock_key):
+            payload["note"] = "A rollover into this term is already running — yours has been queued " \
+                               "and will start automatically once it finishes."
+        return Response(payload, status=status.HTTP_202_ACCEPTED)
 
 
 class AutoAllocateDraftAPIView(APIView):
@@ -540,9 +613,20 @@ class AutoAllocateDraftAPIView(APIView):
             block_map = build_grade_subject_block_map(grade_ids=[target_grade_id])
             block_names = get_subject_block_names(block_map.values())
 
-            quotas = SubjectQuota.objects.filter(grade=target_class.grade).select_related('subject') \
-                .order_by('subject__display_order', 'subject__name')
-            required_subjects = [quota.subject for quota in quotas]
+            if target_class.is_virtual:
+                # A virtual elective group only ever needs its own one subject (see the same
+                # branch in AllocationMatrixAPIView) — not the whole grade's SubjectQuota list.
+                subject_name = target_class.name.split(' - ')[0].strip()
+                target_subject = Subject.objects.filter(name__iexact=subject_name).first()
+                required_subjects = [target_subject] if target_subject else []
+            else:
+                quotas = SubjectQuota.objects.filter(grade=target_class.grade).select_related('subject') \
+                    .order_by('subject__display_order', 'subject__name')
+                # Subjects already routed through live virtual split groups are fulfilled entirely
+                # by those groups' own contracts — a physical stream must not also demand its own
+                # separate teacher slot for the same subject (see get_subjects_with_active_virtual_groups).
+                split_subject_ids = get_subjects_with_active_virtual_groups(target_class.grade_id)
+                required_subjects = [quota.subject for quota in quotas if quota.subject_id not in split_subject_ids]
             active_teachers = list(TeacherExtra.objects.filter(status=True))
 
             # Single source of truth for eligibility (see TeacherExtra.qualified_subjects).
@@ -626,6 +710,8 @@ class BulkAutoAllocateAPIView(APIView):
     authentication_classes = [CsrfExemptSessionAuthentication]
     permission_classes = [IsAuthenticated, HasModulePermission]
     rbac_edit_permission = ('allocations.edit', 'allocations.bulk')
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'bulk_ops'
 
     def post(self, request):
         grade_id = request.data.get('grade_id')
@@ -639,179 +725,40 @@ class BulkAutoAllocateAPIView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        try:
-            with transaction.atomic():
-                if explicit_class_ids:
-                    target_classes = list(
-                        ClassStream.live.filter(id__in=explicit_class_ids).select_related('grade', 'class_teacher')
-                    )
-                else:
-                    target_classes = list(
-                        ClassStream.live.filter(grade_id=grade_id, is_virtual=False)
-                        .select_related('grade', 'class_teacher')
-                    )
+        # Cheap existence check kept synchronous so an obviously-empty scope still fails
+        # fast — the actual reservation/fill/commit work (school-wide in the worst case)
+        # runs in a Celery worker, see school/tasks.py:bulk_auto_allocate_task.
+        if explicit_class_ids:
+            scope_exists = ClassStream.live.filter(id__in=explicit_class_ids).exists()
+        else:
+            scope_exists = ClassStream.live.filter(grade_id=grade_id, is_virtual=False).exists()
+        if not scope_exists:
+            return Response({"error": "No class streams found for the given scope."},
+                            status=status.HTTP_404_NOT_FOUND)
 
-                if not target_classes:
-                    return Response({"error": "No class streams found for the given scope."},
-                                    status=status.HTTP_404_NOT_FOUND)
+        # Scoped per (term, year) rather than per grade/class_ids — two overlapping-but-not-
+        # identical scopes (e.g. "Grade 9" and "class 9B" individually) would otherwise both
+        # touch the same teacher-load validator state for that term and race each other. The
+        # task itself acquires this (with retry) once it starts running, so a second
+        # submission gets queued and auto-processed rather than rejected.
+        lock_key = f"bulk_allocate_lock_term_{term_id}_year_{year_id}"
+        operator = request.user if request.user.is_authenticated else None
 
-                target_class_ids = [c.id for c in target_classes]
+        job, error_response = dispatch_background_job(
+            job_type='bulk_auto_allocate',
+            task=bulk_auto_allocate_task,
+            task_args=(grade_id, term_id, year_id, explicit_class_ids,
+                       operator.id if operator else None, lock_key),
+            operator=operator,
+        )
+        if error_response is not None:
+            return error_response
 
-                policy = GlobalAllocationPolicy.load()
-                quota_map = {(q.grade_id, q.subject_id): q.total_lessons for q in SubjectQuota.objects.all()}
-
-                required_subjects_by_class = {}
-                all_subject_ids = set()
-                for c in target_classes:
-                    quotas = SubjectQuota.objects.filter(grade=c.grade).select_related('subject') \
-                        .order_by('subject__display_order', 'subject__name')
-                    subs = [q.subject for q in quotas]
-                    required_subjects_by_class[c.id] = subs
-                    all_subject_ids.update(s.id for s in subs)
-
-                active_teachers = list(TeacherExtra.objects.filter(status=True))
-                teacher_qualified_map = {}
-                for row in TeacherExtra.objects.filter(
-                        status=True, qualified_subjects__id__in=all_subject_ids
-                ).values('id', 'qualified_subjects__id'):
-                    teacher_qualified_map.setdefault(row['id'], set()).add(row['qualified_subjects__id'])
-
-                grade_ids = list({c.grade_id for c in target_classes})
-                block_map = build_grade_subject_block_map(grade_ids=grade_ids)
-                block_names = get_subject_block_names(block_map.values())
-
-                # Seed from everything OUTSIDE the target set — teachers' commitments elsewhere
-                # in the school still count against their cap, exactly like the single-class view.
-                baseline_allocations = list(SubjectAllocation.objects.filter(
-                    term_id=term_id, academic_year_id=year_id, is_active=True
-                ).exclude(classroom_id__in=target_class_ids).select_related('classroom', 'subject', 'classroom__grade'))
-
-                validator = AllocationValidator(policy, block_map, block_names, quota_map)
-                validator.seed_from_existing(baseline_allocations)
-
-                teacher_subject_classes = {}
-                for alloc in baseline_allocations:
-                    teacher_subject_classes.setdefault(alloc.teacher_id, {}).setdefault(
-                        alloc.subject_id, []).append(alloc.classroom)
-
-                # PHASE 1: reserve every class's designated class teacher, across the WHOLE batch.
-                reserved_by_class = {}
-                for c in target_classes:
-                    reserved_subject_id, entry = reserve_class_teacher_slot(
-                        validator=validator, target_class=c, required_subjects=required_subjects_by_class[c.id],
-                        teacher_qualified_map=teacher_qualified_map, teacher_subject_classes=teacher_subject_classes,
-                        term_id=term_id, year_id=year_id
-                    )
-                    reserved_by_class[c.id] = (reserved_subject_id, entry)
-
-                # PHASE 2: fill everything else, for every class.
-                class_drafts = {}
-                for c in target_classes:
-                    reserved_subject_id, entry = reserved_by_class[c.id]
-                    entries = ([entry] if entry else []) + fill_remaining_subjects(
-                        validator=validator, target_class=c, required_subjects=required_subjects_by_class[c.id],
-                        reserved_subject_id=reserved_subject_id, teacher_qualified_map=teacher_qualified_map,
-                        active_teachers=active_teachers, teacher_subject_classes=teacher_subject_classes,
-                        policy=policy, term_id=term_id, year_id=year_id
-                    )
-                    class_drafts[c.id] = entries
-
-                # COMMIT: wipe + rebuild each class's contracts. Timetable sync (eject/swap/
-                # regenerate) happens ONCE, after every class's contracts are finalized — not per
-                # class — since a whole-grade batch can touch dozens of classes at once, and
-                # processing them one at a time against the live DB would let an earlier class's
-                # swap in this same batch silently steal a slot a later class's swap also needed.
-                active_timetable = Timetable.objects.filter(is_active=True).first()
-                per_class_summary = []
-                total_saved = 0
-                batch_prior_triples = set()
-                batch_new_triples = set()
-                for c in target_classes:
-                    entries = class_drafts[c.id]
-                    new_pairs = [(e['subject_id'], e['teacher_id']) for e in entries if e.get('teacher_id')]
-                    unresolved_count = sum(1 for e in entries if not e.get('teacher_id'))
-
-                    prior_pairs = set(SubjectAllocation.objects.filter(
-                        classroom=c, term_id=term_id, academic_year_id=year_id, is_active=True
-                    ).values_list('teacher_id', 'subject_id'))
-                    batch_prior_triples.update((c.id, t_id, s_id) for t_id, s_id in prior_pairs)
-                    batch_new_triples.update((c.id, t_id, s_id) for s_id, t_id in new_pairs)
-
-                    SubjectAllocation.objects.filter(
-                        classroom=c, term_id=term_id, academic_year_id=year_id
-                    ).delete()
-                    SubjectAllocation.objects.bulk_create([
-                        SubjectAllocation(classroom=c, subject_id=s_id, teacher_id=t_id,
-                                          academic_year_id=year_id, term_id=term_id, is_active=True)
-                        for s_id, t_id in new_pairs
-                    ])
-
-                    total_saved += len(new_pairs)
-                    per_class_summary.append({
-                        "class_id": c.id,
-                        "class_name": f"{c.grade.name} {c.name}",
-                        "assigned": len(new_pairs),
-                        "unresolved": unresolved_count,
-                        "class_teacher_assigned": (
-                            reserved_by_class[c.id][0] is not None or not c.class_teacher_id
-                        ),
-                    })
-
-                sync_result = sync_timetable_with_allocation_changes(
-                    active_timetable=active_timetable,
-                    prior_triples=batch_prior_triples, new_triples=batch_new_triples
-                )
-                total_ejected = sync_result["ejected_count"]
-                total_swapped = sync_result["swapped_count"]
-                total_regenerated_subjects = sum(len(v) for v in sync_result["needs_regeneration"].values())
-
-                # Teacher-load transparency report, straight from the validator's own running
-                # state — the exact numbers that were actually enforced during this run.
-                teacher_by_id = {t.id: t for t in active_teachers}
-                load_report = []
-                for t_id, load in validator.teacher_weekly_lessons.items():
-                    if policy.max_weekly_lessons and load >= policy.max_weekly_lessons * 0.8:
-                        teacher = teacher_by_id.get(t_id)
-                        load_report.append({
-                            "teacher_name": teacher.get_name if teacher else f"Teacher {t_id}",
-                            "weekly_lessons": load,
-                            "cap": policy.max_weekly_lessons,
-                        })
-                load_report.sort(key=lambda x: -x['weekly_lessons'])
-
-                classes_with_gaps = [c for c in per_class_summary if c['unresolved'] or not c['class_teacher_assigned']]
-
-                SystemAuditLog.objects.create(
-                    operator=request.user if request.user.is_authenticated else None,
-                    action_type='EXECUTION',
-                    module='BulkAutoAllocate',
-                    description=f"Bulk auto-allocated {len(target_classes)} class(es): "
-                                f"{total_saved} contract(s) saved, {total_ejected} stale lesson(s) ejected, "
-                                f"{total_swapped} lesson(s) swapped to their new teacher in place, "
-                                f"{total_regenerated_subjects} subject(s) targeted-regenerated, "
-                                f"{len(classes_with_gaps)} class(es) with gaps."
-                )
-
-                timetable_warnings = []
-                if active_timetable:
-                    timetable_warnings = get_cached_unscheduled_errors(
-                        active_timetable.id, [c.name for c in target_classes]
-                    )
-
-            return Response({
-                "message": f"Bulk allocation complete: {total_saved} contract(s) across "
-                           f"{len(target_classes)} class(es).",
-                "per_class": per_class_summary,
-                "classes_with_gaps": classes_with_gaps,
-                "teachers_near_cap": load_report,
-                "ejected_lesson_count": total_ejected,
-                "swapped_lesson_count": total_swapped,
-                "regenerated_subject_count": total_regenerated_subjects,
-                "timetable_warnings": timetable_warnings,
-            }, status=status.HTTP_200_OK)
-
-        except Exception as e:
-            return Response({"error": f"Bulk Allocation Error: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        payload = {"status": "queued", "job_id": str(job.id)}
+        if cache.get(lock_key):
+            payload["note"] = "A bulk auto-allocate for this term is already running — yours has been " \
+                               "queued and will start automatically once it finishes."
+        return Response(payload, status=status.HTTP_202_ACCEPTED)
 
 
 class ClearAllocationsAPIView(APIView):
@@ -834,6 +781,7 @@ class ClearAllocationsAPIView(APIView):
         term_id = request.query_params.get('term_id')
         year_id = request.query_params.get('year_id')
         class_id = request.query_params.get('class_id')
+        grade_id = request.query_params.get('grade_id')
 
         if not all([term_id, year_id]):
             return Response({"error": "term_id and year_id are required."}, status=status.HTTP_400_BAD_REQUEST)
@@ -848,6 +796,12 @@ class ClearAllocationsAPIView(APIView):
 
                 if class_id:
                     classroom = get_object_or_404(ClassStream, id=class_id)
+                    if get_published_classroom_ids([class_id], term_id, year_id):
+                        return Response(
+                            {"error": "This class's allocation has been published and is locked. "
+                                      "Unpublish it first to clear it."},
+                            status=status.HTTP_409_CONFLICT,
+                        )
                     query = query.filter(classroom_id=class_id)
                     deleted_count, _ = query.delete()
                     if active_timetable:
@@ -856,13 +810,53 @@ class ClearAllocationsAPIView(APIView):
                         stale.delete()
                     label = f"{classroom.grade.name} {classroom.name}"
                     msg = f"Cleared {deleted_count} allocation(s) for {label}."
+                elif grade_id:
+                    # Whole-grade clear: streams AND their virtual elective split groups
+                    # together — a single physical stream's own class_id clear (above)
+                    # deliberately does NOT touch a grade's elective groups, since those pool
+                    # students from every stream in the grade and clearing one stream shouldn't
+                    # silently wipe a teacher shared with streams the admin isn't even looking
+                    # at. This scope is for when the admin explicitly wants the whole grade
+                    # (both) reset together, matching how Bulk Allocate Grade already treats
+                    # streams + elective groups as one unit.
+                    grade = get_object_or_404(GradeLevel, id=grade_id)
+                    grade_classroom_ids = set(
+                        ClassStream.objects.filter(grade_id=grade_id).values_list('id', flat=True)
+                    )
+                    query = query.filter(classroom_id__in=grade_classroom_ids)
+                    published_ids = get_published_classroom_ids(grade_classroom_ids, term_id, year_id)
+                    if published_ids:
+                        query = query.exclude(classroom_id__in=published_ids)
+                    deleted_count, _ = query.delete()
+                    if active_timetable:
+                        stale = LessonAllocation.objects.filter(
+                            timetable=active_timetable, class_stream_id__in=grade_classroom_ids
+                        )
+                        if published_ids:
+                            stale = stale.exclude(class_stream_id__in=published_ids)
+                        ejected_count = stale.count()
+                        stale.delete()
+                    msg = f"Cleared {deleted_count} allocation(s) across {grade.name} (streams and elective groups)."
+                    if published_ids:
+                        msg += f" {len(published_ids)} published class(es) were skipped — unpublish them first to clear."
                 else:
+                    # Whole-school clear: published classes are skipped rather than aborting the
+                    # entire operation — one finalized class shouldn't block clearing every other
+                    # draft class in the term.
+                    all_classroom_ids = set(query.values_list('classroom_id', flat=True))
+                    published_ids = get_published_classroom_ids(all_classroom_ids, term_id, year_id)
+                    if published_ids:
+                        query = query.exclude(classroom_id__in=published_ids)
                     deleted_count, _ = query.delete()
                     if active_timetable:
                         stale = LessonAllocation.objects.filter(timetable=active_timetable)
+                        if published_ids:
+                            stale = stale.exclude(class_stream_id__in=published_ids)
                         ejected_count = stale.count()
                         stale.delete()
                     msg = f"Cleared {deleted_count} allocation(s) across every class in the term."
+                    if published_ids:
+                        msg += f" {len(published_ids)} published class(es) were skipped — unpublish them first to clear."
 
                 if ejected_count:
                     msg += f" {ejected_count} stale timetable lesson(s) ejected."
@@ -903,11 +897,13 @@ def api_manage_splitting_rules(request, grade_id):
         existing_rules = SubjectSplittingRule.objects.filter(grade=grade).select_related('subject')
         rules_map = {r.subject_id: r for r in existing_rules}
 
-        # 2. Discover all elective (non-core) subjects currently assigned to this grade level via quotas
-        elective_quotas = SubjectQuota.objects.filter(
-            grade=grade,
-            subject__is_core=False
-        ).select_related('subject')
+        # 2. Discover all elective (non-core) subjects currently assigned to this grade level via
+        # quotas — resolved per this grade's curriculum/tier since a SubjectCurriculumProfile
+        # override can make a subject elective here even if its flat Subject.is_core is True.
+        elective_quotas = [
+            q for q in SubjectQuota.objects.filter(grade=grade).select_related('subject')
+            if not get_effective_is_core(q.subject, grade.curriculum, grade.tier)
+        ]
 
         data = []
         for quota in elective_quotas:
@@ -954,17 +950,226 @@ def api_manage_splitting_rules(request, grade_id):
                     'last_modified_by': request.user if request.user.is_authenticated else None
                 }
             )
-            return JsonResponse({'status': 'success', 'message': 'Threshold limits updated.'})
+
+            # Re-run the splitting engine immediately so the new threshold/mode is reflected in
+            # real virtual-group sizing right away, instead of leaving existing groups on their
+            # old sizing until someone separately opens "Manage Elective Splits" and re-runs it.
+            operator_user = request.user if request.user.is_authenticated else None
+            split_result = None
+            split_warning = None
+            try:
+                split_result = _run_splitting_reconciliation(grade, operator_user, is_simulation=False)
+            except ValueError as e:
+                split_warning = str(e)
+
+            return JsonResponse({
+                'status': 'success',
+                'message': 'Threshold limits updated.',
+                'split_result': split_result,
+                'split_warning': split_warning,
+            })
         except Exception as e:
             return JsonResponse({'status': 'error', 'message': str(e)})
+
+
+def _run_splitting_reconciliation(grade, operator_user, is_simulation=False):
+    """
+    THE MASTER SPLITTING ENGINE — core reconciliation, shared by api_execute_allocation_splits
+    (the manual "Manage Elective Splits" run) and api_manage_splitting_rules (auto re-run right
+    after a SubjectSplittingRule change is saved, so a new threshold/mode takes effect immediately
+    instead of waiting for someone to separately open the splits modal). Raises ValueError for a
+    caller-facing error (no active academic year); returns the same dict shape either caller can
+    hand straight back as JSON.
+    """
+    current_year = AcademicYear.objects.filter(is_active=True).first()
+    if not current_year:
+        raise ValueError('Active academic year required.')
+
+    # Atomic transaction allows us to rollback if it's just a simulation. We always run the
+    # REAL reconciliation writes below (create/update/soft-delete) — for a preview, the
+    # forced rollback at the end discards them, but running the real logic (instead of a
+    # separate parallel "simulate" code path) means the preview numbers are guaranteed to
+    # match what a live run would actually do.
+    with transaction.atomic():
+
+        # RECONCILE INSTEAD OF WIPE-AND-RECREATE: matching by name lets a continuing group
+        # (e.g. "Computer Studies - Group 1") keep its existing row — and therefore its ID —
+        # across re-runs. SubjectAllocation, LessonAllocation, and AttendanceSession all
+        # CASCADE-delete off ClassStream, so previously every re-run silently destroyed
+        # already-generated timetable lessons and attendance history for every elective
+        # group in the grade. Only groups that genuinely no longer exist get removed now,
+        # and removal goes through soft_delete() (audited, recoverable) instead of a hard
+        # DB delete.
+        existing_virtual_streams = {
+            s.name: s for s in ClassStream.live.filter(grade=grade, is_virtual=True)
+        }
+        desired_names = set()
+        stream_impacts = []  # [{name, action: created|updated|unchanged, capacity}]
+
+        elective_subjects = [
+            s for s in Subject.objects.all()
+            if not get_effective_is_core(s, grade.curriculum, grade.tier)
+        ]
+
+        # Bulk-fetch instead of a StudentSubjectEnrollment.count() and a
+        # SubjectSplittingRule.first() per elective subject inside the loop below.
+        elective_subject_ids = [s.id for s in elective_subjects]
+        enrollment_counts = dict(
+            StudentSubjectEnrollment.objects.filter(
+                student__cl__grade=grade, subject_id__in=elective_subject_ids,
+                academic_year=current_year, status='Approved', student__status=True
+            ).values('subject_id').annotate(c=Count('id')).values_list('subject_id', 'c')
+        )
+        splitting_rules_by_subject = {
+            r.subject_id: r for r in SubjectSplittingRule.objects.filter(
+                grade=grade, subject_id__in=elective_subject_ids
+            )
+        }
+        projected_changes = []
+
+        def _reconcile_group(group_title, assigned_capacity):
+            desired_names.add(group_title)
+            existing = existing_virtual_streams.get(group_title)
+            if existing:
+                if existing.capacity != assigned_capacity:
+                    existing.capacity = assigned_capacity
+                    existing.save(update_fields=['capacity'])
+                    stream_impacts.append({'name': group_title, 'action': 'updated', 'capacity': assigned_capacity})
+                else:
+                    stream_impacts.append({'name': group_title, 'action': 'unchanged', 'capacity': assigned_capacity})
+            else:
+                ClassStream.objects.create(
+                    name=group_title, grade=grade, capacity=assigned_capacity, is_virtual=True
+                )
+                stream_impacts.append({'name': group_title, 'action': 'created', 'capacity': assigned_capacity})
+
+        for subject in elective_subjects:
+
+            # --- SCOPE ISOLATION: Ensure the engine does not generate virtual rows for standard courses ---
+            if not is_tech_subject(subject, grade):
+                continue
+
+            # 1. Count actual approved students
+            student_count = enrollment_counts.get(subject.id, 0)
+
+            if student_count == 0:
+                continue
+
+            # 2. Get the rule or default to 45
+            rule = splitting_rules_by_subject.get(subject.id)
+            threshold = rule.max_class_size if rule else 45
+            mode = rule.allocation_mode if rule else 'Split_Balance'
+
+            subject_groupings = []
+            groups_spawned = 1
+
+            # 3. Determine grouping strategy based on mode
+            if student_count <= threshold or mode == 'Co_Teaching':
+                # ONE MASSIVE GROUP: Handles under-cap subjects or Co-Teaching
+                group_title = f"{subject.name} - Group 1"
+                subject_groupings.append({'name': group_title, 'capacity': student_count})
+                _reconcile_group(group_title, student_count)
+            else:
+                # WE NEED TO SPLIT: Calculate groups needed
+                groups_needed = math.ceil(student_count / threshold)
+                groups_spawned = groups_needed
+
+                if mode == 'Split_Balance':
+                    # EVEN DISTRIBUTION: e.g., 100 kids, cap 45 -> 34, 33, 33
+                    base_size = student_count // groups_needed
+                    remainder = student_count % groups_needed
+
+                    for i in range(groups_needed):
+                        assigned_capacity = base_size + (1 if i < remainder else 0)
+                        group_title = f"{subject.name} - Group {i + 1}"
+                        subject_groupings.append({'name': group_title, 'capacity': assigned_capacity})
+                        _reconcile_group(group_title, assigned_capacity)
+
+                elif mode == 'Strict_Cap':
+                    # FILL TO BRIM: e.g., 100 kids, cap 45 -> 45, 45, 10
+                    students_remaining = student_count
+                    group_index = 1
+
+                    while students_remaining > 0:
+                        assigned_capacity = min(threshold, students_remaining)
+                        group_title = f"{subject.name} - Group {group_index}"
+                        subject_groupings.append({'name': group_title, 'capacity': assigned_capacity})
+                        _reconcile_group(group_title, assigned_capacity)
+
+                        students_remaining -= assigned_capacity
+                        group_index += 1
+
+            projected_changes.append({
+                'subject_name': subject.name,
+                'total_enrolled': student_count,
+                'threshold_limit': threshold,
+                'spawned_groups_count': groups_spawned,
+                'group_distribution': subject_groupings
+            })
+
+        # --- ORPHAN CLEANUP: groups that no longer correspond to any current subject/
+        # enrollment (subject dropped, enrollment hit zero, group count shrank) ---
+        removed_impacts = []
+        for name, stream in existing_virtual_streams.items():
+            if name in desired_names:
+                continue
+            allocation_count = SubjectAllocation.objects.filter(classroom=stream).count()
+            lesson_count = LessonAllocation.objects.filter(class_stream=stream).count()
+            attendance_count = AttendanceSession.objects.filter(class_stream=stream).count()
+            removed_impacts.append({
+                'name': stream.name,
+                'had_allocations': allocation_count,
+                'had_lessons': lesson_count,
+                'had_attendance_sessions': attendance_count,
+            })
+            # Hard-delete the contract and grid rows — soft-deleting the stream alone leaves
+            # them as invisible orphans (ClassStream.live excludes it, but nothing filters
+            # SubjectAllocation/LessonAllocation by classroom__is_deleted), so a retired
+            # group's teacher permanently keeps the workload and grid slots. AttendanceSession
+            # is deliberately left alone; soft_delete() exists specifically to preserve it.
+            SubjectAllocation.objects.filter(classroom=stream).delete()
+            LessonAllocation.objects.filter(class_stream=stream).delete()
+            stream.soft_delete(operator_user=operator_user)
+
+        # --- THE SAFETY TRIGGER ---
+        if is_simulation:
+            # Force rollback to ensure absolutely nothing is saved to the database — the
+            # reconciliation above ran for real so the impact numbers reported back are
+            # exactly what a live run would do, but none of it is kept.
+            transaction.set_rollback(True)
+
+    # Logged OUTSIDE the atomic block above: a simulation rolls that transaction back
+    # entirely, so a log row written inside it would vanish along with everything else.
+    total_groups = sum(c['spawned_groups_count'] for c in projected_changes)
+    created_count = sum(1 for s in stream_impacts if s['action'] == 'created')
+    updated_count = sum(1 for s in stream_impacts if s['action'] == 'updated')
+    removed_count = len(removed_impacts)
+    SystemAuditLog.objects.create(
+        operator=operator_user,
+        action_type='SIMULATION' if is_simulation else 'EXECUTION',
+        module='SplittingEngine',
+        description=f"{'Simulated' if is_simulation else 'Committed'} allocation splits for {grade.name}: "
+                    f"{len(projected_changes)} elective subject(s), {total_groups} group(s) targeted "
+                    f"({created_count} created, {updated_count} capacity-updated, {removed_count} removed)."
+    )
+
+    return {
+        'status': 'success',
+        'is_simulation': is_simulation,
+        'message': "Simulation complete." if is_simulation else "Virtual Streams successfully reconciled.",
+        'projected_data': projected_changes,
+        'stream_impacts': stream_impacts,
+        'removed_streams': removed_impacts,
+    }
 
 
 @csrf_exempt
 @require_permission(('allocations.edit', 'allocations.bulk'))
 def api_execute_allocation_splits(request, grade_id):
     """
-    THE MASTER SPLITTING ENGINE
-    Accepts 'is_simulation': True to preview the splits without saving to the DB.
+    THE MASTER SPLITTING ENGINE (HTTP entrypoint for the manual "Manage Elective Splits" run).
+    Accepts 'is_simulation': True to preview the splits without saving to the DB. See
+    _run_splitting_reconciliation for the actual engine.
     """
     if request.method != 'POST':
         return JsonResponse({'status': 'error', 'message': 'Invalid method type.'})
@@ -972,187 +1177,14 @@ def api_execute_allocation_splits(request, grade_id):
     try:
         payload = json.loads(request.body)
         is_simulation = payload.get('is_simulation', False)
-
         grade = GradeLevel.objects.get(id=grade_id)
-        current_year = AcademicYear.objects.filter(is_active=True).first()
+        operator_user = request.user if request.user.is_authenticated else None
 
-        if not current_year:
-            return JsonResponse({'status': 'error', 'message': 'Active academic year required.'})
+        result = _run_splitting_reconciliation(grade, operator_user, is_simulation)
+        return JsonResponse(result)
 
-        # Atomic transaction allows us to rollback if it's just a simulation. We always run the
-        # REAL reconciliation writes below (create/update/soft-delete) — for a preview, the
-        # forced rollback at the end discards them, but running the real logic (instead of a
-        # separate parallel "simulate" code path) means the preview numbers are guaranteed to
-        # match what a live run would actually do.
-        with transaction.atomic():
-
-            # RECONCILE INSTEAD OF WIPE-AND-RECREATE: matching by name lets a continuing group
-            # (e.g. "Computer Studies - Group 1") keep its existing row — and therefore its ID —
-            # across re-runs. SubjectAllocation, LessonAllocation, and AttendanceSession all
-            # CASCADE-delete off ClassStream, so previously every re-run silently destroyed
-            # already-generated timetable lessons and attendance history for every elective
-            # group in the grade. Only groups that genuinely no longer exist get removed now,
-            # and removal goes through soft_delete() (audited, recoverable) instead of a hard
-            # DB delete.
-            existing_virtual_streams = {
-                s.name: s for s in ClassStream.live.filter(grade=grade, is_virtual=True)
-            }
-            desired_names = set()
-            stream_impacts = []  # [{name, action: created|updated|unchanged, capacity}]
-
-            elective_subjects = list(Subject.objects.filter(is_core=False))
-
-            # Bulk-fetch instead of a StudentSubjectEnrollment.count() and a
-            # SubjectSplittingRule.first() per elective subject inside the loop below.
-            elective_subject_ids = [s.id for s in elective_subjects]
-            enrollment_counts = dict(
-                StudentSubjectEnrollment.objects.filter(
-                    student__cl__grade=grade, subject_id__in=elective_subject_ids,
-                    academic_year=current_year, status='Approved', student__status=True
-                ).values('subject_id').annotate(c=Count('id')).values_list('subject_id', 'c')
-            )
-            splitting_rules_by_subject = {
-                r.subject_id: r for r in SubjectSplittingRule.objects.filter(
-                    grade=grade, subject_id__in=elective_subject_ids
-                )
-            }
-            projected_changes = []
-
-            def _reconcile_group(group_title, assigned_capacity):
-                desired_names.add(group_title)
-                existing = existing_virtual_streams.get(group_title)
-                if existing:
-                    if existing.capacity != assigned_capacity:
-                        existing.capacity = assigned_capacity
-                        existing.save(update_fields=['capacity'])
-                        stream_impacts.append({'name': group_title, 'action': 'updated', 'capacity': assigned_capacity})
-                    else:
-                        stream_impacts.append({'name': group_title, 'action': 'unchanged', 'capacity': assigned_capacity})
-                else:
-                    ClassStream.objects.create(
-                        name=group_title, grade=grade, capacity=assigned_capacity, is_virtual=True
-                    )
-                    stream_impacts.append({'name': group_title, 'action': 'created', 'capacity': assigned_capacity})
-
-            for subject in elective_subjects:
-
-                # --- SCOPE ISOLATION: Ensure the engine does not generate virtual rows for standard courses ---
-                if not is_tech_subject(subject, grade):
-                    continue
-
-                # 1. Count actual approved students
-                student_count = enrollment_counts.get(subject.id, 0)
-
-                if student_count == 0:
-                    continue
-
-                # 2. Get the rule or default to 45
-                rule = splitting_rules_by_subject.get(subject.id)
-                threshold = rule.max_class_size if rule else 45
-                mode = rule.allocation_mode if rule else 'Split_Balance'
-
-                subject_groupings = []
-                groups_spawned = 1
-
-                # 3. Determine grouping strategy based on mode
-                if student_count <= threshold or mode == 'Co_Teaching':
-                    # ONE MASSIVE GROUP: Handles under-cap subjects or Co-Teaching
-                    group_title = f"{subject.name} - Group 1"
-                    subject_groupings.append({'name': group_title, 'capacity': student_count})
-                    _reconcile_group(group_title, student_count)
-                else:
-                    # WE NEED TO SPLIT: Calculate groups needed
-                    groups_needed = math.ceil(student_count / threshold)
-                    groups_spawned = groups_needed
-
-                    if mode == 'Split_Balance':
-                        # EVEN DISTRIBUTION: e.g., 100 kids, cap 45 -> 34, 33, 33
-                        base_size = student_count // groups_needed
-                        remainder = student_count % groups_needed
-
-                        for i in range(groups_needed):
-                            assigned_capacity = base_size + (1 if i < remainder else 0)
-                            group_title = f"{subject.name} - Group {i + 1}"
-                            subject_groupings.append({'name': group_title, 'capacity': assigned_capacity})
-                            _reconcile_group(group_title, assigned_capacity)
-
-                    elif mode == 'Strict_Cap':
-                        # FILL TO BRIM: e.g., 100 kids, cap 45 -> 45, 45, 10
-                        students_remaining = student_count
-                        group_index = 1
-
-                        while students_remaining > 0:
-                            assigned_capacity = min(threshold, students_remaining)
-                            group_title = f"{subject.name} - Group {group_index}"
-                            subject_groupings.append({'name': group_title, 'capacity': assigned_capacity})
-                            _reconcile_group(group_title, assigned_capacity)
-
-                            students_remaining -= assigned_capacity
-                            group_index += 1
-
-                projected_changes.append({
-                    'subject_name': subject.name,
-                    'total_enrolled': student_count,
-                    'threshold_limit': threshold,
-                    'spawned_groups_count': groups_spawned,
-                    'group_distribution': subject_groupings
-                })
-
-            # --- ORPHAN CLEANUP: groups that no longer correspond to any current subject/
-            # enrollment (subject dropped, enrollment hit zero, group count shrank) ---
-            removed_impacts = []
-            for name, stream in existing_virtual_streams.items():
-                if name in desired_names:
-                    continue
-                allocation_count = SubjectAllocation.objects.filter(classroom=stream).count()
-                lesson_count = LessonAllocation.objects.filter(class_stream=stream).count()
-                attendance_count = AttendanceSession.objects.filter(class_stream=stream).count()
-                removed_impacts.append({
-                    'name': stream.name,
-                    'had_allocations': allocation_count,
-                    'had_lessons': lesson_count,
-                    'had_attendance_sessions': attendance_count,
-                })
-                # Hard-delete the contract and grid rows — soft-deleting the stream alone leaves
-                # them as invisible orphans (ClassStream.live excludes it, but nothing filters
-                # SubjectAllocation/LessonAllocation by classroom__is_deleted), so a retired
-                # group's teacher permanently keeps the workload and grid slots. AttendanceSession
-                # is deliberately left alone; soft_delete() exists specifically to preserve it.
-                SubjectAllocation.objects.filter(classroom=stream).delete()
-                LessonAllocation.objects.filter(class_stream=stream).delete()
-                stream.soft_delete(operator_user=request.user if request.user.is_authenticated else None)
-
-            # --- THE SAFETY TRIGGER ---
-            if is_simulation:
-                # Force rollback to ensure absolutely nothing is saved to the database — the
-                # reconciliation above ran for real so the impact numbers reported back are
-                # exactly what a live run would do, but none of it is kept.
-                transaction.set_rollback(True)
-
-        # Logged OUTSIDE the atomic block above: a simulation rolls that transaction back
-        # entirely, so a log row written inside it would vanish along with everything else.
-        total_groups = sum(c['spawned_groups_count'] for c in projected_changes)
-        created_count = sum(1 for s in stream_impacts if s['action'] == 'created')
-        updated_count = sum(1 for s in stream_impacts if s['action'] == 'updated')
-        removed_count = len(removed_impacts)
-        SystemAuditLog.objects.create(
-            operator=request.user if request.user.is_authenticated else None,
-            action_type='SIMULATION' if is_simulation else 'EXECUTION',
-            module='SplittingEngine',
-            description=f"{'Simulated' if is_simulation else 'Committed'} allocation splits for {grade.name}: "
-                        f"{len(projected_changes)} elective subject(s), {total_groups} group(s) targeted "
-                        f"({created_count} created, {updated_count} capacity-updated, {removed_count} removed)."
-        )
-
-        return JsonResponse({
-            'status': 'success',
-            'is_simulation': is_simulation,
-            'message': "Simulation complete." if is_simulation else "Virtual Streams successfully reconciled.",
-            'projected_data': projected_changes,
-            'stream_impacts': stream_impacts,
-            'removed_streams': removed_impacts,
-        })
-
+    except ValueError as e:
+        return JsonResponse({'status': 'error', 'message': str(e)})
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)})
 
