@@ -683,6 +683,14 @@ class ExamTerm(models.Model):
     end_date = models.DateField()
 
     is_active = models.BooleanField(default=False)
+    results_finalized = models.BooleanField(
+        default=False,
+        help_text="Admin-confirmed: this term's results are done being recorded. Purely "
+                   "informational — does not block result regeneration. Used as the promotion "
+                   "gate for plain (non-nationally-exam-gated) grade transitions — see "
+                   "results_finalized_for_year in school/views/promotion_views.py."
+    )
+    results_finalized_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = 'school_examterm'
