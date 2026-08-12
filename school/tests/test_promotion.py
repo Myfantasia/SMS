@@ -1,7 +1,8 @@
 from django.test import TestCase
+from django.utils import timezone
 
 from apps.academics.models import (
-    Curriculum, Tier, GradeLevel, ClassStream, next_grade_level, get_or_create_class_stream,
+    Curriculum, Tier, GradeLevel, ClassStream, AcademicYear, ExamTerm, next_grade_level, get_or_create_class_stream,
 )
 
 
@@ -57,3 +58,20 @@ class GetOrCreateClassStreamTests(TestCase):
         self.assertNotEqual(stream.id, self.existing.id)
         self.assertEqual(stream.grade_id, self.grade7.id)
         self.assertEqual(stream.capacity, 40)
+
+
+class ExamTermFinalizationFieldsTests(TestCase):
+    def test_defaults_to_not_finalized(self):
+        year = AcademicYear.objects.create(year='2099')
+        term = ExamTerm.objects.create(name='Term 1', academic_year=year, start_date='2099-01-01', end_date='2099-04-01')
+        self.assertFalse(term.results_finalized)
+        self.assertIsNone(term.results_finalized_at)
+
+    def test_can_be_finalized(self):
+        year = AcademicYear.objects.create(year='2098')
+        term = ExamTerm.objects.create(
+            name='Term 1', academic_year=year, start_date='2098-01-01', end_date='2098-04-01',
+            results_finalized=True, results_finalized_at=timezone.now(),
+        )
+        self.assertTrue(term.results_finalized)
+        self.assertIsNotNone(term.results_finalized_at)
