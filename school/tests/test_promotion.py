@@ -430,3 +430,95 @@ class PromoteStudentSSSPathwayCarryForwardTests(TestCase):
         self.assertFalse(
             StudentSubjectEnrollment.objects.filter(student=self.student, academic_year=self.new_year).exists()
         )
+
+
+import json
+from django.core.cache import cache
+from django.test import RequestFactory
+
+from school.tests.base import ExamTestDataMixin
+from apps.identity.models import Permission, Role, UserRole
+from school.views.promotion_views import FinalizeTermAPIView, RecordNationalExamAPIView
+
+
+class PromotionAdminEndpointTestMixin(ExamTestDataMixin):
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        Permission.objects.get_or_create(code='results.edit', defaults={'label': 'results.edit', 'module': 'results'})
+        Permission.objects.get_or_create(code='results.view', defaults={'label': 'results.view', 'module': 'results'})
+        role = Role.objects.create(name='Results Manager')
+        role.permissions.set(Permission.objects.filter(code__in=('results.edit', 'results.view')))
+        UserRole.objects.create(user=cls.admin_user, role=role)
+
+        cls.grade9 = GradeLevel.objects.create(
+            name='Grade 9 Promo', numeric_order=9,
+            curriculum=Curriculum.objects.create(code='CBC8', name='CBC (endpoint test)'),
+        )
+        cls.stream = ClassStream.objects.create(name='Central', grade=cls.grade9)
+        exam_user = User.objects.create_user(username='promo_endpoint_student', password='x')
+        cls.exam_student = StudentExtra.objects.create(user=exam_user, roll='PE01', cl=cls.stream, status=True)
+
+    def setUp(self):
+        cache.clear()
+        self.factory = RequestFactory()
+
+    def _post(self, view, path, user, payload, **kwargs):
+        request = self.factory.post(path, data=json.dumps(payload), content_type='application/json')
+        request.user = user
+        request._dont_enforce_csrf_checks = True
+        response = view.as_view()(request, **kwargs)
+        return response
+
+
+class FinalizeTermAPIViewTests(PromotionAdminEndpointTestMixin, TestCase):
+    def test_admin_can_finalize_term(self):
+        response = self._post(
+            FinalizeTermAPIView, f'/api/promotion/finalize-term/{self.term.id}/',
+            self.admin_user, {'finalized': True}, term_id=self.term.id,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.term.refresh_from_db()
+        self.assertTrue(self.term.results_finalized)
+        self.assertIsNotNone(self.term.results_finalized_at)
+
+    def test_can_un_finalize(self):
+        self.term.results_finalized = True
+        self.term.save()
+        response = self._post(
+            FinalizeTermAPIView, f'/api/promotion/finalize-term/{self.term.id}/',
+            self.admin_user, {'finalized': False}, term_id=self.term.id,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.term.refresh_from_db()
+        self.assertFalse(self.term.results_finalized)
+        self.assertIsNone(self.term.results_finalized_at)
+
+
+class RecordNationalExamAPIViewTests(PromotionAdminEndpointTestMixin, TestCase):
+    def test_admin_can_record_an_exam(self):
+        response = self._post(
+            RecordNationalExamAPIView, f'/api/promotion/national-exam/{self.exam_student.id}/',
+            self.admin_user, {'exam_code': 'KJSEA', 'academic_year_id': self.year.id, 'destination': 'Alliance High School'},
+            student_id=self.exam_student.id,
+        )
+        self.assertEqual(response.status_code, 201)
+        record = NationalExamRecord.objects.get(student=self.exam_student, exam_code='KJSEA')
+        self.assertEqual(record.destination, 'Alliance High School')
+        self.assertEqual(record.recorded_by_id, self.admin_user.id)
+
+    def test_duplicate_record_for_same_year_updates_not_duplicates(self):
+        self._post(
+            RecordNationalExamAPIView, f'/api/promotion/national-exam/{self.exam_student.id}/',
+            self.admin_user, {'exam_code': 'KJSEA', 'academic_year_id': self.year.id, 'destination': 'First School'},
+            student_id=self.exam_student.id,
+        )
+        self._post(
+            RecordNationalExamAPIView, f'/api/promotion/national-exam/{self.exam_student.id}/',
+            self.admin_user, {'exam_code': 'KJSEA', 'academic_year_id': self.year.id, 'destination': 'Corrected School'},
+            student_id=self.exam_student.id,
+        )
+        self.assertEqual(NationalExamRecord.objects.filter(student=self.exam_student, exam_code='KJSEA').count(), 1)
+        self.assertEqual(
+            NationalExamRecord.objects.get(student=self.exam_student, exam_code='KJSEA').destination, 'Corrected School'
+        )

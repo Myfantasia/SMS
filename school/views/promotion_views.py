@@ -3,9 +3,20 @@ Grade promotion: plain (internal-results-gated), same-institution exam-gated (KP
 exit (cross-institution or terminal, KJSEA/KCSE) transitions. See
 docs/superpowers/specs/2026-08-12-sss-core-math-and-promotion-design.md.
 """
-from apps.academics.models import ExamTerm, next_grade_level, get_or_create_class_stream, tier_requires_pathway_choice
+from django.utils import timezone
+from rest_framework.authentication import SessionAuthentication
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+
+from apps.academics.models import (
+    ExamTerm, next_grade_level, get_or_create_class_stream, tier_requires_pathway_choice, AcademicYear,
+)
+from apps.identity.models import StudentExtra
 from apps.students.models import NationalExamRecord, StudentPathwaySelection
 from apps.core.services import write_audit_log
+from school.rbac import HasModulePermission
 from school.views.subject_views import _approve_combo_subjects, _ensure_core_mathematics
 
 
@@ -104,3 +115,69 @@ def _promote_student(student, academic_year):
     student.save(update_fields=['enrollment_state'])
     destination = record.destination or 'not yet recorded'
     return {'student_id': student.id, 'outcome': 'graduated', 'detail': f'Graduated ({exam_code} recorded). Destination: {destination}.'}
+
+
+class FinalizeTermAPIView(APIView):
+    """Admin toggle for ExamTerm.results_finalized — purely informational, does not block
+    result regeneration (see Task 2/spec §2)."""
+    permission_classes = [IsAuthenticated, HasModulePermission]
+    authentication_classes = [SessionAuthentication]
+    rbac_edit_permission = 'results.edit'
+
+    def post(self, request, term_id):
+        try:
+            term = ExamTerm.objects.get(id=term_id)
+        except ExamTerm.DoesNotExist:
+            return Response({"error": "Term not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        finalized = bool(request.data.get('finalized', True))
+        term.results_finalized = finalized
+        term.results_finalized_at = timezone.now() if finalized else None
+        term.save(update_fields=['results_finalized', 'results_finalized_at'])
+
+        write_audit_log(
+            operator_id=request.user.id, action_type='UPDATE', module='PromotionResultsFinalization',
+            description=f"{'Finalized' if finalized else 'Un-finalized'} results for term "
+                        f"'{term.name}' ({term.academic_year.year}).",
+        )
+        return Response({"id": term.id, "results_finalized": term.results_finalized})
+
+
+class RecordNationalExamAPIView(APIView):
+    """Admin records that a student sat KPSEA/KJSEA/KCSE, optionally with a destination
+    (placement school for KJSEA, university/institution for KCSE)."""
+    permission_classes = [IsAuthenticated, HasModulePermission]
+    authentication_classes = [SessionAuthentication]
+    rbac_edit_permission = 'results.edit'
+
+    def post(self, request, student_id):
+        try:
+            student = StudentExtra.objects.get(id=student_id)
+        except StudentExtra.DoesNotExist:
+            return Response({"error": "Student not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        exam_code = request.data.get('exam_code')
+        academic_year_id = request.data.get('academic_year_id')
+        if exam_code not in ('KPSEA', 'KJSEA', 'KCSE') or not academic_year_id:
+            return Response({"error": "exam_code and academic_year_id are required."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            academic_year = AcademicYear.objects.get(id=academic_year_id)
+        except AcademicYear.DoesNotExist:
+            return Response({"error": "Academic year not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        record, created = NationalExamRecord.objects.update_or_create(
+            student=student, exam_code=exam_code, academic_year=academic_year,
+            defaults={
+                'score': request.data.get('score', ''),
+                'destination': request.data.get('destination', ''),
+                'recorded_by': request.user,
+            },
+        )
+        write_audit_log(
+            operator_id=request.user.id, action_type='UPDATE', module='NationalExamRecord',
+            description=f"Recorded {exam_code} for {student.get_name} ({academic_year.year}).",
+        )
+        return Response(
+            {"id": record.id, "exam_code": record.exam_code, "destination": record.destination},
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
