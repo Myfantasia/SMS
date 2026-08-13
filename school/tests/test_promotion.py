@@ -117,3 +117,72 @@ class AuditLogPromoteActionTests(TestCase):
         from apps.core.models import SystemAuditLog
         codes = dict(SystemAuditLog.ACTION_CHOICES)
         self.assertIn('PROMOTE', codes)
+
+
+from apps.academics.models import Pathway, Track, PresetCombination, Subject
+from apps.students.models import StudentSubjectEnrollment
+from school.views.subject_views import _ensure_core_mathematics
+
+
+class EnsureCoreMathematicsTests(TestCase):
+    def setUp(self):
+        self.curriculum = Curriculum.objects.create(code='CBC5', name='CBC (core math test)')
+        self.tier = Tier.objects.create(curriculum=self.curriculum, name='Senior Secondary', code='SSS5')
+        self.grade10 = GradeLevel.objects.create(name='Grade 10Z', numeric_order=10, curriculum=self.curriculum, tier=self.tier)
+        self.stream = ClassStream.objects.create(name='Gold', grade=self.grade10)
+        self.user = User.objects.create_user(username='core_math_student', password='x')
+        self.student = StudentExtra.objects.create(user=self.user, roll='CM01', cl=self.stream, status=True)
+        self.year = AcademicYear.objects.create(year='2096')
+
+        self.pathway = Pathway.objects.create(curriculum=self.curriculum, name='STEM')
+        self.track = Track.objects.create(pathway=self.pathway, name='Applied Sciences')
+
+        # Real catalog codes, not test-local ones — _ensure_core_mathematics matches on these
+        # exact codes, and Django's test runner gives every test a fresh empty database, so
+        # there's no clash with the dev DB's seeded AMAT/CMAT/EMAT rows (id 87/86/88 there).
+        self.amat = Subject.objects.create(code='AMAT', name='Advanced Mathematics')
+        self.cmat = Subject.objects.create(code='CMAT', name='Core Mathematics')
+        self.emat = Subject.objects.create(code='EMAT', name='Essential Mathematics')
+        self.physics = Subject.objects.create(code='PHYZ', name='Physics Z')
+        self.chem = Subject.objects.create(code='CHEZ', name='Chemistry Z')
+        self.bio = Subject.objects.create(code='BIOZ', name='Biology Z')
+
+    def test_adds_essential_maths_when_combo_has_no_maths(self):
+        combo = PresetCombination.objects.create(track=self.track, name='No-Maths Combo', code='NM')
+        combo.subjects.set([self.physics, self.chem, self.bio])
+
+        _ensure_core_mathematics(self.student, combo, self.year)
+
+        enrollment = StudentSubjectEnrollment.objects.get(student=self.student, subject=self.emat, academic_year=self.year)
+        self.assertEqual(enrollment.status, 'Approved')
+
+    def test_does_not_add_essential_maths_when_combo_has_advanced_maths(self):
+        combo = PresetCombination.objects.create(track=self.track, name='AMAT Combo', code='AM')
+        combo.subjects.set([self.amat, self.physics, self.chem])
+
+        _ensure_core_mathematics(self.student, combo, self.year)
+
+        self.assertFalse(
+            StudentSubjectEnrollment.objects.filter(student=self.student, subject=self.emat, academic_year=self.year).exists()
+        )
+
+    def test_does_not_add_essential_maths_when_combo_has_core_maths(self):
+        combo = PresetCombination.objects.create(track=self.track, name='CMAT Combo', code='CM')
+        combo.subjects.set([self.cmat, self.physics, self.chem])
+
+        _ensure_core_mathematics(self.student, combo, self.year)
+
+        self.assertFalse(
+            StudentSubjectEnrollment.objects.filter(student=self.student, subject=self.emat, academic_year=self.year).exists()
+        )
+
+    def test_idempotent_on_repeat_calls(self):
+        combo = PresetCombination.objects.create(track=self.track, name='No-Maths Combo 2', code='NM2')
+        combo.subjects.set([self.physics, self.chem, self.bio])
+
+        _ensure_core_mathematics(self.student, combo, self.year)
+        _ensure_core_mathematics(self.student, combo, self.year)
+
+        self.assertEqual(
+            StudentSubjectEnrollment.objects.filter(student=self.student, subject=self.emat, academic_year=self.year).count(), 1
+        )
