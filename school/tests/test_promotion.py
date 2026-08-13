@@ -75,3 +75,45 @@ class ExamTermFinalizationFieldsTests(TestCase):
         )
         self.assertTrue(term.results_finalized)
         self.assertIsNotNone(term.results_finalized_at)
+
+
+from django.contrib.auth.models import User
+
+from apps.identity.models import StudentExtra
+from apps.students.models import NationalExamRecord
+
+
+class NationalExamRecordTests(TestCase):
+    def setUp(self):
+        self.curriculum = Curriculum.objects.create(code='CBC4', name='CBC (exam record test)')
+        self.tier = Tier.objects.create(curriculum=self.curriculum, name='Junior Secondary', code='JSS4')
+        self.grade9 = GradeLevel.objects.create(name='Grade 9Z', numeric_order=9, curriculum=self.curriculum, tier=self.tier)
+        self.stream = ClassStream.objects.create(name='Central', grade=self.grade9)
+        self.user = User.objects.create_user(username='exam_record_student', password='x')
+        self.student = StudentExtra.objects.create(user=self.user, roll='EX01', cl=self.stream, status=True)
+        self.year = AcademicYear.objects.create(year='2097')
+
+    def test_can_record_a_national_exam(self):
+        record = NationalExamRecord.objects.create(
+            student=self.student, exam_code='KJSEA', academic_year=self.year, destination='Alliance High School',
+        )
+        self.assertEqual(record.destination, 'Alliance High School')
+        self.assertIsNotNone(record.recorded_at)
+
+    def test_one_record_per_student_exam_year(self):
+        NationalExamRecord.objects.create(student=self.student, exam_code='KJSEA', academic_year=self.year)
+        with self.assertRaises(Exception):
+            NationalExamRecord.objects.create(student=self.student, exam_code='KJSEA', academic_year=self.year)
+
+
+class StudentExtraGraduatedStateTests(TestCase):
+    def test_graduated_is_a_valid_enrollment_state(self):
+        codes = dict(StudentExtra.ENROLLMENT_STATUS_CHOICES)
+        self.assertIn('Graduated', codes)
+
+
+class AuditLogPromoteActionTests(TestCase):
+    def test_promote_is_a_valid_action_type(self):
+        from apps.core.models import SystemAuditLog
+        codes = dict(SystemAuditLog.ACTION_CHOICES)
+        self.assertIn('PROMOTE', codes)
