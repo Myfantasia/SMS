@@ -215,10 +215,16 @@ class PromoteStudentsAPIView(APIView):
         if not student_ids:
             return Response({"error": "No students found for the given scope."}, status=status.HTTP_404_NOT_FOUND)
 
+        # Scoped per academic year — overlapping promotion runs for the same year (e.g. a
+        # double-submit, or a grade-scoped run overlapping a whole-school run) write to the
+        # same students' cl/enrollment_state/StudentPathwaySelection, so they share one lock
+        # rather than being considered independent just because their student scopes differ.
+        lock_key = f"bulk_promotion_lock_year_{academic_year_id}"
+
         job, error_response = dispatch_background_job(
             job_type='promote_students',
             task=promote_students_task,
-            task_args=(academic_year_id, student_ids, request.user.id),
+            task_args=(academic_year_id, student_ids, request.user.id, lock_key),
             operator=request.user,
         )
         if error_response is not None:
