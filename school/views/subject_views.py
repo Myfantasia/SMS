@@ -1,16 +1,20 @@
-from django.views.decorators.csrf import csrf_exempt
-from school.models.classSubjects_models import (StudentSubjectEnrollment, SubjectSelectionRule,
+from apps.academics.models import (SubjectSelectionRule,
                      GradeLevel, Subject, ClassStream, SubjectCategoryLimit, SubjectExclusionRule,
-                     SubjectQuota, Pathway, Track, CurriculumPreset, SubjectPool, StudentPathwaySelection,
-                     PresetCombination, SystemAuditLog, get_effective_is_core, get_effective_department, Department)
-from school.models.models import ( TeacherExtra, StudentExtra, AcademicYear, ExamTerm,)
-from school.models.resultsModels import SubjectTermResult
+                     Pathway, Track, CurriculumPreset, SubjectPool,
+                     PresetCombination, get_effective_is_core, get_effective_department, Department,
+                     AcademicYear, ExamTerm, grade_requires_pathway_choice)
+from apps.allocations.models import SubjectQuota, SubjectAllocation
+from apps.students.models import StudentSubjectEnrollment, StudentPathwaySelection
+from apps.core.services import write_audit_log
+from apps.identity.models import ( TeacherExtra, StudentExtra,)
+from apps.results.models import SubjectTermResult
 from django.http import JsonResponse
 import json
 from django.db import transaction, IntegrityError
 from django.db.models import Q, Count
 from school.decorators import require_permission
 from school.rbac import curriculum_edit_guard, is_class_teacher_of_student
+from school.views.class_views import _eligible_subjects_for
 
 
 def _is_admin(user):
@@ -53,7 +57,6 @@ def _student_approved_selection(student, academic_year):
     ).select_related('pathway', 'track').first()
 
 
-@csrf_exempt
 @require_permission('curriculum.view', edit_permission='curriculum.edit')
 def api_manage_departments(request):
     """
@@ -64,7 +67,7 @@ def api_manage_departments(request):
     """
     if request.method == 'GET':
         # annotate rather than a per-row .count() — one query instead of N+1 as departments grow
-        departments = Department.objects.annotate(subject_count=Count('subjects')).select_related('curriculum')
+        departments = Department.objects.annotate(subject_count=Count('subject_profiles__subject', distinct=True)).select_related('curriculum')
         curriculum_id = request.GET.get('curriculum_id')
         if curriculum_id:
             departments = departments.filter(curriculum_id=curriculum_id)
@@ -107,6 +110,13 @@ def api_manage_departments(request):
                     is_active=data.get('is_active', True),
                     curriculum_id=curriculum_id,
                 )
+                subjects_list = data.get('subjects')
+                if subjects_list is not None and isinstance(subjects_list, list):
+                    from apps.academics.models import SubjectCurriculumProfile
+                    SubjectCurriculumProfile.objects.filter(
+                        subject_id__in=subjects_list,
+                        curriculum_id=curriculum_id
+                    ).update(department=dept)
             except IntegrityError:
                 return JsonResponse({'status': 'error', 'message': "That name or code is already in use by another department in that curriculum."})
             return JsonResponse({'status': 'success', 'message': 'Department created.', 'department_id': dept.id})
@@ -116,7 +126,6 @@ def api_manage_departments(request):
     return JsonResponse({'status': 'error', 'message': 'Invalid request method.'})
 
 
-@csrf_exempt
 @require_permission('curriculum.edit')
 def api_department_detail(request, pk):
     """PUT: rename/edit a Department. DELETE: remove it (subjects referencing it fall back
@@ -154,6 +163,17 @@ def api_department_detail(request, pk):
                 dept.is_active = data['is_active']
             try:
                 dept.save()
+                subjects_list = data.get('subjects')
+                if subjects_list is not None and isinstance(subjects_list, list):
+                    from apps.academics.models import SubjectCurriculumProfile
+                    SubjectCurriculumProfile.objects.filter(
+                        department=dept,
+                        curriculum_id=dept.curriculum_id
+                    ).exclude(subject_id__in=subjects_list).update(department=None)
+                    SubjectCurriculumProfile.objects.filter(
+                        subject_id__in=subjects_list,
+                        curriculum_id=dept.curriculum_id
+                    ).update(department=dept)
             except IntegrityError:
                 return JsonResponse({'status': 'error', 'message': "That name or code is already in use by another department."})
             return JsonResponse({'status': 'success', 'message': 'Department updated.'})
@@ -172,7 +192,6 @@ def api_department_detail(request, pk):
     return JsonResponse({'status': 'error', 'message': 'Invalid request method.'})
 
 
-@csrf_exempt
 @require_permission('curriculum.view')
 def api_manage_subjects(request):
     """
@@ -190,6 +209,7 @@ def api_manage_subjects(request):
             # assigned Role. A non-teacher who got this far has no "only subjects I teach"
             # notion, so they get the same full list an admin does rather than an empty one.
             is_admin = user.is_superuser or user.is_staff or user.groups.filter(name='ADMIN').exists() or hasattr(user, 'adminextra') or not is_teacher
+            from apps.academics.models import SubjectCurriculumProfile, Tier as TierModel
 
             if is_admin:
                 subjects = Subject.objects.select_related('department').all().order_by('name')
@@ -200,10 +220,48 @@ def api_manage_subjects(request):
             else:
                 subjects = Subject.objects.none()
 
+            # Bulk-fetch all profiles so we don't hit the DB per subject
+            all_profiles = SubjectCurriculumProfile.objects.select_related('tier', 'curriculum', 'department').all()
+            profiles_by_subject = {}
+            for p in all_profiles:
+                profiles_by_subject.setdefault(p.subject_id, []).append(p)
+
             data = []
             for sub in subjects:
                 teachers = TeacherExtra.objects.filter(qualified_subjects=sub, status=True)
                 teacher_names = [t.get_name for t in teachers]
+
+                profiles = profiles_by_subject.get(sub.id, [])
+                tier_ids = list({p.tier_id for p in profiles if p.tier_id is not None})
+                tier_names = list({p.tier.name for p in profiles if p.tier is not None})
+                curriculum_ids = list({p.curriculum_id for p in profiles if p.curriculum_id is not None})
+                curriculum_codes = list({p.curriculum.code for p in profiles if p.curriculum is not None})
+
+                # Per-curriculum department: the profile's own department assignment (if any),
+                # falling back to the subject's flat default.  Keyed by curriculum_id (as str
+                # for JSON).  Frontend uses this to group subjects by the *correct* department
+                # when a curriculum filter is active.
+                curriculum_departments: dict = {}
+                for p in profiles:
+                    if p.curriculum_id is None:
+                        continue
+                    dept_name = (
+                        p.department.name if p.department_id else
+                        (sub.department.name if sub.department_id else None)
+                    )
+                    # Only set if not already set (first profile per curriculum wins)
+                    if str(p.curriculum_id) not in curriculum_departments:
+                        curriculum_departments[str(p.curriculum_id)] = dept_name
+
+                # Per-curriculum tier mapping: curriculum_id → list of tier names assigned
+                curriculum_tier_names: dict = {}
+                for p in profiles:
+                    if p.curriculum_id is None or p.tier_id is None:
+                        continue
+                    key = str(p.curriculum_id)
+                    curriculum_tier_names.setdefault(key, [])
+                    if p.tier.name not in curriculum_tier_names[key]:
+                        curriculum_tier_names[key].append(p.tier.name)
 
                 data.append({
                     'id': sub.id,
@@ -217,14 +275,20 @@ def api_manage_subjects(request):
                     'requires_synchronized_grade_blocking': sub.requires_synchronized_grade_blocking,
                     'synchronized_blocking_min_grade': sub.synchronized_blocking_min_grade,
                     'assigned_teachers': teacher_names,
-                    'assigned_teacher_ids': [t.id for t in teachers]
+                    'assigned_teacher_ids': [t.id for t in teachers],
+                    'tier_ids': tier_ids,
+                    'tier_names': tier_names,
+                    'curriculum_ids': curriculum_ids,
+                    'curriculum_codes': curriculum_codes,
+                    'curriculum_departments': curriculum_departments,
+                    'curriculum_tier_names': curriculum_tier_names,
                 })
             return JsonResponse({'status': 'success', 'data': data})
+
         except Exception as e:
             return JsonResponse({'status': 'error', 'message': str(e)})
 
 
-@csrf_exempt
 @require_permission('curriculum.view')
 def api_subject_students(request, pk):
     """
@@ -304,7 +368,6 @@ def api_subject_students(request, pk):
         return JsonResponse({'status': 'error', 'message': str(e)})
 
 
-@csrf_exempt
 @require_permission('curriculum.edit')
 def api_add_subject(request):
     if request.method == 'POST':
@@ -326,7 +389,6 @@ def api_add_subject(request):
 
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
 
-@csrf_exempt
 @require_permission('curriculum.edit')
 def api_edit_subject(request, pk):
     if request.method == 'POST' or request.method == 'PUT':
@@ -384,7 +446,6 @@ def api_edit_subject(request, pk):
             return JsonResponse({'status': 'error', 'message': str(e)})
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
 
-@csrf_exempt
 @require_permission('curriculum.edit')
 def api_delete_subject(request, pk):
     if request.method == 'POST' or request.method == 'DELETE':
@@ -397,7 +458,6 @@ def api_delete_subject(request, pk):
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
 
 
-@csrf_exempt
 @require_permission('curriculum.view')
 def api_subject_catalog(request, grade_id):
     """
@@ -408,7 +468,24 @@ def api_subject_catalog(request, grade_id):
     if request.method == 'GET':
         try:
             grade = GradeLevel.objects.get(id=grade_id)
-            subjects = Subject.objects.select_related('department').prefetch_related('curriculum_profiles__department').order_by('name')
+
+            # Tier-scope the catalog using the same SubjectCurriculumProfile eligibility rule
+            # _eligible_subjects_for already applies for quota auto-seeding: a subject with no
+            # profile rows is shared/legacy and always included, but a subject that DOES have
+            # profile rows is only included if one matches this grade's curriculum+tier. Without
+            # this gate, subjects scoped to a different tier (e.g. Senior Secondary's Advanced/
+            # Core/Essential Mathematics) leaked into every grade's catalog, including Lower and
+            # Upper Primary. Falls back to every Subject, unfiltered, when the grade has no
+            # curriculum linked yet (legacy/ungrouped grades) — same "don't break old data"
+            # fallback get_effective_department/get_effective_is_core use for curriculum=None.
+            if grade.curriculum_id:
+                eligible = [
+                    (subject, effective_is_core)
+                    for subject, effective_is_core, *_ in _eligible_subjects_for(grade.curriculum, grade.tier)
+                ]
+            else:
+                eligible = [(sub, sub.is_core) for sub in Subject.objects.select_related('department')]
+            eligible.sort(key=lambda pair: pair[0].name)
 
             # 1. Group subjects by department, ordered alphabetically with uncategorized last
             # (rather than dict-insertion order) so the assignment UI's tabs are always
@@ -417,7 +494,7 @@ def api_subject_catalog(request, grade_id):
             # departments (see Department model docstring), so the same subject can land in a
             # different tab depending on which curriculum's grade you're viewing.
             groups = {}
-            for sub in subjects:
+            for sub, effective_is_core in eligible:
                 effective_dept = get_effective_department(sub, grade.curriculum, grade.tier)
                 key = effective_dept.id if effective_dept else None
                 if key not in groups:
@@ -430,7 +507,7 @@ def api_subject_catalog(request, grade_id):
                     'id': sub.id,
                     'code': sub.code,
                     'name': sub.name,
-                    'is_core': sub.is_core
+                    'is_core': effective_is_core
                 })
             categorized_subjects = sorted(
                 groups.values(), key=lambda g: (g['department_id'] is None, g['department_name'].lower())
@@ -465,7 +542,6 @@ def api_subject_catalog(request, grade_id):
 
 
 
-@csrf_exempt
 @require_permission('curriculum.view')
 def api_student_subject_profile(request, student_id):
     """
@@ -494,12 +570,15 @@ def api_student_subject_profile(request, student_id):
                 effective_dept = get_effective_department(
                     enrollment.subject, grade.curriculum if grade else None, grade.tier if grade else None
                 )
+                effective_is_core = get_effective_is_core(
+                    enrollment.subject, grade.curriculum if grade else None, grade.tier if grade else None
+                )
                 enrolled_data.append({
                     'enrollment_id': enrollment.id,
                     'subject_id': enrollment.subject.id,
                     'subject_name': enrollment.subject.name,
                     'department_name': effective_dept.name if effective_dept else None,
-                    'is_core': enrollment.subject.is_core,
+                    'is_core': effective_is_core,
                     'status': enrollment.status  # Pending, Approved, or Rejected
                 })
 
@@ -508,7 +587,16 @@ def api_student_subject_profile(request, student_id):
                 'data': {
                     'academic_year': current_year.year,
                     'student_id': student_id,
-                    'subjects': enrolled_data
+                    'subjects': enrolled_data,
+                    # Powers AssignSubjectsPage.tsx's compulsory-tier lock/unlock control: the
+                    # frontend can't evaluate is_class_teacher_of_student itself, so the backend
+                    # tells it who's allowed to unlock. requires_pathway_choice tells the page
+                    # whether to render the SSS pathway picker instead of the subject grid at all.
+                    'is_locked': enrollments.filter(status='Approved').exists(),
+                    'requires_pathway_choice': grade_requires_pathway_choice(grade),
+                    'can_unlock': (
+                        _is_admin(request.user) or is_class_teacher_of_student(request.user, student_grade)
+                    ) if student_grade else False,
                 }
             })
 
@@ -518,7 +606,6 @@ def api_student_subject_profile(request, student_id):
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
 
 
-@csrf_exempt
 @require_permission('curriculum.edit')
 def api_manage_subject_enrollment(request, student_id):
     """
@@ -579,7 +666,70 @@ def api_manage_subject_enrollment(request, student_id):
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
 
 
-@csrf_exempt
+def api_student_subjects_overview(request):
+    """
+    STUDENT SELF-SERVICE: the logged-in student's own compulsory (core, tier-eligible)
+    subjects for the active academic year, each annotated with its lock status and — when
+    resolvable — the teacher assigned to it for the student's own class. Powers the
+    consolidated "My Subjects" page's Compulsory section. Electives deliberately stay on
+    their own existing endpoint (api_student_elective_options, below) since that already has
+    its own request/withdraw flow and SubjectPool-aware grouping; this endpoint only covers
+    the fixed, non-choosable half of a student's subject list.
+    """
+    if request.method != 'GET':
+        return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
+
+    if not request.user.is_authenticated:
+        return JsonResponse({'status': 'error', 'message': 'Authentication required.'}, status=401)
+
+    student = getattr(request.user, 'studentextra', None)
+    if not student or not student.cl or not student.cl.grade:
+        return JsonResponse({'status': 'error', 'message': 'No student profile or class assignment found.'}, status=403)
+
+    current_year = AcademicYear.objects.filter(is_active=True).first()
+    if not current_year:
+        return JsonResponse({'status': 'error', 'message': 'No active academic year found.'}, status=404)
+
+    grade = student.cl.grade
+    if grade.curriculum_id:
+        eligible = _eligible_subjects_for(grade.curriculum, grade.tier)
+    else:
+        eligible = [(sub, sub.is_core, None, None, None) for sub in Subject.objects.select_related('department')]
+
+    enrollments = {
+        e.subject_id: e for e in StudentSubjectEnrollment.objects.filter(student=student, academic_year=current_year)
+    }
+    teacher_by_subject = {
+        alloc.subject_id: alloc.teacher.get_name
+        for alloc in SubjectAllocation.objects.filter(classroom=student.cl, is_active=True).select_related('teacher__user')
+    }
+
+    compulsory = []
+    for subject, effective_is_core, *_ in eligible:
+        if not effective_is_core:
+            continue
+        enrollment = enrollments.get(subject.id)
+        effective_dept = get_effective_department(subject, grade.curriculum, grade.tier)
+        compulsory.append({
+            'subject_id': subject.id,
+            'subject_name': subject.name,
+            'subject_code': subject.code,
+            'department_name': effective_dept.name if effective_dept else None,
+            'status': enrollment.status if enrollment else None,
+            'teacher_name': teacher_by_subject.get(subject.id),
+        })
+    compulsory.sort(key=lambda s: s['subject_name'])
+
+    return JsonResponse({
+        'status': 'success',
+        'data': {
+            'academic_year': current_year.year,
+            'grade_name': grade.name,
+            'compulsory': compulsory,
+        }
+    })
+
+
 def api_student_elective_options(request):
     """
     STUDENT SELF-SERVICE: lists the elective subjects available to the logged-in student's own
@@ -678,7 +828,6 @@ def api_student_elective_options(request):
     })
 
 
-@csrf_exempt
 def api_student_elective_request(request):
     """
     STUDENT SELF-SERVICE: submit or withdraw a Pending elective choice for the logged-in
@@ -762,7 +911,126 @@ def api_student_elective_request(request):
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
 
 
-@csrf_exempt
+def _serialize_preset_combination(c):
+    return {
+        'id': c.id,
+        'name': c.display_name(),
+        'code': c.code,
+        'subjects': [{'id': s.id, 'name': s.name, 'code': s.code} for s in c.subjects.all()],
+    }
+
+
+def _pathway_catalog(curriculum):
+    """
+    Shared pathway/track/active-combination serialization, used by both the student
+    self-service pathway-options endpoint and the admin-facing equivalent.
+    """
+    pathways = (
+        Pathway.objects.filter(curriculum=curriculum).prefetch_related(
+            'tracks', 'tracks__preset_combinations__subjects'
+        )
+        if curriculum else Pathway.objects.none()
+    )
+    return [{
+        'id': p.id, 'name': p.name, 'description': p.description,
+        'tracks': [{
+            'id': t.id, 'name': t.name, 'description': t.description,
+            'preset_combinations': [_serialize_preset_combination(c) for c in t.preset_combinations.filter(is_active=True)],
+        } for t in p.tracks.all()],
+    } for p in pathways]
+
+
+def _serialize_pathway_selection(selection):
+    if not selection:
+        return None
+    return {
+        'selection_id': selection.id,
+        'pathway_id': selection.pathway_id,
+        'pathway_name': selection.pathway.name,
+        'track_id': selection.track_id,
+        'track_name': selection.track.name if selection.track else None,
+        'preset_combination_id': selection.preset_combination_id,
+        'preset_combination_name': selection.preset_combination.display_name() if selection.preset_combination else None,
+        'status': selection.status,
+    }
+
+
+def _validate_pathway_choice(grade, pathway_id, track_id, preset_combination_id):
+    """
+    Shared validation for (pathway_id, track_id, preset_combination_id) against a grade's
+    curriculum. Returns ((pathway, track, preset_combination), None) on success, or
+    (None, JsonResponse) with the error to return directly on failure. Used by both
+    api_student_pathway_request (self-service) and api_admin_assign_pathway (override).
+    """
+    try:
+        pathway = Pathway.objects.get(id=pathway_id)
+    except (Pathway.DoesNotExist, TypeError, ValueError):
+        return None, JsonResponse({'status': 'error', 'message': 'A valid pathway_id is required.'}, status=400)
+
+    if not grade.curriculum_id or pathway.curriculum_id != grade.curriculum_id:
+        return None, JsonResponse({'status': 'error', 'message': f'{pathway.name} is not offered to this grade.'}, status=400)
+
+    track = None
+    pathway_tracks = list(Track.objects.filter(pathway=pathway))
+    if pathway_tracks:
+        if not track_id:
+            return None, JsonResponse({'status': 'error', 'message': f'{pathway.name} requires a track to also be chosen.'}, status=400)
+        track = next((t for t in pathway_tracks if t.id == track_id), None)
+        if track is None:
+            return None, JsonResponse({'status': 'error', 'message': 'That track is not offered under this pathway.'}, status=400)
+    elif track_id:
+        return None, JsonResponse({'status': 'error', 'message': f'{pathway.name} does not have tracks to choose from.'}, status=400)
+
+    preset_combination = None
+    if preset_combination_id:
+        if not track:
+            return None, JsonResponse({'status': 'error', 'message': 'A preset combination requires a track to be chosen first.'}, status=400)
+        preset_combination = PresetCombination.objects.filter(id=preset_combination_id, track=track, is_active=True).first()
+        if preset_combination is None:
+            return None, JsonResponse({'status': 'error', 'message': 'That combination is not offered under this track.'}, status=400)
+
+    return (pathway, track, preset_combination), None
+
+
+def _approve_combo_subjects(student, combo, academic_year):
+    """
+    Approving a preset-combination selection also approves its 3 subjects as the student's
+    electives in one step. Shared by api_decide_pathway_request and api_admin_assign_pathway.
+    """
+    for subject in combo.subjects.all():
+        StudentSubjectEnrollment.objects.update_or_create(
+            student=student, subject=subject, academic_year=academic_year,
+            defaults={'status': 'Approved'}
+        )
+
+
+def _ensure_core_mathematics(student, combo, academic_year):
+    """
+    Every SSS student must study mathematics regardless of pathway (per the CBC dossier). If
+    `combo`'s subjects don't already include Advanced Mathematics (AMAT) or Core Mathematics
+    (CMAT), auto-approve Essential Mathematics (EMAT) as an extra subject — added on top of
+    the combo's 3, never displacing a chosen subject. Idempotent via update_or_create.
+    """
+    combo_codes = set(combo.subjects.values_list('code', flat=True))
+    if combo_codes & {'AMAT', 'CMAT'}:
+        return
+    try:
+        essential_maths = Subject.objects.get(code='EMAT')
+    except Subject.DoesNotExist:
+        return
+    StudentSubjectEnrollment.objects.update_or_create(
+        student=student, subject=essential_maths, academic_year=academic_year,
+        defaults={'status': 'Approved'}
+    )
+
+
+def _revert_combo_subjects(student, combo, academic_year):
+    """Reverse of _approve_combo_subjects, for unlocking a pathway selection."""
+    StudentSubjectEnrollment.objects.filter(
+        student=student, subject__in=combo.subjects.all(), academic_year=academic_year
+    ).update(status='Pending')
+
+
 def api_student_pathway_options(request):
     """
     STUDENT SELF-SERVICE: lists the Pathways available under the logged-in student's own
@@ -785,51 +1053,29 @@ def api_student_pathway_options(request):
         return JsonResponse({'status': 'error', 'message': 'No active academic year found.'}, status=404)
 
     grade = student.cl.grade
-    pathways = (
-        Pathway.objects.filter(curriculum=grade.curriculum).prefetch_related(
-            'tracks', 'tracks__preset_combinations__subjects'
-        )
-        if grade.curriculum_id else Pathway.objects.none()
-    )
     selection = StudentPathwaySelection.objects.filter(
         student=student, academic_year=current_year
     ).select_related('pathway', 'track', 'preset_combination').first()
 
-    def _combo(c):
-        return {
-            'id': c.id,
-            'name': c.display_name(),
-            'code': c.code,
-            'subjects': [{'id': s.id, 'name': s.name, 'code': s.code} for s in c.subjects.all()],
-        }
+    # Pathway choice only happens once, on arrival at the entry grade of a pathway-choice
+    # tier (Grade 10 under CBC's Senior Secondary) — later grades in the same tier (11, 12)
+    # carry the choice forward and must not be offered the picker again. Still return the
+    # student's own `selection` (if any) even when this is False, so a later-grade student
+    # can at least see what they locked in, just not change it here.
+    requires_choice = grade_requires_pathway_choice(grade)
 
     return JsonResponse({
         'status': 'success',
         'data': {
             'academic_year': current_year.year,
             'grade_name': grade.name,
-            'pathways': [{
-                'id': p.id, 'name': p.name, 'description': p.description,
-                'tracks': [{
-                    'id': t.id, 'name': t.name, 'description': t.description,
-                    'preset_combinations': [_combo(c) for c in t.preset_combinations.filter(is_active=True)],
-                } for t in p.tracks.all()],
-            } for p in pathways],
-            'selection': {
-                'selection_id': selection.id,
-                'pathway_id': selection.pathway_id,
-                'pathway_name': selection.pathway.name,
-                'track_id': selection.track_id,
-                'track_name': selection.track.name if selection.track else None,
-                'preset_combination_id': selection.preset_combination_id,
-                'preset_combination_name': selection.preset_combination.display_name() if selection.preset_combination else None,
-                'status': selection.status,
-            } if selection else None,
+            'requires_pathway_choice': requires_choice,
+            'pathways': _pathway_catalog(grade.curriculum) if requires_choice else [],
+            'selection': _serialize_pathway_selection(selection),
         }
     })
 
 
-@csrf_exempt
 def api_student_pathway_request(request):
     """
     STUDENT SELF-SERVICE: submit or withdraw a Pending Pathway choice for the logged-in
@@ -849,60 +1095,24 @@ def api_student_pathway_request(request):
         return JsonResponse({'status': 'error', 'message': 'No active academic year found.'}, status=404)
 
     if request.method == 'POST':
+        grade = student.cl.grade
+        if not grade_requires_pathway_choice(grade):
+            return JsonResponse({
+                'status': 'error',
+                'message': 'Pathway choice is only made once, on arrival at Senior Secondary — it is not available here.'
+            }, status=403)
+
         try:
             data = json.loads(request.body)
-            pathway_id = data.get('pathway_id')
-            pathway = Pathway.objects.get(id=pathway_id)
-        except (json.JSONDecodeError, Pathway.DoesNotExist, TypeError):
-            return JsonResponse({'status': 'error', 'message': 'A valid pathway_id is required.'}, status=400)
+        except json.JSONDecodeError:
+            return JsonResponse({'status': 'error', 'message': 'Invalid request body.'}, status=400)
 
-        grade = student.cl.grade
-        if not grade.curriculum_id or pathway.curriculum_id != grade.curriculum_id:
-            return JsonResponse({'status': 'error', 'message': f'{pathway.name} is not offered to your grade.'}, status=400)
-
-        # A track choice is required whenever the pathway has any tracks configured — that's
-        # what actually determines the student's SubjectPool structure (see
-        # _resolve_curriculum_preset). Pathways with no tracks configured must not send one.
-        track = None
-        pathway_tracks = list(Track.objects.filter(pathway=pathway))
-        track_id = data.get('track_id')
-        if pathway_tracks:
-            if not track_id:
-                return JsonResponse({
-                    'status': 'error',
-                    'message': f'{pathway.name} requires you to also choose a track.'
-                }, status=400)
-            track = next((t for t in pathway_tracks if t.id == track_id), None)
-            if track is None:
-                return JsonResponse({
-                    'status': 'error', 'message': 'That track is not offered under this pathway.'
-                }, status=400)
-        elif track_id:
-            return JsonResponse({
-                'status': 'error', 'message': f'{pathway.name} does not have tracks to choose from.'
-            }, status=400)
-
-        # Optional: the student's chosen pre-approved 3-subject combination (KNEC catalog) for
-        # `track`. Not required — a school may still let a student go through the older
-        # per-subject elective request flow instead — but when given, it must actually belong
-        # to the track just chosen (this also transitively guarantees it's in the same pathway,
-        # since PresetCombination.track already scopes to one pathway).
-        preset_combination = None
-        preset_combination_id = data.get('preset_combination_id')
-        if preset_combination_id:
-            if not track:
-                return JsonResponse({
-                    'status': 'error',
-                    'message': 'A preset combination requires a track to be chosen first.'
-                }, status=400)
-            preset_combination = PresetCombination.objects.filter(
-                id=preset_combination_id, track=track, is_active=True
-            ).first()
-            if preset_combination is None:
-                return JsonResponse({
-                    'status': 'error',
-                    'message': 'That combination is not offered under this track.'
-                }, status=400)
+        result, error = _validate_pathway_choice(
+            grade, data.get('pathway_id'), data.get('track_id'), data.get('preset_combination_id')
+        )
+        if error:
+            return error
+        pathway, track, preset_combination = result
 
         existing = StudentPathwaySelection.objects.filter(student=student, academic_year=current_year).first()
         if existing and existing.status == 'Approved':
@@ -944,7 +1154,6 @@ def api_student_pathway_request(request):
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
 
 
-@csrf_exempt
 @require_permission('pathway.view', edit_permission='pathway.edit')
 def api_pathway_requests(request):
     """
@@ -998,7 +1207,6 @@ def api_pathway_requests(request):
     return JsonResponse({'status': 'success', 'data': data})
 
 
-@csrf_exempt
 @require_permission('pathway.view', edit_permission='pathway.edit')
 def api_decide_pathway_request(request, selection_id):
     """
@@ -1044,15 +1252,12 @@ def api_decide_pathway_request(request, selection_id):
         # there shouldn't be any yet for a combination that was never approved.
         if decision == 'Approved' and selection.preset_combination_id:
             combo = selection.preset_combination
-            for subject in combo.subjects.all():
-                StudentSubjectEnrollment.objects.update_or_create(
-                    student=selection.student, subject=subject, academic_year=selection.academic_year,
-                    defaults={'status': 'Approved'}
-                )
+            _approve_combo_subjects(selection.student, combo, selection.academic_year)
+            _ensure_core_mathematics(selection.student, combo, selection.academic_year)
             combo_note = f" — combination '{combo.display_name()}' subjects auto-approved"
 
-        SystemAuditLog.objects.create(
-            operator=request.user, action_type='UPDATE', module='Curriculum',
+        write_audit_log(
+            operator_id=request.user.id, action_type='UPDATE', module='Curriculum',
             description=f"{decision} pathway '{selection.pathway.name}' for {selection.student.get_name} "
                          f"(decided by: {request.user.username}){combo_note}."
         )
@@ -1063,7 +1268,201 @@ def api_decide_pathway_request(request, selection_id):
     })
 
 
-@csrf_exempt
+@require_permission('pathway.view', edit_permission='pathway.edit')
+def api_admin_pathway_options(request, student_id):
+    """
+    ADMIN-FACING: same pathway/track/active-combination catalog as
+    api_student_pathway_options, but for an arbitrary student — powers the Assign Subjects
+    page's Senior Secondary branch.
+    """
+    if request.method != 'GET':
+        return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
+
+    try:
+        student = StudentExtra.objects.select_related('cl__grade__curriculum', 'cl__grade__tier').get(id=student_id)
+    except StudentExtra.DoesNotExist:
+        return JsonResponse({'status': 'error', 'message': 'Student not found.'}, status=404)
+
+    if not student.cl or not student.cl.grade:
+        return JsonResponse({'status': 'error', 'message': 'Student has no class/grade assignment.'}, status=400)
+
+    grade = student.cl.grade
+    current_year = AcademicYear.objects.filter(is_active=True).first()
+    if not current_year:
+        return JsonResponse({'status': 'error', 'message': 'No active academic year found.'}, status=404)
+
+    selection = StudentPathwaySelection.objects.filter(
+        student=student, academic_year=current_year
+    ).select_related('pathway', 'track', 'preset_combination').first()
+
+    requires_choice = grade_requires_pathway_choice(grade)
+
+    return JsonResponse({
+        'status': 'success',
+        'data': {
+            'academic_year': current_year.year,
+            'grade_name': grade.name,
+            'requires_pathway_choice': requires_choice,
+            'can_unlock': _is_admin(request.user) or is_class_teacher_of_student(request.user, student),
+            'pathways': _pathway_catalog(grade.curriculum) if requires_choice else [],
+            'selection': _serialize_pathway_selection(selection),
+        }
+    })
+
+
+@require_permission('pathway.edit')
+def api_admin_assign_pathway(request, student_id):
+    """
+    ADMIN OVERRIDE for Senior Secondary: directly assigns + approves a student's
+    pathway/track/preset combination in one step — no Pending intermediate, mirroring how
+    api_manage_subject_enrollment lets an admin directly approve subjects rather than route
+    through the student-request queue.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
+
+    try:
+        student = StudentExtra.objects.select_related('cl__grade__curriculum', 'cl__grade__tier').get(id=student_id)
+    except StudentExtra.DoesNotExist:
+        return JsonResponse({'status': 'error', 'message': 'Student not found.'}, status=404)
+
+    if not (_is_admin(request.user) or is_class_teacher_of_student(request.user, student)):
+        return JsonResponse({
+            'status': 'error',
+            'message': "Only an admin or this student's assigned Class Teacher can assign a pathway."
+        }, status=403)
+
+    if not student.cl or not student.cl.grade:
+        return JsonResponse({'status': 'error', 'message': 'Student has no class/grade assignment.'}, status=400)
+
+    grade = student.cl.grade
+    if not grade_requires_pathway_choice(grade):
+        return JsonResponse({
+            'status': 'error',
+            'message': f'{grade.name} is not the entry grade of its Senior Secondary tier — pathway choice is only made once, on arrival.'
+        }, status=400)
+
+    current_year = AcademicYear.objects.filter(is_active=True).first()
+    if not current_year:
+        return JsonResponse({'status': 'error', 'message': 'No active academic year found.'}, status=404)
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'status': 'error', 'message': 'Invalid request body.'}, status=400)
+
+    result, error = _validate_pathway_choice(
+        grade, data.get('pathway_id'), data.get('track_id'), data.get('preset_combination_id')
+    )
+    if error:
+        return error
+    pathway, track, preset_combination = result
+
+    with transaction.atomic():
+        selection, _ = StudentPathwaySelection.objects.update_or_create(
+            student=student, academic_year=current_year,
+            defaults={'pathway': pathway, 'track': track, 'preset_combination': preset_combination, 'status': 'Approved'}
+        )
+        combo_note = ""
+        if preset_combination:
+            _approve_combo_subjects(student, preset_combination, current_year)
+            _ensure_core_mathematics(student, preset_combination, current_year)
+            combo_note = f" — combination '{preset_combination.display_name()}' subjects auto-approved"
+
+        write_audit_log(
+            operator_id=request.user.id, action_type='UPDATE', module='Curriculum',
+            description=f"Assigned pathway '{pathway.name}' for {student.get_name} (assigned by: {request.user.username}){combo_note}."
+        )
+
+    return JsonResponse({
+        'status': 'success',
+        'message': f"{pathway.name} assigned and locked for {student.get_name}.",
+        'data': {'selection_id': selection.id, 'status': selection.status},
+    })
+
+
+@require_permission('curriculum.edit')
+def api_unlock_subject_enrollment(request, student_id):
+    """
+    Reverts a student's Approved (& Locked) subject enrollments for the current academic
+    year back to Pending. Used for the compulsory-tier "Save & Lock" flow's counterpart
+    unlock action on the Assign Subjects page.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
+
+    try:
+        student = StudentExtra.objects.get(id=student_id)
+    except StudentExtra.DoesNotExist:
+        return JsonResponse({'status': 'error', 'message': 'Student not found.'}, status=404)
+
+    if not (_is_admin(request.user) or is_class_teacher_of_student(request.user, student)):
+        return JsonResponse({
+            'status': 'error',
+            'message': "Only an admin or this student's assigned Class Teacher can unlock subjects."
+        }, status=403)
+
+    current_year = AcademicYear.objects.filter(is_active=True).first()
+    if not current_year:
+        return JsonResponse({'status': 'error', 'message': 'No active academic year found.'}, status=404)
+
+    updated = StudentSubjectEnrollment.objects.filter(
+        student=student, academic_year=current_year, status='Approved'
+    ).update(status='Pending')
+
+    write_audit_log(
+        operator_id=request.user.id, action_type='UPDATE', module='Curriculum',
+        description=f"Unlocked {updated} subject(s) for {student.get_name} (unlocked by: {request.user.username})."
+    )
+
+    return JsonResponse({'status': 'success', 'is_locked': False})
+
+
+@require_permission('pathway.edit')
+def api_unlock_pathway_selection(request, student_id):
+    """
+    Reverts a student's Approved (& Locked) pathway selection back to Pending, along with the
+    3 subjects its combination auto-approved — keeps the pathway selection and its derived
+    subject enrollments from drifting out of sync.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
+
+    try:
+        student = StudentExtra.objects.get(id=student_id)
+    except StudentExtra.DoesNotExist:
+        return JsonResponse({'status': 'error', 'message': 'Student not found.'}, status=404)
+
+    if not (_is_admin(request.user) or is_class_teacher_of_student(request.user, student)):
+        return JsonResponse({
+            'status': 'error',
+            'message': "Only an admin or this student's assigned Class Teacher can unlock a pathway."
+        }, status=403)
+
+    current_year = AcademicYear.objects.filter(is_active=True).first()
+    if not current_year:
+        return JsonResponse({'status': 'error', 'message': 'No active academic year found.'}, status=404)
+
+    selection = StudentPathwaySelection.objects.filter(
+        student=student, academic_year=current_year, status='Approved'
+    ).select_related('preset_combination').first()
+    if not selection:
+        return JsonResponse({'status': 'error', 'message': 'No approved pathway selection to unlock.'}, status=400)
+
+    with transaction.atomic():
+        selection.status = 'Pending'
+        selection.save(update_fields=['status', 'updated_at'])
+        if selection.preset_combination_id:
+            _revert_combo_subjects(student, selection.preset_combination, current_year)
+
+        write_audit_log(
+            operator_id=request.user.id, action_type='UPDATE', module='Curriculum',
+            description=f"Unlocked pathway '{selection.pathway.name}' for {student.get_name} (unlocked by: {request.user.username})."
+        )
+
+    return JsonResponse({'status': 'success', 'is_locked': False})
+
+
 @require_permission('curriculum.view', edit_permission='curriculum.edit')
 def api_manage_selection_rules(request, grade_id):
     """
@@ -1125,7 +1524,6 @@ def api_manage_selection_rules(request, grade_id):
     return JsonResponse({'status': 'error', 'message': 'Invalid request method.'})
 
 
-@csrf_exempt
 @require_permission('curriculum.view')
 def api_get_academic_years(request):
     """
@@ -1148,7 +1546,6 @@ def api_get_academic_years(request):
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
 
 
-@csrf_exempt
 @require_permission('curriculum.view')
 def api_class_pending_subjects(request, stream_id):
     """
@@ -1196,7 +1593,6 @@ def api_class_pending_subjects(request, stream_id):
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
 
 
-@csrf_exempt
 @require_permission('curriculum.edit')
 def api_bulk_approve_subjects(request, stream_id):
     """
@@ -1361,7 +1757,6 @@ def api_bulk_approve_subjects(request, stream_id):
     return JsonResponse({'status': 'error', 'message': 'Invalid request method.'})
 
 
-@csrf_exempt
 @require_permission('curriculum.view', edit_permission='curriculum.edit')
 def api_manage_category_limits(request, grade_id):
     """
@@ -1422,7 +1817,6 @@ def api_manage_category_limits(request, grade_id):
 
     return JsonResponse({'status': 'error', 'message': 'Invalid method.'})
 
-@csrf_exempt
 @require_permission('curriculum.view', edit_permission='curriculum.edit')
 def api_manage_exclusion_rules(request, grade_id):
     """
