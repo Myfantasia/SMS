@@ -289,6 +289,7 @@ urlpatterns = [
 
     path('api/promotion/finalize-term/<int:term_id>/', promotion_views.FinalizeTermAPIView.as_view(), name='finalize_term'),
     path('api/promotion/national-exam/<int:student_id>/', promotion_views.RecordNationalExamAPIView.as_view(), name='record_national_exam'),
+    path('api/promotion/promote-students/', promotion_views.PromoteStudentsAPIView.as_view(), name='promote_students'),
     path('', include('apps.analytics.urls')),
 
     #Teacher allocations

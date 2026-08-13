@@ -522,3 +522,26 @@ class RecordNationalExamAPIViewTests(PromotionAdminEndpointTestMixin, TestCase):
         self.assertEqual(
             NationalExamRecord.objects.get(student=self.exam_student, exam_code='KJSEA').destination, 'Corrected School'
         )
+
+
+from django.test import override_settings
+from school.views.promotion_views import PromoteStudentsAPIView
+
+
+class PromoteStudentsAPIViewTests(PromotionAdminEndpointTestMixin, TestCase):
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    def test_admin_can_queue_a_bulk_promotion(self):
+        self.term.results_finalized = True
+        self.term.save()
+        response = self._post(
+            PromoteStudentsAPIView, '/api/promotion/promote-students/',
+            self.admin_user, {'academic_year_id': self.year.id, 'grade_id': self.grade9.id},
+        )
+        self.assertEqual(response.status_code, 202)
+
+    def test_non_admin_cannot_queue_a_bulk_promotion(self):
+        response = self._post(
+            PromoteStudentsAPIView, '/api/promotion/promote-students/',
+            self.teacher_user, {'academic_year_id': self.year.id, 'grade_id': self.grade9.id},
+        )
+        self.assertEqual(response.status_code, 403)
