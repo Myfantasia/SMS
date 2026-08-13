@@ -18,6 +18,8 @@ from apps.students.models import NationalExamRecord, StudentPathwaySelection
 from apps.core.services import write_audit_log
 from school.rbac import HasModulePermission
 from school.views.subject_views import _approve_combo_subjects, _ensure_core_mathematics
+from school.jobs import dispatch_background_job
+from orchestration.tasks import promote_students_task
 
 
 def _determine_transition(grade):
@@ -181,3 +183,45 @@ class RecordNationalExamAPIView(APIView):
             {"id": record.id, "exam_code": record.exam_code, "destination": record.destination},
             status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
         )
+
+
+class PromoteStudentsAPIView(APIView):
+    """Admin-triggered bulk promotion (see spec §4 — no scheduler infra exists in this repo,
+    so this is on-demand, mirroring BulkGenerateTermResultsAPIView's exact pattern)."""
+    permission_classes = [IsAuthenticated, HasModulePermission]
+    authentication_classes = [SessionAuthentication]
+    rbac_edit_permission = 'results.edit'
+
+    def post(self, request):
+        academic_year_id = request.data.get('academic_year_id')
+        grade_id = request.data.get('grade_id')
+        stream_id = request.data.get('stream_id')
+
+        if not academic_year_id:
+            return Response({"error": "academic_year_id is mandatory."}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = request.user
+        is_admin = user.is_superuser or user.groups.filter(name='ADMIN').exists()
+        if not is_admin:
+            return Response({"error": "Only Administrators can run a bulk promotion."}, status=status.HTTP_403_FORBIDDEN)
+
+        students_qs = StudentExtra.objects.filter(status=True)
+        if stream_id:
+            students_qs = students_qs.filter(cl_id=stream_id)
+        elif grade_id:
+            students_qs = students_qs.filter(cl__grade_id=grade_id)
+        student_ids = list(students_qs.values_list('id', flat=True))
+
+        if not student_ids:
+            return Response({"error": "No students found for the given scope."}, status=status.HTTP_404_NOT_FOUND)
+
+        job, error_response = dispatch_background_job(
+            job_type='promote_students',
+            task=promote_students_task,
+            task_args=(academic_year_id, student_ids, request.user.id),
+            operator=request.user,
+        )
+        if error_response is not None:
+            return error_response
+
+        return Response({"status": "queued", "job_id": str(job.id)}, status=status.HTTP_202_ACCEPTED)
