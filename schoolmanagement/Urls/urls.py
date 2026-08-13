@@ -1,8 +1,6 @@
 from django.contrib import admin
 from django.conf import settings
 from django.conf.urls.static import static
-from django.contrib.auth.views import LogoutView
-from django.contrib.auth import views as auth_views
 from django.http import JsonResponse
 from school.views import views, chat_views
 from school.views import views_timetable
@@ -26,8 +24,7 @@ from school.views.attendance_views import SubmitBatchAttendanceView, AttendanceR
     AdminAttendanceOverviewView, EventViewSet, NoticeViewSet, NotificationViewSet
 
 from school.views.results_views import GenerateTermResultsAPIView, BulkGenerateTermResultsAPIView, \
-    ClassPerformanceSummaryAPIView, StudentReportCardAPIView, SchoolAnalyticsAPIView, ResultsFilterOptionsAPIView, \
-    StudentPerformanceAnalyticsAPIView, TermImprovementAnalyticsAPIView, SubjectMatrixAnalyticsAPIView
+    ClassPerformanceSummaryAPIView, StudentReportCardAPIView, ResultsFilterOptionsAPIView
 
 from school.views.teacherAllocation_view import AllocationMatrixAPIView, RolloverAllocationsAPIView, \
     AutoAllocateDraftAPIView, BulkAutoAllocateAPIView, ClearAllocationsAPIView, api_manage_splitting_rules, \
@@ -35,18 +32,19 @@ from school.views.teacherAllocation_view import AllocationMatrixAPIView, Rollove
     UnpublishAllocationAPIView
 
 from school.views.chat_views import ClassParentsAPI
-from school.views.password_reset_views import RateLimitedPasswordResetView, \
-    NotifyingPasswordResetConfirmView, api_admin_reset_user_password
+from school.views.password_reset_views import api_admin_reset_user_password
+from school.views import public_api_views as public_api
+from apps.content.views import AlumniReviewAdminViewSet, BlogPostAdminViewSet
 from school.views import class_views
-from school.views.teacher_dashboard_view import teacher_login_view, TeacherPersonalTimetableAPIView, \
+from school.views.teacher_dashboard_view import TeacherPersonalTimetableAPIView, \
     api_manage_teacher_availability
 from school.views import subject_views
+from school.views import promotion_views
 from school.views import admin_invite_views
 from school.views import curriculum_view
 from school.views.leave_views import TeacherLeaveViewSet
 from school.views.student_dashboard_view import StudentDashboardOverviewAPI
 from school.views.parent_dashboard_view import ParentDashboardOverviewAPI
-from school.views.finance_views import FinanceOverviewAPI
 from school.views.student_tasks_view import StudentTaskViewSet
 from school.views.rbac_views import RoleViewSet, PermissionViewSet, UserRoleAssignmentAPIView
 from school.views.curriculum_view import (
@@ -56,6 +54,8 @@ from school.views.curriculum_view import (
 from school.views.jobs_views import BackgroundJobStatusAPIView
 
 router = DefaultRouter()
+router.register(r'admin/blog-posts', BlogPostAdminViewSet, basename='admin-blogpost')
+router.register(r'admin/alumni-reviews', AlumniReviewAdminViewSet, basename='admin-alumnireview')
 router.register(r'events', EventViewSet, basename='event')
 router.register(r'notices', NoticeViewSet, basename='notice')
 router.register(r'notifications', NotificationViewSet, basename='notification')
@@ -96,47 +96,44 @@ urlpatterns = [
     path('attendance/overview/', AdminAttendanceOverviewView.as_view(), name='attendance_overview'),
 
     path('admin/', admin.site.urls),
-    path('', views.home_view, name=''),
 
-    path('adminclick', views.adminclick_view, name='adminclick'),
-    path('teacherclick', views.teacherclick_view, name='teacherclick'),
-    path('studentclick', views.studentclick_view, name='studentclick'),
-    path('parentclick', views.parentclick_view, name='parentclick'),
-    path('staffclick', views.staffclick_view, name='staffclick'),
-
-    path('adminsignup', views.admin_signup_view, name='adminsignup'),
-    path('studentsignup', views.student_signup_view, name='studentsignup'),
-    path('teachersignup', views.teacher_signup_view, name='teachersignup'),
-    path('parentsignup', views.parent_signup_view, name='parentsignup'),
     path('api/parentsignup/search-students/', views.api_search_students_for_parent_signup, name='api_search_students_for_parent_signup'),
-    path('staffsignup', views.staff_signup_view, name='staffsignup'),
-
-    path('adminlogin', views.admin_login_view, name='adminlogin'),
-    path('studentlogin', views.student_login_view, name='studentlogin'),
-    path('teacherlogin/', teacher_login_view, name='teacherlogin'),
-    path('parentlogin', views.parent_login_view, name='parentlogin'),
-    path('stafflogin/', views.staff_login_view, name='stafflogin'),
-
-    path('afterlogin', views.afterlogin_view, name='afterlogin'),
 
     # logout
     # Purpose: Catches the request from React and triggers our custom logout function
     path('logout', views.custom_logout_view, name='logout'),
     path('logout/', views.custom_logout_view, name='logout_with_slash'),
 
-    path('portal', views.portal_view, name='portal'),
-    path('aboutus', views.aboutus_view),
-    path('contactus', views.contactus_view),
-    path('events/', views.events_view, name='events'),
-    path('privacy-policy/', views.privacy_policy_view, name='privacy-policy'),
-    path('terms-of-service/', views.terms_of_service_view, name='terms-of-service'),
-    path('system-status/', views.system_status_view, name='system-status'),
+    # --- Public pages JSON API (React frontend, frontend/src/public/) ---
+    # The sole backend surface for the public (pre-login) pages -- the old HTML-
+    # rendering views/templates/static assets they replaced were removed once every
+    # flow was verified end-to-end (see /home/jordan/.claude/plans/scalable-kindling-lampson.md).
+    path('api/public/csrf/', public_api.api_csrf, name='api_public_csrf'),
+    path('api/public/home/', public_api.api_home, name='api_public_home'),
+    path('api/public/afterlogin/', public_api.api_afterlogin, name='api_public_afterlogin'),
+    path('api/public/contact/', public_api.api_contact, name='api_public_contact'),
+    path('api/public/system-status/', public_api.api_system_status, name='api_public_system_status'),
+    path('api/public/blog/', public_api.api_public_blog_list, name='api_public_blog_list'),
+    path('api/public/blog/<slug:slug>/', public_api.api_public_blog_detail, name='api_public_blog_detail'),
+    path('api/public/alumni-reviews/', public_api.api_public_alumni_reviews, name='api_public_alumni_reviews'),
 
-    # Password Reset Paths
-    path('password-reset/', RateLimitedPasswordResetView.as_view(template_name='school/password_reset/password_reset.html'), name='password_reset'),
-    path('password-reset/done/', auth_views.PasswordResetDoneView.as_view(template_name='school/password_reset/password_reset_done.html'), name='password_reset_done'),
-    path('password-reset-confirm/<uidb64>/<token>/', NotifyingPasswordResetConfirmView.as_view(template_name='school/password_reset/password_reset_confirm.html'), name='password_reset_confirm'),
-    path('password-reset-complete/', auth_views.PasswordResetCompleteView.as_view(template_name='school/password_reset/password_reset_complete.html'), name='password_reset_complete'),
+    path('api/public/signup/admin/', public_api.api_signup_admin, name='api_public_signup_admin'),
+    path('api/public/signup/student/', public_api.api_signup_student, name='api_public_signup_student'),
+    path('api/public/signup/student/class-streams/', public_api.api_student_signup_class_streams, name='api_public_student_signup_class_streams'),
+    path('api/public/signup/teacher/', public_api.api_signup_teacher, name='api_public_signup_teacher'),
+    path('api/public/signup/teacher/subjects/', public_api.api_teacher_signup_subjects, name='api_public_teacher_signup_subjects'),
+    path('api/public/signup/staff/', public_api.api_signup_staff, name='api_public_signup_staff'),
+    path('api/public/signup/staff/roles/', public_api.api_staff_signup_roles, name='api_public_staff_signup_roles'),
+    path('api/public/signup/parent/', public_api.api_signup_parent, name='api_public_signup_parent'),
+
+    path('api/public/login/admin/', public_api.api_login_admin, name='api_public_login_admin'),
+    path('api/public/login/student/', public_api.api_login_student, name='api_public_login_student'),
+    path('api/public/login/teacher/', public_api.api_login_teacher, name='api_public_login_teacher'),
+    path('api/public/login/parent/', public_api.api_login_parent, name='api_public_login_parent'),
+    path('api/public/login/staff/', public_api.api_login_staff, name='api_public_login_staff'),
+
+    path('api/public/password-reset/request/', public_api.api_password_reset_request, name='api_public_password_reset_request'),
+    path('api/public/password-reset/confirm/<uidb64>/<token>/', public_api.api_password_reset_confirm, name='api_public_password_reset_confirm'),
 
 
     # --- NEW: API ENDPOINTS FOR REACT FRONTEND ---
@@ -144,7 +141,7 @@ urlpatterns = [
     path('api/pending-approvals/', views.pending_approvals_api, name='pending_approvals_api'),
     path('api/student/dashboard-overview/', StudentDashboardOverviewAPI.as_view(), name='api_student_dashboard_overview'),
     path('api/parent/dashboard-overview/', ParentDashboardOverviewAPI.as_view(), name='api_parent_dashboard_overview'),
-    path('api/finance-overview/', FinanceOverviewAPI.as_view(), name='api_finance_overview'),
+    path('', include('apps.finance.urls')),
     path('api/student/', include(student_router.urls)),
 
 # API endpoints for React Approvals Integration
@@ -213,9 +210,10 @@ urlpatterns = [
     path('api/subjects/category-limits/<int:grade_id>/', subject_views.api_manage_category_limits, name='manage_category_limits'),
     path('api/subjects/exclusion-rules/<int:grade_id>/', subject_views.api_manage_exclusion_rules, name='manage_exclusion_rules'),
 
-    # Student self-service elective choice — feeds the existing admin Batch Approvals queue
-    # (ManageCurriculum.tsx / api_bulk_approve_subjects) with real Pending requests instead of
-    # only ever being populated by an admin assigning subjects directly.
+    # Student self-service: the consolidated "My Subjects" page's two data sources — the
+    # fixed compulsory half, and the choosable elective half (which feeds the existing admin
+    # Batch Approvals queue: ManageCurriculum.tsx / api_bulk_approve_subjects).
+    path('api/subjects/my-subjects/', subject_views.api_student_subjects_overview, name='student_subjects_overview'),
     path('api/subjects/my-electives/', subject_views.api_student_elective_options, name='student_elective_options'),
     path('api/subjects/my-electives/request/', subject_views.api_student_elective_request, name='student_elective_request'),
 
@@ -226,6 +224,14 @@ urlpatterns = [
     path('api/subjects/my-pathway/request/', subject_views.api_student_pathway_request, name='student_pathway_request'),
     path('api/subjects/pathway-requests/', subject_views.api_pathway_requests, name='pathway_requests'),
     path('api/subjects/pathway-requests/<int:selection_id>/decide/', subject_views.api_decide_pathway_request, name='decide_pathway_request'),
+
+    # Admin-facing (Assign Subjects page): direct pathway assignment for Senior Secondary,
+    # and unlock endpoints for both the compulsory-subjects and pathway-selection flows —
+    # see tier_requires_pathway_choice() in apps/academics/models.py.
+    path('api/subjects/pathway-options/<int:student_id>/', subject_views.api_admin_pathway_options, name='admin_pathway_options'),
+    path('api/subjects/pathway-options/<int:student_id>/assign/', subject_views.api_admin_assign_pathway, name='admin_assign_pathway'),
+    path('api/subjects/pathway-options/<int:student_id>/unlock/', subject_views.api_unlock_pathway_selection, name='unlock_pathway_selection'),
+    path('api/subjects/manage-enrollment/<int:student_id>/unlock/', subject_views.api_unlock_subject_enrollment, name='unlock_subject_enrollment'),
 
 # ==========================================
     # TIMETABLE ENGINE API ROUTES
@@ -279,11 +285,11 @@ urlpatterns = [
     path('api/results/bulk-generate/', BulkGenerateTermResultsAPIView.as_view(), name='bulk_generate_term_results'),
     path('api/results/class-summary/', ClassPerformanceSummaryAPIView.as_view(), name='class_summary'),
     path('api/results/report-card/', StudentReportCardAPIView.as_view(), name='student_report_card'),
-    path('api/results/school-analytics/', SchoolAnalyticsAPIView.as_view(), name='school_analytics'),
     path('api/results/filter-options/', ResultsFilterOptionsAPIView.as_view(), name='result_filter_options'),
-    path('api/results/student-analytics/', StudentPerformanceAnalyticsAPIView.as_view(), name='student_analytics'),
-    path('api/results/improvement-analytics/', TermImprovementAnalyticsAPIView.as_view(), name='improvement-analytics'),
-    path('api/results/subject-matrix-analytics/', SubjectMatrixAnalyticsAPIView.as_view(), name='subject-matrix-analytics'),
+
+    path('api/promotion/finalize-term/<int:term_id>/', promotion_views.FinalizeTermAPIView.as_view(), name='finalize_term'),
+    path('api/promotion/national-exam/<int:student_id>/', promotion_views.RecordNationalExamAPIView.as_view(), name='record_national_exam'),
+    path('', include('apps.analytics.urls')),
 
     #Teacher allocations
     path('api/allocations/matrix/', AllocationMatrixAPIView.as_view(), name='allocation_matrix'),
