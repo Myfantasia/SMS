@@ -368,10 +368,13 @@ def bulk_generate_term_results_task(self, job_id, term_id, stream_ids, operator_
 
 
 @shared_task(bind=True)
-def promote_students_task(self, job_id, academic_year_id, student_ids, operator_id):
+def promote_students_task(self, job_id, academic_year_id, student_ids, operator_id, lock_key):
     from apps.identity.models import StudentExtra
     from apps.academics.models import AcademicYear
     from school.views.promotion_views import _promote_student
+
+    if not _acquire_lock_or_retry(self, job_id, lock_key):
+        return
 
     _mark_running(job_id)
     try:
@@ -395,3 +398,5 @@ def promote_students_task(self, job_id, academic_year_id, student_ids, operator_
         })
     except Exception as e:
         _mark_failure(job_id, str(e))
+    finally:
+        cache.delete(lock_key)

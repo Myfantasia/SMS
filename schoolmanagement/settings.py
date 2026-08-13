@@ -44,6 +44,28 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'channels',
     'school',
+
+    # --- Modular monolith apps (Track A: scaffolded, no models relocated yet).
+    # Foundation layer first, then everything that depends on it, matching
+    # the dependency order in the modular-monolith plan -- listing order here
+    # has no functional effect on Django itself, but keeping it consistent
+    # with the dependency graph makes the file self-documenting.
+    'apps.core',
+    'apps.identity',
+    'apps.academics',
+    'apps.students',
+    'apps.staff',
+    'apps.allocations',
+    'apps.attendance',
+    'apps.assignments',
+    'apps.messaging',
+    'apps.finance',
+    'apps.timetable',
+    'apps.exams',
+    'apps.results',
+    'apps.analytics',
+    'apps.content',
+
     'widget_tweaks',
     'rest_framework',
     'corsheaders',
@@ -192,10 +214,11 @@ CELERY_TASK_EAGER_PROPAGATES = True
 # a separate default-queue worker (higher concurrency) stays free for any lighter
 # background task added later. See .env.example for the two `celery worker` commands.
 CELERY_TASK_ROUTES = {
-    'school.tasks.generate_timetable_task': {'queue': 'bulk_ops'},
-    'school.tasks.rollover_allocations_task': {'queue': 'bulk_ops'},
-    'school.tasks.bulk_auto_allocate_task': {'queue': 'bulk_ops'},
-    'school.tasks.bulk_generate_term_results_task': {'queue': 'bulk_ops'},
+    'orchestration.tasks.generate_timetable_task': {'queue': 'bulk_ops'},
+    'orchestration.tasks.rollover_allocations_task': {'queue': 'bulk_ops'},
+    'orchestration.tasks.bulk_auto_allocate_task': {'queue': 'bulk_ops'},
+    'orchestration.tasks.bulk_generate_term_results_task': {'queue': 'bulk_ops'},
+    'orchestration.tasks.promote_students_task': {'queue': 'bulk_ops'},
 }
 # If the worker process dies mid-task (OOM kill, deploy restart, crash), acks_late means
 # Redis re-delivers the message to another worker instead of silently losing it. Safe to
