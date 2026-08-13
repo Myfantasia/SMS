@@ -186,3 +186,147 @@ class EnsureCoreMathematicsTests(TestCase):
         self.assertEqual(
             StudentSubjectEnrollment.objects.filter(student=self.student, subject=self.emat, academic_year=self.year).count(), 1
         )
+
+
+from school.views.promotion_views import _determine_transition, results_finalized_for_year, _promote_student
+
+
+class DetermineTransitionTests(TestCase):
+    def setUp(self):
+        self.curriculum = Curriculum.objects.create(code='CBC6', name='CBC (transition test)')
+
+    def test_plain_when_no_exit_exam_code(self):
+        tier = Tier.objects.create(curriculum=self.curriculum, name='Lower Primary', code='LP6')
+        g3 = GradeLevel.objects.create(name='Grade 3Y', numeric_order=3, curriculum=self.curriculum, tier=tier)
+        g4 = GradeLevel.objects.create(name='Grade 4Y', numeric_order=4, curriculum=self.curriculum, tier=Tier.objects.create(curriculum=self.curriculum, name='Upper Primary', code='UP6'))
+        transition_type, exam_code, next_grade = _determine_transition(g3)
+        self.assertEqual(transition_type, 'plain')
+        self.assertIsNone(exam_code)
+        self.assertEqual(next_grade.id, g4.id)
+
+    def test_exam_gated_when_exit_exam_code_set_and_not_terminal(self):
+        tier = Tier.objects.create(
+            curriculum=self.curriculum, name='Upper Primary', code='UP6X',
+            exit_exam_code='KPSEA', exit_is_terminal=False,
+        )
+        jss_tier = Tier.objects.create(curriculum=self.curriculum, name='Junior Secondary', code='JSS6X')
+        g6 = GradeLevel.objects.create(name='Grade 6Y', numeric_order=6, curriculum=self.curriculum, tier=tier)
+        g7 = GradeLevel.objects.create(name='Grade 7Y', numeric_order=7, curriculum=self.curriculum, tier=jss_tier)
+        transition_type, exam_code, next_grade = _determine_transition(g6)
+        self.assertEqual(transition_type, 'exam_gated')
+        self.assertEqual(exam_code, 'KPSEA')
+        self.assertEqual(next_grade.id, g7.id)
+
+    def test_exit_when_terminal(self):
+        tier = Tier.objects.create(
+            curriculum=self.curriculum, name='Junior Secondary', code='JSS6Y',
+            exit_exam_code='KJSEA', exit_is_terminal=True,
+        )
+        GradeLevel.objects.create(name='Grade 9Y', numeric_order=9, curriculum=self.curriculum, tier=tier)
+        g9 = GradeLevel.objects.get(name='Grade 9Y')
+        # A Grade 10 row exists elsewhere in the school's data, but must be ignored for 'exit'.
+        other_tier = Tier.objects.create(curriculum=self.curriculum, name='Senior Secondary', code='SSS6Y')
+        GradeLevel.objects.create(name='Grade 10Y', numeric_order=10, curriculum=self.curriculum, tier=other_tier)
+        transition_type, exam_code, next_grade = _determine_transition(g9)
+        self.assertEqual(transition_type, 'exit')
+        self.assertEqual(exam_code, 'KJSEA')
+        self.assertIsNone(next_grade)
+
+    def test_plain_when_no_tier(self):
+        g = GradeLevel.objects.create(name='Grade 1Y', numeric_order=1, curriculum=self.curriculum, tier=None)
+        transition_type, exam_code, next_grade = _determine_transition(g)
+        self.assertEqual(transition_type, 'plain')
+        self.assertIsNone(exam_code)
+
+
+class ResultsFinalizedForYearTests(TestCase):
+    def test_false_when_no_terms(self):
+        year = AcademicYear.objects.create(year='2095')
+        self.assertFalse(results_finalized_for_year(year))
+
+    def test_false_when_any_term_not_finalized(self):
+        year = AcademicYear.objects.create(year='2094')
+        ExamTerm.objects.create(name='Term 1', academic_year=year, start_date='2094-01-01', end_date='2094-04-01', results_finalized=True)
+        ExamTerm.objects.create(name='Term 2', academic_year=year, start_date='2094-05-01', end_date='2094-08-01', results_finalized=False)
+        self.assertFalse(results_finalized_for_year(year))
+
+    def test_true_when_all_terms_finalized(self):
+        year = AcademicYear.objects.create(year='2093')
+        ExamTerm.objects.create(name='Term 1', academic_year=year, start_date='2093-01-01', end_date='2093-04-01', results_finalized=True)
+        ExamTerm.objects.create(name='Term 2', academic_year=year, start_date='2093-05-01', end_date='2093-08-01', results_finalized=True)
+        self.assertTrue(results_finalized_for_year(year))
+
+
+class PromoteStudentTests(TestCase):
+    def setUp(self):
+        self.curriculum = Curriculum.objects.create(code='CBC7', name='CBC (promote test)')
+        self.year = AcademicYear.objects.create(year='2092')
+
+    def test_plain_promotion_held_when_results_not_finalized(self):
+        tier = Tier.objects.create(curriculum=self.curriculum, name='Lower Primary', code='LP7')
+        g1 = GradeLevel.objects.create(name='Grade 1X', numeric_order=1, curriculum=self.curriculum, tier=tier)
+        GradeLevel.objects.create(name='Grade 2X', numeric_order=2, curriculum=self.curriculum, tier=tier)
+        stream = ClassStream.objects.create(name='Central', grade=g1)
+        user = User.objects.create_user(username='plain_promo_student', password='x')
+        student = StudentExtra.objects.create(user=user, roll='PP01', cl=stream, status=True)
+        ExamTerm.objects.create(name='Term 1', academic_year=self.year, start_date='2092-01-01', end_date='2092-04-01', results_finalized=False)
+
+        result = _promote_student(student, self.year)
+        self.assertEqual(result['outcome'], 'held')
+        student.refresh_from_db()
+        self.assertEqual(student.cl_id, stream.id)
+
+    def test_plain_promotion_succeeds_when_results_finalized(self):
+        tier = Tier.objects.create(curriculum=self.curriculum, name='Lower Primary', code='LP7B')
+        g1 = GradeLevel.objects.create(name='Grade 1W', numeric_order=1, curriculum=self.curriculum, tier=tier)
+        g2 = GradeLevel.objects.create(name='Grade 2W', numeric_order=2, curriculum=self.curriculum, tier=tier)
+        stream = ClassStream.objects.create(name='Central', grade=g1)
+        user = User.objects.create_user(username='plain_promo_student2', password='x')
+        student = StudentExtra.objects.create(user=user, roll='PP02', cl=stream, status=True)
+        ExamTerm.objects.create(name='Term 1', academic_year=self.year, start_date='2092-01-01', end_date='2092-04-01', results_finalized=True)
+
+        result = _promote_student(student, self.year)
+        self.assertEqual(result['outcome'], 'promoted')
+        student.refresh_from_db()
+        self.assertEqual(student.cl.grade_id, g2.id)
+        self.assertEqual(student.cl.name, 'Central')
+
+    def test_exam_gated_promotion_held_without_record(self):
+        tier = Tier.objects.create(
+            curriculum=self.curriculum, name='Upper Primary', code='UP7',
+            exit_exam_code='KPSEA', exit_is_terminal=False,
+        )
+        jss_tier = Tier.objects.create(curriculum=self.curriculum, name='Junior Secondary', code='JSS7')
+        g6 = GradeLevel.objects.create(name='Grade 6W', numeric_order=6, curriculum=self.curriculum, tier=tier)
+        GradeLevel.objects.create(name='Grade 7W', numeric_order=7, curriculum=self.curriculum, tier=jss_tier)
+        stream = ClassStream.objects.create(name='Central', grade=g6)
+        user = User.objects.create_user(username='kpsea_student', password='x')
+        student = StudentExtra.objects.create(user=user, roll='KP01', cl=stream, status=True)
+
+        result = _promote_student(student, self.year)
+        self.assertEqual(result['outcome'], 'held')
+
+    def test_exit_transition_graduates_without_moving_class(self):
+        tier = Tier.objects.create(
+            curriculum=self.curriculum, name='Junior Secondary', code='JSS7B',
+            exit_exam_code='KJSEA', exit_is_terminal=True,
+        )
+        g9 = GradeLevel.objects.create(name='Grade 9W', numeric_order=9, curriculum=self.curriculum, tier=tier)
+        stream = ClassStream.objects.create(name='Central', grade=g9)
+        user = User.objects.create_user(username='kjsea_student', password='x')
+        student = StudentExtra.objects.create(user=user, roll='KJ01', cl=stream, status=True)
+        NationalExamRecord.objects.create(
+            student=student, exam_code='KJSEA', academic_year=self.year, destination='Alliance High School',
+        )
+
+        result = _promote_student(student, self.year)
+        self.assertEqual(result['outcome'], 'graduated')
+        student.refresh_from_db()
+        self.assertEqual(student.enrollment_state, 'Graduated')
+        self.assertEqual(student.cl_id, stream.id)  # cl untouched — cross-institution, no local reassignment
+
+    def test_held_when_no_current_class(self):
+        user = User.objects.create_user(username='no_class_student', password='x')
+        student = StudentExtra.objects.create(user=user, roll='NC01', cl=None, status=True)
+        result = _promote_student(student, self.year)
+        self.assertEqual(result['outcome'], 'held')
