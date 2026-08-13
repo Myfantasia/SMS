@@ -330,3 +330,103 @@ class PromoteStudentTests(TestCase):
         student = StudentExtra.objects.create(user=user, roll='NC01', cl=None, status=True)
         result = _promote_student(student, self.year)
         self.assertEqual(result['outcome'], 'held')
+
+
+from apps.students.models import StudentPathwaySelection
+
+
+class PromoteStudentSSSPathwayCarryForwardTests(TestCase):
+    """
+    Exercises _move_student_to_grade -> _carry_forward_pathway_selection: promoting a student
+    across two grades that are BOTH inside a 'Senior Secondary' tier (so
+    tier_requires_pathway_choice(next_grade.tier) is True) must clone their prior year's
+    Approved StudentPathwaySelection into the new academic year and re-approve the combo's
+    subjects, per _carry_forward_pathway_selection's docstring. No existing PromoteStudentTests
+    case promotes into a pathway-choice tier, so this path had zero coverage before.
+    """
+
+    def setUp(self):
+        self.curriculum = Curriculum.objects.create(code='CBC8', name='CBC (pathway carry-forward test)')
+        self.tier = Tier.objects.create(curriculum=self.curriculum, name='Senior Secondary', code='SSS8')
+        self.grade10 = GradeLevel.objects.create(name='Grade 10V', numeric_order=10, curriculum=self.curriculum, tier=self.tier)
+        self.grade11 = GradeLevel.objects.create(name='Grade 11V', numeric_order=11, curriculum=self.curriculum, tier=self.tier)
+        self.stream10 = ClassStream.objects.create(name='Gold', grade=self.grade10)
+
+        self.pathway = Pathway.objects.create(curriculum=self.curriculum, name='STEM')
+        self.track = Track.objects.create(pathway=self.pathway, name='Pure Sciences')
+
+        # No AMAT/CMAT in this combo, so the core-math guarantee should add EMAT on top.
+        self.physics = Subject.objects.create(code='PHY8', name='Physics 8')
+        self.chem = Subject.objects.create(code='CHE8', name='Chemistry 8')
+        self.bio = Subject.objects.create(code='BIO8', name='Biology 8')
+        self.emat = Subject.objects.create(code='EMAT', name='Essential Mathematics')
+        self.combo = PresetCombination.objects.create(track=self.track, name='Sciences Combo', code='SC8')
+        self.combo.subjects.set([self.physics, self.chem, self.bio])
+
+        self.current_year = AcademicYear.objects.create(year='2091Z')
+        self.new_year = AcademicYear.objects.create(year='2092Z')
+
+        user = User.objects.create_user(username='sss_carryforward_student', password='x')
+        self.student = StudentExtra.objects.create(user=user, roll='SC01', cl=self.stream10, status=True)
+
+        self.previous_selection = StudentPathwaySelection.objects.create(
+            student=self.student, pathway=self.pathway, track=self.track,
+            preset_combination=self.combo, academic_year=self.current_year, status='Approved',
+        )
+
+        # This tier has no exit_exam_code -> 'plain' transition, gated on
+        # results_finalized_for_year for the *destination* academic_year (see _promote_student).
+        ExamTerm.objects.create(
+            name='Term 1', academic_year=self.new_year, start_date='2092-01-01', end_date='2092-04-01',
+            results_finalized=True,
+        )
+
+    def test_carries_forward_pathway_and_approves_combo_subjects(self):
+        result = _promote_student(self.student, self.new_year)
+
+        self.assertEqual(result['outcome'], 'promoted')
+        self.student.refresh_from_db()
+        self.assertEqual(self.student.cl.grade_id, self.grade11.id)
+
+        new_selection = StudentPathwaySelection.objects.get(student=self.student, academic_year=self.new_year)
+        self.assertEqual(new_selection.status, 'Approved')
+        self.assertEqual(new_selection.pathway_id, self.pathway.id)
+        self.assertEqual(new_selection.track_id, self.track.id)
+        self.assertEqual(new_selection.preset_combination_id, self.combo.id)
+
+        for subject in (self.physics, self.chem, self.bio):
+            enrollment = StudentSubjectEnrollment.objects.get(
+                student=self.student, subject=subject, academic_year=self.new_year,
+            )
+            self.assertEqual(enrollment.status, 'Approved')
+
+        # Combo has neither AMAT nor CMAT -> the core-math guarantee should have added EMAT too.
+        emat_enrollment = StudentSubjectEnrollment.objects.get(
+            student=self.student, subject=self.emat, academic_year=self.new_year,
+        )
+        self.assertEqual(emat_enrollment.status, 'Approved')
+
+        # Prior year's selection is untouched (a clone, not a move).
+        self.previous_selection.refresh_from_db()
+        self.assertEqual(self.previous_selection.status, 'Approved')
+        self.assertEqual(self.previous_selection.academic_year_id, self.current_year.id)
+
+    def test_carries_forward_pathway_without_combo_leaves_subjects_untouched(self):
+        # A track-only selection (student hasn't picked a preset combination yet) must still
+        # carry the pathway/track forward, but _carry_forward_pathway_selection's
+        # `if new_selection.preset_combination_id` guard means no subject enrollment work happens.
+        self.previous_selection.preset_combination = None
+        self.previous_selection.save(update_fields=['preset_combination'])
+
+        result = _promote_student(self.student, self.new_year)
+
+        self.assertEqual(result['outcome'], 'promoted')
+        new_selection = StudentPathwaySelection.objects.get(student=self.student, academic_year=self.new_year)
+        self.assertEqual(new_selection.status, 'Approved')
+        self.assertEqual(new_selection.pathway_id, self.pathway.id)
+        self.assertEqual(new_selection.track_id, self.track.id)
+        self.assertIsNone(new_selection.preset_combination_id)
+
+        self.assertFalse(
+            StudentSubjectEnrollment.objects.filter(student=self.student, academic_year=self.new_year).exists()
+        )
