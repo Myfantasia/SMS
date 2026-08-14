@@ -238,6 +238,38 @@ class DetermineTransitionTests(TestCase):
         self.assertEqual(transition_type, 'plain')
         self.assertIsNone(exam_code)
 
+    def test_plain_for_non_exit_grades_within_a_multi_grade_tier(self):
+        """
+        A Tier with exit_exam_code/exit_is_terminal set (as the plan's own Final Verification
+        step instructs admins to configure per-tier, not per-grade — e.g. "Senior Secondary ->
+        KCSE + terminal") must only gate its actual exit grade. Grades 10->11 and 11->12 inside a
+        three-grade Senior Secondary tier must both stay 'plain', matching the design doc's
+        transition table (Grade 8->9, 10->11, 11->12 are all listed as Plain) — only Grade 12,
+        whose next grade falls outside the tier, is exam-gated/terminal.
+        """
+        tier = Tier.objects.create(
+            curriculum=self.curriculum, name='Senior Secondary', code='SSS6Z',
+            exit_exam_code='KCSE', exit_is_terminal=True,
+        )
+        g10 = GradeLevel.objects.create(name='Grade 10Z', numeric_order=10, curriculum=self.curriculum, tier=tier)
+        g11 = GradeLevel.objects.create(name='Grade 11Z', numeric_order=11, curriculum=self.curriculum, tier=tier)
+        g12 = GradeLevel.objects.create(name='Grade 12Z', numeric_order=12, curriculum=self.curriculum, tier=tier)
+
+        transition_type, exam_code, next_grade = _determine_transition(g10)
+        self.assertEqual(transition_type, 'plain')
+        self.assertIsNone(exam_code)
+        self.assertEqual(next_grade.id, g11.id)
+
+        transition_type, exam_code, next_grade = _determine_transition(g11)
+        self.assertEqual(transition_type, 'plain')
+        self.assertIsNone(exam_code)
+        self.assertEqual(next_grade.id, g12.id)
+
+        transition_type, exam_code, next_grade = _determine_transition(g12)
+        self.assertEqual(transition_type, 'exit')
+        self.assertEqual(exam_code, 'KCSE')
+        self.assertIsNone(next_grade)
+
 
 class ResultsFinalizedForYearTests(TestCase):
     def test_false_when_no_terms(self):
@@ -330,6 +362,31 @@ class PromoteStudentTests(TestCase):
         student = StudentExtra.objects.create(user=user, roll='NC01', cl=None, status=True)
         result = _promote_student(student, self.year)
         self.assertEqual(result['outcome'], 'held')
+
+    def test_internal_grade_of_gated_tier_promotes_plainly_without_exam_record(self):
+        """
+        Regression for the multi-grade-tier bug: a student in Grade 11 of a three-grade Senior
+        Secondary tier configured with exit_exam_code='KCSE'/exit_is_terminal=True (exactly as
+        the plan instructs admins to configure it) must promote to Grade 12 on results_finalized
+        alone — no KCSE NationalExamRecord required — since Grade 11 is not the tier's exit grade.
+        """
+        tier = Tier.objects.create(
+            curriculum=self.curriculum, name='Senior Secondary', code='SSS7Z',
+            exit_exam_code='KCSE', exit_is_terminal=True,
+        )
+        GradeLevel.objects.create(name='Grade 10ZZ', numeric_order=10, curriculum=self.curriculum, tier=tier)
+        g11 = GradeLevel.objects.create(name='Grade 11ZZ', numeric_order=11, curriculum=self.curriculum, tier=tier)
+        g12 = GradeLevel.objects.create(name='Grade 12ZZ', numeric_order=12, curriculum=self.curriculum, tier=tier)
+        stream = ClassStream.objects.create(name='Central', grade=g11)
+        user = User.objects.create_user(username='sss_internal_promo_student', password='x')
+        student = StudentExtra.objects.create(user=user, roll='SI01', cl=stream, status=True)
+        ExamTerm.objects.create(name='Term 1', academic_year=self.year, start_date='2092-01-01', end_date='2092-04-01', results_finalized=True)
+
+        result = _promote_student(student, self.year)
+        self.assertEqual(result['outcome'], 'promoted')
+        student.refresh_from_db()
+        self.assertEqual(student.cl.grade_id, g12.id)
+        self.assertEqual(student.enrollment_state, 'Active')
 
 
 from apps.students.models import StudentPathwaySelection

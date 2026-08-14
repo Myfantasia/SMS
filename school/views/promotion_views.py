@@ -30,10 +30,18 @@ def _determine_transition(grade):
       - ('exit', exam_code, None) — cross-institution or terminal; no cl reassignment.
     Driven entirely by the admin-configured Tier.exit_exam_code/exit_is_terminal fields — never
     hardcoded grade numbers, matching tier_requires_pathway_choice's own convention.
+
+    A Tier spans multiple GradeLevels (e.g. Senior Secondary = Grade 10-12), and
+    exit_exam_code/exit_is_terminal describe the exam gating the tier's own exit, not every
+    grade inside it. Only the tier's exit grade — the one whose next grade belongs to a
+    different tier (or has no next grade at all) — is exam-gated; every other grade inside the
+    tier is a plain internal promotion. This mirrors grade_requires_pathway_choice's symmetric
+    "entry grade" check (apps/academics/models.py) on the other end of a tier.
     """
     tier = grade.tier
     next_grade = next_grade_level(grade)
-    if tier is None or not tier.exit_exam_code:
+    is_tier_exit_grade = tier is not None and (next_grade is None or next_grade.tier_id != tier.id)
+    if tier is None or not tier.exit_exam_code or not is_tier_exit_grade:
         return ('plain', None, next_grade)
     if tier.exit_is_terminal:
         return ('exit', tier.exit_exam_code, None)
