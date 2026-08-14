@@ -16,6 +16,7 @@ export default function PromotionPanel() {
   const [termId, setTermId] = useState('');
   const [finalizing, setFinalizing] = useState(false);
   const [finalizeMsg, setFinalizeMsg] = useState<string | null>(null);
+  const [finalizeFailed, setFinalizeFailed] = useState(false);
 
   const [examStudentId, setExamStudentId] = useState('');
   const [examCode, setExamCode] = useState('KJSEA');
@@ -23,6 +24,7 @@ export default function PromotionPanel() {
   const [destination, setDestination] = useState('');
   const [recordingExam, setRecordingExam] = useState(false);
   const [examMsg, setExamMsg] = useState<string | null>(null);
+  const [examFailed, setExamFailed] = useState(false);
 
   const [promoteYearId, setPromoteYearId] = useState('');
   const [promoteGradeId, setPromoteGradeId] = useState('');
@@ -34,11 +36,13 @@ export default function PromotionPanel() {
     if (!termId) return;
     setFinalizing(true);
     setFinalizeMsg(null);
+    setFinalizeFailed(false);
     try {
       await api.post(`/api/promotion/finalize-term/${termId}/`, { finalized });
       setFinalizeMsg(finalized ? 'Term finalized.' : 'Term un-finalized.');
     } catch (err: any) {
       setFinalizeMsg(err.response?.data?.error || 'Failed to update finalization state.');
+      setFinalizeFailed(true);
     } finally {
       setFinalizing(false);
     }
@@ -48,6 +52,7 @@ export default function PromotionPanel() {
     if (!examStudentId || !academicYearId) return;
     setRecordingExam(true);
     setExamMsg(null);
+    setExamFailed(false);
     try {
       await api.post(`/api/promotion/national-exam/${examStudentId}/`, {
         exam_code: examCode, academic_year_id: academicYearId, destination,
@@ -55,6 +60,7 @@ export default function PromotionPanel() {
       setExamMsg('Exam record saved.');
     } catch (err: any) {
       setExamMsg(err.response?.data?.error || 'Failed to save exam record.');
+      setExamFailed(true);
     } finally {
       setRecordingExam(false);
     }
@@ -94,7 +100,7 @@ export default function PromotionPanel() {
             </Button>
             {finalizing && <CircularProgress size={20} />}
           </Stack>
-          {finalizeMsg && <Alert sx={{ mt: 2 }} severity="info">{finalizeMsg}</Alert>}
+          {finalizeMsg && <Alert sx={{ mt: 2 }} severity={finalizeFailed ? 'error' : 'success'}>{finalizeMsg}</Alert>}
         </CardContent>
       </Card>
 
@@ -121,7 +127,7 @@ export default function PromotionPanel() {
               </Button>
             </Box>
           </Stack>
-          {examMsg && <Alert sx={{ mt: 2 }} severity="info">{examMsg}</Alert>}
+          {examMsg && <Alert sx={{ mt: 2 }} severity={examFailed ? 'error' : 'success'}>{examMsg}</Alert>}
         </CardContent>
       </Card>
 
