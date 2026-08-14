@@ -545,3 +545,31 @@ class PromoteStudentsAPIViewTests(PromotionAdminEndpointTestMixin, TestCase):
             self.teacher_user, {'academic_year_id': self.year.id, 'grade_id': self.grade9.id},
         )
         self.assertEqual(response.status_code, 403)
+
+
+from school.views.student_dashboard_view import StudentDashboardOverviewAPI
+
+
+class StudentDashboardGraduatedReflectionTests(TestCase):
+    def setUp(self):
+        self.factory = RequestFactory()
+        curriculum = Curriculum.objects.create(code='CBC9', name='CBC (dashboard test)')
+        tier = Tier.objects.create(curriculum=curriculum, name='Junior Secondary', code='JSS9', exit_exam_code='KJSEA', exit_is_terminal=True)
+        grade9 = GradeLevel.objects.create(name='Grade 9 Dash', numeric_order=9, curriculum=curriculum, tier=tier)
+        stream = ClassStream.objects.create(name='Central', grade=grade9)
+        self.user = User.objects.create_user(username='dash_grad_student', password='x')
+        self.student = StudentExtra.objects.create(
+            user=self.user, roll='DG01', cl=stream, status=True, enrollment_state='Graduated',
+        )
+        year = AcademicYear.objects.create(year='2091')
+        NationalExamRecord.objects.create(
+            student=self.student, exam_code='KJSEA', academic_year=year, destination='Alliance High School',
+        )
+
+    def test_dashboard_surfaces_graduated_state_and_destination(self):
+        request = self.factory.get('/api/student/dashboard-overview/')
+        request.user = self.user
+        response = StudentDashboardOverviewAPI.as_view()(request)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['data']['profile']['enrollment_state'], 'Graduated')
+        self.assertEqual(response.data['data']['profile']['graduation_destination'], 'Alliance High School')
