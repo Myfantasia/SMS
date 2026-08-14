@@ -3,6 +3,7 @@ import { BarChart3, FileText, TrendingUp, Award, Sparkles, Clock } from 'lucide-
 import ClassPerformanceSummary from './ClassPerformanceSummary';
 import StudentReportCardViewer from './StudentReportCardViewer';
 import ResultsAnalytics from './ResultAnalytics';
+import PromotionPanel from './PromotionPanel';
 
 interface ResultsHubProps {
   role: 'admin' | 'teacher' | 'student' | 'parent';
@@ -10,7 +11,7 @@ interface ResultsHubProps {
 
 export default function ResultsHub({ role }: ResultsHubProps) {
   // We use tabs to keep the UI clean and focused
-  const [activeTab, setActiveTab] = useState<'performance' | 'reports' | 'analytics'>('performance');
+  const [activeTab, setActiveTab] = useState<'performance' | 'reports' | 'analytics' | 'promotion'>('performance');
 
   // If a student or parent logs in, they get a completely different, simplified view
   if (role === 'student' || role === 'parent') {
@@ -39,6 +40,7 @@ export default function ResultsHub({ role }: ResultsHubProps) {
     { id: 'performance' as const, label: 'Class Performance', icon: BarChart3 },
     { id: 'reports' as const, label: 'Student Report Cards', icon: FileText },
     { id: 'analytics' as const, label: 'School Analytics', icon: TrendingUp },
+    ...(role === 'admin' ? [{ id: 'promotion' as const, label: 'Promotion', icon: Award }] : []),
   ];
 
   // Admin & Teacher View
@@ -94,6 +96,12 @@ export default function ResultsHub({ role }: ResultsHubProps) {
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
             <h2 className="text-lg font-semibold text-slate-800 mb-4">School-Wide Trends</h2>
             <ResultsAnalytics role={role}/>
+          </div>
+        )}
+
+        {activeTab === 'promotion' && role === 'admin' && (
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+            <PromotionPanel />
           </div>
         )}
       </div>
