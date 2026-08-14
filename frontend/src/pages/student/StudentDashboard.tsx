@@ -14,6 +14,8 @@ interface StudentProfile {
   mobile: string | null;
   fee: number | null;
   profile_pic: string | null;
+  enrollment_state: string;
+  graduation_destination: string | null;
 }
 
 interface StudentNotice {
@@ -102,9 +104,18 @@ export default function StudentDashboard() {
         <div className="relative bg-linear-to-r from-indigo-700 via-indigo-600 to-blue-500 p-8 rounded-2xl shadow-lg flex justify-between items-center text-white overflow-hidden">
           <div className="relative z-10">
             <h2 className="text-3xl font-extrabold mb-1">{getGreeting()}, {firstName}! 🎓</h2>
-            <p className="text-indigo-100 font-medium text-sm md:text-base">
-              {data.profile.class_name} &middot; Roll No. {data.profile.roll}
-            </p>
+            {data.profile.enrollment_state === 'Graduated' ? (
+              <p className="text-indigo-100 font-medium text-sm md:text-base">
+                Graduated
+                {data.profile.graduation_destination
+                  ? ` — placed at ${data.profile.graduation_destination}`
+                  : ' — destination not yet recorded'}
+              </p>
+            ) : (
+              <p className="text-indigo-100 font-medium text-sm md:text-base">
+                {data.profile.class_name} &middot; Roll No. {data.profile.roll}
+              </p>
+            )}
           </div>
           <div className="hidden md:block relative z-10 opacity-20 transform rotate-12">
             <GraduationCap className="w-32 h-32 text-white" />
