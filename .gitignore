@@ -8,3 +8,10 @@ __pycache__/
 
 # Firebase service account key — never commit real credentials.
 serviceKey.json
+
+# Rotating security event log (school.security logger) — local runtime data, not code.
+logs/
+.import_linter_cache/
+
+# superpowers skill scratch state (brainstorming visual companion, subagent-driven-development ledgers)
+.superpowers/
