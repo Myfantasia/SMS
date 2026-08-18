@@ -1,13 +1,16 @@
 import json
 from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
 from rest_framework.authentication import SessionAuthentication
 from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
-from school.models.models import (TeacherExtra, StudentExtra,
-                                  ParentExtra, Notification, AcademicYear)
-from school.models.classSubjects_models import ClassStream, Subject, GradeLevel, StudentSubjectEnrollment, SubjectQuota, \
-    SystemAuditLog, Curriculum, StudentPathwaySelection, Tier, SubjectCurriculumProfile
+from apps.identity.models import (TeacherExtra, StudentExtra,
+                                  ParentExtra)
+from apps.messaging.models import Notification
+from apps.academics.models import ClassStream, Subject, GradeLevel, \
+    Curriculum, Tier, SubjectCurriculumProfile, AcademicYear
+from apps.allocations.models import SubjectQuota
+from apps.students.models import StudentSubjectEnrollment, StudentPathwaySelection
+from apps.core.services import write_audit_log
 from django.db import transaction
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -17,11 +20,7 @@ from school.decorators import require_permission
 from school.rbac import HasModulePermission, assert_curriculum_editable
 
 
-class CsrfExemptSessionAuthentication(SessionAuthentication):
-    def enforce_csrf(self, request):
-        return
 
-@csrf_exempt
 @require_permission('classes.view')
 def api_academic_hub_data(request):
     """
@@ -105,7 +104,6 @@ def api_academic_hub_data(request):
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
 
 
-@csrf_exempt
 @require_permission('classes.view')
 def api_manage_classes(request):
     """
@@ -201,10 +199,16 @@ def _eligible_subjects_for(curriculum, tier):
     Resolves which subjects (and their effective is_core/total_lessons/double_lessons_required/
     remedial_lessons_required) apply to a given curriculum/tier context. Subjects with no
     SubjectCurriculumProfile rows at all are shared/legacy and always included, matching the
-    "don't break old data" convention used elsewhere for retrofitted curriculum links. Subjects
-    with profile rows are included only if one matches this curriculum (either curriculum-wide,
-    i.e. tier is null, or the exact tier) — its overrides win over the Subject's own flat
-    defaults / the generic quota fallback.
+    "don't break old data" convention used elsewhere for retrofitted curriculum links.
+
+    A subject with only curriculum-wide (tier=None) rows for this curriculum applies to every
+    tier, as expected. But a subject that ALSO has one or more tier-specific rows is narrowed
+    to just those tiers — the tier=None row in that combination is purely a shared
+    department/is_core fallback (see SubjectCurriculumProfile.department's docstring: "Set on
+    the tier=None row; per-tier rows... should carry the same value"), not a standalone
+    blanket-eligibility declaration. Without this distinction, a Senior-Secondary-only subject
+    that also carries a tier=None row just to set its Department (e.g. History & Citizenship,
+    General Science) leaked into every other tier's catalog too.
     """
     results = []
     for subject in Subject.objects.prefetch_related('curriculum_profiles'):
@@ -212,10 +216,17 @@ def _eligible_subjects_for(curriculum, tier):
         if not profiles:
             results.append((subject, subject.is_core, None, None, None))
             continue
-        match = next((
-            p for p in profiles
-            if p.curriculum_id == curriculum.id and (p.tier_id is None or (tier and p.tier_id == tier.id))
-        ), None)
+
+        curriculum_profiles = [p for p in profiles if p.curriculum_id == curriculum.id]
+        if not curriculum_profiles:
+            continue
+
+        tier_specific = [p for p in curriculum_profiles if p.tier_id is not None]
+        if tier_specific:
+            match = next((p for p in tier_specific if tier and p.tier_id == tier.id), None)
+        else:
+            match = curriculum_profiles[0]
+
         if match:
             effective_is_core = match.is_core if match.is_core is not None else subject.is_core
             results.append((
@@ -225,7 +236,6 @@ def _eligible_subjects_for(curriculum, tier):
     return results
 
 
-@csrf_exempt
 @require_permission('classes.edit')
 def api_add_grade_with_streams(request):
     """
@@ -285,7 +295,7 @@ def api_add_grade_with_streams(request):
                 if streams_string:
                     stream_names = [s.strip() for s in streams_string.split(',') if s.strip()]
                     for name in stream_names:
-                        ClassStream.objects.create(name=name, grade=grade, capacity=capacity)
+                        ClassStream.live.create(name=name, grade=grade, capacity=capacity)
 
                 # 4. AUTOMATED SEEDING CORES: Discover the core subjects that actually apply to
                 # this grade's curriculum/tier (respecting SubjectCurriculumProfile assignments),
@@ -317,7 +327,6 @@ def api_add_grade_with_streams(request):
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
 
 
-@csrf_exempt
 @require_permission('classes.edit')
 def api_edit_grade(request, pk):
     """
@@ -384,8 +393,8 @@ def api_edit_grade(request, pk):
             grade.save()
 
             if curriculum_changed:
-                SystemAuditLog.objects.create(
-                    operator=request.user, action_type='UPDATE', module='GradeLevel',
+                write_audit_log(
+                    operator_id=request.user.id, action_type='UPDATE', module='GradeLevel',
                     description=(
                         f"Changed '{grade.name}' curriculum from {old_curriculum_label} to "
                         f"{new_curriculum.code}."
@@ -400,7 +409,6 @@ def api_edit_grade(request, pk):
         return JsonResponse({'status': 'error', 'message': str(e)})
 
 
-@csrf_exempt
 @require_permission('classes.edit')
 def api_add_single_stream(request):
     if request.method == 'POST':
@@ -429,7 +437,7 @@ def api_add_single_stream(request):
                                    f'Remove them from that class first before assigning them here.',
                     })
 
-            stream = ClassStream.objects.create(
+            stream = ClassStream.live.create(
                 name=stream_name.strip(), grade=grade, capacity=capacity, class_teacher=teacher
             )
 
@@ -442,13 +450,12 @@ def api_add_single_stream(request):
 
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
 
-@csrf_exempt
 @require_permission('classes.edit')
 def api_edit_stream(request, pk):
     if request.method == 'POST' or request.method == 'PUT':
         try:
             data = json.loads(request.body)
-            stream = ClassStream.objects.get(id=pk)
+            stream = ClassStream.live.get(id=pk)
             stream.name = data.get('name', stream.name).strip()
 
             new_capacity = data.get('capacity', stream.capacity)
@@ -486,7 +493,6 @@ def api_edit_stream(request, pk):
             return JsonResponse({'status': 'error', 'message': str(e)})
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
 
-@csrf_exempt
 @require_permission('classes.edit')
 def api_delete_stream(request, pk):
     """
@@ -494,7 +500,7 @@ def api_delete_stream(request, pk):
     """
     if request.method == 'POST' or request.method == 'DELETE':
         try:
-            stream = ClassStream.objects.get(id=pk)
+            stream = ClassStream.live.get(id=pk)
             # We trigger the custom soft_delete method built into the model
             stream.soft_delete(operator_user=request.user if request.user.is_authenticated else None)
 
@@ -504,7 +510,6 @@ def api_delete_stream(request, pk):
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
 
 
-@csrf_exempt
 @require_permission('classes.view')
 def api_class_enrollments(request, stream_id):
     """
@@ -513,7 +518,7 @@ def api_class_enrollments(request, stream_id):
     """
     if request.method == 'GET':
         try:
-            stream = ClassStream.objects.get(id=stream_id)
+            stream = ClassStream.live.get(id=stream_id)
             grade = stream.grade
 
             # 1. ACTIVE ROSTER (Includes Suspended students since they keep their seat)
@@ -558,7 +563,7 @@ def api_class_enrollments(request, stream_id):
                 })
 
             # 3. SIBLING STREAMS (Other classes in the same Grade)
-            siblings = ClassStream.objects.filter(grade=grade).exclude(id=stream_id)
+            siblings = ClassStream.live.filter(grade=grade).exclude(id=stream_id)
             sibling_data = [{'id': sib.id, 'name': sib.name, 'capacity': sib.capacity} for sib in siblings]
 
             # 4. UNASSIGNED POOL (Available to be "Pulled" in) — school-wide, not scoped
@@ -596,7 +601,6 @@ def api_class_enrollments(request, stream_id):
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
 
 
-@csrf_exempt
 @require_permission('classes.edit')
 def api_bulk_transfer(request):
     """
@@ -611,7 +615,7 @@ def api_bulk_transfer(request):
             if not student_ids or not target_stream_id:
                 return JsonResponse({'status': 'error', 'message': 'Missing data'})
 
-            new_stream = ClassStream.objects.get(id=target_stream_id)
+            new_stream = ClassStream.live.get(id=target_stream_id)
             students = StudentExtra.objects.filter(id__in=student_ids)
 
             for student in students:
@@ -635,7 +639,7 @@ class ManageEnrollmentAPIView(APIView):
     Handles Student Lifecycle Actions: Reactivate, Transfer, Suspend, Expel.
     Logs every change to SystemAuditLog and supports optional parent notifications.
     """
-    authentication_classes = [CsrfExemptSessionAuthentication]
+    authentication_classes = [SessionAuthentication]
     permission_classes = [IsAuthenticated, HasModulePermission]
     # classes.enrollment is the narrower alternative — lets a Registrar-type Staff role
     # transfer/reactivate/suspend/expel students without also granting classes.edit's
@@ -695,8 +699,8 @@ class ManageEnrollmentAPIView(APIView):
                 student.save()
 
                 # --- 2. LOG THE ACTION IMMUTABLY ---
-                SystemAuditLog.objects.create(
-                    operator=request.user,
+                write_audit_log(
+                    operator_id=request.user.id,
                     action_type='UPDATE',
                     module='StudentExtra',
                     description=f"Changed {student.get_name} status from '{old_state}' to '{student.enrollment_state}'. Reason: {reason}"

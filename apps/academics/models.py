@@ -294,6 +294,8 @@ class ClassStream(models.Model):
 
     # --- NEW: SOFT DELETION FIELD ---
     is_deleted = models.BooleanField(default=False, db_index=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    deleted_by = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
 
     # --- ATTACH MANAGERS ---
     objects = models.Manager()  # .all() returns everything (including ghosts)
@@ -311,16 +313,17 @@ class ClassStream(models.Model):
 
     def soft_delete(self, operator_user=None):
         """Safely removes resource from active streams without breaking database constraints."""
-        from apps.core.services import write_audit_log
+        from apps.core.trash import soft_delete as _soft_delete
+        _soft_delete(
+            self, operator=operator_user, module='ClassStream',
+            description=f"Soft deleted stream: {self.grade.name} {self.name} (ID: {self.id})",
+        )
 
-        self.is_deleted = True
-        self.save()
-        # Automatically log who deleted this classroom
-        write_audit_log(
-            operator_id=operator_user.id if operator_user else None,
-            action_type='DELETE',
-            module='ClassStream',
-            description=f"Soft deleted stream: {self.grade.name} {self.name} (ID: {self.id})"
+    def restore(self, operator_user=None):
+        from apps.core.trash import restore as _restore
+        _restore(
+            self, operator=operator_user, module='ClassStream',
+            description=f"Restored stream: {self.grade.name} {self.name} (ID: {self.id})",
         )
 
 
@@ -335,6 +338,18 @@ def get_or_create_class_stream(grade, name):
         grade=grade, name=name, is_deleted=False, defaults={'capacity': 40},
     )
     return stream
+
+
+def _register_class_stream_trash():
+    from apps.core.trash import register_trash_entity, TrashEntityConfig
+    register_trash_entity('class-streams', TrashEntityConfig(
+        model=ClassStream, flag_field='is_deleted', flag_true=True, flag_false=False,
+        auto_purge=False,
+        label_fn=lambda cs: f"{cs.grade.name} {cs.name}",
+    ))
+
+
+_register_class_stream_trash()
 
 
 class Department(models.Model):
@@ -598,16 +613,30 @@ class SubjectExclusionRule(models.Model):
 
 class CurriculumPreset(models.Model):
     """
-    GLOBAL CURRICULUM TEMPLATES:
+    PER-SCHOOL CURRICULUM TEMPLATES:
     Stores dynamic quick-presets (e.g., 'Standard 8-4-4', 'CBC Junior Sec')
     so administrators can populate the frontend sidebar dynamically without code changes.
+
+    Tenant-scoped (2026-08-13, first entity in the multi-tenancy rollout — see
+    school/services/get_current_school_id equivalent in apps/identity/services.py for how
+    `school` gets set today). Unlike curriculum/tier/pathway/track below, `name` uniqueness
+    is per-school, not global — two schools can both have a preset called "Standard 8-4-4".
     """
-    name = models.CharField(max_length=100, unique=True, help_text="e.g., Standard 8-4-4, CBC Junior Sec.")
+    name = models.CharField(max_length=100, help_text="e.g., Standard 8-4-4, CBC Junior Sec.")
     min_subjects = models.PositiveIntegerField(default=7, help_text="Default minimum subjects for this preset.")
     max_subjects = models.PositiveIntegerField(default=8, help_text="Default maximum subjects for this preset.")
 
     # Optional: helps sort them logically in the UI
     display_order = models.PositiveIntegerField(default=0)
+
+    # PROTECT, not CASCADE: deleting a School should never silently delete its curriculum
+    # config as a side effect of an unrelated FK — that needs to be a deliberate, guarded
+    # operation elsewhere once school deletion is a real supported flow.
+    school = models.ForeignKey(
+        'identity.School', on_delete=models.PROTECT,
+        related_name='curriculum_presets',
+        help_text="Server-derived, never client-supplied — see get_current_school_id().",
+    )
 
     # --- Curriculum architecture: null=True because the presets that exist today predate
     # this link and can't be reliably auto-categorized — they show as "Uncategorized" in
@@ -629,6 +658,8 @@ class CurriculumPreset(models.Model):
     class Meta:
         db_table = 'school_curriculumpreset'
         ordering = ['display_order', 'name']
+        unique_together = ('school', 'name')
+        indexes = [models.Index(fields=['school', 'display_order'], name='curr_preset_school_order_idx')]
 
     def __str__(self):
         return f"{self.name} ({self.min_subjects} - {self.max_subjects})"
@@ -650,10 +681,19 @@ class SubjectPool(models.Model):
     min_subjects = models.PositiveIntegerField(default=1)
     max_subjects = models.PositiveIntegerField(default=1)
     subjects = models.ManyToManyField(Subject, related_name='pools', blank=True, db_table='school_subjectpool_subjects')
+    # Only meaningful (and only settable, see CurriculumPresetSerializer.validate()) on a
+    # PATHWAY_CORE pool -- lets one preset hold a separate Pathway Core pool per pathway/track
+    # instead of needing a whole separate preset per pathway. NULL means "not pathway-specific"
+    # (every Core Compulsory/Guided Elective pool, and legacy single-pathway presets' pools).
+    pathway = models.ForeignKey(Pathway, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    track = models.ForeignKey(Track, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
 
     class Meta:
         db_table = 'school_subjectpool'
-        unique_together = ('preset', 'pool_type')
+        # NULL <> NULL under Postgres, so this alone doesn't stop two CORE_COMPULSORY pools
+        # (both pathway=NULL, track=NULL) from coexisting -- CurriculumPresetSerializer.validate()
+        # enforces that half of it.
+        unique_together = ('preset', 'pool_type', 'pathway', 'track')
 
     def __str__(self):
         return f"{self.preset.name} - {self.get_pool_type_display()}"
