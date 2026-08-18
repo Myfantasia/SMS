@@ -1,7 +1,7 @@
 from django.contrib.auth.models import Group
 from django.core.management.base import BaseCommand
 
-from school.models.rbac_models import Permission, Role, UserRole
+from apps.identity.models import Permission, Role, UserRole
 
 # (code, label, module) — module groups the checkbox grid on the Roles & Permissions page.
 # Every code here is one actually referenced by a rbac_view_permission/rbac_edit_permission
@@ -69,6 +69,9 @@ PERMISSIONS = [
     ('users.reset_password', "Trigger an admin-initiated password reset for another user's account", 'Users'),
 
     ('admin_invites.manage', 'Generate/revoke admin signup invite codes; view and regenerate post-approval verification codes', 'AdminInvites'),
+
+    ('trash.view', 'View the Trash (soft-deleted items across all modules)', 'Trash'),
+    ('trash.manage', 'Restore or permanently delete items in the Trash', 'Trash'),
 ]
 
 # Admin gets every permission in the catalog automatically (see handle()) — no hardcoded
@@ -136,17 +139,19 @@ class Command(BaseCommand):
 
         if dry_run:
             admin_exists = Role.objects.filter(name='Admin').exists()
-            all_codes = [c for c, _, _ in PERMISSIONS]
-            self.stdout.write(f"  {'exists' if admin_exists else '[DRY RUN] would create'}: Admin -> ALL ({len(all_codes)} permissions)")
+            all_codes = [c for c, _, m in PERMISSIONS if m != 'Trash']
+            self.stdout.write(f"  {'exists' if admin_exists else '[DRY RUN] would create'}: Admin -> ALL except Trash ({len(all_codes)} permissions)")
             roles_by_name['Admin'] = Role.objects.filter(name='Admin').first()
         else:
             admin_role, created = Role.objects.get_or_create(name='Admin', defaults={'description': 'Full access to every module.'})
-            admin_role.permissions.set(Permission.objects.all())
+            # Trash is the one module Admin does NOT get automatically — it's a
+            # deliberate per-admin grant via Roles & Permissions, not a blanket right.
+            admin_role.permissions.set(Permission.objects.exclude(code__startswith='trash.'))
             if not admin_role.is_system_role:
                 admin_role.is_system_role = True
                 admin_role.save(update_fields=['is_system_role'])
             roles_by_name['Admin'] = admin_role
-            self.stdout.write(f"  {'created' if created else 'updated'}: Admin -> ALL ({Permission.objects.count()} permissions)")
+            self.stdout.write(f"  {'created' if created else 'updated'}: Admin -> ALL except Trash ({Permission.objects.exclude(code__startswith='trash.').count()} permissions)")
 
         if dry_run:
             teacher_exists = Role.objects.filter(name='Teacher').exists()
