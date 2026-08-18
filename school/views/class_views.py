@@ -668,7 +668,7 @@ class ManageEnrollmentAPIView(APIView):
                         return Response({"status": "error", "message": "Target Stream ID is required."},
                                         status=status.HTTP_400_BAD_REQUEST)
 
-                    target_stream = get_object_or_404(ClassStream, id=stream_id)
+                    target_stream = get_object_or_404(ClassStream.live, id=stream_id)
                     student.cl = target_stream
                     student.enrollment_state = 'Active'
                     student.status = True
