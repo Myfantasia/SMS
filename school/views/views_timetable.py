@@ -3,29 +3,27 @@ import traceback
 from django.http import JsonResponse
 from django.db import transaction
 from django.db.models import Count, F
-from django.views.decorators.csrf import csrf_exempt
-from school.models.timetable_models import TimeSlot, LessonAllocation, Timetable, TimetablePedagogyPolicy, \
-     DailyCover
-from school.models.models import (
-    TeacherExtra, AcademicYear, ExamTerm
+from apps.timetable.models import LessonAllocation, Timetable, TimetablePedagogyPolicy, DailyCover
+from apps.identity.models import (
+    TeacherExtra,
 )
 import random
-from school.models.classSubjects_models import (ClassStream, Subject, SubjectQuota, GradeLevel,
-                         SubjectBlock, SystemAuditLog, SubjectAllocation, GlobalAllocationPolicy,
-                         QuotaDefaultRule, get_effective_department)
+from apps.academics.models import (ClassStream, Subject, GradeLevel, TimeSlot, AcademicYear, ExamTerm,
+                         get_effective_department)
+from apps.allocations.models import SubjectQuota, SubjectBlock, SubjectAllocation, GlobalAllocationPolicy, QuotaDefaultRule
+from apps.core.models import SystemAuditLog
 from datetime import datetime
 from django.core.cache import cache
-from school.models.teachers_model import TeacherStructuralAvailability, TeacherLeave, LongTermReliefAssignment
+from apps.staff.models import TeacherStructuralAvailability, TeacherLeave, LongTermReliefAssignment
 from school.utils import cache_unscheduled_basket_errors, build_grade_subject_block_map, get_subject_block_names, \
     max_consecutive_run, get_block_period_structures, compute_school_allocation_gaps, \
     get_subjects_with_active_virtual_groups
 from django.db.models import Q
 from school.decorators import require_permission
 from school.jobs import dispatch_background_job
-from school.tasks import generate_timetable_task
+from orchestration.tasks import generate_timetable_task
 from school.views.class_views import _eligible_subjects_for
 
-@csrf_exempt
 @require_permission('timetable.view', edit_permission='timetable.edit')
 def api_manage_quotas(request):
     """
@@ -34,7 +32,7 @@ def api_manage_quotas(request):
     if request.method == 'GET':
         try:
             grades = list(GradeLevel.objects.all().values('id', 'name'))
-            subjects = list(Subject.objects.all().values('id', 'name'))
+            subjects = list(Subject.live.all().values('id', 'name'))
 
             quotas = list(SubjectQuota.objects.all().select_related('grade', 'subject').values(
                 'id', 'grade_id', 'grade__name', 'subject_id', 'subject__name',
@@ -74,8 +72,8 @@ def api_manage_quotas(request):
                     'remedial_lessons_required': data.get('remedial_lessons_required', 0)
                 }
             )
-            SystemAuditLog.objects.create(
-                operator=request.user if request.user.is_authenticated else None,
+            write_audit_log(
+                operator_id=request.user.id if request.user.is_authenticated else None,
                 action_type='CREATE' if created else 'UPDATE',
                 module='SubjectQuota',
                 description=f"{'Created' if created else 'Updated'} quota for {quota.subject.name} "
@@ -93,8 +91,8 @@ def api_manage_quotas(request):
             quota = SubjectQuota.objects.select_related('grade', 'subject').get(id=data.get('id'))
             desc = f"Removed quota for {quota.subject.name} ({quota.grade.name})."
             quota.delete()
-            SystemAuditLog.objects.create(
-                operator=request.user if request.user.is_authenticated else None,
+            write_audit_log(
+                operator_id=request.user.id if request.user.is_authenticated else None,
                 action_type='DELETE',
                 module='SubjectQuota',
                 description=desc
@@ -104,7 +102,6 @@ def api_manage_quotas(request):
             return JsonResponse({'status': 'error', 'message': str(e)})
 
 
-@csrf_exempt
 @require_permission('timetable.view')
 def api_get_global_grid(request):
     """
@@ -132,7 +129,6 @@ def api_get_global_grid(request):
             return JsonResponse({'status': 'error', 'message': str(e)})
 
 
-@csrf_exempt
 @require_permission('timetable.view')
 def api_get_dynamic_buckets(request, stream_id, timetable_id):
     """
@@ -193,7 +189,6 @@ def api_get_dynamic_buckets(request, stream_id, timetable_id):
         return JsonResponse({'status': 'error', 'message': f"Bucket Engine Error: {str(e)}"}, status=500)
 
 
-@csrf_exempt
 @require_permission('timetable.edit')
 def api_save_lesson(request):
     """
@@ -396,8 +391,8 @@ def api_save_lesson(request):
                 )
 
             # --- NEW: AUDIT LOG ---
-            SystemAuditLog.objects.create(
-                operator=request.user if request.user.is_authenticated else None,
+            write_audit_log(
+                operator_id=request.user.id if request.user.is_authenticated else None,
                 action_type='EXECUTION',
                 module='ManualGridAllocation',
                 description=f"Manually assigned {teacher.get_name} to teach {subject.name} in {class_stream.name}."
@@ -417,7 +412,6 @@ def api_save_lesson(request):
         return JsonResponse({'status': 'error', 'message': f"System Error: {str(e)}"}, status=500)
 
 
-@csrf_exempt
 @require_permission('timetable.edit')
 def api_remove_lesson(request, allocation_id):
     """
@@ -460,8 +454,8 @@ def api_remove_lesson(request, allocation_id):
                 msg = 'Standalone lesson removed from grid. Bucket refilled.'
 
             # --- NEW: COMMIT AUDIT LOG ---
-            SystemAuditLog.objects.create(
-                operator=operator,
+            write_audit_log(
+                operator_id=operator.id if operator else None,
                 action_type='DELETE',
                 module='ManualGridAllocation',
                 description=desc
@@ -475,7 +469,6 @@ def api_remove_lesson(request, allocation_id):
     return JsonResponse({'status': 'error', 'message': 'Invalid request method.'}, status=405)
 
 
-@csrf_exempt
 @require_permission('timetable.edit')
 def api_toggle_lesson_lock(request, allocation_id):
     """
@@ -491,8 +484,8 @@ def api_toggle_lesson_lock(request, allocation_id):
         lesson.is_locked = not lesson.is_locked
         lesson.save(update_fields=['is_locked'])
 
-        SystemAuditLog.objects.create(
-            operator=request.user if request.user.is_authenticated else None,
+        write_audit_log(
+            operator_id=request.user.id if request.user.is_authenticated else None,
             action_type='UPDATE',
             module='ManualGridAllocation',
             description=f"{'Locked' if lesson.is_locked else 'Unlocked'} {lesson.subject.name} "
@@ -506,7 +499,6 @@ def api_toggle_lesson_lock(request, allocation_id):
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 
 
-@csrf_exempt
 @require_permission('timetable.view')
 def api_get_class_lessons(request, stream_id, timetable_id):
     """
@@ -557,7 +549,6 @@ def api_get_class_lessons(request, stream_id, timetable_id):
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
 
 
-@csrf_exempt
 @require_permission('timetable.view')
 def api_get_master_timetable(request, timetable_id):
     """
@@ -601,7 +592,6 @@ def api_get_master_timetable(request, timetable_id):
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 
 
-@csrf_exempt
 @require_permission('timetable.view', edit_permission='timetable.edit')
 def api_manage_timetables(request):
     """Fetches all timetable containers, or creates a new one."""
@@ -634,7 +624,6 @@ def api_manage_timetables(request):
             return JsonResponse({'status': 'error', 'message': str(e)})
 
 
-@csrf_exempt
 @require_permission('timetable.edit')
 def api_manage_timeslots(request):
     """Allows the React Admin dashboard to create and edit the Bell Schedule."""
@@ -677,7 +666,6 @@ def api_manage_timeslots(request):
             return JsonResponse({'status': 'error', 'message': str(e)})
 
 
-@csrf_exempt
 @require_permission('timetable.view')
 def api_get_teachers_by_subject(request, subject_id):
     """
@@ -1256,7 +1244,6 @@ def generate_lessons_for_scope(timetable, streams, subject_filter=None):
     return allocations_created, unscheduled_basket_errors
 
 
-@csrf_exempt
 @require_permission('timetable.edit')
 def api_auto_generate_timetable(request, timetable_id):
     """
@@ -1285,7 +1272,7 @@ def api_auto_generate_timetable(request, timetable_id):
 
     # Scoped per timetable — the task itself acquires this (with retry) once it actually
     # starts running, not here, so a second submission while one is already generating
-    # gets queued and auto-processed instead of rejected. See school/tasks.py.
+    # gets queued and auto-processed instead of rejected. See orchestration/tasks.py.
     lock_key = f"generate_lock_timetable_{timetable_id}"
 
     try:
@@ -1473,7 +1460,6 @@ def sync_timetable_with_allocation_changes(*, active_timetable, prior_triples, n
     return result
 
 
-@csrf_exempt
 @require_permission('timetable.edit')
 def api_auto_generate_quotas(request):
     """
@@ -1486,7 +1472,7 @@ def api_auto_generate_quotas(request):
 
     try:
         grades = GradeLevel.objects.all()
-        subjects = Subject.objects.select_related('department').all()
+        subjects = Subject.live.select_related('department').all()
         block_map = build_grade_subject_block_map()
         block_structures = get_block_period_structures(block_map.values())
         quotas_created_or_updated = 0
@@ -1860,7 +1846,6 @@ def api_auto_generate_quotas(request):
 # ==========================================
 # RESET APIs
 # ==========================================
-@csrf_exempt
 @require_permission('timetable.edit')
 def api_clear_grid(request, timetable_id):
     """
@@ -1893,8 +1878,8 @@ def api_clear_grid(request, timetable_id):
             deleted_count, _ = query.delete()
             msg = f"Entire timetable grid cleared ({deleted_count} total lessons removed across all streams)."
 
-        SystemAuditLog.objects.create(
-            operator=request.user if request.user.is_authenticated else None,
+        write_audit_log(
+            operator_id=request.user.id if request.user.is_authenticated else None,
             action_type='DELETE',
             module='LessonAllocation',
             description=msg
@@ -1908,7 +1893,6 @@ def api_clear_grid(request, timetable_id):
         return JsonResponse({'status': 'error', 'message': f"Failed to clear grid: {str(e)}"}, status=500)
 
 
-@csrf_exempt
 @require_permission('timetable.edit')
 def api_clear_quotas(request):
     """
@@ -1917,8 +1901,8 @@ def api_clear_quotas(request):
     if request.method == 'DELETE':
         try:
             deleted_count, _ = SubjectQuota.objects.all().delete()
-            SystemAuditLog.objects.create(
-                operator=request.user if request.user.is_authenticated else None,
+            write_audit_log(
+                operator_id=request.user.id if request.user.is_authenticated else None,
                 action_type='DELETE',
                 module='SubjectQuota',
                 description=f"Reset all Subject Quotas ({deleted_count} row(s) removed)."
@@ -1928,7 +1912,6 @@ def api_clear_quotas(request):
             return JsonResponse({'status': 'error', 'message': str(e)})
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
 
-@csrf_exempt
 @require_permission('timetable.view', edit_permission='timetable.edit')
 def api_manage_subject_blocks(request):
     """
@@ -2042,8 +2025,8 @@ def api_manage_subject_blocks(request):
                 action = 'CREATE' if created else 'UPDATE'
                 desc = (f"{'Created new' if created else 'Modified'} subject block structure: '{name}' "
                         f"(ID: {block.id}) containing {len(subject_ids)} subjects, period_structure={period_structure}.")
-                SystemAuditLog.objects.create(
-                    operator=request.user if request.user.is_authenticated else None,
+                write_audit_log(
+                    operator_id=request.user.id if request.user.is_authenticated else None,
                     action_type=action,
                     module='SubjectBlock',
                     description=desc
@@ -2071,8 +2054,8 @@ def api_manage_subject_blocks(request):
                 # revert to block-free for this grade/term.
                 block.delete()
 
-                SystemAuditLog.objects.create(
-                    operator=request.user if request.user.is_authenticated else None,
+                write_audit_log(
+                    operator_id=request.user.id if request.user.is_authenticated else None,
                     action_type='DELETE',
                     module='SubjectBlock',
                     description=f"Destroyed subject block container: '{block_name}' (ID: {target_id}). Assigned subjects reverted to independent tracking slots."
@@ -2144,7 +2127,6 @@ def _get_substitution_busy_teacher_ids(target_lesson, target_slot, date_obj, exc
     return {uid for uid in raw_busy_ids if uid is not None}
 
 
-@csrf_exempt
 @require_permission('timetable.view')
 def api_get_available_substitutes(request, allocation_id, target_date):
     """
@@ -2237,7 +2219,6 @@ def api_get_available_substitutes(request, allocation_id, target_date):
         traceback.print_exc()
         return JsonResponse({'status': 'error', 'message': f"Substitution Scan Failed: {str(e)}"}, status=500)
 
-@csrf_exempt
 @require_permission('timetable.view', edit_permission='timetable.edit')
 def api_assign_daily_cover(request):
     """
@@ -2334,8 +2315,8 @@ def api_assign_daily_cover(request):
                 }
             )
 
-            SystemAuditLog.objects.create(
-                operator=request.user if request.user.is_authenticated else None,
+            write_audit_log(
+                operator_id=request.user.id if request.user.is_authenticated else None,
                 action_type='CREATE' if created else 'UPDATE',
                 module='DailyCover',
                 description=f"{'Assigned' if created else 'Updated'} {covering_teacher.get_name} to cover "
@@ -2364,8 +2345,8 @@ def api_assign_daily_cover(request):
             desc = (f"Cancelled {cover.covering_teacher.get_name}'s cover for "
                     f"{cover.target_lesson.subject.name} ({cover.target_lesson.class_stream.name}) on {cover.date}.")
             cover.delete()
-            SystemAuditLog.objects.create(
-                operator=request.user if request.user.is_authenticated else None,
+            write_audit_log(
+                operator_id=request.user.id if request.user.is_authenticated else None,
                 action_type='DELETE',
                 module='DailyCover',
                 description=desc
@@ -2378,7 +2359,6 @@ def api_assign_daily_cover(request):
 
     return JsonResponse({'status': 'error', 'message': 'Method not allowed.'}, status=405)
 
-@csrf_exempt
 @require_permission('timetable.view', edit_permission='timetable.edit')
 def api_manage_policies(request):
     """
@@ -2463,8 +2443,8 @@ def api_manage_policies(request):
             }
             changes = [f"{k}: {before[k]} → {after[k]}" for k in before if before[k] != after[k]]
             if changes:
-                SystemAuditLog.objects.create(
-                    operator=request.user if request.user.is_authenticated else None,
+                write_audit_log(
+                    operator_id=request.user.id if request.user.is_authenticated else None,
                     action_type='UPDATE',
                     module='TimetablePolicy',
                     description="Updated timetable policies — " + "; ".join(changes)
@@ -2476,7 +2456,6 @@ def api_manage_policies(request):
 
     return JsonResponse({'status': 'error', 'message': 'Method not allowed.'}, status=405)
 
-@csrf_exempt
 @require_permission('timetable.edit')
 def api_update_timetable_status(request, timetable_id):
     """
@@ -2519,8 +2498,8 @@ def api_update_timetable_status(request, timetable_id):
         timetable.save()
 
         if prior_status != timetable.status:
-            SystemAuditLog.objects.create(
-                operator=request.user if request.user.is_authenticated else None,
+            write_audit_log(
+                operator_id=request.user.id if request.user.is_authenticated else None,
                 action_type='UPDATE',
                 module='Timetable',
                 description=f"Changed '{timetable.name}' lifecycle status: {prior_status} → {timetable.status}."
@@ -2534,7 +2513,6 @@ def api_update_timetable_status(request, timetable_id):
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 
 
-@csrf_exempt
 @require_permission('audit.view')
 def api_get_audit_logs(request):
     """

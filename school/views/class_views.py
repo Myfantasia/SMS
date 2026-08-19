@@ -54,7 +54,7 @@ def api_academic_hub_data(request):
                     'tier_id': grade.tier_id,
                 })
 
-            subjects = Subject.objects.select_related('department').all().order_by('name')
+            subjects = Subject.live.select_related('department').all().order_by('name')
             subjects_data = []
 
             # Fetch the active academic year to count real enrollments

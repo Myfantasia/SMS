@@ -5,15 +5,18 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.db import transaction
 from decimal import Decimal, ROUND_HALF_UP
-from school.models.models import (StudentExtra, ExamTerm, ExamEvent, ExamResult, GradingRule,
-                                  AcademicYear, StudentReportSummary, ClassExamStatus)
+from apps.identity.models import StudentExtra
+from apps.exams.models import ExamEvent, ExamResult, GradingRule, StudentReportSummary, ClassExamStatus
 from school.serializers.exams_serializers import StudentGridSerializer, ExamResultSerializer
 from django.utils import timezone
 from datetime import timedelta
-from school.models.classSubjects_models import (
-    ClassStream, Subject, SystemAuditLog, SubjectAllocation, SubjectQuota, StudentSubjectEnrollment,
+from apps.core.services import write_audit_log
+from apps.academics.models import (
+    ClassStream, Subject, ExamTerm, AcademicYear,
     get_effective_is_core
 )
+from apps.allocations.models import SubjectAllocation, SubjectQuota
+from apps.students.models import StudentSubjectEnrollment
 from school.utils import get_teacher_exam_clearance, get_scaled_score, get_applicable_students, \
     resolve_classroom_students
 from django.db.models import Q
@@ -177,8 +180,8 @@ class RapidMarksEntryView(APIView):
 
                             # If the score has genuinely changed, document it immutably in the System Audit Ledger
                             if old_score_decimal != new_score_decimal:
-                                SystemAuditLog.objects.create(
-                                    operator=request.user,
+                                write_audit_log(
+                                    operator_id=request.user.id,
                                     action_type='UPDATE',
                                     module='ExamResult',
                                     description=(
@@ -406,7 +409,7 @@ class ExamSelectionDataView(APIView):
             # =========================================================================================
 
             # 2. Fetch Subjects
-            subjects_qs = Subject.objects.all()
+            subjects_qs = Subject.live.all()
 
             # ✅ FIXED: Restrict subject matrix options based on active workload configurations
             if not is_admin and teacher_profile:
@@ -867,8 +870,8 @@ class PublishExamEventView(APIView):
 
                 # ✨ STEP 6 MODIFICATION: Document school-wide global publishing logs
                 # =========================================================================================
-                SystemAuditLog.objects.create(
-                    operator=request.user,
+                write_audit_log(
+                    operator_id=request.user.id,
                     action_type='UPDATE',
                     module='ExamEvent',
                     description=f"Global Publication: Entire school results compiled and locked for exam event '{exam.name}'."
@@ -908,8 +911,8 @@ class PublishExamEventView(APIView):
 
             # ✨ STEP 6 MODIFICATION: Record class-level localized validation audit trails
             # =========================================================================================
-            SystemAuditLog.objects.create(
-                operator=request.user,
+            write_audit_log(
+                operator_id=request.user.id,
                 action_type='UPDATE',
                 module='ClassExamStatus',
                 description=f"Class Publication: Results for stream '{class_stream}' officially locked and released by authorized operator."
@@ -1048,7 +1051,7 @@ def build_report_card_payload(student, exam):
     single-student view and the whole-class bulk-print view share one implementation — a bulk
     print run must show the exact same numbers as opening each student individually.
     """
-    from school.models.classSubjects_models import SubjectAllocation
+    from apps.allocations.models import SubjectAllocation
 
     curriculum = student.cl.grade.curriculum_type
 

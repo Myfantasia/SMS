@@ -397,6 +397,11 @@ class Department(models.Model):
         return f"{self.name} ({self.curriculum.code})"
 
 
+class SubjectLiveManager(models.Manager):
+    def get_queryset(self):
+        return super().get_queryset().filter(is_deleted=False)
+
+
 class Subject(models.Model):
     """
     Master curriculum catalog.
@@ -440,11 +445,46 @@ class Subject(models.Model):
                    "Leave blank to apply at every grade this subject is taught."
     )
 
+    # --- SOFT DELETION FIELDS ---
+    is_deleted = models.BooleanField(default=False, db_index=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    deleted_by = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+
+    # --- MANAGERS ---
+    objects = models.Manager()
+    live = SubjectLiveManager()
+
     class Meta:
         db_table = 'school_subject'
 
     def __str__(self):
         return f"{self.code} - {self.name}"
+
+    def soft_delete(self, operator_user=None):
+        from apps.core.trash import soft_delete as _soft_delete
+        _soft_delete(
+            self, operator=operator_user, module='Subject',
+            description=f"Soft deleted subject: {self.name} ({self.code}).",
+        )
+
+    def restore(self, operator_user=None):
+        from apps.core.trash import restore as _restore
+        _restore(
+            self, operator=operator_user, module='Subject',
+            description=f"Restored subject: {self.name} ({self.code}).",
+        )
+
+
+def _register_subject_trash():
+    from apps.core.trash import register_trash_entity, TrashEntityConfig
+    register_trash_entity('subjects', TrashEntityConfig(
+        model=Subject, flag_field='is_deleted', flag_true=True, flag_false=False,
+        auto_purge=False,
+        label_fn=lambda s: f"{s.name} ({s.code})",
+    ))
+
+
+_register_subject_trash()
 
 
 class SubjectCurriculumProfile(models.Model):
@@ -687,6 +727,14 @@ class SubjectPool(models.Model):
     # (every Core Compulsory/Guided Elective pool, and legacy single-pathway presets' pools).
     pathway = models.ForeignKey(Pathway, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
     track = models.ForeignKey(Track, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    # Lets a single PATHWAY_CORE pool offer combinations from every pathway/track in the
+    # curriculum at once, instead of needing one pool per (pathway, track) pair -- each
+    # combination carries its own track, so per-student filtering keys off that (see
+    # _pool_subjects_for_student in school/views/subject_views.py) rather than pathway/track
+    # above, which stay unused (always NULL) for a pool built this way.
+    combinations = models.ManyToManyField(
+        PresetCombination, related_name='pools', blank=True, db_table='school_subjectpool_combinations',
+    )
 
     class Meta:
         db_table = 'school_subjectpool'
