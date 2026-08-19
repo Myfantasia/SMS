@@ -8,8 +8,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from school.models.classSubjects_models import SystemAuditLog
-from school.models.rbac_models import Permission, Role, UserRole
+from apps.core.services import write_audit_log
+from apps.identity.models import Permission, Role, UserRole
 from school.permissions import IsApprovedAdmin
 from school.rbac import invalidate_user_permission_cache
 from school.serializers.rbac_serializers import PermissionSerializer, RoleSerializer
@@ -29,7 +29,7 @@ class RoleViewSet(viewsets.ModelViewSet):
     every other sensitive admin action in this codebase (curriculum rules, allocation splits,
     exam mark alterations, enrollment changes) — it's logged to SystemAuditLog(module='RBAC').
     """
-    queryset = Role.objects.all().prefetch_related('permissions').annotate(member_count=Count('user_assignments', distinct=True))
+    queryset = Role.objects.filter(is_deleted=False).prefetch_related('permissions').annotate(member_count=Count('user_assignments', distinct=True))
     serializer_class = RoleSerializer
     authentication_classes = [SessionAuthentication]
     permission_classes = [IsApprovedAdmin]
@@ -54,8 +54,8 @@ class RoleViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         role = serializer.save()
         codes = sorted(role.permissions.values_list('code', flat=True))
-        SystemAuditLog.objects.create(
-            operator=self.request.user,
+        write_audit_log(
+            operator_id=self.request.user.id,
             action_type='CREATE',
             module='RBAC',
             description=f"Created role '{role.name}' with permissions: {', '.join(codes) or 'none'}."
@@ -88,8 +88,8 @@ class RoleViewSet(viewsets.ModelViewSet):
         if removed:
             changes.append(f"revoked: {', '.join(removed)}")
 
-        SystemAuditLog.objects.create(
-            operator=self.request.user,
+        write_audit_log(
+            operator_id=self.request.user.id,
             action_type='UPDATE',
             module='RBAC',
             description=f"Updated role '{role.name}'" + (f" — {'; '.join(changes)}." if changes else " (no changes).")
@@ -102,16 +102,14 @@ class RoleViewSet(viewsets.ModelViewSet):
                 "You can still edit which permissions it grants."
             )
 
+        from apps.core.trash import soft_delete
         role_name = instance.name
         affected_users = list(instance.user_assignments.values_list('user__username', flat=True))
-        instance.delete()
-        SystemAuditLog.objects.create(
-            operator=self.request.user,
-            action_type='DELETE',
-            module='RBAC',
+        soft_delete(
+            instance, operator=self.request.user, module='RBAC',
             description=f"Deleted role '{role_name}'" + (
                 f" — previously assigned to: {', '.join(affected_users)}." if affected_users else "."
-            )
+            ),
         )
 
 
@@ -129,7 +127,7 @@ class UserRoleAssignmentAPIView(APIView):
                 user = User.objects.get(id=user_id)
             except User.DoesNotExist:
                 return Response({'error': 'User not found.'}, status=404)
-            roles = Role.objects.filter(user_assignments__user=user).prefetch_related('permissions')
+            roles = Role.objects.filter(user_assignments__user=user, is_deleted=False).prefetch_related('permissions')
             return Response({
                 'user': {'id': user.id, 'username': user.username, 'email': user.email},
                 'roles': RoleSerializer(roles, many=True).data,
@@ -171,8 +169,8 @@ class UserRoleAssignmentAPIView(APIView):
         _, created = UserRole.objects.get_or_create(user=user, role=role)
         if created:
             invalidate_user_permission_cache(user.id)
-            SystemAuditLog.objects.create(
-                operator=request.user,
+            write_audit_log(
+                operator_id=request.user.id,
                 action_type='CREATE',
                 module='RBAC',
                 description=f"Assigned role '{role.name}' to user '{user.username}'."
@@ -201,8 +199,8 @@ class UserRoleAssignmentAPIView(APIView):
             invalidate_user_permission_cache(user_id)
             user = User.objects.filter(id=user_id).first()
             role = Role.objects.filter(id=role_id).first()
-            SystemAuditLog.objects.create(
-                operator=request.user,
+            write_audit_log(
+                operator_id=request.user.id,
                 action_type='DELETE',
                 module='RBAC',
                 description=f"Removed role '{role.name if role else role_id}' from user "

@@ -464,12 +464,27 @@ class Role(models.Model):
     # Protects against deleting or renaming a role that seed_rbac's Group-sync and every
     # non-superuser admin's access depend on existing under an exact, stable name.
     is_system_role = models.BooleanField(default=False)
+    is_deleted = models.BooleanField(default=False, db_index=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    deleted_by = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
 
     class Meta:
         db_table = 'school_role'
 
     def __str__(self):
         return self.name
+
+
+def _register_role_trash():
+    from apps.core.trash import register_trash_entity, TrashEntityConfig
+    register_trash_entity('roles', TrashEntityConfig(
+        model=Role, flag_field='is_deleted', flag_true=True, flag_false=False,
+        auto_purge=True,
+        label_fn=lambda r: r.name,
+    ))
+
+
+_register_role_trash()
 
 
 class UserRole(models.Model):
