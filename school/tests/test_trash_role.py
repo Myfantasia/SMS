@@ -29,7 +29,13 @@ class RoleTrashTests(TestCase):
         self.assertNotIn('custom.thing', get_user_permission_codes(self.holder_user.id))
 
     def test_delete_endpoint_soft_deletes(self):
+        # Verify holder_user has the permission before delete
+        self.assertIn('custom.thing', get_user_permission_codes(self.holder_user.id))
+
         self.client.force_login(self.admin_user)
         self.client.delete(f'/api/core/rbac/roles/{self.role.id}/')
         self.role.refresh_from_db()
         self.assertTrue(self.role.is_deleted)
+
+        # Verify the permission is immediately gone (cache invalidation happened in perform_destroy)
+        self.assertNotIn('custom.thing', get_user_permission_codes(self.holder_user.id))
