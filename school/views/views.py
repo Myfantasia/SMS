@@ -629,31 +629,24 @@ def api_get_approved_users(request, user_type):
     data = []
     user = request.user
 
-    # 1. Identify structural RBAC roles cleanly
     is_admin_user = user.is_superuser or user.groups.filter(name='ADMIN').exists()
     is_teacher_user = user.groups.filter(name='TEACHER').exists()
     is_parent_user = user.groups.filter(name='PARENT').exists()
     is_student_user = user.groups.filter(name='STUDENT').exists()
 
     try:
-        # ==========================================
-        # 1. FETCH STUDENTS DIRECTORY
-        # ==========================================
         if user_type == 'students':
             if is_admin_user or is_teacher_user:
-                # Admins and Teachers can view all active students
-                users = StudentExtra.objects.filter(status=True).select_related('user', 'cl').order_by('user__first_name', 'user__last_name')
+                users = StudentExtra.objects.filter(status=True, user__is_active=True).select_related('user', 'cl').order_by('user__first_name', 'user__last_name')
             elif is_parent_user:
-                # Parents can only see their own verified, linked children
                 parent_profile = getattr(user, 'parentextra', None)
-                users = parent_profile.students.filter(status=True).select_related('user', 'cl').order_by('user__first_name', 'user__last_name') if parent_profile else []
+                users = parent_profile.students.filter(status=True, user__is_active=True).select_related('user', 'cl').order_by('user__first_name', 'user__last_name') if parent_profile else []
             elif is_student_user:
-                # Students can only see peers registered in their exact same class stream
                 student_profile = getattr(user, 'studentextra', None)
                 if student_profile and student_profile.cl:
-                    users = StudentExtra.objects.filter(status=True, cl=student_profile.cl).select_related('user', 'cl').order_by('user__first_name', 'user__last_name')
+                    users = StudentExtra.objects.filter(status=True, user__is_active=True, cl=student_profile.cl).select_related('user', 'cl').order_by('user__first_name', 'user__last_name')
                 else:
-                    users = StudentExtra.objects.filter(status=True, user=user).select_related('user', 'cl')
+                    users = StudentExtra.objects.filter(status=True, user__is_active=True, user=user).select_related('user', 'cl')
             else:
                 users = []
 
@@ -669,28 +662,22 @@ def api_get_approved_users(request, user_type):
                     'grade_order': u.cl.grade.numeric_order if u.cl and u.cl.grade else 9999,
                 })
 
-        # ==========================================
-        # 2. FETCH TEACHERS DIRECTORY
-        # ==========================================
         elif user_type == 'teachers':
             if is_admin_user or is_teacher_user:
-                # Admins and Teachers can view the entire active faculty list
-                teachers = TeacherExtra.objects.filter(status=True).select_related('user').prefetch_related('assigned_classes').order_by('user__first_name', 'user__last_name')
+                teachers = TeacherExtra.objects.filter(status=True, user__is_active=True).select_related('user').prefetch_related('assigned_classes').order_by('user__first_name', 'user__last_name')
             elif is_parent_user:
-                # Parents can ONLY see teachers assigned to their children's specific streams
                 parent_profile = getattr(user, 'parentextra', None)
                 if parent_profile:
-                    child_stream_ids = parent_profile.students.filter(status=True).values_list('cl_id', flat=True)
+                    child_stream_ids = parent_profile.students.filter(status=True, user__is_active=True).values_list('cl_id', flat=True)
                     allocated_teacher_ids = SubjectAllocation.objects.filter(classroom_id__in=child_stream_ids, is_active=True).values_list('teacher_id', flat=True)
-                    teachers = TeacherExtra.objects.filter(status=True, id__in=allocated_teacher_ids).select_related('user').distinct().order_by('user__first_name', 'user__last_name')
+                    teachers = TeacherExtra.objects.filter(status=True, user__is_active=True, id__in=allocated_teacher_ids).select_related('user').distinct().order_by('user__first_name', 'user__last_name')
                 else:
                     teachers = []
             elif is_student_user:
-                # Students can ONLY see educators allocated to their personal class stream
                 student_profile = getattr(user, 'studentextra', None)
                 if student_profile and student_profile.cl:
                     allocated_teacher_ids = SubjectAllocation.objects.filter(classroom=student_profile.cl, is_active=True).values_list('teacher_id', flat=True)
-                    teachers = TeacherExtra.objects.filter(status=True, id__in=allocated_teacher_ids).select_related('user').distinct().order_by('user__first_name', 'user__last_name')
+                    teachers = TeacherExtra.objects.filter(status=True, user__is_active=True, id__in=allocated_teacher_ids).select_related('user').distinct().order_by('user__first_name', 'user__last_name')
                 else:
                     teachers = []
             else:
@@ -709,15 +696,10 @@ def api_get_approved_users(request, user_type):
                     'class_teacher_of': ", ".join(homeroom_names) if homeroom_names else None,
                 })
 
-        # ==========================================
-        # 3. FETCH PARENTS DIRECTORY
-        # ==========================================
         elif user_type == 'parents':
             if is_admin_user or is_teacher_user:
-                # Admins and Teachers can view all active parent records
-                parents = ParentExtra.objects.filter(status=True).prefetch_related('students__user', 'students__cl').select_related('user').order_by('user__first_name', 'user__last_name')
+                parents = ParentExtra.objects.filter(status=True, user__is_active=True).prefetch_related('students__user', 'students__cl').select_related('user').order_by('user__first_name', 'user__last_name')
             else:
-                # Students and Parents are strictly blocked from browsing the parent directory layout for privacy
                 return JsonResponse({'status': 'error', 'message': 'Access Denied.'}, status=403)
 
             for u in parents:
@@ -729,9 +711,6 @@ def api_get_approved_users(request, user_type):
                     'username': u.user.username,
                     'email': u.user.email,
                     'children': children,
-                    # Each child as its own record (id/name/class) so the UI can list every
-                    # linked child individually instead of a truncated comma string once a
-                    # parent has more than 2 — and distinguish same-named siblings by class.
                     'children_detail': [
                         {'id': c.id, 'name': c.get_name, 'class': str(c.cl) if c.cl else 'Not Assigned'}
                         for c in linked_children
@@ -740,13 +719,10 @@ def api_get_approved_users(request, user_type):
                     'children_count': len(linked_children),
                 })
 
-        # ==========================================
-        # 4. FETCH STAFF DIRECTORY (admin-only, like Parents)
-        # ==========================================
         elif user_type == 'staff':
             if not is_admin_user:
                 return JsonResponse({'status': 'error', 'message': 'Access Denied.'}, status=403)
-            staff = StaffExtra.objects.filter(status=True).select_related('user').order_by('user__first_name', 'user__last_name')
+            staff = StaffExtra.objects.filter(status=True, user__is_active=True).select_related('user').order_by('user__first_name', 'user__last_name')
             for u in staff:
                 data.append({
                     'id': u.id,
