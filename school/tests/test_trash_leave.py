@@ -1,14 +1,17 @@
 from django.contrib.auth.models import User, Group
 from django.test import TestCase
 
-from apps.identity.models import TeacherExtra
+from apps.identity.models import TeacherExtra, Permission
 from apps.staff.models import TeacherLeave
 
 
 class LeaveTrashTests(TestCase):
     def setUp(self):
+        # Ensure the leave permissions exist
+        Permission.objects.get_or_create(code='leave.view', defaults={'label': 'View Leave', 'module': 'leave'})
+        Permission.objects.get_or_create(code='leave.edit', defaults={'label': 'Edit Leave', 'module': 'leave'})
         admin_group, _ = Group.objects.get_or_create(name='ADMIN')
-        self.admin_user = User.objects.create_user(username='admin5', password='x')
+        self.admin_user = User.objects.create_user(username='admin5', password='x', is_superuser=True)
         self.admin_user.groups.add(admin_group)
         teacher_user = User.objects.create_user(username='teach1', password='x', first_name='Tee', last_name='Cher')
         self.teacher = TeacherExtra.objects.create(user=teacher_user, status=True)
@@ -18,9 +21,9 @@ class LeaveTrashTests(TestCase):
 
     def test_admin_delete_soft_deletes(self):
         self.client.force_login(self.admin_user)
-        self.client.delete(f'/api/core/leaves/{self.leave.id}/')
+        response = self.client.delete(f'/api/core/leaves/{self.leave.id}/')
         self.leave.refresh_from_db()
-        self.assertTrue(self.leave.is_deleted)
+        self.assertTrue(self.leave.is_deleted, f"Response status: {response.status_code}, leave.is_deleted: {self.leave.is_deleted}")
         self.assertIsNotNone(self.leave.deleted_at)
 
     def test_trashed_leave_excluded_from_listing(self):
@@ -28,5 +31,7 @@ class LeaveTrashTests(TestCase):
         self.leave.save()
         self.client.force_login(self.admin_user)
         response = self.client.get('/api/core/leaves/')
-        ids = [row['id'] for row in response.json()['results']] if 'results' in response.json() else [row['id'] for row in response.json()]
+        self.assertEqual(response.status_code, 200, f"GET failed with {response.status_code}: {response.content}")
+        data = response.json()
+        ids = [row['id'] for row in data['results']] if 'results' in data else [row['id'] for row in data]
         self.assertNotIn(self.leave.id, ids)
