@@ -7,16 +7,14 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from school.models.models import Notification, TeacherExtra
-from school.models.teachers_model import TeacherLeave, LongTermReliefAssignment
-from school.models.classSubjects_models import SystemAuditLog
+from apps.identity.models import TeacherExtra
+from apps.staff.models import TeacherLeave, LongTermReliefAssignment
+from apps.messaging.models import Notification
+from apps.core.services import write_audit_log
 from school.serializers.leave_serializers import TeacherLeaveSerializer
 from school.views.attendance_views import _is_admin
 from school.rbac import HasModulePermission, user_has_permission
 
-class CsrfExemptSessionAuthentication(SessionAuthentication):
-    def enforce_csrf(self, request):
-        return
 
 
 class TeacherLeaveViewSet(viewsets.ModelViewSet):
@@ -29,7 +27,7 @@ class TeacherLeaveViewSet(viewsets.ModelViewSet):
     Replaces the legacy csrf_exempt `api_manage_leaves` function view.
     """
     serializer_class = TeacherLeaveSerializer
-    authentication_classes = [CsrfExemptSessionAuthentication]
+    authentication_classes = [SessionAuthentication]
     # Base module gate only — the existing _is_admin-driven self-vs-all scoping and
     # approve/reject logic below (get_queryset/perform_create/perform_update/perform_destroy)
     # is untouched; this just requires the module be granted at all.
@@ -43,7 +41,7 @@ class TeacherLeaveViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        qs = TeacherLeave.objects.select_related(
+        qs = TeacherLeave.objects.filter(is_deleted=False).select_related(
             'teacher__user', 'longtermreliefassignment__relief_teacher__user'
         ).order_by('-created_at')
 
@@ -112,8 +110,8 @@ class TeacherLeaveViewSet(viewsets.ModelViewSet):
             leave = serializer.save()
 
             if previous_status != leave.status and leave.status in ('Approved', 'Rejected'):
-                SystemAuditLog.objects.create(
-                    operator=user if user.is_authenticated else None,
+                write_audit_log(
+                    operator_id=user.id if user.is_authenticated else None,
                     action_type='UPDATE',
                     module='TeacherLeave',
                     description=f"{leave.status} {leave.teacher.get_name}'s {leave.get_leave_type_display()} "
@@ -130,8 +128,8 @@ class TeacherLeaveViewSet(viewsets.ModelViewSet):
                         'end_date': leave.end_date,
                     }
                 )
-                SystemAuditLog.objects.create(
-                    operator=user if user.is_authenticated else None,
+                write_audit_log(
+                    operator_id=user.id if user.is_authenticated else None,
                     action_type='CREATE' if relief_created else 'UPDATE',
                     module='LongTermReliefAssignment',
                     description=f"{'Assigned' if relief_created else 'Updated'} {relief.relief_teacher.get_name} as "
@@ -160,14 +158,13 @@ class TeacherLeaveViewSet(viewsets.ModelViewSet):
     def perform_destroy(self, instance):
         user = self.request.user
         if self._can_edit_broadly(user):
-            SystemAuditLog.objects.create(
-                operator=user if user.is_authenticated else None,
-                action_type='DELETE',
+            from apps.core.trash import soft_delete
+            soft_delete(
+                instance, operator=user if user.is_authenticated else None,
                 module='TeacherLeave',
                 description=f"Deleted {instance.teacher.get_name}'s {instance.get_leave_type_display()} "
-                            f"request ({instance.start_date} to {instance.end_date}), status was {instance.status}."
+                            f"request ({instance.start_date} to {instance.end_date}), status was {instance.status}.",
             )
-            instance.delete()
             return
 
         if instance.teacher.user_id != user.id:
