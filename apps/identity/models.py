@@ -35,6 +35,40 @@ from django.utils import timezone
 from school.validators import profile_pic_validator
 
 
+def trash_user_account(extra_instance, *, operator=None, module, label):
+    """Soft-deletes a User account: blocks login (is_active=False, already the
+    convention this app uses for 'reactivate' — see class_views.py's reactivate
+    action) and stamps the owning Extra row so it can be found/restored from Trash."""
+    from django.utils import timezone
+    from apps.core.services import write_audit_log
+
+    extra_instance.user.is_active = False
+    extra_instance.user.save(update_fields=['is_active'])
+    extra_instance.deleted_at = timezone.now()
+    extra_instance.deleted_by = operator
+    extra_instance.save(update_fields=['deleted_at', 'deleted_by'])
+    write_audit_log(
+        operator_id=operator.id if operator else None,
+        action_type='DELETE', module=module,
+        description=f"Soft deleted {module.lower()} account for '{label}'.",
+    )
+
+
+def restore_user_account(extra_instance, *, operator=None, module, label):
+    from apps.core.services import write_audit_log
+
+    extra_instance.user.is_active = True
+    extra_instance.user.save(update_fields=['is_active'])
+    extra_instance.deleted_at = None
+    extra_instance.deleted_by = None
+    extra_instance.save(update_fields=['deleted_at', 'deleted_by'])
+    write_audit_log(
+        operator_id=operator.id if operator else None,
+        action_type='RESTORE', module=module,
+        description=f"Restored {module.lower()} account for '{label}'.",
+    )
+
+
 class School(models.Model):
     """Anchor for eventual multi-school/tenant scoping.
 
@@ -110,6 +144,9 @@ class TeacherExtra(models.Model):
     # We make salary optional and default to 0 so the admin can set it later
     salary = models.PositiveIntegerField(null=True, blank=True, default=0)
 
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    deleted_by = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+
     class Meta:
         db_table = 'school_teacherextra'
 
@@ -157,6 +194,9 @@ class StaffExtra(models.Model):
 
     joindate = models.DateField(auto_now_add=True)
     status = models.BooleanField(default=False)  # False means waiting for admin approval
+
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    deleted_by = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
 
     class Meta:
         db_table = 'school_staffextra'
@@ -234,6 +274,9 @@ class StudentExtra(models.Model):
     enrollment_notes = models.TextField(null=True, blank=True, help_text="Reason for suspension/expulsion/transfer")
     last_enrollment_change = models.DateTimeField(auto_now=True, null=True)
 
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    deleted_by = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+
     class Meta:
         db_table = 'school_studentextra'
 
@@ -284,6 +327,9 @@ class ParentExtra(models.Model):
     # Linking Parent to a specific Student
     students = models.ManyToManyField(StudentExtra, db_table='school_parentextra_students')
     status = models.BooleanField(default=False)
+
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    deleted_by = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
 
     class Meta:
         db_table = 'school_parentextra'
@@ -438,3 +484,44 @@ class UserRole(models.Model):
 
     def __str__(self):
         return f"{self.user.username} -> {self.role.name}"
+
+
+def _purge_student(extra):
+    if extra.profile_pic:
+        extra.profile_pic.delete(save=False)
+    extra.user.delete()
+
+
+def _purge_teacher(extra):
+    if extra.profile_pic:
+        extra.profile_pic.delete(save=False)
+    extra.user.delete()
+
+
+def _purge_staff(extra):
+    if extra.profile_pic:
+        extra.profile_pic.delete(save=False)
+    extra.user.delete()
+
+
+def _purge_parent(extra):
+    extra.user.delete()
+
+
+def _register_user_trash():
+    from apps.core.trash import register_trash_entity, TrashEntityConfig
+    for entity_type, model, module, purge_fn in [
+        ('users-students', StudentExtra, 'Student', _purge_student),
+        ('users-teachers', TeacherExtra, 'Teacher', _purge_teacher),
+        ('users-parents', ParentExtra, 'Parent', _purge_parent),
+        ('users-staff', StaffExtra, 'Staff', _purge_staff),
+    ]:
+        register_trash_entity(entity_type, TrashEntityConfig(
+            model=model, flag_field='user__is_active', flag_true=False, flag_false=True,
+            auto_purge=True,
+            label_fn=lambda obj: obj.get_name,
+            purge_fn=purge_fn,
+        ))
+
+
+_register_user_trash()

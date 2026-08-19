@@ -773,8 +773,11 @@ def api_delete_user(request):
             else:
                 return JsonResponse({'status': 'error', 'message': 'Invalid user type'})
 
-            # Deleting the base User automatically cascades and deletes the Extra profile
-            obj.user.delete()
+            from apps.identity.models import trash_user_account
+            trash_user_account(
+                obj, operator=request.user,
+                module=user_type[:-1].capitalize(), label=obj.get_name,
+            )
 
             return JsonResponse({'status': 'success'})
         except Exception as e:
