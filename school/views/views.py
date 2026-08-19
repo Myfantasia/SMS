@@ -48,6 +48,15 @@ from school.views.auth_rate_limit import (
 )
 
 
+# Mapping from API user_type parameter to canonical module name for audit logs
+_USER_TYPE_MODULE = {
+    'students': 'Student',
+    'teachers': 'Teacher',
+    'parents': 'Parent',
+    'staff': 'Staff',
+}
+
+
 @csrf_exempt
 @api_login_required
 def api_global_search(request):
@@ -776,7 +785,7 @@ def api_delete_user(request):
             from apps.identity.models import trash_user_account
             trash_user_account(
                 obj, operator=request.user,
-                module=user_type[:-1].capitalize(), label=obj.get_name,
+                module=_USER_TYPE_MODULE.get(user_type, user_type[:-1].capitalize()), label=obj.get_name,
             )
 
             return JsonResponse({'status': 'success'})
