@@ -104,6 +104,7 @@ class RoleViewSet(viewsets.ModelViewSet):
 
         from apps.core.trash import soft_delete
         role_name = instance.name
+        affected_user_ids = list(instance.user_assignments.values_list('user_id', flat=True))
         affected_users = list(instance.user_assignments.values_list('user__username', flat=True))
         soft_delete(
             instance, operator=self.request.user, module='RBAC',
@@ -111,6 +112,8 @@ class RoleViewSet(viewsets.ModelViewSet):
                 f" — previously assigned to: {', '.join(affected_users)}." if affected_users else "."
             ),
         )
+        for uid in affected_user_ids:
+            invalidate_user_permission_cache(uid)
 
 
 class UserRoleAssignmentAPIView(APIView):
