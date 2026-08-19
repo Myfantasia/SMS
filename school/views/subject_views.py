@@ -1,12 +1,13 @@
 from apps.academics.models import (SubjectSelectionRule,
                      GradeLevel, Subject, ClassStream, SubjectCategoryLimit, SubjectExclusionRule,
-                     Pathway, Track, CurriculumPreset, SubjectPool,
+                     Pathway, Track, CurriculumPreset,
                      PresetCombination, get_effective_is_core, get_effective_department, Department,
                      AcademicYear, ExamTerm, grade_requires_pathway_choice)
 from apps.allocations.models import SubjectQuota, SubjectAllocation
 from apps.students.models import StudentSubjectEnrollment, StudentPathwaySelection
 from apps.core.services import write_audit_log
 from apps.identity.models import ( TeacherExtra, StudentExtra,)
+from apps.identity.services import get_current_school_id
 from apps.results.models import SubjectTermResult
 from django.http import JsonResponse
 import json
@@ -30,19 +31,72 @@ def _is_admin(user):
     )
 
 
-def _resolve_curriculum_preset(grade, pathway, track=None):
+def _resolve_curriculum_preset(request, grade, pathway, track=None):
     """
     Resolves which CurriculumPreset (and therefore which SubjectPool structure) governs a
     student's elective choices, given their grade and their approved Pathway + Track (both
     None for JSS or non-CBC grades). Returns None when nothing matches — callers fall back
     to the flat, curriculum-agnostic SubjectQuota-based behavior that predates presets/pools,
     so 8-4-4 grades and CBC grades without a configured preset are unaffected.
+
+    Takes `request` to scope the lookup by school — without it, two schools sharing an
+    identical tier/pathway/track combo could resolve to each other's preset once a second
+    school exists (see get_current_school_id()'s docstring for the current single-tenant
+    caveat this still relies on).
+
+    Tries an exact pathway/track match first (a preset built for exactly this one pathway) —
+    unchanged from before. If nothing matches and a pathway was requested, falls back to a
+    "universal" preset (pathway=None, track=None) at the same curriculum/tier, which serves
+    every pathway via its own pathway-tagged SubjectPools instead of one preset per pathway —
+    see _pools_for_pathway(). Existing single-pathway presets always take priority when they
+    exist, so this is purely additive.
     """
     if not grade.curriculum_id:
         return None
-    return CurriculumPreset.objects.filter(
-        curriculum=grade.curriculum, tier=grade.tier, pathway=pathway, track=track
-    ).prefetch_related('pools__subjects').first()
+    base = CurriculumPreset.objects.filter(
+        school_id=get_current_school_id(request), curriculum=grade.curriculum, tier=grade.tier,
+    )
+    prefetch = ('pools__subjects', 'pools__combinations__subjects', 'pools__combinations__track')
+    exact = base.filter(pathway=pathway, track=track).prefetch_related(*prefetch).first()
+    if exact or pathway is None:
+        return exact
+    return base.filter(pathway__isnull=True, track__isnull=True).prefetch_related(*prefetch).first()
+
+
+def _pools_for_pathway(preset, pathway, track=None):
+    """
+    Which of a resolved preset's SubjectPools actually apply to this student's pathway/track.
+    A pool with pathway=None (every Core Compulsory/Guided Elective pool, and every pool on a
+    legacy single-pathway preset) always applies. A pathway-tagged PATHWAY_CORE pool only
+    applies to a student in that same pathway (and, if the pool also names a track, that same
+    track) — this is what stops a STEM student from seeing an Arts-only pool's subjects on a
+    "universal" preset that hosts pools for several pathways at once.
+    """
+    pathway_id = pathway.id if pathway else None
+    track_id = track.id if track else None
+    return [
+        pool for pool in preset.pools.all()
+        if pool.pathway_id in (None, pathway_id) and pool.track_id in (None, track_id)
+    ]
+
+
+def _pool_subjects_for_student(pool, pathway, track=None):
+    """
+    A pool with no combinations behaves exactly as before (pool.subjects is the full,
+    unscoped list). A pool WITH combinations holds offerings from every pathway/track at
+    once (see SubjectPool.combinations), so its `subjects` M2M is a superset -- narrow it
+    here to just the subjects of combinations whose own track matches this student's
+    approved track (or, if the student hasn't picked a track yet, whose track belongs to
+    their approved pathway).
+    """
+    combos = list(pool.combinations.all())
+    if not combos:
+        return list(pool.subjects.all())
+    track_id = track.id if track else None
+    pathway_id = pathway.id if pathway else None
+    relevant = [c for c in combos if c.track_id == track_id or (track_id is None and c.track.pathway_id == pathway_id)]
+    subject_ids = {s.id for c in relevant for s in c.subjects.all()}
+    return [s for s in pool.subjects.all() if s.id in subject_ids]
 
 
 def _student_approved_selection(student, academic_year):
@@ -212,13 +266,13 @@ def api_manage_subjects(request):
             from apps.academics.models import SubjectCurriculumProfile, Tier as TierModel
 
             if is_admin:
-                subjects = Subject.objects.select_related('department').all().order_by('name')
+                subjects = Subject.live.select_related('department').all().order_by('name')
             elif is_teacher:
                 teacher = user.teacherextra
                 # Single source of truth for eligibility (see TeacherExtra.qualified_subjects)
                 subjects = teacher.qualified_subjects.select_related('department').all().order_by('name')
             else:
-                subjects = Subject.objects.none()
+                subjects = Subject.live.none()
 
             # Bulk-fetch all profiles so we don't hit the DB per subject
             all_profiles = SubjectCurriculumProfile.objects.select_related('tier', 'curriculum', 'department').all()
@@ -451,8 +505,8 @@ def api_delete_subject(request, pk):
     if request.method == 'POST' or request.method == 'DELETE':
         try:
             subject = Subject.objects.get(id=pk)
-            subject.delete()
-            return JsonResponse({'status': 'success', 'message': 'Subject permanently deleted.'})
+            subject.soft_delete(operator_user=request.user)
+            return JsonResponse({'status': 'success', 'message': 'Subject moved to Trash.'})
         except Exception as e:
             return JsonResponse({'status': 'error', 'message': str(e)})
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
@@ -484,7 +538,7 @@ def api_subject_catalog(request, grade_id):
                     for subject, effective_is_core, *_ in _eligible_subjects_for(grade.curriculum, grade.tier)
                 ]
             else:
-                eligible = [(sub, sub.is_core) for sub in Subject.objects.select_related('department')]
+                eligible = [(sub, sub.is_core) for sub in Subject.live.select_related('department')]
             eligible.sort(key=lambda pair: pair[0].name)
 
             # 1. Group subjects by department, ordered alphabetically with uncategorized last
@@ -694,7 +748,7 @@ def api_student_subjects_overview(request):
     if grade.curriculum_id:
         eligible = _eligible_subjects_for(grade.curriculum, grade.tier)
     else:
-        eligible = [(sub, sub.is_core, None, None, None) for sub in Subject.objects.select_related('department')]
+        eligible = [(sub, sub.is_core, None, None, None) for sub in Subject.live.select_related('department')]
 
     enrollments = {
         e.subject_id: e for e in StudentSubjectEnrollment.objects.filter(student=student, academic_year=current_year)
@@ -785,19 +839,28 @@ def api_student_elective_options(request):
     selection = _student_approved_selection(student, current_year)
     pathway = selection.pathway if selection else None
     track = selection.track if selection else None
-    preset = _resolve_curriculum_preset(grade, pathway, track)
+    preset = _resolve_curriculum_preset(request, grade, pathway, track)
 
     if preset:
-        pools = [{
-            'pool_type': pool.pool_type,
-            'pool_type_label': pool.get_pool_type_display(),
-            'min_subjects': pool.min_subjects,
-            'max_subjects': pool.max_subjects,
-            'subjects': [
-                _option(s) for s in pool.subjects.all()
-                if not get_effective_is_core(s, grade.curriculum, grade.tier)
-            ],
-        } for pool in preset.pools.all()]
+        pools = []
+        for pool in _pools_for_pathway(preset, pathway, track):
+            relevant_subjects = _pool_subjects_for_student(pool, pathway, track)
+            # Always-core subjects in the pool (e.g. English, Kiswahili) are auto-assigned,
+            # never shown as a pick -- so the pick range shown to the student must exclude
+            # them from min/max too, or a 6-subject pool with 4 always-core ones would look
+            # like it wants the student to choose 5-6 from the 2 actual alternatives shown.
+            always_core_count = sum(
+                1 for s in relevant_subjects if get_effective_is_core(s, grade.curriculum, grade.tier))
+            pools.append({
+                'pool_type': pool.pool_type,
+                'pool_type_label': pool.get_pool_type_display(),
+                'min_subjects': max(0, pool.min_subjects - always_core_count),
+                'max_subjects': max(0, pool.max_subjects - always_core_count),
+                'subjects': [
+                    _option(s) for s in relevant_subjects
+                    if not get_effective_is_core(s, grade.curriculum, grade.tier)
+                ],
+            })
 
         return JsonResponse({
             'status': 'success',
@@ -858,19 +921,27 @@ def api_student_elective_request(request):
         if get_effective_is_core(subject, student.cl.grade.curriculum, student.cl.grade.tier):
             return JsonResponse({'status': 'error', 'message': 'Core subjects do not require a request.'}, status=400)
 
-        is_valid_elective = SubjectQuota.objects.filter(grade=student.cl.grade, subject=subject).exists()
-        if not is_valid_elective:
-            return JsonResponse({'status': 'error', 'message': f'{subject.name} is not offered to your grade.'}, status=400)
-
         selection = _student_approved_selection(student, current_year)
         pathway = selection.pathway if selection else None
         track = selection.track if selection else None
-        preset = _resolve_curriculum_preset(student.cl.grade, pathway, track)
-        if preset and not SubjectPool.objects.filter(preset=preset, subjects=subject).exists():
-            return JsonResponse({
-                'status': 'error',
-                'message': f'{subject.name} is not part of your curriculum structure ({preset.name}).'
-            }, status=400)
+        preset = _resolve_curriculum_preset(request, student.cl.grade, pathway, track)
+        if preset:
+            # Pool-driven subjects are validated against the preset's pools below -- they
+            # were never meant to carry a SubjectQuota row, so don't gate on one here.
+            allowed_subject_ids = {
+                s.id for pool in _pools_for_pathway(preset, pathway, track)
+                for s in _pool_subjects_for_student(pool, pathway, track)
+            }
+            if subject.id not in allowed_subject_ids:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': f'{subject.name} is not part of your curriculum structure ({preset.name}).'
+                }, status=400)
+        else:
+            is_valid_elective = SubjectQuota.objects.filter(grade=student.cl.grade, subject=subject).exists()
+            if not is_valid_elective:
+                return JsonResponse(
+                    {'status': 'error', 'message': f'{subject.name} is not offered to your grade.'}, status=400)
 
         existing = StudentSubjectEnrollment.objects.filter(
             student=student, academic_year=current_year, subject=subject
@@ -1649,7 +1720,7 @@ def api_bulk_approve_subjects(request, stream_id):
             def _preset_for(pathway, track):
                 key = (pathway.id if pathway else None, track.id if track else None)
                 if key not in preset_cache:
-                    preset_cache[key] = _resolve_curriculum_preset(grade, pathway, track)
+                    preset_cache[key] = _resolve_curriculum_preset(request, grade, pathway, track)
                 return preset_cache[key]
 
             # 3. THE FILTER-AND-PROCESS LOOP
@@ -1712,8 +1783,8 @@ def api_bulk_approve_subjects(request, stream_id):
                     track = selection.track if selection else None
                     preset = _preset_for(pathway, track)
                     if preset:
-                        for pool in preset.pools.all():
-                            pool_subject_ids = set(pool.subjects.values_list('id', flat=True))
+                        for pool in _pools_for_pathway(preset, pathway, track):
+                            pool_subject_ids = {s.id for s in _pool_subjects_for_student(pool, pathway, track)}
                             count = len(selected_subject_ids & pool_subject_ids)
                             if not (pool.min_subjects <= count <= pool.max_subjects):
                                 is_valid = False

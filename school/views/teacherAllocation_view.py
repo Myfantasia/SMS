@@ -8,18 +8,20 @@ from django.db import transaction
 from django.db.models import Count
 from django.core.exceptions import ValidationError
 from django.core.cache import cache
-from school.models.classSubjects_models import SubjectQuota, SubjectAllocation, ClassStream, Subject, GradeLevel, \
-    SubjectSplittingRule, StudentSubjectEnrollment, GlobalAllocationPolicy, SystemAuditLog, SubjectBlock, \
-    get_effective_is_core
-from school.models.models import (
-    TeacherExtra, ExamTerm, AcademicYear, AttendanceSession
+from apps.core.services import write_audit_log
+from apps.academics.models import ClassStream, Subject, GradeLevel, \
+    get_effective_is_core, ExamTerm, AcademicYear
+from apps.allocations.models import SubjectQuota, SubjectAllocation, SubjectSplittingRule, GlobalAllocationPolicy, SubjectBlock
+from apps.students.models import StudentSubjectEnrollment
+from apps.identity.models import (
+    TeacherExtra,
 )
-from school.models.timetable_models import LessonAllocation, Timetable
+from apps.attendance.models import AttendanceSession
+from apps.timetable.models import LessonAllocation, Timetable
 from school.utils import build_grade_subject_block_map, get_subject_block_names, is_tech_subject, \
     AllocationValidator, reserve_class_teacher_slot, fill_remaining_subjects, get_cached_unscheduled_errors, \
     get_subjects_with_active_virtual_groups, get_published_classroom_ids, publish_allocation, unpublish_allocation
 from school.views.views_timetable import sync_timetable_with_allocation_changes
-from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import get_object_or_404
 from django.http import JsonResponse
 import json
@@ -28,16 +30,13 @@ import random
 from school.decorators import require_permission
 from school.rbac import HasModulePermission
 from school.jobs import dispatch_background_job
-from school.tasks import rollover_allocations_task, bulk_auto_allocate_task
+from orchestration.tasks import rollover_allocations_task, bulk_auto_allocate_task
 
 
-class CsrfExemptSessionAuthentication(SessionAuthentication):
-    def enforce_csrf(self, request):
-        return
 
 
 class AllocationMatrixAPIView(APIView):
-    authentication_classes = [CsrfExemptSessionAuthentication]
+    authentication_classes = [SessionAuthentication]
     permission_classes = [IsAuthenticated, HasModulePermission]
     rbac_view_permission = 'allocations.view'
     rbac_edit_permission = 'allocations.edit'
@@ -82,7 +81,7 @@ class AllocationMatrixAPIView(APIView):
                     for quota in quotas:
                         class_subjects.append(quota.subject)
                 else:
-                    class_subjects = list(Subject.objects.all().order_by('display_order', 'name'))
+                    class_subjects = list(Subject.live.all().order_by('display_order', 'name'))
 
             # For every split subject on this physical stream, look up its live groups in this
             # grade and how many already have a real teacher contract for this term/year, so the
@@ -343,8 +342,8 @@ class AllocationMatrixAPIView(APIView):
 
                 if (sync_result["ejected_count"] or sync_result["swapped_count"]
                         or sync_result["needs_regeneration"] or sync_result["locked_skipped_count"]):
-                    SystemAuditLog.objects.create(
-                        operator=request.user if request.user.is_authenticated else None,
+                    write_audit_log(
+                        operator_id=request.user.id if request.user.is_authenticated else None,
                         action_type='UPDATE',
                         module='LessonAllocation',
                         description=(
@@ -411,8 +410,8 @@ class AllocationMatrixAPIView(APIView):
                     bulk_published_count = len(drafted_ids)
 
                     scope_label = "grade" if publish_scope == 'grade' else "school"
-                    SystemAuditLog.objects.create(
-                        operator=request.user if request.user.is_authenticated else None,
+                    write_audit_log(
+                        operator_id=request.user.id if request.user.is_authenticated else None,
                         action_type='UPDATE',
                         module='AllocationPublishState',
                         description=(
@@ -445,12 +444,12 @@ class UnpublishAllocationAPIView(APIView):
     AllocationMatrixAPIView.post) — this is the one explicit, deliberate action required to
     undo it, so a finalized schedule can't be nudged back into "editable" by accident.
     """
-    authentication_classes = [CsrfExemptSessionAuthentication]
+    authentication_classes = [SessionAuthentication]
     permission_classes = [IsAuthenticated, HasModulePermission]
     rbac_edit_permission = 'allocations.edit'
 
     def post(self, request):
-        from school.models.classSubjects_models import AllocationPublishState
+        from apps.allocations.models import AllocationPublishState
 
         term_id = request.data.get('term_id')
         year_id = request.data.get('year_id')
@@ -481,19 +480,14 @@ class UnpublishAllocationAPIView(APIView):
             ).update(is_published=False, published_at=None, published_by=None)
             msg = f"Reverted {updated} published class(es) across every class in the term to draft."
 
-        SystemAuditLog.objects.create(
-            operator=request.user if request.user.is_authenticated else None,
+        write_audit_log(
+            operator_id=request.user.id if request.user.is_authenticated else None,
             action_type='UPDATE',
             module='AllocationPublishState',
             description=msg
         )
 
         return Response({"message": msg}, status=status.HTTP_200_OK)
-
-
-class _RolloverValidationError(Exception):
-    """Raised to force-abort the rollover transaction on a hard policy violation."""
-    pass
 
 
 class RolloverAllocationsAPIView(APIView):
@@ -513,7 +507,7 @@ class RolloverAllocationsAPIView(APIView):
     same ghost-contract cleanup every other allocation-saving path (Matrix save, Bulk Allocate)
     already does, which this endpoint was previously missing.
     """
-    authentication_classes = [CsrfExemptSessionAuthentication]
+    authentication_classes = [SessionAuthentication]
     permission_classes = [IsAuthenticated, HasModulePermission]
     # allocations.bulk is the narrower alternative for this and the other school/term-wide
     # bulk operations below — lets a Staff role run rollover/auto-allocate/clear/global-policy
@@ -548,7 +542,7 @@ class RolloverAllocationsAPIView(APIView):
         operator = request.user if request.user.is_authenticated else None
 
         # The actual clone/validate/timetable-sync work (potentially whole-school in scope)
-        # runs in a Celery worker — see school/tasks.py:rollover_allocations_task. This view
+        # runs in a Celery worker — see orchestration/tasks.py:rollover_allocations_task. This view
         # only validates fast enough to keep an instant response, then hands off.
         job, error_response = dispatch_background_job(
             job_type='rollover_allocations',
@@ -585,7 +579,7 @@ class AutoAllocateDraftAPIView(APIView):
     soft-policy warnings is preferred over one that would trip several, even when both are
     otherwise equally valid.
     """
-    authentication_classes = [CsrfExemptSessionAuthentication]
+    authentication_classes = [SessionAuthentication]
     permission_classes = [IsAuthenticated, HasModulePermission]
     rbac_view_permission = 'allocations.view'
 
@@ -707,7 +701,7 @@ class BulkAutoAllocateAPIView(APIView):
     contracts for the given term/year, and — via AllocationValidator — guarantees no teacher
     exceeds their weekly-lesson cap or any other policy in the process.
     """
-    authentication_classes = [CsrfExemptSessionAuthentication]
+    authentication_classes = [SessionAuthentication]
     permission_classes = [IsAuthenticated, HasModulePermission]
     rbac_edit_permission = ('allocations.edit', 'allocations.bulk')
     throttle_classes = [ScopedRateThrottle]
@@ -727,7 +721,7 @@ class BulkAutoAllocateAPIView(APIView):
 
         # Cheap existence check kept synchronous so an obviously-empty scope still fails
         # fast — the actual reservation/fill/commit work (school-wide in the worst case)
-        # runs in a Celery worker, see school/tasks.py:bulk_auto_allocate_task.
+        # runs in a Celery worker, see orchestration/tasks.py:bulk_auto_allocate_task.
         if explicit_class_ids:
             scope_exists = ClassStream.live.filter(id__in=explicit_class_ids).exists()
         else:
@@ -773,7 +767,7 @@ class ClearAllocationsAPIView(APIView):
     was cleared — deleting a class's contracts but leaving its timetable lessons pointing at
     now-nonexistent teacher assignments would be a ghost-contract regression.
     """
-    authentication_classes = [CsrfExemptSessionAuthentication]
+    authentication_classes = [SessionAuthentication]
     permission_classes = [IsAuthenticated, HasModulePermission]
     rbac_edit_permission = ('allocations.edit', 'allocations.bulk')
 
@@ -861,8 +855,8 @@ class ClearAllocationsAPIView(APIView):
                 if ejected_count:
                     msg += f" {ejected_count} stale timetable lesson(s) ejected."
 
-                SystemAuditLog.objects.create(
-                    operator=request.user if request.user.is_authenticated else None,
+                write_audit_log(
+                    operator_id=request.user.id if request.user.is_authenticated else None,
                     action_type='DELETE',
                     module='SubjectAllocation',
                     description=msg
@@ -880,7 +874,6 @@ class ClearAllocationsAPIView(APIView):
             return Response({"error": f"Failed to clear allocations: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-@csrf_exempt
 @require_permission('allocations.view', edit_permission='allocations.edit')
 def api_manage_splitting_rules(request, grade_id):
     """
@@ -1007,7 +1000,7 @@ def _run_splitting_reconciliation(grade, operator_user, is_simulation=False):
         stream_impacts = []  # [{name, action: created|updated|unchanged, capacity}]
 
         elective_subjects = [
-            s for s in Subject.objects.all()
+            s for s in Subject.live.all()
             if not get_effective_is_core(s, grade.curriculum, grade.tier)
         ]
 
@@ -1144,8 +1137,8 @@ def _run_splitting_reconciliation(grade, operator_user, is_simulation=False):
     created_count = sum(1 for s in stream_impacts if s['action'] == 'created')
     updated_count = sum(1 for s in stream_impacts if s['action'] == 'updated')
     removed_count = len(removed_impacts)
-    SystemAuditLog.objects.create(
-        operator=operator_user,
+    write_audit_log(
+        operator_id=operator_user.id if operator_user else None,
         action_type='SIMULATION' if is_simulation else 'EXECUTION',
         module='SplittingEngine',
         description=f"{'Simulated' if is_simulation else 'Committed'} allocation splits for {grade.name}: "
@@ -1163,7 +1156,6 @@ def _run_splitting_reconciliation(grade, operator_user, is_simulation=False):
     }
 
 
-@csrf_exempt
 @require_permission(('allocations.edit', 'allocations.bulk'))
 def api_execute_allocation_splits(request, grade_id):
     """
@@ -1193,7 +1185,7 @@ class GlobalAllocationPolicyAPIView(APIView):
     """
     Manages the global configuration parameters from the Frontend Tab 2 workspace.
     """
-    authentication_classes = [CsrfExemptSessionAuthentication]
+    authentication_classes = [SessionAuthentication]
     permission_classes = [IsAuthenticated, HasModulePermission]
     rbac_view_permission = 'allocations.view'
     rbac_edit_permission = ('allocations.edit', 'allocations.bulk')
@@ -1273,7 +1265,6 @@ class GlobalAllocationPolicyAPIView(APIView):
         return Response({"message": "Global teacher workload limits updated successfully."}, status=status.HTTP_200_OK)
 
 
-@csrf_exempt
 @require_permission('allocations.view')
 def api_get_stream_teachers(request, stream_id):
     """
@@ -1304,7 +1295,6 @@ def api_get_stream_teachers(request, stream_id):
     return JsonResponse({'status': 'error', 'message': 'Invalid request method.'})
 
 
-@csrf_exempt
 @require_permission('allocations.view')
 def api_get_teacher_allocations(request, teacher_id):
     """
