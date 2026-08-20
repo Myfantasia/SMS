@@ -312,7 +312,7 @@ class NoticeViewSet(viewsets.ModelViewSet):
         # Admins see every notice; everyone else only sees notices actually
         # addressed to them ('All' plus their own audience bucket) instead of
         # the whole board regardless of the audience field.
-        queryset = Notice.objects.all().order_by('-date')
+        queryset = Notice.objects.filter(is_deleted=False).order_by('-date')
         user = self.request.user
         if _is_admin(user) or user_has_permission(user, 'notices.edit'):
             return queryset
@@ -323,6 +323,13 @@ class NoticeViewSet(viewsets.ModelViewSet):
         if hasattr(user, 'parentextra'):
             return queryset.filter(audience__in=['All', 'Parents'])
         return queryset.filter(audience='All')
+
+    def perform_destroy(self, instance):
+        from apps.core.trash import soft_delete
+        soft_delete(
+            instance, operator=self.request.user, module='Notices',
+            description=f"Deleted notice '{instance.title}'.",
+        )
 
 
 class NotificationViewSet(viewsets.ModelViewSet):
