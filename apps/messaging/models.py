@@ -51,11 +51,34 @@ class Notice(models.Model):
     # --- ADDED: Urgency Flag ---
     is_urgent = models.BooleanField(default=False)
 
+    is_deleted = models.BooleanField(default=False, db_index=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    deleted_by = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+
     class Meta:
         db_table = 'school_notice'
 
     def __str__(self):
         return self.title
+
+
+def _purge_notice(notice):
+    if notice.attachment:
+        notice.attachment.delete(save=False)
+    notice.delete()
+
+
+def _register_notice_trash():
+    from apps.core.trash import register_trash_entity, TrashEntityConfig
+    register_trash_entity('notices', TrashEntityConfig(
+        model=Notice, flag_field='is_deleted', flag_true=True, flag_false=False,
+        auto_purge=True,
+        label_fn=lambda n: n.title,
+        purge_fn=_purge_notice,
+    ))
+
+
+_register_notice_trash()
 
 
 class Event(models.Model):
@@ -90,4 +113,5 @@ def _register_event_trash():
 
 
 _register_event_trash()
+
 

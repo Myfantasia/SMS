@@ -36,4 +36,4 @@ class NotificationSerializer(serializers.ModelSerializer):
 class NoticeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Notice
-        fields = '__all__'
+        fields = ['id', 'title', 'message', 'date', 'by', 'audience', 'attachment', 'is_urgent']
