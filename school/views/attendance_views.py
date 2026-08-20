@@ -6,16 +6,15 @@ from rest_framework import status, viewsets
 from django.db import transaction
 from django.db.models import Count
 from django.utils import timezone
-from school.models.models import ( StudentExtra, AttendanceSession, AttendanceRecord, Notification,
-                                  ParentExtra, Event, Notice)
+from apps.identity.models import ( StudentExtra,
+                                  ParentExtra)
+from apps.messaging.models import Notification, Event, Notice
+from apps.attendance.models import AttendanceSession, AttendanceRecord
 from school.serializers.serializers import EventSerializer, NotificationSerializer, NoticeSerializer
-from school.models.classSubjects_models import ClassStream
+from apps.academics.models import ClassStream
 from school.pagination import StandardResultsPagination
 from school.rbac import HasModulePermission, user_has_permission
 
-class CsrfExemptSessionAuthentication(SessionAuthentication):
-    def enforce_csrf(self, request):
-        return
 
 
 def _is_admin(user):
@@ -56,7 +55,7 @@ class SubmitBatchAttendanceView(APIView):
     Admins or the assigned Class Teacher can submit the register.
     """
 
-    authentication_classes = [CsrfExemptSessionAuthentication]
+    authentication_classes = [SessionAuthentication]
     permission_classes = [IsAuthenticated, HasModulePermission]
     rbac_edit_permission = 'attendance.edit'
 
@@ -148,7 +147,7 @@ class AttendanceRosterView(APIView):
     attendance status — defaulting to 'Present' if no register has been submitted
     yet, or reflecting the already-submitted session's records otherwise.
     """
-    authentication_classes = [CsrfExemptSessionAuthentication]
+    authentication_classes = [SessionAuthentication]
     permission_classes = [IsAuthenticated, HasModulePermission]
     rbac_view_permission = 'attendance.view'
 
@@ -192,7 +191,7 @@ class AdminAttendanceOverviewView(APIView):
     excused counts, which classes have submitted their register vs which are still
     pending, and a recent feed of exception (non-Present) records.
     """
-    authentication_classes = [CsrfExemptSessionAuthentication]
+    authentication_classes = [SessionAuthentication]
     permission_classes = [IsAuthenticated, HasModulePermission]
     rbac_view_permission = 'attendance.view'
 
@@ -287,6 +286,17 @@ class EventViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAdminForWrite, HasModulePermission]
     rbac_edit_permission = 'events.edit'
 
+    def get_queryset(self):
+        return Event.objects.filter(is_active=True).order_by('-start_time')
+
+    def perform_destroy(self, instance):
+        from apps.core.trash import soft_delete
+        soft_delete(
+            instance, operator=self.request.user, module='Events',
+            flag_field='is_active', flag_true=False,
+            description=f"Deleted event '{instance.title}'.",
+        )
+
 
 class NoticeViewSet(viewsets.ModelViewSet):
     serializer_class = NoticeSerializer
@@ -323,7 +333,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
     # Unbounded per-user history over time. See Notifications.tsx, updated to read
     # response.data.results instead of response.data.
     pagination_class = StandardResultsPagination
-    # Every real notification is created server-side (school/tasks.py, class_views.py,
+    # Every real notification is created server-side (orchestration/tasks.py, class_views.py,
     # leave_views.py — direct Notification.objects.create(...) calls) and Notifications.tsx
     # only ever GETs (list) and PATCHes (mark read). NotificationSerializer uses fields =
     # '__all__', which includes `recipient` — leaving POST/PUT/DELETE open let any
