@@ -1,5 +1,6 @@
 from rest_framework import serializers
-from school.models.models import AttendanceSession, AttendanceRecord, Event, Notification, Notice
+from apps.attendance.models import AttendanceSession, AttendanceRecord
+from apps.messaging.models import Event, Notification, Notice
 
 
 class AttendanceRecordSerializer(serializers.ModelSerializer):
@@ -23,7 +24,7 @@ class AttendanceSessionSerializer(serializers.ModelSerializer):
 class EventSerializer(serializers.ModelSerializer):
     class Meta:
         model = Event
-        fields = '__all__'
+        fields = ['id', 'title', 'description', 'start_time', 'end_time', 'event_type', 'is_active']
 
 
 class NotificationSerializer(serializers.ModelSerializer):
