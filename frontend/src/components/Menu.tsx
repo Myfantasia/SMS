@@ -26,7 +26,8 @@ import {
   ShieldAlert,
   BookMarked,  // For Curriculum
   GitBranch,   // For Pathway
-  Briefcase    // For Staff
+  Briefcase,   // For Staff
+  Trash2       // For Trash
 } from 'lucide-react';
 import { clearActivity } from '../libs/sessionExpiry';
 
@@ -44,6 +45,7 @@ interface MenuItemDef {
   href: string;
   visible: Role[];
   requiresClassTeacher?: boolean;
+  requiredPermission?: string;
 }
 
 // Staff has no fixed capability set the way the other four roles do — a Librarian and a
@@ -130,6 +132,7 @@ const menuItems: { title: string; items: MenuItemDef[] }[] = [
     title: "SYSTEM",
     items: [
       { icon: ShieldCheck, label: "Roles & Permissions", href: "/admin-dashboard/roles-permissions", visible: ["admin"] },
+      { icon: Trash2, label: "Trash", href: "/admin-dashboard/trash", visible: ["admin"], requiredPermission: "trash.view" },
     ],
   },
   {
@@ -227,7 +230,8 @@ export default function Menu({ userRole, isClassTeacher = false, permissions = [
         // (e.g. Attendance) — admins and class-teacher-teachers are unaffected.
         const visibleItems = section.items.filter(item =>
           item.visible.includes(userRole) &&
-          !(item.requiresClassTeacher && userRole === 'teacher' && !isClassTeacher)
+          !(item.requiresClassTeacher && userRole === 'teacher' && !isClassTeacher) &&
+          (!item.requiredPermission || permissions.includes(item.requiredPermission))
         );
 
         // If the entire section (like APPROVALS) is empty for a user, don't render the title at all
