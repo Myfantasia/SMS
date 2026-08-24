@@ -52,6 +52,7 @@ from school.views.curriculum_view import (
     SubjectCurriculumProfileViewSet, TierViewSet, TrackViewSet,
 )
 from school.views.jobs_views import BackgroundJobStatusAPIView
+from school.views import trash_views
 
 router = DefaultRouter()
 router.register(r'admin/blog-posts', BlogPostAdminViewSet, basename='admin-blogpost')
@@ -77,6 +78,9 @@ urlpatterns = [
     #Admin Dashboard
     path('api/core/', include(router.urls)),
     path('api/core/rbac/assignments/', UserRoleAssignmentAPIView.as_view(), name='rbac-user-assignments'),
+    path('api/trash/<str:entity_type>/', trash_views.api_list_trash, name='api_list_trash'),
+    path('api/trash/<str:entity_type>/<int:pk>/restore/', trash_views.api_restore_trash_item, name='api_restore_trash_item'),
+    path('api/trash/<str:entity_type>/<int:pk>/purge/', trash_views.api_purge_trash_item, name='api_purge_trash_item'),
 
     path('api/exams/rapid-entry/', RapidMarksEntryView.as_view(), name='rapid-marks-entry'),
     path('api/exams/broadsheet/', BroadsheetGeneratorView.as_view(), name='generate-broadsheet'),
@@ -147,6 +151,7 @@ urlpatterns = [
 # API endpoints for React Approvals Integration
     path('api/pending-users/<str:user_type>/', views.api_get_pending_users, name='api_pending_users'),
     path('api/process-approval/', views.api_process_approval, name='api_process_approval'),
+    path('api/admin-create-user/', views.api_admin_create_user, name='api_admin_create_user'),
 
 # API endpoints for Admin Invite Codes & Verification (React "Invite Codes & Verification" tab)
     path('api/admin-invites/', admin_invite_views.api_list_admin_invites, name='api_list_admin_invites'),

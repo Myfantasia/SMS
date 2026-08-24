@@ -51,7 +51,12 @@ def soft_delete(instance, *, operator: Optional[User], flag_field: str = 'is_del
 
 def restore(instance, *, operator: Optional[User], flag_field: str = 'is_deleted',
             flag_false: Any = False, module: str, description: str) -> None:
-    setattr(instance, flag_field, flag_false)
+    if '__' in flag_field:
+        obj, attr = flag_field.split('__', 1)
+        setattr(getattr(instance, obj), attr, flag_false)
+        getattr(instance, obj).save(update_fields=[attr])
+    else:
+        setattr(instance, flag_field, flag_false)
     instance.deleted_at = None
     instance.deleted_by = None
     instance.save()
@@ -59,3 +64,7 @@ def restore(instance, *, operator: Optional[User], flag_field: str = 'is_deleted
         operator_id=operator.id if operator else None,
         action_type='RESTORE', module=module, description=description,
     )
+
+
+def purge_expired_trash(entity_type=None):
+    pass
