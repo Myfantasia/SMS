@@ -66,5 +66,35 @@ def restore(instance, *, operator: Optional[User], flag_field: str = 'is_deleted
     )
 
 
-def purge_expired_trash(entity_type=None):
-    pass
+def purge_expired_trash(entity_type: Optional[str] = None) -> int:
+    """
+    Permanently deletes every auto-purgeable row whose deleted_at is more than
+    AUTO_PURGE_AFTER in the past. Class Stream and Subject are registered with
+    auto_purge=False and are never touched here — they only leave Trash via the
+    manual purge endpoint (school/views/trash_views.py:api_purge_trash_item).
+    Safe to call repeatedly (idempotent — nothing left to purge is a no-op).
+    """
+    cutoff = timezone.now() - AUTO_PURGE_AFTER
+    entity_types = [entity_type] if entity_type else list(TRASH_REGISTRY.keys())
+    purged_count = 0
+
+    for et in entity_types:
+        config = TRASH_REGISTRY.get(et)
+        if config is None or not config.auto_purge:
+            continue
+
+        lookup = {config.flag_field: config.flag_true, 'deleted_at__lte': cutoff}
+        expired = list(config.model.objects.filter(**lookup))
+        for instance in expired:
+            label = config.label_fn(instance)
+            if config.purge_fn:
+                config.purge_fn(instance)
+            else:
+                instance.delete()
+            write_audit_log(
+                operator_id=None, action_type='DELETE', module=et,
+                description=f"Auto-purged {label} from Trash after 20 days.",
+            )
+            purged_count += 1
+
+    return purged_count
