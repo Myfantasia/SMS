@@ -47,3 +47,16 @@ class TrashAPITests(TestCase):
         self.client.force_login(self.superuser)
         response = self.client.get('/api/trash/not-a-real-type/')
         self.assertEqual(response.status_code, 404)
+
+    def test_cannot_restore_a_live_row(self):
+        live_subject = Subject.objects.create(code='MAT202', name='Mathematics')
+        self.client.force_login(self.superuser)
+        response = self.client.post(f'/api/trash/subjects/{live_subject.id}/restore/')
+        self.assertEqual(response.status_code, 400)
+
+    def test_cannot_purge_a_live_row(self):
+        live_subject = Subject.objects.create(code='MAT203', name='Mathematics II')
+        self.client.force_login(self.superuser)
+        response = self.client.post(f'/api/trash/subjects/{live_subject.id}/purge/')
+        self.assertEqual(response.status_code, 400)
+        self.assertTrue(Subject.objects.filter(id=live_subject.id).exists())

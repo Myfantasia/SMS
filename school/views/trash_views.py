@@ -19,6 +19,13 @@ def _entity_config_or_404(entity_type):
     return config
 
 
+def _current_flag_value(instance, flag_field):
+    if '__' in flag_field:
+        obj, attr = flag_field.split('__', 1)
+        return getattr(getattr(instance, obj), attr)
+    return getattr(instance, flag_field)
+
+
 @require_permission('trash.view')
 def api_list_trash(request, entity_type):
     config = _entity_config_or_404(entity_type)
@@ -57,6 +64,9 @@ def api_restore_trash_item(request, entity_type, pk):
         return JsonResponse({'status': 'error', 'message': f"Unknown trash entity type '{entity_type}'."}, status=404)
 
     instance = get_object_or_404(config.model, pk=pk)
+    if _current_flag_value(instance, config.flag_field) != config.flag_true:
+        return JsonResponse({'status': 'error', 'message': 'This item is not currently in Trash.'}, status=400)
+
     restore(
         instance, operator=request.user, flag_field=config.flag_field, flag_false=config.flag_false,
         module=entity_type, description=f"Restored {config.label_fn(instance)} from Trash.",
@@ -72,6 +82,9 @@ def api_purge_trash_item(request, entity_type, pk):
         return JsonResponse({'status': 'error', 'message': f"Unknown trash entity type '{entity_type}'."}, status=404)
 
     instance = get_object_or_404(config.model, pk=pk)
+    if _current_flag_value(instance, config.flag_field) != config.flag_true:
+        return JsonResponse({'status': 'error', 'message': 'This item is not currently in Trash.'}, status=400)
+
     label = config.label_fn(instance)
 
     from apps.core.services import write_audit_log
