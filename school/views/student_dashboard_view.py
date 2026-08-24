@@ -43,7 +43,7 @@ class StudentDashboardOverviewAPI(APIView):
         pending_assignments_count = 0
         if student.cl:
             pending_assignments_count = Assignment.objects.filter(
-                class_stream=student.cl, status='Published'
+                class_stream=student.cl, status='Published', is_deleted=False
             ).exclude(submissions__student=student).count()
 
         return Response({

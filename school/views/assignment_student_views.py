@@ -11,8 +11,8 @@ from django.db.models import Q
 
 from django.shortcuts import get_object_or_404
 
-from school.models.models import StudentExtra
-from school.models.assignments_models import Assignment, StudentSubmission, StudentAnswer, AssignmentGroup
+from apps.identity.models import StudentExtra
+from apps.assignments.models import Assignment, StudentSubmission, StudentAnswer, AssignmentGroup
 from school.views.assignment_common import (
     get_student_profile, build_review_payload, review_error_response, sync_group_submission_content
 )
@@ -126,7 +126,8 @@ class StudentAssignmentBoardAPIView(APIView):
             assignments = Assignment.objects.filter(
                 Q(class_stream=student.cl) | Q(additional_class_streams=student.cl),
                 status='Published',
-                publish_date__lte=current_time
+                publish_date__lte=current_time,
+                is_deleted=False
             ).filter(
                 Q(assigned_students__isnull=True) | Q(assigned_students=student)
             ).distinct().order_by('due_date')

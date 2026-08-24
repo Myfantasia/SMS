@@ -12,8 +12,9 @@ from django.db.models import Sum
 from django.shortcuts import get_object_or_404
 from rest_framework.exceptions import PermissionDenied
 
-from school.models.models import StudentExtra, ExamTerm
-from school.models.assignments_models import (
+from apps.identity.models import StudentExtra
+from apps.academics.models import ExamTerm
+from apps.assignments.models import (
     Assignment, Question, QuestionOption, StudentSubmission, StudentAnswer,
     RubricCriterion, CriterionScore, AssignmentGroup, AssignmentAttachment
 )
@@ -110,12 +111,12 @@ class TeacherAssignmentAPIView(APIView):
             is_an_admin = user.is_superuser or user.is_staff or user.groups.filter(name='ADMIN').exists()
 
             if is_an_admin:
-                assignments = Assignment.objects.all().select_related(
+                assignments = Assignment.objects.filter(is_deleted=False).select_related(
                     'class_stream__grade', 'subject', 'teacher__user'
                 ).order_by('-created_at')
             else:
                 teacher_profile = get_teacher_profile(user)
-                assignments = Assignment.objects.filter(teacher=teacher_profile).select_related(
+                assignments = Assignment.objects.filter(teacher=teacher_profile, is_deleted=False).select_related(
                     'class_stream__grade', 'subject', 'teacher__user'
                 ).order_by('-created_at')
 
@@ -465,14 +466,17 @@ class TeacherAssignmentDetailAPIView(APIView):
             return Response({"error": f"Update Error: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def delete(self, request, pk):
-        """
-        Deletes the assignment entirely. Models.CASCADE will safely remove all
-        linked questions, options, and student submissions automatically.
-        """
+        """Moves the assignment to Trash. Permanently purging it (after 20 days,
+        or manually) walks its full file-attachment subtree — see
+        apps.assignments.models._purge_assignment."""
         try:
             assignment = self._get_assignment_safely(request.user, pk)
-            assignment.delete()
-            return Response({"message": "Assignment deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+            from apps.core.trash import soft_delete
+            soft_delete(
+                assignment, operator=request.user, module='Assignments',
+                description=f"Deleted assignment '{assignment.title}'.",
+            )
+            return Response({"message": "Assignment moved to Trash."}, status=status.HTTP_204_NO_CONTENT)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
