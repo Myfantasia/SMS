@@ -1,9 +1,10 @@
 from rest_framework import serializers
 
-from school.models.classSubjects_models import (
+from apps.academics.models import (
     Curriculum, CurriculumPreset, Pathway, PresetCombination, Subject, SubjectCurriculumProfile,
     SubjectPool, Tier, Track,
 )
+from apps.identity.services import get_current_school_id
 
 
 class CurriculumSerializer(serializers.ModelSerializer):
@@ -33,7 +34,7 @@ class TrackSerializer(serializers.ModelSerializer):
 class TierSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tier
-        fields = ['id', 'curriculum', 'name', 'code', 'display_order']
+        fields = ['id', 'curriculum', 'name', 'code', 'display_order', 'exit_exam_code', 'exit_is_terminal']
 
 
 class SubjectCurriculumProfileSerializer(serializers.ModelSerializer):
@@ -55,10 +56,27 @@ class SubjectCurriculumProfileSerializer(serializers.ModelSerializer):
 class SubjectPoolSerializer(serializers.ModelSerializer):
     subjects = serializers.PrimaryKeyRelatedField(queryset=Subject.objects.all(), many=True, required=False)
 
+    combinations = serializers.PrimaryKeyRelatedField(queryset=PresetCombination.objects.all(), many=True, required=False)
+
     class Meta:
         model = SubjectPool
-        fields = ['id', 'preset', 'pool_type', 'min_subjects', 'max_subjects', 'subjects']
-        extra_kwargs = {'preset': {'required': False}}
+        fields = ['id', 'preset', 'pool_type', 'min_subjects', 'max_subjects', 'subjects', 'pathway', 'track', 'combinations']
+        extra_kwargs = {
+            'preset': {'required': False},
+            # Only meaningful on a PATHWAY_CORE pool -- CurriculumPresetSerializer.validate()
+            # rejects these being set on any other pool_type.
+            'pathway': {'required': False, 'allow_null': True},
+            'track': {'required': False, 'allow_null': True},
+        }
+        # 'preset' isn't in the payload -- CurriculumPresetSerializer.create()/update()
+        # supplies it -- but DRF still auto-generates a UniqueTogetherValidator from the
+        # model's (preset, pool_type) unique_together, and that validator's
+        # enforce_required_fields() demands every field in the set be present in the
+        # submitted data regardless of required=False above. Result: any preset submitted
+        # with at least one pool was rejected with "preset: This field is required."
+        # Dropped here since preset+pool_type uniqueness is still enforced at the DB level
+        # by the model's own unique_together when the parent serializer saves each pool.
+        validators = []
 
 
 class CurriculumPresetSerializer(serializers.ModelSerializer):
@@ -76,15 +94,59 @@ class CurriculumPresetSerializer(serializers.ModelSerializer):
         track = data.get('track', getattr(self.instance, 'track', None))
         if track and track.pathway_id != (pathway.id if pathway else None):
             raise serializers.ValidationError({'track': "This track doesn't belong to the selected pathway."})
+
+        # 'school' isn't a serializer field -- it's server-derived, never client-supplied
+        # (see get_current_school_id()) -- so DRF can't auto-build a UniqueTogetherValidator
+        # for the model's (school, name) unique_together the way it would for an ordinary
+        # field pair. Check it by hand instead, same gotcha SubjectPoolSerializer's
+        # (preset, pool_type) pair already works around above.
+        name = data.get('name', getattr(self.instance, 'name', None))
+        request = self.context.get('request')
+        if name and request is not None:
+            qs = CurriculumPreset.objects.filter(school_id=get_current_school_id(request), name=name)
+            if self.instance is not None:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise serializers.ValidationError({'name': "A preset with this name already exists for your school."})
+
+        # Pool-level pathway/track: only meaningful on a PATHWAY_CORE pool, one pathway/track
+        # combo per pool_type. The widened (preset, pool_type, pathway, track) unique_together
+        # can't fully cover this at the DB level -- Postgres treats NULL <> NULL, so two
+        # CORE_COMPULSORY pools (both pathway=NULL, track=NULL) wouldn't collide there -- so
+        # the duplicate check below is what actually enforces it, same reasoning as the
+        # (school, name) check just above.
+        pools_data = data.get('pools', None)
+        if pools_data is not None:
+            seen = set()
+            for pool_data in pools_data:
+                pool_type = pool_data.get('pool_type')
+                pool_pathway = pool_data.get('pathway')
+                pool_track = pool_data.get('track')
+                pool_combinations = pool_data.get('combinations') or []
+                if pool_type != 'PATHWAY_CORE' and (pool_pathway is not None or pool_track is not None or pool_combinations):
+                    raise serializers.ValidationError(
+                        {'pools': "Pathway/track/combinations can only be set on a Pathway Core pool."})
+                if pool_track and pool_pathway and pool_track.pathway_id != pool_pathway.id:
+                    raise serializers.ValidationError(
+                        {'pools': "A pool's track must belong to its pathway."})
+                key = (pool_type, pool_pathway.id if pool_pathway else None, pool_track.id if pool_track else None)
+                if key in seen:
+                    raise serializers.ValidationError(
+                        {'pools': "Two pools can't share the same type/pathway/track combination."})
+                seen.add(key)
+
         return data
 
     def create(self, validated_data):
         pools_data = validated_data.pop('pools', [])
         preset = CurriculumPreset.objects.create(**validated_data)
         for pool_data in pools_data:
+            pool_data.pop('preset', None)
             subjects = pool_data.pop('subjects', [])
+            combinations = pool_data.pop('combinations', [])
             pool = SubjectPool.objects.create(preset=preset, **pool_data)
             pool.subjects.set(subjects)
+            pool.combinations.set(combinations)
         return preset
 
     def update(self, instance, validated_data):
@@ -96,9 +158,15 @@ class CurriculumPresetSerializer(serializers.ModelSerializer):
         if pools_data is not None:
             instance.pools.all().delete()
             for pool_data in pools_data:
+                # GET serializes each pool's own 'preset' FK back to the client, and the
+                # edit form round-trips the full pool object on save -- pop it back out
+                # here or SubjectPool.objects.create() gets 'preset' twice.
+                pool_data.pop('preset', None)
                 subjects = pool_data.pop('subjects', [])
+                combinations = pool_data.pop('combinations', [])
                 pool = SubjectPool.objects.create(preset=instance, **pool_data)
                 pool.subjects.set(subjects)
+                pool.combinations.set(combinations)
         return instance
 
 
