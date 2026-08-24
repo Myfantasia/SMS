@@ -8,6 +8,7 @@ import ViewProfile from './pages/admin/ViewProfile';
 import EditProfile from './pages/admin/EditProfile';
 import AdminProfile from './pages/admin/AdminProfile';
 import RolesPermissions from './pages/admin/RolesPermissions';
+import Trash from './pages/admin/Trash';
 import RoleEditor from './pages/admin/RoleEditor';
 import CurriculumHub from './pages/admin/CurriculumHub';
 import PathwayRequestsHub from './components/curriculum/PathwayRequestsHub';
@@ -103,6 +104,7 @@ export default function App() {
 
             {/* RBAC Management */}
             <Route path="roles-permissions" element={<RolesPermissions />} />
+            <Route path="trash" element={<Trash />} />
             <Route path="roles-permissions/new" element={<RoleEditor />} />
             <Route path="roles-permissions/:id/edit" element={<RoleEditor />} />
 
