@@ -12,7 +12,9 @@ class AssignmentTrashTests(TestCase):
         # Permission rows in the DB, so assignments.edit must be seeded for the
         # DELETE test to pass RBAC even for a superuser admin.
         Permission.objects.get_or_create(code='assignments.edit', defaults={'label': 'Edit Assignments', 'module': 'assignments'})
-        self.operator = User.objects.create_user(username='teach2', password='x', first_name='Tee', last_name='Cher2')
+        admin_group, _ = Group.objects.get_or_create(name='ADMIN')
+        self.operator = User.objects.create_user(username='teach2', password='x', first_name='Tee', last_name='Cher2', is_superuser=True)
+        self.operator.groups.add(admin_group)
         self.teacher = TeacherExtra.objects.create(user=self.operator, status=True)
         curriculum = Curriculum.objects.create(name='CBC2', is_active_for_new_grades=True)
         grade = GradeLevel.objects.create(curriculum=curriculum, name='Grade 8', numeric_order=8)
