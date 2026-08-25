@@ -122,7 +122,9 @@ export default function PromotionPanel() {
   useEffect(() => {
     api.get('/api/academic-hub/').then((res) => {
       const classes = res.data?.data?.classes ?? [];
-      setStreams(classes.map((c: any) => ({ id: c.id, label: `${c.grade_name} · Stream #${c.id}` })));
+      setStreams(classes.flatMap((c: any) =>
+        (c.streams ?? []).map((s: any) => ({ id: s.id, label: `${c.grade_name} · ${s.name}` }))
+      ));
     });
     api.get('/api/approved-users/students/').then((res) => {
       setStudents((res.data?.data ?? []).map((s: any) => ({ id: s.id, name: s.name })));
@@ -189,6 +191,7 @@ export default function PromotionPanel() {
       });
       const result = await pollJob<PromotionResult>(response.data.job_id);
       setPromoteResult(result);
+      setReadiness(null);
     } catch (err: any) {
       setPromoteError(err.response?.data?.error || err.message || 'Failed to run bulk promotion.');
     } finally {
@@ -257,10 +260,22 @@ export default function PromotionPanel() {
         if (!examStreamId) return;
         const roster = await assignmentService.getStudentsForStream(examStreamId);
         const studentIds = roster.map((s) => s.id);
-        await Promise.all(studentIds.map((id) =>
+        if (studentIds.length === 0) {
+          setExamMsg('That stream has no active students.');
+          setExamFailed(true);
+          return;
+        }
+        const results = await Promise.allSettled(studentIds.map((id) =>
           api.post(`/api/promotion/national-exam/${id}/`, { exam_code: examCode, academic_year_id: examYearId, destination })
         ));
-        setExamMsg(`Recorded ${examCode} for ${studentIds.length} student(s).`);
+        const succeeded = results.filter((r) => r.status === 'fulfilled').length;
+        const failed = results.length - succeeded;
+        if (failed === 0) {
+          setExamMsg(`Recorded ${examCode} for ${succeeded} student(s).`);
+        } else {
+          setExamMsg(`Recorded ${examCode} for ${succeeded} of ${results.length} student(s) — ${failed} failed.`);
+          setExamFailed(true);
+        }
       } else {
         if (!examStudent) return;
         await api.post(`/api/promotion/national-exam/${examStudent.id}/`, { exam_code: examCode, academic_year_id: examYearId, destination });
@@ -330,10 +345,10 @@ export default function PromotionPanel() {
         <CardContent>
           <Stack spacing={2}>
             <Stack direction="row" spacing={2}>
-              <TextField select label="Academic Year" value={bulkYearId} onChange={(e) => { setBulkYearId(e.target.value); setReadiness(null); }} size="small" sx={{ minWidth: 160 }}>
+              <TextField select label="Academic Year" value={bulkYearId} onChange={(e) => { setBulkYearId(e.target.value); setReadiness(null); setPromoteResult(null); }} size="small" sx={{ minWidth: 160 }}>
                 {academicYears.map((y) => <MenuItem key={y.id} value={y.id}>{y.year}</MenuItem>)}
               </TextField>
-              <TextField select label="Grade (optional — whole school if blank)" value={bulkGradeId} onChange={(e) => { setBulkGradeId(e.target.value); setReadiness(null); }} size="small" sx={{ minWidth: 220 }}>
+              <TextField select label="Grade (optional — whole school if blank)" value={bulkGradeId} onChange={(e) => { setBulkGradeId(e.target.value); setReadiness(null); setPromoteResult(null); }} size="small" sx={{ minWidth: 220 }}>
                 <MenuItem value="">Whole school</MenuItem>
                 {grades.map((g) => <MenuItem key={g.id} value={g.id}>{g.grade_name}</MenuItem>)}
               </TextField>

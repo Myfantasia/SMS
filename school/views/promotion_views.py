@@ -91,39 +91,54 @@ def _move_student_to_grade(student, next_grade, academic_year):
         _carry_forward_pathway_selection(student, academic_year)
 
 
-def _readiness_for_student(student, academic_year):
+def _readiness_for_student(student, academic_year, results_finalized=None):
     """
     Non-mutating: computes whether `student` is eligible to promote for `academic_year` right
     now, and why/why not. The single source of truth _promote_student, the readiness-check
     endpoint, and the single-student promote endpoint all share — so what's displayed as a
     requirement can never drift from what's actually enforced.
+
+    `results_finalized`: optional pre-computed results_finalized_for_year(academic_year), for
+    callers (e.g. the bulk readiness endpoint) iterating many students against the same
+    academic_year who want to avoid recomputing this per-student. When None (every other
+    caller), it's computed here on demand, only for the 'plain' branch that needs it.
+
+    The returned dict also carries a private '_transition' key — (transition_type, exam_code,
+    next_grade) as resolved by _determine_transition — set on every return path, so
+    _promote_student can reuse it instead of re-deriving the transition itself. Callers that
+    serialize this dict to a response (e.g. PromotionReadinessAPIView) must not include it.
     """
     grade = student.cl.grade if student.cl_id else None
     if grade is None:
         return {
             'student_id': student.id, 'ready': False, 'transition_type': None,
             'requirement': None, 'reason': 'No current class assigned.', 'next_grade_name': None,
+            '_transition': (None, None, None),
         }
 
     transition_type, exam_code, next_grade = _determine_transition(grade)
+    transition = (transition_type, exam_code, next_grade)
 
     if transition_type == 'plain':
         requirement = 'Results finalized for the academic year'
-        if not results_finalized_for_year(academic_year):
+        if results_finalized is None:
+            results_finalized = results_finalized_for_year(academic_year)
+        if not results_finalized:
             return {
                 'student_id': student.id, 'ready': False, 'transition_type': 'plain',
                 'requirement': requirement, 'reason': 'Results not yet finalized for this academic year.',
-                'next_grade_name': None,
+                'next_grade_name': None, '_transition': transition,
             }
         if next_grade is None:
             return {
                 'student_id': student.id, 'ready': False, 'transition_type': 'plain',
                 'requirement': requirement, 'reason': 'No next grade configured after this one.',
-                'next_grade_name': None,
+                'next_grade_name': None, '_transition': transition,
             }
         return {
             'student_id': student.id, 'ready': True, 'transition_type': 'plain',
             'requirement': requirement, 'reason': None, 'next_grade_name': next_grade.name,
+            '_transition': transition,
         }
 
     requirement = f'{exam_code} recorded'
@@ -132,6 +147,7 @@ def _readiness_for_student(student, academic_year):
         return {
             'student_id': student.id, 'ready': False, 'transition_type': transition_type,
             'requirement': requirement, 'reason': f'{exam_code} not yet recorded.', 'next_grade_name': None,
+            '_transition': transition,
         }
 
     if transition_type == 'exam_gated':
@@ -139,17 +155,19 @@ def _readiness_for_student(student, academic_year):
             return {
                 'student_id': student.id, 'ready': False, 'transition_type': 'exam_gated',
                 'requirement': requirement, 'reason': 'No next grade configured after this one.',
-                'next_grade_name': None,
+                'next_grade_name': None, '_transition': transition,
             }
         return {
             'student_id': student.id, 'ready': True, 'transition_type': 'exam_gated',
             'requirement': requirement, 'reason': None, 'next_grade_name': next_grade.name,
+            '_transition': transition,
         }
 
     # transition_type == 'exit'
     return {
         'student_id': student.id, 'ready': True, 'transition_type': 'exit',
         'requirement': requirement, 'reason': None, 'next_grade_name': None,
+        '_transition': transition,
     }
 
 
@@ -163,8 +181,7 @@ def _promote_student(student, academic_year):
     if not readiness['ready']:
         return {'student_id': student.id, 'outcome': 'held', 'detail': readiness['reason']}
 
-    grade = student.cl.grade
-    transition_type, exam_code, next_grade = _determine_transition(grade)
+    transition_type, exam_code, next_grade = readiness['_transition']
 
     if transition_type in ('plain', 'exam_gated'):
         _move_student_to_grade(student, next_grade, academic_year)
@@ -269,7 +286,9 @@ class PromoteStudentsAPIView(APIView):
         if not is_admin:
             return Response({"error": "Only Administrators can run a bulk promotion."}, status=status.HTTP_403_FORBIDDEN)
 
-        students_qs = StudentExtra.objects.filter(status=True)
+        students_qs = StudentExtra.objects.filter(status=True).exclude(
+            enrollment_state__in=['Graduated', 'Expelled', 'Transferred']
+        )
         if stream_id:
             students_qs = students_qs.filter(cl_id=stream_id)
         elif grade_id:
@@ -314,7 +333,9 @@ class PromotionReadinessAPIView(APIView):
         except AcademicYear.DoesNotExist:
             return Response({"error": "Academic year not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        students_qs = StudentExtra.objects.filter(status=True).select_related('user', 'cl__grade')
+        students_qs = StudentExtra.objects.filter(status=True).exclude(
+            enrollment_state__in=['Graduated', 'Expelled', 'Transferred']
+        ).select_related('user', 'cl__grade__tier')
         student_id = request.query_params.get('student_id')
         stream_id = request.query_params.get('stream_id')
         grade_id = request.query_params.get('grade_id')
@@ -325,11 +346,13 @@ class PromotionReadinessAPIView(APIView):
         elif grade_id:
             students_qs = students_qs.filter(cl__grade_id=grade_id)
 
+        results_finalized = results_finalized_for_year(academic_year)
+
         rows = []
         by_reason = {}
         ready_count = 0
         for student in students_qs:
-            readiness = _readiness_for_student(student, academic_year)
+            readiness = _readiness_for_student(student, academic_year, results_finalized=results_finalized)
             rows.append({
                 'student_id': student.id,
                 'name': student.get_name,
