@@ -233,6 +233,17 @@ class PromotionReadinessAPIViewTests(ExamTestDataMixin, TestCase):
         response = PromotionReadinessAPIView.as_view()(request)
         self.assertEqual(response.status_code, 400)
 
+    def test_graduated_student_is_excluded_from_scope(self):
+        graduated_user = User.objects.create_user(username='readiness_graduated_student', password='x')
+        graduated_student = StudentExtra.objects.create(
+            user=graduated_user, roll='RG01', cl=self.stream, status=True, enrollment_state='Graduated',
+        )
+        response = self._get(f'academic_year_id={self.ready_year.id}&grade_id={self.g1.id}')
+        data = response.data
+        student_ids = {row['student_id'] for row in data['students']}
+        self.assertNotIn(graduated_student.id, student_ids)
+        self.assertEqual(data['summary']['ready'] + data['summary']['blocked'], 2)
+
 
 from school.views.promotion_views import PromoteSingleStudentAPIView
 

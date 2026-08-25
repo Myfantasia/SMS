@@ -977,7 +977,7 @@ function TiersTab({ tiers, curricula, canEdit, onChanged, onOpenTier }: {
               <select
                 aria-label="Exit exam code"
                 value={editing.exit_exam_code}
-                onChange={(e) => setEditing({ ...editing, exit_exam_code: e.target.value })}
+                onChange={(e) => setEditing({ ...editing, exit_exam_code: e.target.value, exit_is_terminal: e.target.value ? editing.exit_is_terminal : false })}
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-500 dark:border-slate-700 dark:focus:border-indigo-400 dark:bg-slate-800 dark:text-slate-100"
               >
                 <option value="">None — plain internal promotion</option>

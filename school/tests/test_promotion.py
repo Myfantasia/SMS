@@ -603,6 +603,18 @@ class PromoteStudentsAPIViewTests(PromotionAdminEndpointTestMixin, TestCase):
         )
         self.assertEqual(response.status_code, 403)
 
+    def test_scope_with_only_a_graduated_student_returns_404(self):
+        """A Graduated/Expelled/Transferred student must never be re-processed by a bulk
+        promotion run — excluding them from an otherwise-empty scope should behave exactly
+        like an empty scope (404), not silently queue a job with zero real work."""
+        self.exam_student.enrollment_state = 'Graduated'
+        self.exam_student.save(update_fields=['enrollment_state'])
+        response = self._post(
+            PromoteStudentsAPIView, '/api/promotion/promote-students/',
+            self.admin_user, {'academic_year_id': self.year.id, 'grade_id': self.grade9.id},
+        )
+        self.assertEqual(response.status_code, 404)
+
 
 from school.views.student_dashboard_view import StudentDashboardOverviewAPI
 
