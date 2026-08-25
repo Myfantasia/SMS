@@ -295,6 +295,7 @@ urlpatterns = [
     path('api/promotion/finalize-term/<int:term_id>/', promotion_views.FinalizeTermAPIView.as_view(), name='finalize_term'),
     path('api/promotion/national-exam/<int:student_id>/', promotion_views.RecordNationalExamAPIView.as_view(), name='record_national_exam'),
     path('api/promotion/promote-students/', promotion_views.PromoteStudentsAPIView.as_view(), name='promote_students'),
+    path('api/promotion/promote-student/<int:student_id>/', promotion_views.PromoteSingleStudentAPIView.as_view(), name='promote_single_student'),
     path('api/promotion/readiness/', promotion_views.PromotionReadinessAPIView.as_view(), name='promotion_readiness'),
     path('', include('apps.analytics.urls')),
 
