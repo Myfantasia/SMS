@@ -4,6 +4,7 @@ exit (cross-institution or terminal, KJSEA/KCSE) transitions. See
 docs/superpowers/specs/2026-08-12-sss-core-math-and-promotion-design.md.
 """
 from django.utils import timezone
+from django.db import transaction
 from rest_framework.authentication import SessionAuthentication
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
@@ -347,3 +348,38 @@ class PromotionReadinessAPIView(APIView):
             'summary': {'ready': ready_count, 'blocked': len(rows) - ready_count, 'by_reason': by_reason},
             'students': rows,
         })
+
+
+class PromoteSingleStudentAPIView(APIView):
+    """Synchronous single-student promote — fast enough to answer inline, unlike the bulk
+    path which can span a whole school and goes through the background job queue."""
+    permission_classes = [IsAuthenticated, HasModulePermission]
+    authentication_classes = [SessionAuthentication]
+    rbac_edit_permission = 'results.edit'
+
+    def post(self, request, student_id):
+        user = request.user
+        is_admin = user.is_superuser or user.groups.filter(name='ADMIN').exists()
+        if not is_admin:
+            return Response({"error": "Only Administrators can promote a student."}, status=status.HTTP_403_FORBIDDEN)
+
+        academic_year_id = request.data.get('academic_year_id')
+        if not academic_year_id:
+            return Response({"error": "academic_year_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            academic_year = AcademicYear.objects.get(id=academic_year_id)
+        except AcademicYear.DoesNotExist:
+            return Response({"error": "Academic year not found."}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            student = StudentExtra.objects.select_related('cl__grade__tier').get(id=student_id)
+        except StudentExtra.DoesNotExist:
+            return Response({"error": "Student not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        with transaction.atomic():
+            outcome = _promote_student(student, academic_year)
+            if outcome['outcome'] != 'held':
+                write_audit_log(
+                    operator_id=user.id, action_type='PROMOTE', module='SinglePromoteStudent',
+                    description=f"{outcome['outcome'].capitalize()} {student.get_name} for {academic_year.year}: {outcome['detail']}",
+                )
+        return Response(outcome, status=status.HTTP_200_OK)

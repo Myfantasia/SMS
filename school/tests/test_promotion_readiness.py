@@ -232,3 +232,64 @@ class PromotionReadinessAPIViewTests(ExamTestDataMixin, TestCase):
         request.user = self.admin_user
         response = PromotionReadinessAPIView.as_view()(request)
         self.assertEqual(response.status_code, 400)
+
+
+from school.views.promotion_views import PromoteSingleStudentAPIView
+
+
+class PromoteSingleStudentAPIViewTests(ExamTestDataMixin, TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        Permission.objects.get_or_create(code='results.edit', defaults={'label': 'results.edit', 'module': 'results'})
+        role = Role.objects.create(name='Single Promote Manager')
+        role.permissions.set(Permission.objects.filter(code='results.edit'))
+        UserRole.objects.create(user=cls.admin_user, role=role)
+        UserRole.objects.create(user=cls.teacher_user, role=role)
+
+        cls.curriculum = Curriculum.objects.create(code='PSSAV1', name='Single Promote Curriculum')
+        cls.tier = Tier.objects.create(curriculum=cls.curriculum, name='Lower Primary', code='LPPSSAV1')
+        cls.g1 = GradeLevel.objects.create(name='Grade 1PSSAV', numeric_order=1, curriculum=cls.curriculum, tier=cls.tier)
+        GradeLevel.objects.create(name='Grade 2PSSAV', numeric_order=2, curriculum=cls.curriculum, tier=cls.tier)
+        cls.stream = ClassStream.objects.create(name='Central', grade=cls.g1)
+
+        cls.year = AcademicYear.objects.create(year='2097')
+        ExamTerm.objects.create(
+            name='Term 1', academic_year=cls.year, start_date='2097-01-01', end_date='2097-04-01',
+            results_finalized=True,
+        )
+        student_user = User.objects.create_user(username='single_promote_student', password='x')
+        cls.student = StudentExtra.objects.create(user=student_user, roll='SP01', cl=cls.stream, status=True)
+
+    def setUp(self):
+        cache.clear()
+        self.factory = RequestFactory()
+
+    def _post(self, user, student_id, payload):
+        request = self.factory.post(
+            f'/api/promotion/promote-student/{student_id}/',
+            data=json.dumps(payload), content_type='application/json',
+        )
+        request.user = user
+        request._dont_enforce_csrf_checks = True
+        return PromoteSingleStudentAPIView.as_view()(request, student_id=student_id)
+
+    def test_admin_can_promote_a_ready_student(self):
+        response = self._post(self.admin_user, self.student.id, {'academic_year_id': self.year.id})
+        self.assertEqual(response.status_code, 200)
+        data = response.data
+        self.assertEqual(data['outcome'], 'promoted')
+        self.student.refresh_from_db()
+        self.assertEqual(self.student.cl.grade.name, 'Grade 2PSSAV')
+
+    def test_non_admin_cannot_promote(self):
+        response = self._post(self.teacher_user, self.student.id, {'academic_year_id': self.year.id})
+        self.assertEqual(response.status_code, 403)
+
+    def test_missing_academic_year_id_is_rejected(self):
+        response = self._post(self.admin_user, self.student.id, {})
+        self.assertEqual(response.status_code, 400)
+
+    def test_unknown_student_returns_404(self):
+        response = self._post(self.admin_user, 999999, {'academic_year_id': self.year.id})
+        self.assertEqual(response.status_code, 404)
