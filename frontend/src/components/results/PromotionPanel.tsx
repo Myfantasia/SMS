@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react';
 import {
   Box, Card, CardContent, CardHeader, Button, TextField, MenuItem, Alert,
   CircularProgress, Stack, Typography, Table, TableHead, TableBody, TableRow, TableCell,
-  Chip, Divider,
+  Chip, Divider, Autocomplete, Switch, FormControlLabel,
 } from '@mui/material';
 import { GraduationCap, CheckCircle2 } from 'lucide-react';
 import api from '../../libs/axiosInstance';
 import { pollJob } from '../../libs/pollJob';
+import { assignmentService } from '../../libs/assignmentService';
 
 interface AcademicYearOption {
   id: number;
@@ -50,6 +51,16 @@ interface PromotionOutcome {
 interface PromotionResult {
   message: string;
   outcomes: PromotionOutcome[];
+}
+
+interface StudentOption {
+  id: number;
+  name: string;
+}
+
+interface StreamOption {
+  id: number;
+  label: string;
 }
 
 function ReadinessTable({ rows, nameById }: { rows: ReadinessRow[] | PromotionOutcome[]; nameById?: Record<number, string> }) {
@@ -103,6 +114,19 @@ export default function PromotionPanel() {
     api.get('/api/academic-years/').then((res) => setAcademicYears(res.data?.data ?? []));
     api.get('/api/academic-hub/').then((res) => setGrades(res.data?.data?.classes ?? []));
     api.get('/api/core/curriculum/tiers/').then((res) => setTiers(res.data ?? []));
+  }, []);
+
+  const [students, setStudents] = useState<StudentOption[]>([]);
+  const [streams, setStreams] = useState<StreamOption[]>([]);
+
+  useEffect(() => {
+    api.get('/api/academic-hub/').then((res) => {
+      const classes = res.data?.data?.classes ?? [];
+      setStreams(classes.map((c: any) => ({ id: c.id, label: `${c.grade_name} · Stream #${c.id}` })));
+    });
+    api.get('/api/approved-users/students/').then((res) => {
+      setStudents((res.data?.data ?? []).map((s: any) => ({ id: s.id, name: s.name })));
+    }).catch(() => setStudents([]));
   }, []);
 
   const [termId, setTermId] = useState('');
@@ -173,6 +197,82 @@ export default function PromotionPanel() {
   };
 
   const nameById = Object.fromEntries((readiness?.students ?? []).map((row) => [row.student_id, row.name]));
+
+  const [singleStudent, setSingleStudent] = useState<StudentOption | null>(null);
+  const [singleYearId, setSingleYearId] = useState('');
+  const [singleReadiness, setSingleReadiness] = useState<ReadinessRow | null>(null);
+  const [singleChecking, setSingleChecking] = useState(false);
+  const [singlePromoting, setSinglePromoting] = useState(false);
+  const [singleResult, setSingleResult] = useState<PromotionOutcome | null>(null);
+  const [singleError, setSingleError] = useState<string | null>(null);
+
+  const handleCheckSingle = async () => {
+    if (!singleStudent || !singleYearId) return;
+    setSingleChecking(true);
+    setSingleError(null);
+    setSingleResult(null);
+    try {
+      const params = new URLSearchParams({ academic_year_id: singleYearId, student_id: String(singleStudent.id) });
+      const res = await api.get(`/api/promotion/readiness/?${params.toString()}`);
+      setSingleReadiness((res.data as ReadinessResponse).students[0] ?? null);
+    } catch (err: any) {
+      setSingleError(err.response?.data?.error || 'Failed to check readiness.');
+    } finally {
+      setSingleChecking(false);
+    }
+  };
+
+  const handlePromoteSingle = async () => {
+    if (!singleStudent || !singleYearId) return;
+    setSinglePromoting(true);
+    setSingleError(null);
+    try {
+      const res = await api.post(`/api/promotion/promote-student/${singleStudent.id}/`, { academic_year_id: singleYearId });
+      setSingleResult(res.data);
+      setSingleReadiness(null);
+    } catch (err: any) {
+      setSingleError(err.response?.data?.error || 'Failed to promote this student.');
+    } finally {
+      setSinglePromoting(false);
+    }
+  };
+
+  const [bulkExamMode, setBulkExamMode] = useState(false);
+  const [examStudent, setExamStudent] = useState<StudentOption | null>(null);
+  const [examStreamId, setExamStreamId] = useState('');
+  const [examCode, setExamCode] = useState('KJSEA');
+  const [examYearId, setExamYearId] = useState('');
+  const [destination, setDestination] = useState('');
+  const [recordingExam, setRecordingExam] = useState(false);
+  const [examMsg, setExamMsg] = useState<string | null>(null);
+  const [examFailed, setExamFailed] = useState(false);
+
+  const handleRecordExam = async () => {
+    if (!examYearId) return;
+    setRecordingExam(true);
+    setExamMsg(null);
+    setExamFailed(false);
+    try {
+      if (bulkExamMode) {
+        if (!examStreamId) return;
+        const roster = await assignmentService.getStudentsForStream(examStreamId);
+        const studentIds = roster.map((s) => s.id);
+        await Promise.all(studentIds.map((id) =>
+          api.post(`/api/promotion/national-exam/${id}/`, { exam_code: examCode, academic_year_id: examYearId, destination })
+        ));
+        setExamMsg(`Recorded ${examCode} for ${studentIds.length} student(s).`);
+      } else {
+        if (!examStudent) return;
+        await api.post(`/api/promotion/national-exam/${examStudent.id}/`, { exam_code: examCode, academic_year_id: examYearId, destination });
+        setExamMsg('Exam record saved.');
+      }
+    } catch (err: any) {
+      setExamMsg(err.response?.data?.error || 'Failed to save exam record(s).');
+      setExamFailed(true);
+    } finally {
+      setRecordingExam(false);
+    }
+  };
 
   return (
     <Stack spacing={3}>
@@ -275,7 +375,99 @@ export default function PromotionPanel() {
         </CardContent>
       </Card>
 
-      {/* TASK 8 SECTIONS GO HERE */}
+      <Card variant="outlined">
+        <CardHeader title="Check / Promote a Single Student" subheader="For one-off corrections outside a bulk run." />
+        <CardContent>
+          <Stack spacing={2}>
+            <Stack direction="row" spacing={2}>
+              <Autocomplete
+                options={students}
+                getOptionLabel={(o) => o.name}
+                isOptionEqualToValue={(o, v) => o.id === v.id}
+                value={singleStudent}
+                onChange={(_e, value) => { setSingleStudent(value); setSingleReadiness(null); setSingleResult(null); }}
+                sx={{ minWidth: 260 }}
+                renderInput={(params) => <TextField {...params} label="Student" size="small" />}
+              />
+              <TextField select label="Academic Year" value={singleYearId} onChange={(e) => { setSingleYearId(e.target.value); setSingleReadiness(null); }} size="small" sx={{ minWidth: 160 }}>
+                {academicYears.map((y) => <MenuItem key={y.id} value={y.id}>{y.year}</MenuItem>)}
+              </TextField>
+              <Button variant="outlined" disabled={singleChecking || !singleStudent || !singleYearId} onClick={handleCheckSingle}>
+                {singleChecking ? <CircularProgress size={20} /> : 'Check'}
+              </Button>
+            </Stack>
+            {singleError && <Alert severity="error">{singleError}</Alert>}
+            {singleReadiness && (
+              <>
+                <Alert severity={singleReadiness.ready ? 'success' : 'warning'}>
+                  {singleReadiness.requirement ?? 'No requirement'} — {singleReadiness.ready ? 'Ready to promote.' : singleReadiness.reason}
+                </Alert>
+                <Box>
+                  <Button variant="contained" disabled={!singleReadiness.ready || singlePromoting} onClick={handlePromoteSingle}>
+                    {singlePromoting ? <CircularProgress size={20} /> : 'Promote This Student'}
+                  </Button>
+                </Box>
+              </>
+            )}
+            {singleResult && (
+              <Alert severity={singleResult.outcome === 'held' ? 'warning' : 'success'}>
+                {singleResult.outcome}: {singleResult.detail}
+              </Alert>
+            )}
+          </Stack>
+        </CardContent>
+      </Card>
+
+      <Card variant="outlined">
+        <CardHeader title="Record a National Exam" subheader="KPSEA (Grade 6), KJSEA (Grade 9), or KCSE (Form 4 / Grade 12)." />
+        <CardContent>
+          <Stack spacing={2}>
+            <FormControlLabel
+              control={<Switch checked={bulkExamMode} onChange={(e) => setBulkExamMode(e.target.checked)} />}
+              label="Record for a whole stream at once"
+            />
+            <Stack direction="row" spacing={2}>
+              {bulkExamMode ? (
+                <TextField select label="Stream" value={examStreamId} onChange={(e) => setExamStreamId(e.target.value)} size="small" sx={{ minWidth: 220 }}>
+                  {streams.map((s) => <MenuItem key={s.id} value={s.id}>{s.label}</MenuItem>)}
+                </TextField>
+              ) : (
+                <Autocomplete
+                  options={students}
+                  getOptionLabel={(o) => o.name}
+                  isOptionEqualToValue={(o, v) => o.id === v.id}
+                  value={examStudent}
+                  onChange={(_e, value) => setExamStudent(value)}
+                  sx={{ minWidth: 260 }}
+                  renderInput={(params) => <TextField {...params} label="Student" size="small" />}
+                />
+              )}
+              <TextField select label="Academic Year" value={examYearId} onChange={(e) => setExamYearId(e.target.value)} size="small" sx={{ minWidth: 160 }}>
+                {academicYears.map((y) => <MenuItem key={y.id} value={y.id}>{y.year}</MenuItem>)}
+              </TextField>
+              <TextField select label="Exam" value={examCode} onChange={(e) => setExamCode(e.target.value)} size="small" sx={{ minWidth: 120 }}>
+                <MenuItem value="KPSEA">KPSEA</MenuItem>
+                <MenuItem value="KJSEA">KJSEA</MenuItem>
+                <MenuItem value="KCSE">KCSE</MenuItem>
+              </TextField>
+            </Stack>
+            <TextField
+              label="Destination (placement school / university — optional for KPSEA)"
+              value={destination} onChange={(e) => setDestination(e.target.value)} size="small" fullWidth
+            />
+            <Box>
+              <Button
+                variant="contained"
+                disabled={recordingExam || !examYearId || (bulkExamMode ? !examStreamId : !examStudent)}
+                onClick={handleRecordExam}
+              >
+                {recordingExam ? <CircularProgress size={20} /> : bulkExamMode ? 'Save for Whole Stream' : 'Save Exam Record'}
+              </Button>
+            </Box>
+          </Stack>
+          {examMsg && <Alert sx={{ mt: 2 }} severity={examFailed ? 'error' : 'success'}>{examMsg}</Alert>}
+        </CardContent>
+      </Card>
     </Stack>
   );
 }
