@@ -153,3 +153,82 @@ class ReadinessForStudentTests(TestCase):
         self.assertEqual(result['transition_type'], 'exit')
         self.assertIsNone(result['reason'])
         self.assertIsNone(result['next_grade_name'])
+
+
+import json
+
+from django.test import RequestFactory
+from django.core.cache import cache
+
+from apps.identity.models import Permission, Role, UserRole
+from school.views.promotion_views import PromotionReadinessAPIView
+from school.tests.base import ExamTestDataMixin
+
+
+class PromotionReadinessAPIViewTests(ExamTestDataMixin, TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        Permission.objects.get_or_create(code='results.view', defaults={'label': 'results.view', 'module': 'results'})
+        role = Role.objects.create(name='Readiness Viewer')
+        role.permissions.set(Permission.objects.filter(code='results.view'))
+        UserRole.objects.create(user=cls.admin_user, role=role)
+
+        cls.curriculum = Curriculum.objects.create(code='PRAV1', name='Readiness Endpoint Curriculum')
+        cls.tier = Tier.objects.create(curriculum=cls.curriculum, name='Lower Primary', code='LPPRAV1')
+        cls.g1 = GradeLevel.objects.create(name='Grade 1PRAV', numeric_order=1, curriculum=cls.curriculum, tier=cls.tier)
+        GradeLevel.objects.create(name='Grade 2PRAV', numeric_order=2, curriculum=cls.curriculum, tier=cls.tier)
+        cls.stream = ClassStream.objects.create(name='Central', grade=cls.g1)
+
+        cls.ready_year = AcademicYear.objects.create(year='2095')
+        ExamTerm.objects.create(
+            name='Term 1', academic_year=cls.ready_year, start_date='2095-01-01', end_date='2095-04-01',
+            results_finalized=True,
+        )
+        ready_user = User.objects.create_user(username='readiness_ready_student', password='x')
+        cls.ready_student = StudentExtra.objects.create(user=ready_user, roll='RR01', cl=cls.stream, status=True)
+
+        blocked_user = User.objects.create_user(username='readiness_blocked_student', password='x')
+        cls.blocked_student = StudentExtra.objects.create(user=blocked_user, roll='RB01', cl=cls.stream, status=True)
+
+    def setUp(self):
+        cache.clear()
+        self.factory = RequestFactory()
+
+    def _get(self, query):
+        request = self.factory.get(f'/api/promotion/readiness/?{query}')
+        request.user = self.admin_user
+        return PromotionReadinessAPIView.as_view()(request)
+
+    def test_returns_ready_and_blocked_summary_for_grade_scope(self):
+        response = self._get(f'academic_year_id={self.ready_year.id}&grade_id={self.g1.id}')
+        self.assertEqual(response.status_code, 200)
+        data = response.data
+
+        self.assertEqual(data['summary']['ready'], 2)
+        self.assertEqual(data['summary']['blocked'], 0)
+
+        student_ids = {row['student_id'] for row in data['students']}
+        self.assertEqual(student_ids, {self.ready_student.id, self.blocked_student.id})
+        self.assertTrue(all(row['ready'] for row in data['students']))
+
+    def test_blocked_student_shows_reason_when_results_not_finalized(self):
+        other_year = AcademicYear.objects.create(year='2096')
+        response = self._get(f'academic_year_id={other_year.id}&grade_id={self.g1.id}')
+        data = response.data
+
+        self.assertEqual(data['summary']['blocked'], 2)
+        self.assertIn('Results not yet finalized for this academic year.', data['summary']['by_reason'])
+
+    def test_single_student_scope(self):
+        response = self._get(f'academic_year_id={self.ready_year.id}&student_id={self.ready_student.id}')
+        data = response.data
+
+        self.assertEqual(len(data['students']), 1)
+        self.assertEqual(data['students'][0]['student_id'], self.ready_student.id)
+
+    def test_missing_academic_year_id_is_rejected(self):
+        request = self.factory.get('/api/promotion/readiness/')
+        request.user = self.admin_user
+        response = PromotionReadinessAPIView.as_view()(request)
+        self.assertEqual(response.status_code, 400)
