@@ -37,6 +37,8 @@ interface Tier {
   name: string;
   code: string;
   display_order: number;
+  exit_exam_code: string;
+  exit_is_terminal: boolean;
 }
 
 interface GradeSummary {
@@ -848,8 +850,13 @@ function TrackCombinationsPanel({ track, combos, subjects, canEdit, onChanged }:
 // TIERS TAB
 // ==========================================
 
-type TierForm = { id?: number; curriculum: number | ''; name: string; code: string; display_order: number };
-const emptyTierForm = (): TierForm => ({ curriculum: '', name: '', code: '', display_order: 0 });
+type TierForm = {
+  id?: number; curriculum: number | ''; name: string; code: string; display_order: number;
+  exit_exam_code: string; exit_is_terminal: boolean;
+};
+const emptyTierForm = (): TierForm => ({
+  curriculum: '', name: '', code: '', display_order: 0, exit_exam_code: '', exit_is_terminal: false,
+});
 
 function TiersTab({ tiers, curricula, canEdit, onChanged, onOpenTier }: {
   tiers: Tier[]; curricula: Curriculum[]; canEdit: boolean; onChanged: () => void; onOpenTier: (tier: Tier) => void;
@@ -867,6 +874,7 @@ function TiersTab({ tiers, curricula, canEdit, onChanged, onOpenTier }: {
     setSaving(true);
     const payload = {
       curriculum: editing.curriculum, name: editing.name.trim(), code: editing.code.trim(), display_order: editing.display_order,
+      exit_exam_code: editing.exit_exam_code, exit_is_terminal: editing.exit_is_terminal,
     };
     try {
       if (editing.id) {
@@ -920,7 +928,10 @@ function TiersTab({ tiers, curricula, canEdit, onChanged, onOpenTier }: {
               {canEdit && (
                 <>
                   <button
-                    onClick={(e) => { e.stopPropagation(); setEditing({ id: t.id, curriculum: t.curriculum, name: t.name, code: t.code, display_order: t.display_order }); }}
+                    onClick={(e) => { e.stopPropagation(); setEditing({
+                      id: t.id, curriculum: t.curriculum, name: t.name, code: t.code, display_order: t.display_order,
+                      exit_exam_code: t.exit_exam_code, exit_is_terminal: t.exit_is_terminal,
+                    }); }}
                     className="text-slate-400 hover:text-indigo-600 transition"
                     title="Edit tier"
                   >
@@ -960,6 +971,32 @@ function TiersTab({ tiers, curricula, canEdit, onChanged, onOpenTier }: {
             <span className="block text-slate-500 font-bold mb-1">Display order</span>
             <input type="number" value={editing.display_order} onChange={(e) => setEditing({ ...editing, display_order: Number(e.target.value) })} className="w-full sm:w-32 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-500" />
           </label>
+          <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 space-y-2">
+            <label className="text-xs block">
+              <span className="block text-slate-500 font-bold mb-1 dark:text-slate-400">Exit requirement (national exam)</span>
+              <select
+                aria-label="Exit exam code"
+                value={editing.exit_exam_code}
+                onChange={(e) => setEditing({ ...editing, exit_exam_code: e.target.value })}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-500 dark:border-slate-700 dark:focus:border-indigo-400 dark:bg-slate-800 dark:text-slate-100"
+              >
+                <option value="">None — plain internal promotion</option>
+                <option value="KPSEA">KPSEA</option>
+                <option value="KJSEA">KJSEA</option>
+                <option value="KCSE">KCSE</option>
+              </select>
+            </label>
+            {editing.exit_exam_code && (
+              <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={editing.exit_is_terminal}
+                  onChange={(e) => setEditing({ ...editing, exit_is_terminal: e.target.checked })}
+                />
+                Student leaves this school on exit (cross-institution or terminal — e.g. KJSEA/KCSE). Leave unchecked for a same-institution exam like KPSEA.
+              </label>
+            )}
+          </div>
           <div className="flex gap-3 justify-end">
             <button onClick={() => setEditing(null)} className="px-4 py-2 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-100">Cancel</button>
             <button onClick={handleSave} disabled={saving} className="px-4 py-2 rounded-lg text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50">
