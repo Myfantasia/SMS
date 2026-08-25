@@ -294,3 +294,56 @@ class PromoteStudentsAPIView(APIView):
             return error_response
 
         return Response({"status": "queued", "job_id": str(job.id)}, status=status.HTTP_202_ACCEPTED)
+
+
+class PromotionReadinessAPIView(APIView):
+    """Read-only preview of promotion eligibility for a scope — never mutates anything. The
+    same _readiness_for_student call that _promote_student uses to actually promote, so this
+    can never show a different picture than what running promotion will do."""
+    permission_classes = [IsAuthenticated, HasModulePermission]
+    authentication_classes = [SessionAuthentication]
+    rbac_view_permission = 'results.view'
+
+    def get(self, request):
+        academic_year_id = request.query_params.get('academic_year_id')
+        if not academic_year_id:
+            return Response({"error": "academic_year_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            academic_year = AcademicYear.objects.get(id=academic_year_id)
+        except AcademicYear.DoesNotExist:
+            return Response({"error": "Academic year not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        students_qs = StudentExtra.objects.filter(status=True).select_related('user', 'cl__grade')
+        student_id = request.query_params.get('student_id')
+        stream_id = request.query_params.get('stream_id')
+        grade_id = request.query_params.get('grade_id')
+        if student_id:
+            students_qs = students_qs.filter(id=student_id)
+        elif stream_id:
+            students_qs = students_qs.filter(cl_id=stream_id)
+        elif grade_id:
+            students_qs = students_qs.filter(cl__grade_id=grade_id)
+
+        rows = []
+        by_reason = {}
+        ready_count = 0
+        for student in students_qs:
+            readiness = _readiness_for_student(student, academic_year)
+            rows.append({
+                'student_id': student.id,
+                'name': student.get_name,
+                'grade_name': student.cl.grade.name if student.cl_id else None,
+                'transition_type': readiness['transition_type'],
+                'requirement': readiness['requirement'],
+                'ready': readiness['ready'],
+                'reason': readiness['reason'],
+            })
+            if readiness['ready']:
+                ready_count += 1
+            else:
+                by_reason[readiness['reason']] = by_reason.get(readiness['reason'], 0) + 1
+
+        return Response({
+            'summary': {'ready': ready_count, 'blocked': len(rows) - ready_count, 'by_reason': by_reason},
+            'students': rows,
+        })
