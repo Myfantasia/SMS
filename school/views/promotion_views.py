@@ -90,41 +90,96 @@ def _move_student_to_grade(student, next_grade, academic_year):
         _carry_forward_pathway_selection(student, academic_year)
 
 
+def _readiness_for_student(student, academic_year):
+    """
+    Non-mutating: computes whether `student` is eligible to promote for `academic_year` right
+    now, and why/why not. The single source of truth _promote_student, the readiness-check
+    endpoint, and the single-student promote endpoint all share — so what's displayed as a
+    requirement can never drift from what's actually enforced.
+    """
+    grade = student.cl.grade if student.cl_id else None
+    if grade is None:
+        return {
+            'student_id': student.id, 'ready': False, 'transition_type': None,
+            'requirement': None, 'reason': 'No current class assigned.', 'next_grade_name': None,
+        }
+
+    transition_type, exam_code, next_grade = _determine_transition(grade)
+
+    if transition_type == 'plain':
+        requirement = 'Results finalized for the academic year'
+        if not results_finalized_for_year(academic_year):
+            return {
+                'student_id': student.id, 'ready': False, 'transition_type': 'plain',
+                'requirement': requirement, 'reason': 'Results not yet finalized for this academic year.',
+                'next_grade_name': None,
+            }
+        if next_grade is None:
+            return {
+                'student_id': student.id, 'ready': False, 'transition_type': 'plain',
+                'requirement': requirement, 'reason': 'No next grade configured after this one.',
+                'next_grade_name': None,
+            }
+        return {
+            'student_id': student.id, 'ready': True, 'transition_type': 'plain',
+            'requirement': requirement, 'reason': None, 'next_grade_name': next_grade.name,
+        }
+
+    requirement = f'{exam_code} recorded'
+    record = NationalExamRecord.objects.filter(student=student, exam_code=exam_code, academic_year=academic_year).first()
+    if record is None:
+        return {
+            'student_id': student.id, 'ready': False, 'transition_type': transition_type,
+            'requirement': requirement, 'reason': f'{exam_code} not yet recorded.', 'next_grade_name': None,
+        }
+
+    if transition_type == 'exam_gated':
+        if next_grade is None:
+            return {
+                'student_id': student.id, 'ready': False, 'transition_type': 'exam_gated',
+                'requirement': requirement, 'reason': 'No next grade configured after this one.',
+                'next_grade_name': None,
+            }
+        return {
+            'student_id': student.id, 'ready': True, 'transition_type': 'exam_gated',
+            'requirement': requirement, 'reason': None, 'next_grade_name': next_grade.name,
+        }
+
+    # transition_type == 'exit'
+    return {
+        'student_id': student.id, 'ready': True, 'transition_type': 'exit',
+        'requirement': requirement, 'reason': None, 'next_grade_name': None,
+    }
+
+
 def _promote_student(student, academic_year):
     """
     Attempts to promote one student for `academic_year`.
     Returns {'student_id', 'outcome': 'promoted'|'graduated'|'held', 'detail': str}.
     Never raises for a normal "not ready yet" case — those are 'held', not errors.
     """
-    grade = student.cl.grade if student.cl_id else None
-    if grade is None:
-        return {'student_id': student.id, 'outcome': 'held', 'detail': 'No current class assigned.'}
+    readiness = _readiness_for_student(student, academic_year)
+    if not readiness['ready']:
+        return {'student_id': student.id, 'outcome': 'held', 'detail': readiness['reason']}
 
+    grade = student.cl.grade
     transition_type, exam_code, next_grade = _determine_transition(grade)
 
-    if transition_type == 'plain':
-        if not results_finalized_for_year(academic_year):
-            return {'student_id': student.id, 'outcome': 'held', 'detail': 'Results not yet finalized for this academic year.'}
-        if next_grade is None:
-            return {'student_id': student.id, 'outcome': 'held', 'detail': 'No next grade configured after this one.'}
+    if transition_type in ('plain', 'exam_gated'):
         _move_student_to_grade(student, next_grade, academic_year)
-        return {'student_id': student.id, 'outcome': 'promoted', 'detail': f'Promoted to {next_grade.name}.'}
-
-    record = NationalExamRecord.objects.filter(student=student, exam_code=exam_code, academic_year=academic_year).first()
-    if record is None:
-        return {'student_id': student.id, 'outcome': 'held', 'detail': f'{exam_code} not yet recorded.'}
-
-    if transition_type == 'exam_gated':
-        if next_grade is None:
-            return {'student_id': student.id, 'outcome': 'held', 'detail': 'No next grade configured after this one.'}
-        _move_student_to_grade(student, next_grade, academic_year)
-        return {'student_id': student.id, 'outcome': 'promoted', 'detail': f'Promoted to {next_grade.name} ({exam_code} recorded).'}
+        detail = f'Promoted to {next_grade.name}.' if transition_type == 'plain' \
+            else f'Promoted to {next_grade.name} ({exam_code} recorded).'
+        return {'student_id': student.id, 'outcome': 'promoted', 'detail': detail}
 
     # transition_type == 'exit'
     student.enrollment_state = 'Graduated'
     student.save(update_fields=['enrollment_state'])
+    record = NationalExamRecord.objects.filter(student=student, exam_code=exam_code, academic_year=academic_year).first()
     destination = record.destination or 'not yet recorded'
-    return {'student_id': student.id, 'outcome': 'graduated', 'detail': f'Graduated ({exam_code} recorded). Destination: {destination}.'}
+    return {
+        'student_id': student.id, 'outcome': 'graduated',
+        'detail': f'Graduated ({exam_code} recorded). Destination: {destination}.',
+    }
 
 
 class FinalizeTermAPIView(APIView):
