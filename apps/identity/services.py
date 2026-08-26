@@ -173,6 +173,14 @@ def get_user_permission_codes(user_id: int) -> frozenset:
     return codes
 
 
+def get_undelegatable_permission_codes(actor_id: int, permission_codes: Sequence[str]) -> frozenset:
+    """Returns the subset of `permission_codes` the actor does NOT hold -- empty means
+    every code may legally be delegated. Superusers always get an empty result, since
+    get_user_permission_codes already bypasses to every code for them."""
+    actor_codes = get_user_permission_codes(actor_id)
+    return frozenset(permission_codes) - actor_codes
+
+
 def get_user_effective_rank(user_id: int) -> Optional[int]:
     """
     -1    -- superuser (outranks every real rank; never stored on a Role)

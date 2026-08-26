@@ -39,7 +39,7 @@ class RoleSerializerRankFieldTests(TestCase):
 
 from django.contrib.auth.models import User
 
-from apps.identity.models import UserRole
+from apps.identity.models import Permission, UserRole, Role
 from apps.identity.services import get_user_effective_rank
 
 
@@ -73,3 +73,34 @@ class GetUserEffectiveRankTests(TestCase):
         role = Role.objects.create(name='Deleted Role', rank=2, is_deleted=True)
         UserRole.objects.create(user=self.user, role=role)
         self.assertIsNone(get_user_effective_rank(self.user.id))
+
+
+from apps.identity.services import get_undelegatable_permission_codes
+
+
+class GetUndelegatablePermissionCodesTests(TestCase):
+    def setUp(self):
+        cache.clear()
+        self.finance_view = Permission.objects.create(code='finance.view', label='View finance', module='Finance')
+        self.exams_view = Permission.objects.create(code='exams.view', label='View exams', module='Exams')
+
+    def test_superuser_can_delegate_anything(self):
+        su = User.objects.create_superuser(username='root', password='x', email='root@test.com')
+        result = get_undelegatable_permission_codes(su.id, ['finance.view', 'exams.view'])
+        self.assertEqual(result, frozenset())
+
+    def test_actor_holding_all_codes_has_nothing_undelegatable(self):
+        user = User.objects.create_user(username='principal', password='x')
+        role = Role.objects.create(name='Principal', rank=1)
+        role.permissions.set([self.finance_view, self.exams_view])
+        UserRole.objects.create(user=user, role=role)
+        result = get_undelegatable_permission_codes(user.id, ['finance.view'])
+        self.assertEqual(result, frozenset())
+
+    def test_actor_missing_a_code_gets_it_back(self):
+        user = User.objects.create_user(username='deputy', password='x')
+        role = Role.objects.create(name='Deputy', rank=2)
+        role.permissions.set([self.exams_view])  # no finance.view
+        UserRole.objects.create(user=user, role=role)
+        result = get_undelegatable_permission_codes(user.id, ['finance.view', 'exams.view'])
+        self.assertEqual(result, frozenset({'finance.view'}))
