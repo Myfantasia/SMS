@@ -35,3 +35,41 @@ class RoleSerializerRankFieldTests(TestCase):
         serializer_no_rank = RoleSerializer(data={'name': 'Custom Role'})
         self.assertTrue(serializer_no_rank.is_valid(), serializer_no_rank.errors)
         self.assertNotIn('rank', serializer_no_rank.validated_data)
+
+
+from django.contrib.auth.models import User
+
+from apps.identity.models import UserRole
+from apps.identity.services import get_user_effective_rank
+
+
+class GetUserEffectiveRankTests(TestCase):
+    def setUp(self):
+        cache.clear()
+        self.user = User.objects.create_user(username='ranked_user', password='x')
+
+    def test_superuser_is_rank_negative_one(self):
+        su = User.objects.create_superuser(username='root', password='x', email='root@test.com')
+        self.assertEqual(get_user_effective_rank(su.id), -1)
+
+    def test_user_with_no_roles_is_none(self):
+        self.assertIsNone(get_user_effective_rank(self.user.id))
+
+    def test_user_with_one_ranked_role(self):
+        role = Role.objects.create(name='Class Teacher', rank=4)
+        UserRole.objects.create(user=self.user, role=role)
+        self.assertEqual(get_user_effective_rank(self.user.id), 4)
+
+    def test_effective_rank_is_the_minimum_across_roles(self):
+        UserRole.objects.create(user=self.user, role=Role.objects.create(name='Class Teacher', rank=4))
+        UserRole.objects.create(user=self.user, role=Role.objects.create(name='Subject Teacher', rank=5))
+        self.assertEqual(get_user_effective_rank(self.user.id), 4)
+
+    def test_unranked_roles_are_ignored(self):
+        UserRole.objects.create(user=self.user, role=Role.objects.create(name='Custom Unranked'))
+        self.assertIsNone(get_user_effective_rank(self.user.id))
+
+    def test_soft_deleted_roles_are_ignored(self):
+        role = Role.objects.create(name='Deleted Role', rank=2, is_deleted=True)
+        UserRole.objects.create(user=self.user, role=role)
+        self.assertIsNone(get_user_effective_rank(self.user.id))
