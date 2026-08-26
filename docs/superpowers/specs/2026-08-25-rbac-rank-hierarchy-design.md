@@ -118,6 +118,66 @@ gives it one.
 Migration: new file in `apps/identity/migrations/`, next number `0006_*`, app
 label `identity`. **Not run by this work** — see Migration Instructions below.
 
+### `Role.school` — multi-tenancy readiness, structural only
+
+The system runs one school today, but per explicit direction this round, `Role`
+should be built "configuration as data" the same way `CurriculumPreset` already
+was (`apps/academics/models.py:678-682`, "first entity in the multi-tenancy
+rollout," decided 2026-08-13) — not deferred until a second school shows up.
+This mirrors that precedent exactly, field-for-field and migration-for-migration:
+
+```python
+# apps/identity/models.py — Role
+school = models.ForeignKey(
+    'identity.School', on_delete=models.PROTECT, related_name='roles',
+)
+```
+
+```python
+# Role.Meta
+unique_together = [('name', 'school')]  # replaces the current bare unique=True on name
+```
+
+Two migrations, same shape as `CurriculumPreset`'s `0004`/`0005`:
+
+1. Add `school` **nullable** first + `unique_together`.
+2. A backfill command (`backfill_role_school`, mirroring
+   `backfill_curriculum_preset_school.py`) assigns every existing `Role` to
+   the one `School` row already in the database — that row already exists,
+   since `CurriculumPreset`'s own backfill required it and is already applied.
+3. A second migration makes `school` non-nullable, matching
+   `0005_curriculumpreset_school_required.py`'s two-step pattern.
+
+`RoleViewSet`'s queryset gains `.filter(school_id=get_current_school_id(request))`,
+and `perform_create` sets `school` server-side from the same call — never from
+client input, matching the existing rule for `CurriculumPreset`. `UserRole`
+gets no new field: it's transitively scoped through `role.school_id`, so a
+second `school` FK on the assignment row itself would just be redundant data
+that could drift out of sync with its own `role`.
+
+**What this does and doesn't buy right now:** structurally, `Role` becomes
+exactly as tenant-ready as `CurriculumPreset` already is. It does **not**
+turn on real cross-school enforcement, because `get_current_school_id()`
+(`apps/identity/services.py:201-222`) is still the same one-school shim
+`CurriculumPreset` itself relies on today — no profile model links a user to
+a school yet, so there's no per-user school to derive. That's a separate,
+larger, identity-wide project (already blocking full multi-school use of
+Curriculum Hub too), explicitly not part of this work — see "Explicitly out
+of scope" below. What changes today is purely structural: the schema and
+queryset shape are in place so that the moment user↔school linking lands,
+`Role` starts behaving per-school with no further migration on this model.
+
+`Permission` is **not** scoped — it stays a global catalog of what a
+permission code *means* (`finance.view`, `exams.marks`, …), the same status
+`Curriculum`/`Pathway`/`Track` already have as "national structures shared by
+every school, not per-school config." Only `Role` — the school's own naming
+and bundling of those codes into a hierarchy — is the configurable surface,
+exactly matching how `CurriculumPreset` (a school's own config) is scoped
+while `Curriculum`/`Pathway`/`Track` underneath it are not.
+
+Migration: new files in `apps/identity/migrations/`, following `0006_*`
+(the `rank` migration above), app label `identity`. **Not run by this work.**
+
 ### `Department.head`
 
 ```python
@@ -411,11 +471,14 @@ persisted.
 ## Seed data (Phase 3)
 
 `seed_rbac.py` gains: the `rbac.manage` permission code; `rank` values for the
-existing `Admin` (1) and `Teacher` (5) system roles; and `rank`/permission
+existing `Admin` (1) and `Teacher` (5) system roles; `rank`/permission
 definitions for the six new hierarchy roles (Deputy Principal, Senior Teacher,
 Dean of Students, Registrar, Bursar, Head of Department, Class Teacher — seven,
-matching the table above). Existing `get_or_create`/`update_or_create`
-conventions are reused, so re-running stays idempotent exactly as today.
+matching the table above); and `school=get_current_school_id(request=None)`
+(or the equivalent direct `School.objects.get()` a management command can use
+without a request object) on every `Role.get_or_create`/`update_or_create`
+call, now that `school` is required. Existing idempotency conventions are
+otherwise unchanged.
 
 `populate_demo_staff.py`'s `STAFF` list is corrected: `deborah.deputy` and
 `michael.hod` move from the `STAFF` group into `TEACHER`
@@ -451,6 +514,11 @@ against both old and new rank per the Rank Guard Service section above).
 shape for class-teacher-of-own-class vs. another class, and HOD-of-own-
 department vs. another department (once `Department.head` exists).
 
+**`Role.school` backfill:** the backfill command assigns every pre-existing
+`Role` to the single `School` row without error; the second (required-field)
+migration is a no-op on a fully-backfilled table, mirroring the same check
+already implicit in `CurriculumPreset`'s rollout.
+
 **API-level, not just helper functions:** `POST`/`PATCH`/`DELETE` on
 `RoleViewSet` and `POST`/`DELETE` on `UserRoleAssignmentAPIView`, exercised via
 DRF's test client at each actor tier — this is the first test file to hit
@@ -469,19 +537,24 @@ Once implementation lands:
 ```bash
 python manage.py makemigrations identity academics
 python manage.py migrate
+python manage.py backfill_role_school   # after the first identity migration, before the second
+python manage.py migrate                # applies the second (required-field) identity migration
 ```
 
-The `identity` migration adds `Role.rank` (nullable — no data backfill
-required, existing roles simply stay unranked until Phase 3's seed assigns
-them one). The `academics` migration adds `Department.head` (nullable FK, no
-backfill required).
+`identity` gets three migrations this round: `Role.rank` (nullable, no
+backfill needed — existing roles stay unranked until Phase 3's seed assigns
+one), `Role.school` added nullable, then `Role.school` made required after
+`backfill_role_school` runs (same two-step shape as
+`CurriculumPreset`'s `0004`/`0005`). The `academics` migration adds
+`Department.head` (nullable FK, no backfill required).
 
 ## Implementation order
 
-1. **Rank hierarchy** — `Role.rank`, `get_user_effective_rank`,
-   `validate_rank_authority`, `validate_permission_delegation`, `rbac.manage`
-   permission + composite entry gate, `RoleViewSet`/
-   `UserRoleAssignmentAPIView` guard integration, transaction wrapping.
+1. **Rank hierarchy** — `Role.rank`, `Role.school` (+ backfill command),
+   `get_user_effective_rank`, `validate_rank_authority`,
+   `validate_permission_delegation`, `rbac.manage` permission + composite
+   entry gate, `RoleViewSet`/`UserRoleAssignmentAPIView` guard integration
+   and school-scoped queryset/create, transaction wrapping.
 2. **Scoped permissions** — `Department.head`, `teacher_is_allocated_to`,
    `is_hod_of_subject_department`, wired alongside existing module-permission
    checks at the relevant views.
@@ -501,15 +574,15 @@ backfill required).
   with `rbac.manage`), never narrowed.
 - Renaming or restructuring the existing `Permission`/`Role`/`UserRole` models
   beyond the two new fields above.
-- Per-school (`school_id`) scoping of `Role`/`Permission`/`UserRole`. Multi-
-  tenancy is a decided architecture for this system (shared DB, row-level
-  `school` scoping, Postgres RLS backstop — see `sms-orient` roadmap,
-  decided 2026-08-11) rolled out entity-by-entity; identity/RBAC has not yet
-  come up in that sequence (Curriculum Hub is first). This spec is written
-  single-tenant, matching the system's current state, and doesn't foreclose
-  scoping `Role`/`Permission` later — `Role.name`'s bare `unique=True` would
-  need to become `unique_together=('school','name')` at that point, the same
-  pattern already flagged for `CurriculumPreset.name`.
+- **Real cross-school enforcement.** `Role.school` (above) makes the schema
+  tenant-ready, matching `CurriculumPreset`'s precedent, but two schools
+  cannot actually see different Roles until a user carries a `school` link
+  somewhere — none of the five profile models do today, and
+  `get_current_school_id()` is still a one-row shim. Wiring users to schools
+  is a separate, identity-wide project (also blocking real multi-school use
+  of Curriculum Hub), not part of this work.
+- `Permission` scoping — stays a global catalog, not per-school, for the
+  reasons given in the `Role.school` section above.
 - Board of Management, per-occupation functional subsystems (e.g. a real
   Library Management module for the Librarian role), and fully distinct
   hand-crafted dashboards per role beyond nav-visibility — raised in this
