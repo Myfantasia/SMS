@@ -138,15 +138,29 @@ school = models.ForeignKey(
 unique_together = [('name', 'school')]  # replaces the current bare unique=True on name
 ```
 
-Two migrations, same shape as `CurriculumPreset`'s `0004`/`0005`:
+One migration this round, deliberately stopping one step short of
+`CurriculumPreset`'s pattern:
 
-1. Add `school` **nullable** first + `unique_together`.
+1. Add `school` **nullable** + `unique_together`.
 2. A backfill command (`backfill_role_school`, mirroring
    `backfill_curriculum_preset_school.py`) assigns every existing `Role` to
    the one `School` row already in the database — that row already exists,
-   since `CurriculumPreset`'s own backfill required it and is already applied.
-3. A second migration makes `school` non-nullable, matching
-   `0005_curriculumpreset_school_required.py`'s two-step pattern.
+   since `CurriculumPreset`'s own backfill required it and is already
+   applied. This step still matters even though `school` stays nullable:
+   without it, a school-scoped `RoleViewSet` queryset would return zero
+   existing roles instead of the ones already seeded.
+
+**Deviation from the `CurriculumPreset` precedent, and why:** `CurriculumPreset`
+went on to a second migration making `school` required
+(`0005_curriculumpreset_school_required.py`). Doing the same for `Role` would
+require passing `school=` at every one of the ~24 existing
+`Role.objects.create`/`get_or_create` call sites across 14 test files plus
+`populate_demo_staff.py` and `seed_rbac.py` — real churn with no behavioral
+payoff while the system runs one school. This spec stops at nullable: the
+column, the queryset-filtering seam, and the backfill all land now: exactly
+"configuration as data," the same standing as `CurriculumPreset` had between
+its own two migrations. Making it required is a one-migration follow-up
+whenever real multi-school rollout actually begins — not part of this work.
 
 `RoleViewSet`'s queryset gains `.filter(school_id=get_current_school_id(request))`,
 and `perform_create` sets `school` server-side from the same call — never from
@@ -515,9 +529,8 @@ shape for class-teacher-of-own-class vs. another class, and HOD-of-own-
 department vs. another department (once `Department.head` exists).
 
 **`Role.school` backfill:** the backfill command assigns every pre-existing
-`Role` to the single `School` row without error; the second (required-field)
-migration is a no-op on a fully-backfilled table, mirroring the same check
-already implicit in `CurriculumPreset`'s rollout.
+`Role` to the single `School` row without error, and is idempotent on a
+second run (zero unassigned rows left).
 
 **API-level, not just helper functions:** `POST`/`PATCH`/`DELETE` on
 `RoleViewSet` and `POST`/`DELETE` on `UserRoleAssignmentAPIView`, exercised via
@@ -537,16 +550,16 @@ Once implementation lands:
 ```bash
 python manage.py makemigrations identity academics
 python manage.py migrate
-python manage.py backfill_role_school   # after the first identity migration, before the second
-python manage.py migrate                # applies the second (required-field) identity migration
+python manage.py backfill_role_school
 ```
 
-`identity` gets three migrations this round: `Role.rank` (nullable, no
-backfill needed — existing roles stay unranked until Phase 3's seed assigns
-one), `Role.school` added nullable, then `Role.school` made required after
-`backfill_role_school` runs (same two-step shape as
-`CurriculumPreset`'s `0004`/`0005`). The `academics` migration adds
-`Department.head` (nullable FK, no backfill required).
+`identity` gets two migrations this round: `Role.rank` (nullable, no backfill
+needed — existing roles stay unranked until Phase 3's seed assigns one) and
+`Role.school` (also nullable — see the deviation note above; `school` is not
+made required in this pass). Run `backfill_role_school` after `migrate` so
+the Roles & Permissions page keeps showing existing roles once `RoleViewSet`
+starts filtering by school. The `academics` migration adds `Department.head`
+(nullable FK, no backfill required).
 
 ## Implementation order
 
