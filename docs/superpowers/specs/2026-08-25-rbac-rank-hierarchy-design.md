@@ -501,3 +501,18 @@ backfill required).
   with `rbac.manage`), never narrowed.
 - Renaming or restructuring the existing `Permission`/`Role`/`UserRole` models
   beyond the two new fields above.
+- Per-school (`school_id`) scoping of `Role`/`Permission`/`UserRole`. Multi-
+  tenancy is a decided architecture for this system (shared DB, row-level
+  `school` scoping, Postgres RLS backstop — see `sms-orient` roadmap,
+  decided 2026-08-11) rolled out entity-by-entity; identity/RBAC has not yet
+  come up in that sequence (Curriculum Hub is first). This spec is written
+  single-tenant, matching the system's current state, and doesn't foreclose
+  scoping `Role`/`Permission` later — `Role.name`'s bare `unique=True` would
+  need to become `unique_together=('school','name')` at that point, the same
+  pattern already flagged for `CurriculumPreset.name`.
+- Board of Management, per-occupation functional subsystems (e.g. a real
+  Library Management module for the Librarian role), and fully distinct
+  hand-crafted dashboards per role beyond nav-visibility — raised in this
+  session's design discussion but not yet incorporated into this spec's
+  phases. See the `sms-orient` roadmap's new "Feature breadth" note; each
+  needs its own dedicated brainstorming pass and likely its own spec.
