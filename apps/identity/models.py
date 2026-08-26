@@ -457,12 +457,19 @@ class Role(models.Model):
     """A named bundle of permissions. Additive to Django's Group system —
     Groups still govern dashboard routing, Role/Permission governs finer
     in-dashboard capabilities."""
-    name = models.CharField(max_length=100, unique=True)
+    name = models.CharField(max_length=100)
     description = models.CharField(max_length=255, blank=True)
     rank = models.PositiveSmallIntegerField(
         null=True, blank=True,
         help_text="Delegation tier. Lower ranks outrank higher ones. Null means "
                   "unranked -- cannot be granted or managed by anyone except a superuser.",
+    )
+    school = models.ForeignKey(
+        'School', on_delete=models.PROTECT, null=True, blank=True, related_name='roles',
+        help_text="Server-derived, never client-supplied -- see get_current_school_id(). "
+                  "Nullable: this system runs one school today, see the RBAC design spec's "
+                  "'Deviation from the CurriculumPreset precedent' note for why this field "
+                  "isn't required yet.",
     )
     permissions = models.ManyToManyField(Permission, related_name='roles', blank=True, db_table='school_role_permissions')
     # Set only by seed_rbac.py for the Admin/Teacher roles it manages — never via the API.
@@ -475,6 +482,7 @@ class Role(models.Model):
 
     class Meta:
         db_table = 'school_role'
+        unique_together = [('school', 'name')]
 
     def __str__(self):
         return self.name
