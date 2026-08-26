@@ -459,6 +459,11 @@ class Role(models.Model):
     in-dashboard capabilities."""
     name = models.CharField(max_length=100, unique=True)
     description = models.CharField(max_length=255, blank=True)
+    rank = models.PositiveSmallIntegerField(
+        null=True, blank=True,
+        help_text="Delegation tier. Lower ranks outrank higher ones. Null means "
+                  "unranked -- cannot be granted or managed by anyone except a superuser.",
+    )
     permissions = models.ManyToManyField(Permission, related_name='roles', blank=True, db_table='school_role_permissions')
     # Set only by seed_rbac.py for the Admin/Teacher roles it manages — never via the API.
     # Protects against deleting or renaming a role that seed_rbac's Group-sync and every
