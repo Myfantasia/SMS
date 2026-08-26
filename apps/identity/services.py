@@ -29,7 +29,7 @@ from typing import Literal, Optional, Sequence, Union
 from django.core.exceptions import ImproperlyConfigured
 
 from apps.identity.models import (
-    StudentExtra, TeacherExtra, ParentExtra, Permission, School,
+    StudentExtra, TeacherExtra, ParentExtra, Permission, Role, School,
 )
 
 RoleLabel = Literal["Admin", "Teacher", "Parent", "Student", "Staff", "User"]
@@ -171,6 +171,24 @@ def get_user_permission_codes(user_id: int) -> frozenset:
         )
         cache.set(cache_key, codes, RBAC_CACHE_TTL_SECONDS)
     return codes
+
+
+def get_user_effective_rank(user_id: int) -> Optional[int]:
+    """
+    -1    -- superuser (outranks every real rank; never stored on a Role)
+    None  -- user holds no Role with a non-null rank (least privileged)
+    int   -- MIN(rank) across the user's ranked, non-deleted Role assignments
+    """
+    from django.contrib.auth.models import User
+
+    user = User.objects.filter(id=user_id).first()
+    if user and user.is_superuser:
+        return -1
+
+    ranks = Role.objects.filter(
+        user_assignments__user_id=user_id, rank__isnull=False, is_deleted=False,
+    ).values_list('rank', flat=True)
+    return min(ranks) if ranks else None
 
 
 def user_has_permission(user_id: int, code: Union[str, Sequence[str]]) -> bool:
