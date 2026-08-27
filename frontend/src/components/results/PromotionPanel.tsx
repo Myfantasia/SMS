@@ -1,13 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Box, Card, CardContent, CardHeader, Button, TextField, MenuItem, Alert,
   CircularProgress, Stack, Typography, Table, TableHead, TableBody, TableRow, TableCell,
-  Chip, Divider, Autocomplete, Switch, FormControlLabel,
+  Chip, Autocomplete, Switch, FormControlLabel,
+  Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions,
 } from '@mui/material';
-import { GraduationCap, CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, Download } from 'lucide-react';
 import api from '../../libs/axiosInstance';
 import { pollJob } from '../../libs/pollJob';
 import { assignmentService } from '../../libs/assignmentService';
+import ProcessStepCard from './ProcessStepCard';
 
 interface AcademicYearOption {
   id: number;
@@ -35,6 +37,8 @@ interface ReadinessRow {
   requirement: string | null;
   ready: boolean;
   reason: string | null;
+  next_grade_name: string | null;
+  exam_code: string | null;
 }
 
 interface ReadinessResponse {
@@ -63,45 +67,101 @@ interface StreamOption {
   label: string;
 }
 
-function ReadinessTable({ rows, nameById }: { rows: ReadinessRow[] | PromotionOutcome[]; nameById?: Record<number, string> }) {
+interface TermStatus {
+  id: number;
+  name: string;
+  results_finalized: boolean;
+}
+
+interface RequirementGroup {
+  transition_type: 'plain' | 'exam_gated' | 'exit';
+  exam_code: string | null;
+  grade_names: string[];
+  requirement: string;
+  satisfied: boolean;
+  detail: string;
+  terms?: TermStatus[];
+}
+
+interface PrerequisitesResponse {
+  scope: { academic_year: string; grade_name: string | null };
+  requirement_groups: RequirementGroup[];
+}
+
+function downloadCsv(filename: string, headers: string[], rows: (string | number)[][]) {
+  const escape = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
+  const csv = [headers, ...rows].map((row) => row.map(escape).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function ReadinessTable({
+  rows, nameById, onExport,
+}: {
+  rows: ReadinessRow[] | PromotionOutcome[];
+  nameById?: Record<number, string>;
+  onExport?: () => void;
+}) {
   const isReadinessRows = rows.length > 0 && 'ready' in rows[0];
   return (
-    <Table size="small">
-      <TableHead>
-        <TableRow>
-          <TableCell>Student</TableCell>
-          <TableCell>{isReadinessRows ? 'Requirement' : 'Outcome'}</TableCell>
-          <TableCell>{isReadinessRows ? 'Status' : 'Detail'}</TableCell>
-        </TableRow>
-      </TableHead>
-      <TableBody>
-        {isReadinessRows
-          ? (rows as ReadinessRow[]).map((row) => (
-              <TableRow key={row.student_id}>
-                <TableCell>{row.name} <Typography component="span" variant="caption" color="text.secondary">({row.grade_name ?? '—'})</Typography></TableCell>
-                <TableCell>{row.requirement ?? '—'}</TableCell>
-                <TableCell>
-                  {row.ready
-                    ? <Chip size="small" color="success" label="Ready" />
-                    : <Chip size="small" color="warning" label={row.reason ?? 'Blocked'} />}
-                </TableCell>
-              </TableRow>
-            ))
-          : (rows as PromotionOutcome[]).map((row) => (
-              <TableRow key={row.student_id}>
-                <TableCell>{nameById?.[row.student_id] ?? `Student #${row.student_id}`}</TableCell>
-                <TableCell>
-                  <Chip
-                    size="small"
-                    color={row.outcome === 'promoted' ? 'success' : row.outcome === 'graduated' ? 'info' : 'warning'}
-                    label={row.outcome}
-                  />
-                </TableCell>
-                <TableCell>{row.detail}</TableCell>
-              </TableRow>
-            ))}
-      </TableBody>
-    </Table>
+    <Stack spacing={1}>
+      {onExport && (
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <Button size="small" startIcon={<Download size={16} />} onClick={onExport}>Export CSV</Button>
+        </Box>
+      )}
+      <Table size="small">
+        <TableHead>
+          <TableRow>
+            <TableCell>Student</TableCell>
+            {isReadinessRows && <TableCell>Transition</TableCell>}
+            <TableCell>{isReadinessRows ? 'Requirement' : 'Outcome'}</TableCell>
+            <TableCell>{isReadinessRows ? 'Status' : 'Detail'}</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {isReadinessRows
+            ? (rows as ReadinessRow[]).map((row) => (
+                <TableRow key={row.student_id}>
+                  <TableCell>
+                    {row.name} <Typography component="span" variant="caption" color="text.secondary">({row.grade_name ?? '—'})</Typography>
+                  </TableCell>
+                  <TableCell>
+                    {row.transition_type === 'exit'
+                      ? <Chip size="small" variant="outlined" label={`Graduates${row.exam_code ? ` (${row.exam_code})` : ''}`} />
+                      : row.next_grade_name
+                        ? <Chip size="small" variant="outlined" label={`→ ${row.next_grade_name}${row.exam_code ? ` (${row.exam_code})` : ''}`} />
+                        : '—'}
+                  </TableCell>
+                  <TableCell>{row.requirement ?? '—'}</TableCell>
+                  <TableCell>
+                    {row.ready
+                      ? <Chip size="small" color="success" label="Ready" />
+                      : <Chip size="small" color="warning" label={row.reason ?? 'Blocked'} />}
+                  </TableCell>
+                </TableRow>
+              ))
+            : (rows as PromotionOutcome[]).map((row) => (
+                <TableRow key={row.student_id}>
+                  <TableCell>{nameById?.[row.student_id] ?? `Student #${row.student_id}`}</TableCell>
+                  <TableCell>
+                    <Chip
+                      size="small"
+                      color={row.outcome === 'promoted' ? 'success' : row.outcome === 'graduated' ? 'info' : 'warning'}
+                      label={row.outcome}
+                    />
+                  </TableCell>
+                  <TableCell>{row.detail}</TableCell>
+                </TableRow>
+              ))}
+        </TableBody>
+      </Table>
+    </Stack>
   );
 }
 
@@ -131,44 +191,85 @@ export default function PromotionPanel() {
     }).catch(() => setStudents([]));
   }, []);
 
-  const [termId, setTermId] = useState('');
-  const [finalizing, setFinalizing] = useState(false);
-  const [finalizeMsg, setFinalizeMsg] = useState<string | null>(null);
-  const [finalizeFailed, setFinalizeFailed] = useState(false);
+  // --- Working Scope: shared by the Requirements / Check Readiness / Run Promotion steps. ---
+  const [scopeYearId, setScopeYearId] = useState('');
+  const [scopeGradeId, setScopeGradeId] = useState('');
 
-  const handleFinalize = async (finalized: boolean) => {
-    if (!termId) return;
-    setFinalizing(true);
-    setFinalizeMsg(null);
-    setFinalizeFailed(false);
+  const [prerequisites, setPrerequisites] = useState<PrerequisitesResponse | null>(null);
+  const [prereqLoading, setPrereqLoading] = useState(false);
+  const [prereqError, setPrereqError] = useState<string | null>(null);
+  const [finalizingTermId, setFinalizingTermId] = useState<number | null>(null);
+
+  const fetchPrerequisites = async (yearId: string, gradeId: string) => {
+    if (!yearId) {
+      setPrerequisites(null);
+      return;
+    }
+    setPrereqLoading(true);
+    setPrereqError(null);
     try {
-      await api.post(`/api/promotion/finalize-term/${termId}/`, { finalized });
-      setFinalizeMsg(finalized ? 'Term finalized.' : 'Term un-finalized.');
+      const params = new URLSearchParams({ academic_year_id: yearId });
+      if (gradeId) params.set('grade_id', gradeId);
+      const res = await api.get(`/api/promotion/prerequisites/?${params.toString()}`);
+      setPrerequisites(res.data);
     } catch (err: any) {
-      setFinalizeMsg(err.response?.data?.error || 'Failed to update finalization state.');
-      setFinalizeFailed(true);
+      setPrereqError(err.response?.data?.error || 'Failed to load promotion requirements.');
+      setPrerequisites(null);
     } finally {
-      setFinalizing(false);
+      setPrereqLoading(false);
     }
   };
 
-  const [bulkYearId, setBulkYearId] = useState('');
-  const [bulkGradeId, setBulkGradeId] = useState('');
+  useEffect(() => {
+    fetchPrerequisites(scopeYearId, scopeGradeId);
+    setReadiness(null);
+    setPromoteResult(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scopeYearId, scopeGradeId]);
+
+  const handleFinalizeTerm = async (termId: number, finalized: boolean) => {
+    setFinalizingTermId(termId);
+    try {
+      await api.post(`/api/promotion/finalize-term/${termId}/`, { finalized });
+      await fetchPrerequisites(scopeYearId, scopeGradeId);
+    } catch (err: any) {
+      setPrereqError(err.response?.data?.error || 'Failed to update finalization state.');
+    } finally {
+      setFinalizingTermId(null);
+    }
+  };
+
+  const noStudentsInScope = prerequisites !== null && prerequisites.requirement_groups.length === 0;
+  const allRequirementsSatisfied = prerequisites !== null
+    && prerequisites.requirement_groups.length > 0
+    && prerequisites.requirement_groups.every((g) => g.satisfied);
+  const unmetRequirements = prerequisites?.requirement_groups.filter((g) => !g.satisfied) ?? [];
+
+  const step2Locked = !scopeYearId || prereqLoading || noStudentsInScope || !allRequirementsSatisfied;
+  const step2LockedReason = !scopeYearId
+    ? 'Select an academic year above to begin.'
+    : prereqLoading
+      ? 'Checking requirements…'
+      : noStudentsInScope
+        ? 'No enrolled students in this scope.'
+        : `Complete Step 1 first: ${unmetRequirements.map((g) => g.requirement).join('; ')}`;
+
   const [checkingReadiness, setCheckingReadiness] = useState(false);
   const [readiness, setReadiness] = useState<ReadinessResponse | null>(null);
   const [readinessError, setReadinessError] = useState<string | null>(null);
   const [promoting, setPromoting] = useState(false);
   const [promoteResult, setPromoteResult] = useState<PromotionResult | null>(null);
   const [promoteError, setPromoteError] = useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const handleCheckReadiness = async () => {
-    if (!bulkYearId) return;
+    if (!scopeYearId) return;
     setCheckingReadiness(true);
     setReadinessError(null);
     setPromoteResult(null);
     try {
-      const params = new URLSearchParams({ academic_year_id: bulkYearId });
-      if (bulkGradeId) params.set('grade_id', bulkGradeId);
+      const params = new URLSearchParams({ academic_year_id: scopeYearId });
+      if (scopeGradeId) params.set('grade_id', scopeGradeId);
       const res = await api.get(`/api/promotion/readiness/?${params.toString()}`);
       setReadiness(res.data);
     } catch (err: any) {
@@ -180,14 +281,14 @@ export default function PromotionPanel() {
   };
 
   const handlePromote = async () => {
-    if (!bulkYearId || !readiness) return;
+    if (!scopeYearId || !readiness) return;
     setPromoting(true);
     setPromoteError(null);
     setPromoteResult(null);
     try {
       const response = await api.post('/api/promotion/promote-students/', {
-        academic_year_id: bulkYearId,
-        grade_id: bulkGradeId || undefined,
+        academic_year_id: scopeYearId,
+        grade_id: scopeGradeId || undefined,
       });
       const result = await pollJob<PromotionResult>(response.data.job_id);
       setPromoteResult(result);
@@ -199,7 +300,39 @@ export default function PromotionPanel() {
     }
   };
 
+  const step3Locked = !readiness || readiness.summary.ready === 0;
+  const step3LockedReason = !readiness
+    ? 'Run "Check Readiness" in Step 2 first.'
+    : 'No students are currently ready to promote.';
+
   const nameById = Object.fromEntries((readiness?.students ?? []).map((row) => [row.student_id, row.name]));
+
+  const exportReadinessCsv = () => {
+    if (!readiness) return;
+    downloadCsv(
+      `promotion-readiness-${scopeYearId}.csv`,
+      ['Student', 'Grade', 'Transition', 'Requirement', 'Ready', 'Reason'],
+      readiness.students.map((r) => [
+        r.name,
+        r.grade_name ?? '',
+        r.transition_type === 'exit' ? 'Graduates' : (r.next_grade_name ?? ''),
+        r.requirement ?? '',
+        r.ready ? 'Yes' : 'No',
+        r.reason ?? '',
+      ]),
+    );
+  };
+
+  const exportOutcomeCsv = () => {
+    if (!promoteResult) return;
+    downloadCsv(
+      `promotion-outcomes-${scopeYearId}.csv`,
+      ['Student', 'Outcome', 'Detail'],
+      promoteResult.outcomes.map((o) => [nameById[o.student_id] ?? `Student #${o.student_id}`, o.outcome, o.detail]),
+    );
+  };
+
+  const examSectionRef = useRef<HTMLDivElement>(null);
 
   const [singleStudent, setSingleStudent] = useState<StudentOption | null>(null);
   const [singleYearId, setSingleYearId] = useState('');
@@ -208,6 +341,24 @@ export default function PromotionPanel() {
   const [singlePromoting, setSinglePromoting] = useState(false);
   const [singleResult, setSingleResult] = useState<PromotionOutcome | null>(null);
   const [singleError, setSingleError] = useState<string | null>(null);
+
+  const [bulkExamMode, setBulkExamMode] = useState(false);
+  const [examStudent, setExamStudent] = useState<StudentOption | null>(null);
+  const [examStreamId, setExamStreamId] = useState('');
+  const [examCode, setExamCode] = useState('KJSEA');
+  const [examYearId, setExamYearId] = useState('');
+  const [destination, setDestination] = useState('');
+  const [recordingExam, setRecordingExam] = useState(false);
+  const [examMsg, setExamMsg] = useState<string | null>(null);
+  const [examFailed, setExamFailed] = useState(false);
+
+  useEffect(() => {
+    if (scopeYearId) {
+      setSingleYearId((prev) => prev || scopeYearId);
+      setExamYearId((prev) => prev || scopeYearId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scopeYearId]);
 
   const handleCheckSingle = async () => {
     if (!singleStudent || !singleYearId) return;
@@ -240,16 +391,6 @@ export default function PromotionPanel() {
     }
   };
 
-  const [bulkExamMode, setBulkExamMode] = useState(false);
-  const [examStudent, setExamStudent] = useState<StudentOption | null>(null);
-  const [examStreamId, setExamStreamId] = useState('');
-  const [examCode, setExamCode] = useState('KJSEA');
-  const [examYearId, setExamYearId] = useState('');
-  const [destination, setDestination] = useState('');
-  const [recordingExam, setRecordingExam] = useState(false);
-  const [examMsg, setExamMsg] = useState<string | null>(null);
-  const [examFailed, setExamFailed] = useState(false);
-
   const handleRecordExam = async () => {
     if (!examYearId) return;
     setRecordingExam(true);
@@ -281,6 +422,7 @@ export default function PromotionPanel() {
         await api.post(`/api/promotion/national-exam/${examStudent.id}/`, { exam_code: examCode, academic_year_id: examYearId, destination });
         setExamMsg('Exam record saved.');
       }
+      await fetchPrerequisites(scopeYearId, scopeGradeId);
     } catch (err: any) {
       setExamMsg(err.response?.data?.error || 'Failed to save exam record(s).');
       setExamFailed(true);
@@ -320,78 +462,168 @@ export default function PromotionPanel() {
       </Card>
 
       <Card variant="outlined">
-        <CardHeader title="Finalize Term Results" subheader="Marks a term's results as done recording — the gate for plain grade promotions." />
-        <CardContent>
-          <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
-            <TextField label="Exam Term ID" value={termId} onChange={(e) => setTermId(e.target.value)} size="small" />
-            <Button variant="contained" disabled={finalizing || !termId} onClick={() => handleFinalize(true)}>
-              Finalize
-            </Button>
-            <Button variant="outlined" disabled={finalizing || !termId} onClick={() => handleFinalize(false)}>
-              Un-finalize
-            </Button>
-            {finalizing && <CircularProgress size={20} />}
-          </Stack>
-          {finalizeMsg && <Alert sx={{ mt: 2 }} severity={finalizeFailed ? 'error' : 'success'}>{finalizeMsg}</Alert>}
-        </CardContent>
-      </Card>
-
-      <Card variant="outlined">
         <CardHeader
-          avatar={<GraduationCap size={20} />}
-          title="Bulk Promotion"
-          subheader="Check who's ready before running anything — held students are simply skipped, never force-promoted."
+          title="Working Scope"
+          subheader="Every step below applies to this academic year (and grade, if narrowed) until you change it."
         />
         <CardContent>
-          <Stack spacing={2}>
-            <Stack direction="row" spacing={2}>
-              <TextField select label="Academic Year" value={bulkYearId} onChange={(e) => { setBulkYearId(e.target.value); setReadiness(null); setPromoteResult(null); }} size="small" sx={{ minWidth: 160 }}>
-                {academicYears.map((y) => <MenuItem key={y.id} value={y.id}>{y.year}</MenuItem>)}
-              </TextField>
-              <TextField select label="Grade (optional — whole school if blank)" value={bulkGradeId} onChange={(e) => { setBulkGradeId(e.target.value); setReadiness(null); setPromoteResult(null); }} size="small" sx={{ minWidth: 220 }}>
-                <MenuItem value="">Whole school</MenuItem>
-                {grades.map((g) => <MenuItem key={g.id} value={g.id}>{g.grade_name}</MenuItem>)}
-              </TextField>
-              <Button variant="outlined" disabled={checkingReadiness || !bulkYearId} onClick={handleCheckReadiness}>
-                {checkingReadiness ? <CircularProgress size={20} /> : 'Check Readiness'}
-              </Button>
-            </Stack>
-
-            {readinessError && <Alert severity="error">{readinessError}</Alert>}
-
-            {readiness && (
-              <>
-                <Stack direction="row" spacing={1}>
-                  <Chip color="success" label={`${readiness.summary.ready} ready`} />
-                  {Object.entries(readiness.summary.by_reason).map(([reason, count]) => (
-                    <Chip key={reason} color="warning" label={`${count} blocked: ${reason}`} />
-                  ))}
-                </Stack>
-                <ReadinessTable rows={readiness.students} />
-                <Divider />
-                <Box>
-                  <Button variant="contained" color="primary" disabled={promoting || readiness.summary.ready === 0} onClick={handlePromote}>
-                    {promoting ? <CircularProgress size={20} /> : 'Run Promotion'}
-                  </Button>
-                </Box>
-              </>
-            )}
-
-            {promoteError && <Alert severity="error">{promoteError}</Alert>}
-            {promoteResult && (
-              <>
-                <Alert severity="success" icon={<CheckCircle2 size={20} />}>
-                  <Typography variant="body2">{promoteResult.message}</Typography>
-                </Alert>
-                <ReadinessTable rows={promoteResult.outcomes} nameById={nameById} />
-              </>
-            )}
+          <Stack direction="row" spacing={2}>
+            <TextField
+              select label="Academic Year" value={scopeYearId}
+              onChange={(e) => setScopeYearId(e.target.value)}
+              size="small" sx={{ minWidth: 160 }}
+            >
+              {academicYears.map((y) => <MenuItem key={y.id} value={y.id}>{y.year}</MenuItem>)}
+            </TextField>
+            <TextField
+              select label="Grade (optional — whole school if blank)" value={scopeGradeId}
+              onChange={(e) => setScopeGradeId(e.target.value)}
+              size="small" sx={{ minWidth: 220 }}
+            >
+              <MenuItem value="">Whole school</MenuItem>
+              {grades.map((g) => <MenuItem key={g.id} value={g.id}>{g.grade_name}</MenuItem>)}
+            </TextField>
           </Stack>
         </CardContent>
       </Card>
 
+      <ProcessStepCard
+        step={1}
+        title="Requirements"
+        subheader="What must be true before this scope can be checked for readiness."
+        locked={false}
+      >
+        {!scopeYearId && <Alert severity="info">Select an academic year above to see requirements.</Alert>}
+        {prereqLoading && <CircularProgress size={20} />}
+        {prereqError && <Alert severity="error">{prereqError}</Alert>}
+        {prerequisites && noStudentsInScope && <Alert severity="info">No enrolled students in this scope.</Alert>}
+        {prerequisites && prerequisites.requirement_groups.length > 0 && (
+          <Stack spacing={2}>
+            {prerequisites.requirement_groups.map((group) => (
+              <Box key={`${group.transition_type}-${group.exam_code ?? 'none'}`}>
+                <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 0.5 }}>
+                  {group.satisfied
+                    ? <Chip size="small" color="success" label="Satisfied" />
+                    : <Chip size="small" color="warning" label="Not yet" />}
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>{group.requirement}</Typography>
+                  <Typography variant="caption" color="text.secondary">({group.grade_names.join(', ')})</Typography>
+                </Stack>
+                <Typography variant="body2" color="text.secondary" sx={{ ml: 0.5, mb: 1 }}>{group.detail}</Typography>
+                {group.terms && (
+                  <Table size="small">
+                    <TableBody>
+                      {group.terms.map((term) => (
+                        <TableRow key={term.id}>
+                          <TableCell>{term.name}</TableCell>
+                          <TableCell>
+                            {term.results_finalized
+                              ? <Chip size="small" color="success" label="Finalized" />
+                              : <Chip size="small" variant="outlined" label="Not finalized" />}
+                          </TableCell>
+                          <TableCell align="right">
+                            <Button
+                              size="small"
+                              variant={term.results_finalized ? 'outlined' : 'contained'}
+                              disabled={finalizingTermId === term.id}
+                              onClick={() => handleFinalizeTerm(term.id, !term.results_finalized)}
+                            >
+                              {finalizingTermId === term.id
+                                ? <CircularProgress size={16} />
+                                : term.results_finalized ? 'Un-finalize' : 'Finalize'}
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+                {!group.terms && !group.satisfied && (
+                  <Button
+                    size="small" variant="outlined"
+                    onClick={() => examSectionRef.current?.scrollIntoView({ behavior: 'smooth' })}
+                  >
+                    Go to National Exam Recording
+                  </Button>
+                )}
+              </Box>
+            ))}
+          </Stack>
+        )}
+      </ProcessStepCard>
+
+      <ProcessStepCard
+        step={2}
+        title="Check Readiness"
+        subheader="Confirms exactly who's ready before anything is run."
+        locked={step2Locked}
+        lockedReason={step2LockedReason}
+      >
+        <Stack spacing={2}>
+          <Box>
+            <Button variant="outlined" disabled={checkingReadiness} onClick={handleCheckReadiness}>
+              {checkingReadiness ? <CircularProgress size={20} /> : 'Check Readiness'}
+            </Button>
+          </Box>
+          {readinessError && <Alert severity="error">{readinessError}</Alert>}
+          {readiness && (
+            <>
+              <Stack direction="row" spacing={1}>
+                <Chip color="success" label={`${readiness.summary.ready} ready`} />
+                {Object.entries(readiness.summary.by_reason).map(([reason, count]) => (
+                  <Chip key={reason} color="warning" label={`${count} blocked: ${reason}`} />
+                ))}
+              </Stack>
+              <ReadinessTable rows={readiness.students} onExport={exportReadinessCsv} />
+            </>
+          )}
+        </Stack>
+      </ProcessStepCard>
+
+      <ProcessStepCard
+        step={3}
+        title="Run Promotion"
+        subheader="Promotes every ready student in this scope. Held students are skipped, never force-promoted."
+        locked={step3Locked}
+        lockedReason={step3LockedReason}
+      >
+        <Stack spacing={2}>
+          <Box>
+            <Button variant="contained" color="primary" disabled={promoting} onClick={() => setConfirmOpen(true)}>
+              {promoting ? <CircularProgress size={20} /> : 'Run Promotion'}
+            </Button>
+          </Box>
+          {promoteError && <Alert severity="error">{promoteError}</Alert>}
+          {promoteResult && (
+            <>
+              <Alert severity="success" icon={<CheckCircle2 size={20} />}>
+                <Typography variant="body2">{promoteResult.message}</Typography>
+              </Alert>
+              <ReadinessTable rows={promoteResult.outcomes} nameById={nameById} onExport={exportOutcomeCsv} />
+            </>
+          )}
+        </Stack>
+      </ProcessStepCard>
+
+      <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)}>
+        <DialogTitle>Confirm Promotion Run</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            This will promote {readiness?.summary.ready ?? 0} student(s)
+            {readiness && readiness.summary.blocked > 0 ? ` and skip ${readiness.summary.blocked} held student(s)` : ''}
+            {' '}for {academicYears.find((y) => String(y.id) === scopeYearId)?.year ?? 'the selected year'}.
+            This cannot be undone from this panel. Continue?
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmOpen(false)}>Cancel</Button>
+          <Button variant="contained" color="primary" onClick={() => { setConfirmOpen(false); handlePromote(); }}>
+            Run Promotion
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       <Card variant="outlined">
-        <CardHeader title="Check / Promote a Single Student" subheader="For one-off corrections outside a bulk run." />
+        <CardHeader title="Quick Override — Check / Promote a Single Student" subheader="For one-off corrections outside a full scope run." />
         <CardContent>
           <Stack spacing={2}>
             <Stack direction="row" spacing={2}>
@@ -433,7 +665,7 @@ export default function PromotionPanel() {
         </CardContent>
       </Card>
 
-      <Card variant="outlined">
+      <Card variant="outlined" ref={examSectionRef}>
         <CardHeader title="Record a National Exam" subheader="KPSEA (Grade 6), KJSEA (Grade 9), or KCSE (Form 4 / Grade 12)." />
         <CardContent>
           <Stack spacing={2}>
