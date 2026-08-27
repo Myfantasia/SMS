@@ -1,4 +1,5 @@
 from django.contrib.auth.models import User
+from django.db import transaction
 from django.db.models import Count, Q
 from rest_framework import viewsets
 from rest_framework.authentication import SessionAuthentication
@@ -29,13 +30,25 @@ class RoleViewSet(viewsets.ModelViewSet):
     Every mutation here grants or revokes real access elsewhere in the system, so — like
     every other sensitive admin action in this codebase (curriculum rules, allocation splits,
     exam mark alterations, enrollment changes) — it's logged to SystemAuditLog(module='RBAC').
+
+    Guarded by two independent checks on every mutation (see school.rbac): the rank gate
+    (an actor may only touch a role strictly more junior than their own effective rank) and
+    permission containment (an actor may only grant permission codes they hold themselves).
+    Superusers bypass both.
     """
-    queryset = Role.objects.filter(is_deleted=False).prefetch_related('permissions').annotate(member_count=Count('user_assignments', distinct=True))
     serializer_class = RoleSerializer
     authentication_classes = [SessionAuthentication]
     permission_classes = [IsApprovedAdmin | HasModulePermission]
     rbac_view_permission = 'rbac.manage'
     rbac_edit_permission = 'rbac.manage'
+
+    def get_queryset(self):
+        from apps.identity.services import get_current_school_id
+        return (
+            Role.objects.filter(is_deleted=False, school_id=get_current_school_id(self.request))
+            .prefetch_related('permissions')
+            .annotate(member_count=Count('user_assignments', distinct=True))
+        )
 
     @action(detail=True, methods=['get'])
     def members(self, request, pk=None):
@@ -55,16 +68,33 @@ class RoleViewSet(viewsets.ModelViewSet):
         ])
 
     def perform_create(self, serializer):
-        role = serializer.save()
-        codes = sorted(role.permissions.values_list('code', flat=True))
-        write_audit_log(
-            operator_id=self.request.user.id,
-            action_type='CREATE',
-            module='RBAC',
-            description=f"Created role '{role.name}' with permissions: {', '.join(codes) or 'none'}."
-        )
+        from apps.identity.services import get_current_school_id
+
+        actor = self.request.user
+        validate_rank_authority(actor, serializer.validated_data.get('rank'))
+        permission_codes = {p.code for p in serializer.validated_data.get('permissions', [])}
+        validate_permission_delegation(actor, permission_codes)
+
+        with transaction.atomic():
+            role = serializer.save(school_id=get_current_school_id(self.request))
+            codes = sorted(role.permissions.values_list('code', flat=True))
+            write_audit_log(
+                operator_id=actor.id,
+                action_type='CREATE',
+                module='RBAC',
+                description=f"Created role '{role.name}' with permissions: {', '.join(codes) or 'none'}."
+            )
 
     def perform_update(self, serializer):
+        actor = self.request.user
+        validate_rank_authority(actor, serializer.instance.rank)
+        new_rank = serializer.validated_data.get('rank', serializer.instance.rank)
+        validate_rank_authority(actor, new_rank)
+
+        new_permissions = serializer.validated_data.get('permissions')
+        if new_permissions is not None:
+            validate_permission_delegation(actor, {p.code for p in new_permissions})
+
         old_codes = set(serializer.instance.permissions.values_list('code', flat=True))
         old_name = serializer.instance.name
 
@@ -78,27 +108,30 @@ class RoleViewSet(viewsets.ModelViewSet):
                     'name': f"'{old_name}' is a core system role and can't be renamed."
                 })
 
-        role = serializer.save()
-        new_codes = set(role.permissions.values_list('code', flat=True))
+        with transaction.atomic():
+            role = serializer.save()
+            new_codes = set(role.permissions.values_list('code', flat=True))
 
-        added = sorted(new_codes - old_codes)
-        removed = sorted(old_codes - new_codes)
-        changes = []
-        if old_name != role.name:
-            changes.append(f"renamed from '{old_name}' to '{role.name}'")
-        if added:
-            changes.append(f"granted: {', '.join(added)}")
-        if removed:
-            changes.append(f"revoked: {', '.join(removed)}")
+            added = sorted(new_codes - old_codes)
+            removed = sorted(old_codes - new_codes)
+            changes = []
+            if old_name != role.name:
+                changes.append(f"renamed from '{old_name}' to '{role.name}'")
+            if added:
+                changes.append(f"granted: {', '.join(added)}")
+            if removed:
+                changes.append(f"revoked: {', '.join(removed)}")
 
-        write_audit_log(
-            operator_id=self.request.user.id,
-            action_type='UPDATE',
-            module='RBAC',
-            description=f"Updated role '{role.name}'" + (f" — {'; '.join(changes)}." if changes else " (no changes).")
-        )
+            write_audit_log(
+                operator_id=actor.id,
+                action_type='UPDATE',
+                module='RBAC',
+                description=f"Updated role '{role.name}'" + (f" — {'; '.join(changes)}." if changes else " (no changes).")
+            )
 
     def perform_destroy(self, instance):
+        validate_rank_authority(self.request.user, instance.rank)
+
         if instance.is_system_role:
             raise ValidationError(
                 f"'{instance.name}' is a core system role and can't be deleted. "
@@ -109,14 +142,15 @@ class RoleViewSet(viewsets.ModelViewSet):
         role_name = instance.name
         affected_user_ids = list(instance.user_assignments.values_list('user_id', flat=True))
         affected_users = list(instance.user_assignments.values_list('user__username', flat=True))
-        soft_delete(
-            instance, operator=self.request.user, module='RBAC',
-            description=f"Deleted role '{role_name}'" + (
-                f" — previously assigned to: {', '.join(affected_users)}." if affected_users else "."
-            ),
-        )
-        for uid in affected_user_ids:
-            invalidate_user_permission_cache(uid)
+        with transaction.atomic():
+            soft_delete(
+                instance, operator=self.request.user, module='RBAC',
+                description=f"Deleted role '{role_name}'" + (
+                    f" — previously assigned to: {', '.join(affected_users)}." if affected_users else "."
+                ),
+            )
+            for uid in affected_user_ids:
+                invalidate_user_permission_cache(uid)
 
 
 class UserRoleAssignmentAPIView(APIView):

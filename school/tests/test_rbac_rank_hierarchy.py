@@ -185,6 +185,10 @@ from django.urls import reverse
 class RbacManageEntryGateTests(TestCase):
     def setUp(self):
         cache.clear()
+        # RoleViewSet.get_queryset() (Task 9) now calls get_current_school_id(), which
+        # requires exactly one School row to exist -- without this, the two tests below
+        # that reach list() (expecting 200) error out with ImproperlyConfigured instead.
+        School.objects.create(name='Default School', level='COMBINED')
 
     def test_rbac_manage_holder_without_admin_group_can_list_roles(self):
         permission = Permission.objects.create(code='rbac.manage', label='Manage RBAC', module='RBAC')
@@ -212,3 +216,90 @@ class RbacManageEntryGateTests(TestCase):
         self.client.force_login(user)
         response = self.client.get(reverse('rbac-role-list'))
         self.assertEqual(response.status_code, 200)
+
+
+from apps.identity.models import School
+
+
+class RoleViewSetGuardTests(TestCase):
+    def setUp(self):
+        cache.clear()
+        self.school = School.objects.create(name='Default School', level='COMBINED')
+        # RoleViewSet's entry gate (Task 8) requires 'rbac.manage' for every request, GET
+        # included — every actor in these tests must hold it just to reach the view at all,
+        # independent of whichever rank/permission guard the individual test is exercising.
+        self.rbac_manage, _ = Permission.objects.get_or_create(
+            code='rbac.manage', defaults={'label': 'Manage RBAC', 'module': 'RBAC'}
+        )
+
+    def _login_at_rank(self, username, rank, extra_codes=None):
+        user = User.objects.create_user(username=username, password='x')
+        role = Role.objects.create(name=f'{username}_role', rank=rank, school=self.school)
+        codes = {'rbac.manage', *(extra_codes or [])}
+        role.permissions.set(Permission.objects.filter(code__in=codes))
+        UserRole.objects.create(user=user, role=role)
+        self.client.force_login(user)
+        return user
+
+    def test_create_role_at_junior_rank_succeeds(self):
+        self._login_at_rank('principal', 1)
+        response = self.client.post(reverse('rbac-role-list'), {'name': 'New Staff Role', 'rank': 6}, content_type='application/json')
+        self.assertEqual(response.status_code, 201, response.content)
+        self.assertEqual(Role.objects.get(name='New Staff Role').school_id, self.school.id)
+
+    def test_create_role_at_own_rank_is_forbidden(self):
+        self._login_at_rank('senior_teacher', 3)
+        response = self.client.post(reverse('rbac-role-list'), {'name': 'Peer Role', 'rank': 3}, content_type='application/json')
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(Role.objects.filter(name='Peer Role').exists())
+
+    def test_create_role_with_permission_actor_lacks_is_forbidden(self):
+        finance_view = Permission.objects.create(code='finance.view', label='View finance', module='Finance')
+        self._login_at_rank('principal2', 1)  # no permissions granted
+        response = self.client.post(
+            reverse('rbac-role-list'),
+            {'name': 'Finance Role', 'rank': 3, 'permission_ids': [finance_view.id]},
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(Role.objects.filter(name='Finance Role').exists())
+
+    def test_update_role_rank_to_a_more_senior_tier_is_forbidden(self):
+        self._login_at_rank('principal3', 1)
+        target = Role.objects.create(name='Staff Target', rank=6, school=self.school)
+        response = self.client.patch(reverse('rbac-role-detail', args=[target.id]), {'rank': 1}, content_type='application/json')
+        self.assertEqual(response.status_code, 403)
+        target.refresh_from_db()
+        self.assertEqual(target.rank, 6)
+
+    def test_update_a_senior_roles_permissions_is_forbidden(self):
+        self._login_at_rank('senior_teacher2', 3)
+        senior_target = Role.objects.create(name='Another Rank 1', rank=1, school=self.school)
+        response = self.client.patch(reverse('rbac-role-detail', args=[senior_target.id]), {'description': 'hijacked'}, content_type='application/json')
+        self.assertEqual(response.status_code, 403)
+
+    def test_delete_role_at_junior_rank_succeeds(self):
+        self._login_at_rank('principal4', 1)
+        target = Role.objects.create(name='Deletable Staff Role', rank=6, school=self.school)
+        response = self.client.delete(reverse('rbac-role-detail', args=[target.id]))
+        self.assertEqual(response.status_code, 204)
+
+    def test_delete_role_at_own_rank_is_forbidden(self):
+        self._login_at_rank('senior_teacher3', 3)
+        peer = Role.objects.create(name='Peer Delete Target', rank=3, school=self.school)
+        response = self.client.delete(reverse('rbac-role-detail', args=[peer.id]))
+        self.assertEqual(response.status_code, 403)
+
+    def test_superuser_bypasses_both_guards(self):
+        su = User.objects.create_superuser(username='root3', password='x', email='root3@test.com')
+        self.client.force_login(su)
+        response = self.client.post(reverse('rbac-role-list'), {'name': 'Superuser Made Role', 'rank': 1}, content_type='application/json')
+        self.assertEqual(response.status_code, 201, response.content)
+
+    def test_list_is_scoped_to_current_school(self):
+        Role.objects.create(name='Scoped Role', rank=6, school=self.school)
+        self._login_at_rank('principal5', 1)
+        response = self.client.get(reverse('rbac-role-list'))
+        self.assertEqual(response.status_code, 200)
+        names = [r['name'] for r in response.json()]
+        self.assertIn('Scoped Role', names)
