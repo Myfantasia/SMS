@@ -161,7 +161,7 @@ from django.test import RequestFactory
 from django.core.cache import cache
 
 from apps.identity.models import Permission, Role, UserRole
-from school.views.promotion_views import PromotionReadinessAPIView
+from school.views.promotion_views import PromotionReadinessAPIView, PromotionPrerequisitesAPIView
 from school.tests.base import ExamTestDataMixin
 
 
@@ -304,3 +304,129 @@ class PromoteSingleStudentAPIViewTests(ExamTestDataMixin, TestCase):
     def test_unknown_student_returns_404(self):
         response = self._post(self.admin_user, 999999, {'academic_year_id': self.year.id})
         self.assertEqual(response.status_code, 404)
+
+
+class PromotionPrerequisitesAPIViewTests(ExamTestDataMixin, TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        Permission.objects.get_or_create(code='results.view', defaults={'label': 'results.view', 'module': 'results'})
+        role = Role.objects.create(name='Prerequisites Viewer')
+        role.permissions.set(Permission.objects.filter(code='results.view'))
+        UserRole.objects.create(user=cls.admin_user, role=role)
+
+        cls.curriculum = Curriculum.objects.create(code='PREQ1', name='Prerequisites Test Curriculum')
+
+        # A plain-transition grade (no exit exam configured on its tier).
+        cls.plain_tier = Tier.objects.create(curriculum=cls.curriculum, name='Lower Primary', code='LPPREQ1')
+        cls.plain_grade = GradeLevel.objects.create(
+            name='Grade 1PREQ', numeric_order=1, curriculum=cls.curriculum, tier=cls.plain_tier,
+        )
+        GradeLevel.objects.create(name='Grade 2PREQ', numeric_order=2, curriculum=cls.curriculum, tier=cls.plain_tier)
+        cls.plain_stream = ClassStream.objects.create(name='Central', grade=cls.plain_grade)
+
+        # An exam-gated grade (exits its tier via KPSEA, non-terminal).
+        cls.exam_tier = Tier.objects.create(
+            curriculum=cls.curriculum, name='Upper Primary', code='UPPREQ1',
+            exit_exam_code='KPSEA', exit_is_terminal=False,
+        )
+        cls.jss_tier = Tier.objects.create(curriculum=cls.curriculum, name='Junior Secondary', code='JSSPREQ1')
+        cls.exam_grade = GradeLevel.objects.create(
+            name='Grade 6PREQ', numeric_order=6, curriculum=cls.curriculum, tier=cls.exam_tier,
+        )
+        GradeLevel.objects.create(name='Grade 7PREQ', numeric_order=7, curriculum=cls.curriculum, tier=cls.jss_tier)
+        cls.exam_stream = ClassStream.objects.create(name='Central', grade=cls.exam_grade)
+
+        cls.year = AcademicYear.objects.create(year='2098')
+        ExamTerm.objects.create(
+            name='Term 1', academic_year=cls.year, start_date='2098-01-01', end_date='2098-04-01',
+            results_finalized=True,
+        )
+        ExamTerm.objects.create(
+            name='Term 2', academic_year=cls.year, start_date='2098-05-01', end_date='2098-08-01',
+            results_finalized=False,
+        )
+
+        plain_user = User.objects.create_user(username='preq_plain_student', password='x')
+        cls.plain_student = StudentExtra.objects.create(user=plain_user, roll='PP01', cl=cls.plain_stream, status=True)
+
+        exam_user_a = User.objects.create_user(username='preq_exam_student_a', password='x')
+        cls.exam_student_a = StudentExtra.objects.create(user=exam_user_a, roll='PE01', cl=cls.exam_stream, status=True)
+        exam_user_b = User.objects.create_user(username='preq_exam_student_b', password='x')
+        cls.exam_student_b = StudentExtra.objects.create(user=exam_user_b, roll='PE02', cl=cls.exam_stream, status=True)
+        NationalExamRecord.objects.create(student=cls.exam_student_a, exam_code='KPSEA', academic_year=cls.year)
+
+    def setUp(self):
+        cache.clear()
+        self.factory = RequestFactory()
+
+    def _get(self, query):
+        request = self.factory.get(f'/api/promotion/prerequisites/?{query}')
+        request.user = self.admin_user
+        return PromotionPrerequisitesAPIView.as_view()(request)
+
+    def test_missing_academic_year_id_is_rejected(self):
+        request = self.factory.get('/api/promotion/prerequisites/')
+        request.user = self.admin_user
+        response = PromotionPrerequisitesAPIView.as_view()(request)
+        self.assertEqual(response.status_code, 400)
+
+    def test_unknown_grade_id_returns_404(self):
+        response = self._get(f'academic_year_id={self.year.id}&grade_id=999999')
+        self.assertEqual(response.status_code, 404)
+
+    def test_whole_school_scope_buckets_by_transition_type(self):
+        response = self._get(f'academic_year_id={self.year.id}')
+        self.assertEqual(response.status_code, 200)
+        data = response.data
+        self.assertIsNone(data['scope']['grade_name'])
+
+        groups = {(g['transition_type'], g['exam_code']): g for g in data['requirement_groups']}
+        self.assertIn(('plain', None), groups)
+        self.assertIn(('exam_gated', 'KPSEA'), groups)
+
+        plain_group = groups[('plain', None)]
+        # ExamTestDataMixin creates Grade 8 with plain transition, so it's included in the scope
+        self.assertEqual(set(plain_group['grade_names']), {'Grade 1PREQ', 'Grade 8'})
+        self.assertFalse(plain_group['satisfied'])
+        self.assertEqual(plain_group['detail'], '1 of 2 term(s) finalized')
+        self.assertEqual(len(plain_group['terms']), 2)
+
+        exam_group = groups[('exam_gated', 'KPSEA')]
+        self.assertEqual(exam_group['grade_names'], ['Grade 6PREQ'])
+        self.assertFalse(exam_group['satisfied'])
+        self.assertEqual(exam_group['detail'], '1 of 2 student(s) recorded')
+
+    def test_grade_scope_narrows_to_one_group(self):
+        response = self._get(f'academic_year_id={self.year.id}&grade_id={self.exam_grade.id}')
+        data = response.data
+        self.assertEqual(data['scope']['grade_name'], 'Grade 6PREQ')
+        self.assertEqual(len(data['requirement_groups']), 1)
+        self.assertEqual(data['requirement_groups'][0]['transition_type'], 'exam_gated')
+
+    def test_fully_satisfied_plain_group(self):
+        satisfied_year = AcademicYear.objects.create(year='2099')
+        ExamTerm.objects.create(
+            name='Term 1', academic_year=satisfied_year, start_date='2099-01-01', end_date='2099-04-01',
+            results_finalized=True,
+        )
+        response = self._get(f'academic_year_id={satisfied_year.id}&grade_id={self.plain_grade.id}')
+        data = response.data
+        self.assertTrue(data['requirement_groups'][0]['satisfied'])
+        self.assertEqual(data['requirement_groups'][0]['detail'], '1 of 1 term(s) finalized')
+
+    def test_empty_scope_returns_no_groups(self):
+        empty_year = AcademicYear.objects.create(year='2100')
+        empty_tier = Tier.objects.create(curriculum=self.curriculum, name='Empty Tier', code='EMPPREQ1')
+        empty_grade = GradeLevel.objects.create(
+            name='Grade EmptyPREQ', numeric_order=99, curriculum=self.curriculum, tier=empty_tier,
+        )
+        response = self._get(f'academic_year_id={empty_year.id}&grade_id={empty_grade.id}')
+        self.assertEqual(response.data['requirement_groups'], [])
+
+    def test_permission_required(self):
+        no_role_user = User.objects.create_user(username='preq_no_role', password='x')
+        request = self.factory.get(f'/api/promotion/prerequisites/?academic_year_id={self.year.id}')
+        request.user = no_role_user
+        response = PromotionPrerequisitesAPIView.as_view()(request)
+        self.assertEqual(response.status_code, 403)
