@@ -177,3 +177,38 @@ class ValidatePermissionDelegationTests(TestCase):
         role.permissions.set([self.finance_view])
         UserRole.objects.create(user=bursar, role=role)
         validate_permission_delegation(bursar, ['finance.view'])  # does not raise
+
+
+from django.urls import reverse
+
+
+class RbacManageEntryGateTests(TestCase):
+    def setUp(self):
+        cache.clear()
+
+    def test_rbac_manage_holder_without_admin_group_can_list_roles(self):
+        permission = Permission.objects.create(code='rbac.manage', label='Manage RBAC', module='RBAC')
+        role = Role.objects.create(name='Senior Teacher', rank=3)
+        role.permissions.add(permission)
+        user = User.objects.create_user(username='senior_teacher', password='x')
+        UserRole.objects.create(user=user, role=role)
+
+        self.client.force_login(user)
+        response = self.client.get(reverse('rbac-role-list'))
+        self.assertEqual(response.status_code, 200)
+
+    def test_user_without_rbac_manage_or_admin_group_is_forbidden(self):
+        user = User.objects.create_user(username='nobody', password='x')
+        self.client.force_login(user)
+        response = self.client.get(reverse('rbac-role-list'))
+        self.assertEqual(response.status_code, 403)
+
+    def test_existing_admin_group_access_is_unchanged(self):
+        from django.contrib.auth.models import Group
+        admin_group, _ = Group.objects.get_or_create(name='ADMIN')
+        user = User.objects.create_user(username='group_admin', password='x')
+        user.groups.add(admin_group)
+
+        self.client.force_login(user)
+        response = self.client.get(reverse('rbac-role-list'))
+        self.assertEqual(response.status_code, 200)

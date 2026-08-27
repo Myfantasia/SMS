@@ -11,7 +11,7 @@ from rest_framework.views import APIView
 from apps.core.services import write_audit_log
 from apps.identity.models import Permission, Role, UserRole
 from school.permissions import IsApprovedAdmin
-from school.rbac import invalidate_user_permission_cache
+from school.rbac import HasModulePermission, invalidate_user_permission_cache, validate_permission_delegation, validate_rank_authority
 from school.serializers.rbac_serializers import PermissionSerializer, RoleSerializer
 
 
@@ -20,7 +20,8 @@ class PermissionViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Permission.objects.all()
     serializer_class = PermissionSerializer
     authentication_classes = [SessionAuthentication]
-    permission_classes = [IsApprovedAdmin]
+    permission_classes = [IsApprovedAdmin | HasModulePermission]
+    rbac_view_permission = 'rbac.manage'
 
 
 class RoleViewSet(viewsets.ModelViewSet):
@@ -32,7 +33,9 @@ class RoleViewSet(viewsets.ModelViewSet):
     queryset = Role.objects.filter(is_deleted=False).prefetch_related('permissions').annotate(member_count=Count('user_assignments', distinct=True))
     serializer_class = RoleSerializer
     authentication_classes = [SessionAuthentication]
-    permission_classes = [IsApprovedAdmin]
+    permission_classes = [IsApprovedAdmin | HasModulePermission]
+    rbac_view_permission = 'rbac.manage'
+    rbac_edit_permission = 'rbac.manage'
 
     @action(detail=True, methods=['get'])
     def members(self, request, pk=None):
@@ -119,7 +122,9 @@ class RoleViewSet(viewsets.ModelViewSet):
 class UserRoleAssignmentAPIView(APIView):
     """Search users and view/assign/unassign their RBAC roles."""
     authentication_classes = [SessionAuthentication]
-    permission_classes = [IsApprovedAdmin, IsAuthenticated]
+    permission_classes = [IsApprovedAdmin | HasModulePermission]
+    rbac_view_permission = 'rbac.manage'
+    rbac_edit_permission = 'rbac.manage'
 
     def get(self, request):
         user_id = request.query_params.get('user_id')
