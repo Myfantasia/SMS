@@ -39,7 +39,7 @@ class RoleSerializerRankFieldTests(TestCase):
 
 from django.contrib.auth.models import User
 
-from apps.identity.models import Permission, UserRole, Role
+from apps.identity.models import Permission, UserRole, Role, School
 from apps.identity.services import get_user_effective_rank
 
 
@@ -218,9 +218,6 @@ class RbacManageEntryGateTests(TestCase):
         self.assertEqual(response.status_code, 200)
 
 
-from apps.identity.models import School
-
-
 class RoleViewSetGuardTests(TestCase):
     def setUp(self):
         cache.clear()
@@ -255,7 +252,7 @@ class RoleViewSetGuardTests(TestCase):
 
     def test_create_role_with_permission_actor_lacks_is_forbidden(self):
         finance_view = Permission.objects.create(code='finance.view', label='View finance', module='Finance')
-        self._login_at_rank('principal2', 1)  # no permissions granted
+        self._login_at_rank('principal2', 1)  # holds rbac.manage only -- not finance.view
         response = self.client.post(
             reverse('rbac-role-list'),
             {'name': 'Finance Role', 'rank': 3, 'permission_ids': [finance_view.id]},
@@ -278,6 +275,17 @@ class RoleViewSetGuardTests(TestCase):
         response = self.client.patch(reverse('rbac-role-detail', args=[senior_target.id]), {'description': 'hijacked'}, content_type='application/json')
         self.assertEqual(response.status_code, 403)
 
+    def test_update_role_rank_to_a_still_junior_tier_succeeds(self):
+        # Pins the mirror-image failure mode: if perform_update's second validate_rank_authority
+        # call were wired wrong (e.g. checking the actor's own rank instead of the proposed
+        # value), every update would be denied and the suite would still pass without this test.
+        self._login_at_rank('principal6', 1)
+        target = Role.objects.create(name='Junior Target', rank=6, school=self.school)
+        response = self.client.patch(reverse('rbac-role-detail', args=[target.id]), {'rank': 7}, content_type='application/json')
+        self.assertEqual(response.status_code, 200, response.content)
+        target.refresh_from_db()
+        self.assertEqual(target.rank, 7)
+
     def test_delete_role_at_junior_rank_succeeds(self):
         self._login_at_rank('principal4', 1)
         target = Role.objects.create(name='Deletable Staff Role', rank=6, school=self.school)
@@ -298,8 +306,12 @@ class RoleViewSetGuardTests(TestCase):
 
     def test_list_is_scoped_to_current_school(self):
         Role.objects.create(name='Scoped Role', rank=6, school=self.school)
+        # Unscoped role (school=None) -- must NOT appear, or this test would pass even
+        # against the old unscoped class-attribute queryset.
+        Role.objects.create(name='Unscoped Role', rank=6, school=None)
         self._login_at_rank('principal5', 1)
         response = self.client.get(reverse('rbac-role-list'))
         self.assertEqual(response.status_code, 200)
         names = [r['name'] for r in response.json()]
         self.assertIn('Scoped Role', names)
+        self.assertNotIn('Unscoped Role', names)
