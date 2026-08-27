@@ -104,3 +104,76 @@ class GetUndelegatablePermissionCodesTests(TestCase):
         UserRole.objects.create(user=user, role=role)
         result = get_undelegatable_permission_codes(user.id, ['finance.view', 'exams.view'])
         self.assertEqual(result, frozenset({'finance.view'}))
+
+
+from rest_framework.exceptions import PermissionDenied
+
+from school.rbac import validate_rank_authority, validate_permission_delegation
+
+
+class ValidateRankAuthorityTests(TestCase):
+    def setUp(self):
+        cache.clear()
+
+    def _user_at_rank(self, username, rank):
+        user = User.objects.create_user(username=username, password='x')
+        role = Role.objects.create(name=f'{username}_role', rank=rank)
+        UserRole.objects.create(user=user, role=role)
+        return user
+
+    def test_superuser_bypasses(self):
+        su = User.objects.create_superuser(username='root', password='x', email='root@test.com')
+        validate_rank_authority(su, 1)  # does not raise, even for rank 1
+
+    def test_actor_cannot_manage_own_rank(self):
+        principal = self._user_at_rank('principal', 1)
+        with self.assertRaises(PermissionDenied):
+            validate_rank_authority(principal, 1)
+
+    def test_actor_cannot_manage_a_more_senior_rank(self):
+        deputy = self._user_at_rank('deputy', 2)
+        with self.assertRaises(PermissionDenied):
+            validate_rank_authority(deputy, 1)
+
+    def test_actor_can_manage_a_strictly_junior_rank(self):
+        principal = self._user_at_rank('principal2', 1)
+        validate_rank_authority(principal, 6)  # does not raise
+
+    def test_peers_cannot_manage_each_other(self):
+        senior_teacher = self._user_at_rank('senior_teacher', 3)
+        with self.assertRaises(PermissionDenied):
+            validate_rank_authority(senior_teacher, 3)
+
+    def test_null_target_rank_is_blocked_for_non_superuser(self):
+        principal = self._user_at_rank('principal3', 1)
+        with self.assertRaises(PermissionDenied):
+            validate_rank_authority(principal, None)
+
+    def test_roleless_actor_cannot_manage_any_ranked_role(self):
+        user = User.objects.create_user(username='no_roles', password='x')
+        with self.assertRaises(PermissionDenied):
+            validate_rank_authority(user, 6)
+
+
+class ValidatePermissionDelegationTests(TestCase):
+    def setUp(self):
+        cache.clear()
+        self.finance_view = Permission.objects.create(code='finance.view', label='View finance', module='Finance')
+
+    def test_superuser_bypasses(self):
+        su = User.objects.create_superuser(username='root2', password='x', email='root2@test.com')
+        validate_permission_delegation(su, ['finance.view'])  # does not raise
+
+    def test_actor_missing_a_code_raises(self):
+        deputy = User.objects.create_user(username='deputy2', password='x')
+        role = Role.objects.create(name='Deputy2', rank=2)  # no finance.view
+        UserRole.objects.create(user=deputy, role=role)
+        with self.assertRaises(PermissionDenied):
+            validate_permission_delegation(deputy, ['finance.view'])
+
+    def test_actor_holding_all_codes_does_not_raise(self):
+        bursar = User.objects.create_user(username='bursar', password='x')
+        role = Role.objects.create(name='Bursar Role', rank=3)
+        role.permissions.set([self.finance_view])
+        UserRole.objects.create(user=bursar, role=role)
+        validate_permission_delegation(bursar, ['finance.view'])  # does not raise
