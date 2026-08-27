@@ -315,3 +315,84 @@ class RoleViewSetGuardTests(TestCase):
         names = [r['name'] for r in response.json()]
         self.assertIn('Scoped Role', names)
         self.assertNotIn('Unscoped Role', names)
+
+
+class UserRoleAssignmentGuardTests(TestCase):
+    def setUp(self):
+        cache.clear()
+        self.school = School.objects.create(name='Default School', level='COMBINED')
+        # UserRoleAssignmentAPIView's entry gate (Task 8) requires 'rbac.manage' for every
+        # mutating request -- every actor here must hold it just to reach .post()/.delete()
+        # at all, independent of whichever rank guard the individual test is exercising.
+        # Mirrors RoleViewSetGuardTests._login_at_rank above.
+        self.rbac_manage, _ = Permission.objects.get_or_create(
+            code='rbac.manage', defaults={'label': 'Manage RBAC', 'module': 'RBAC'}
+        )
+
+    def _login_at_rank(self, username, rank):
+        actor = User.objects.create_user(username=username, password='x')
+        role = Role.objects.create(name=f'{username}_role', rank=rank, school=self.school)
+        role.permissions.add(self.rbac_manage)
+        UserRole.objects.create(user=actor, role=role)
+        self.client.force_login(actor)
+        return actor
+
+    def test_assign_junior_role_succeeds(self):
+        self._login_at_rank('principal6', 1)
+        target_user = User.objects.create_user(username='new_staff', password='x')
+        staff_role = Role.objects.create(name='Staff Role Assign', rank=6, school=self.school)
+        response = self.client.post(
+            reverse('rbac-user-assignments'),
+            {'user_id': target_user.id, 'role_id': staff_role.id},
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(UserRole.objects.filter(user=target_user, role=staff_role).exists())
+
+    def test_assign_role_at_own_rank_is_self_promotion_and_forbidden(self):
+        actor = self._login_at_rank('senior_teacher4', 3)
+        peer_role = Role.objects.create(name='Peer Assign Target', rank=3, school=self.school)
+        response = self.client.post(
+            reverse('rbac-user-assignments'),
+            {'user_id': actor.id, 'role_id': peer_role.id},
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(UserRole.objects.filter(user=actor, role=peer_role).exists())
+
+    def test_unassign_junior_role_succeeds(self):
+        self._login_at_rank('principal7', 1)
+        target_user = User.objects.create_user(username='staff_to_remove', password='x')
+        staff_role = Role.objects.create(name='Removable Staff Role', rank=6, school=self.school)
+        UserRole.objects.create(user=target_user, role=staff_role)
+        response = self.client.delete(
+            reverse('rbac-user-assignments'),
+            {'user_id': target_user.id, 'role_id': staff_role.id},
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(UserRole.objects.filter(user=target_user, role=staff_role).exists())
+
+    def test_unassign_senior_role_from_another_user_is_forbidden(self):
+        self._login_at_rank('senior_teacher5', 3)
+        senior_user = User.objects.create_user(username='another_principal', password='x')
+        senior_role = Role.objects.create(name='Rank One Role', rank=1, school=self.school)
+        UserRole.objects.create(user=senior_user, role=senior_role)
+        response = self.client.delete(
+            reverse('rbac-user-assignments'),
+            {'user_id': senior_user.id, 'role_id': senior_role.id},
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(UserRole.objects.filter(user=senior_user, role=senior_role).exists())
+
+    def test_self_lockout_guard_still_fires_before_rank_guard(self):
+        actor = self._login_at_rank('lone_staff', 6)
+        only_role = UserRole.objects.get(user=actor).role
+        response = self.client.delete(
+            reverse('rbac-user-assignments'),
+            {'user_id': actor.id, 'role_id': only_role.id},
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("lock you out", response.json()['error'])
