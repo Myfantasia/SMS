@@ -361,6 +361,8 @@ class PromotionReadinessAPIView(APIView):
                 'requirement': readiness['requirement'],
                 'ready': readiness['ready'],
                 'reason': readiness['reason'],
+                'next_grade_name': readiness['next_grade_name'],
+                'exam_code': readiness['_transition'][1],
             })
             if readiness['ready']:
                 ready_count += 1
