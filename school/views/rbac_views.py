@@ -208,15 +208,19 @@ class UserRoleAssignmentAPIView(APIView):
             role = Role.objects.get(id=role_id)
         except (User.DoesNotExist, Role.DoesNotExist):
             return Response({'error': 'User or role not found.'}, status=404)
-        _, created = UserRole.objects.get_or_create(user=user, role=role)
-        if created:
-            invalidate_user_permission_cache(user.id)
-            write_audit_log(
-                operator_id=request.user.id,
-                action_type='CREATE',
-                module='RBAC',
-                description=f"Assigned role '{role.name}' to user '{user.username}'."
-            )
+
+        validate_rank_authority(request.user, role.rank)
+
+        with transaction.atomic():
+            _, created = UserRole.objects.get_or_create(user=user, role=role)
+            if created:
+                invalidate_user_permission_cache(user.id)
+                write_audit_log(
+                    operator_id=request.user.id,
+                    action_type='CREATE',
+                    module='RBAC',
+                    description=f"Assigned role '{role.name}' to user '{user.username}'."
+                )
         return Response({'status': 'success'})
 
     def delete(self, request):
@@ -226,7 +230,8 @@ class UserRoleAssignmentAPIView(APIView):
         # Self-lockout guard: superusers can never actually be locked out (they bypass RBAC
         # entirely, see get_user_permission_codes), so only non-superusers need protecting.
         # A user removing their own LAST role assignment would leave them with zero RBAC
-        # access with no easy way back in — block that specific case.
+        # access with no easy way back in — block that specific case. Checked before the
+        # rank guard so this friendlier message wins for this specific scenario.
         if str(request.user.id) == str(user_id) and not request.user.is_superuser:
             remaining = UserRole.objects.filter(user_id=user_id).exclude(role_id=role_id).count()
             if remaining == 0:
@@ -236,16 +241,20 @@ class UserRoleAssignmentAPIView(APIView):
                              "replacement role first."
                 }, status=400)
 
-        deleted_count, _ = UserRole.objects.filter(user_id=user_id, role_id=role_id).delete()
-        if deleted_count:
-            invalidate_user_permission_cache(user_id)
-            user = User.objects.filter(id=user_id).first()
-            role = Role.objects.filter(id=role_id).first()
-            write_audit_log(
-                operator_id=request.user.id,
-                action_type='DELETE',
-                module='RBAC',
-                description=f"Removed role '{role.name if role else role_id}' from user "
-                             f"'{user.username if user else user_id}'."
-            )
+        role = Role.objects.filter(id=role_id).first()
+        if role is not None:
+            validate_rank_authority(request.user, role.rank)
+
+        with transaction.atomic():
+            deleted_count, _ = UserRole.objects.filter(user_id=user_id, role_id=role_id).delete()
+            if deleted_count:
+                invalidate_user_permission_cache(user_id)
+                user = User.objects.filter(id=user_id).first()
+                write_audit_log(
+                    operator_id=request.user.id,
+                    action_type='DELETE',
+                    module='RBAC',
+                    description=f"Removed role '{role.name if role else role_id}' from user "
+                                 f"'{user.username if user else user_id}'."
+                )
         return Response({'status': 'success'})
