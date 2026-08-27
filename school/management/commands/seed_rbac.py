@@ -1,7 +1,7 @@
 from django.contrib.auth.models import Group
 from django.core.management.base import BaseCommand
 
-from apps.identity.models import Permission, Role, UserRole
+from apps.identity.models import Permission, Role, School, UserRole
 
 # (code, label, module) — module groups the checkbox grid on the Roles & Permissions page.
 # Every code here is one actually referenced by a rbac_view_permission/rbac_edit_permission
@@ -72,6 +72,8 @@ PERMISSIONS = [
 
     ('trash.view', 'View the Trash (soft-deleted items across all modules)', 'Trash'),
     ('trash.manage', 'Restore or permanently delete items in the Trash', 'Trash'),
+
+    ('rbac.manage', 'Create, edit, delete, and assign RBAC roles -- subject to the rank and permission-containment guards', 'RBAC'),
 ]
 
 # Admin gets every permission in the catalog automatically (see handle()) — no hardcoded
@@ -98,6 +100,14 @@ ROLE_GROUP_SOURCE = {
     'Teacher': 'TEACHER',
 }
 
+# Anchor points for the rank hierarchy -- Admin=1 (Principal-equivalent) and Teacher=5
+# (Subject Teacher-equivalent) are the two ends the rest of the ladder (seeded separately,
+# Phase 3) is defined relative to. See the RBAC design spec's rank table.
+SYSTEM_ROLE_RANKS = {
+    'Admin': 1,
+    'Teacher': 5,
+}
+
 
 class Command(BaseCommand):
     """
@@ -119,6 +129,13 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         dry_run = options['dry_run']
+        school = School.objects.first()
+        if school is None and not dry_run:
+            self.stderr.write(self.style.WARNING(
+                "No School row exists yet -- roles will be seeded without a school. Run "
+                "`python manage.py backfill_curriculum_preset_school` first if you want "
+                "Admin/Teacher scoped to a school."
+            ))
 
         self.stdout.write("Permissions:")
         permissions_by_code = {}
@@ -143,7 +160,18 @@ class Command(BaseCommand):
             self.stdout.write(f"  {'exists' if admin_exists else '[DRY RUN] would create'}: Admin -> ALL except Trash ({len(all_codes)} permissions)")
             roles_by_name['Admin'] = Role.objects.filter(name='Admin').first()
         else:
-            admin_role, created = Role.objects.get_or_create(name='Admin', defaults={'description': 'Full access to every module.'})
+            # `school` is part of the lookup, not just defaults=, now that Role's unique
+            # constraint is (school, name) rather than a bare unique name -- get_or_create's
+            # lookup kwargs must match the constraint it's relying on, or a second school's
+            # 'Admin' row (once multi-school is real) would raise MultipleObjectsReturned
+            # instead of correctly creating its own.
+            admin_role, created = Role.objects.get_or_create(
+                name='Admin', school=school,
+                defaults={'description': 'Full access to every module.', 'rank': SYSTEM_ROLE_RANKS['Admin']},
+            )
+            if admin_role.rank != SYSTEM_ROLE_RANKS['Admin']:
+                admin_role.rank = SYSTEM_ROLE_RANKS['Admin']
+                admin_role.save(update_fields=['rank'])
             # Trash is the one module Admin does NOT get automatically — it's a
             # deliberate per-admin grant via Roles & Permissions, not a blanket right.
             admin_role.permissions.set(Permission.objects.exclude(code__startswith='trash.'))
@@ -158,7 +186,13 @@ class Command(BaseCommand):
             self.stdout.write(f"  {'exists' if teacher_exists else '[DRY RUN] would create'}: Teacher -> {TEACHER_PERMISSIONS}")
             roles_by_name['Teacher'] = Role.objects.filter(name='Teacher').first()
         else:
-            teacher_role, created = Role.objects.get_or_create(name='Teacher', defaults={'description': 'Day-to-day teaching modules.'})
+            teacher_role, created = Role.objects.get_or_create(
+                name='Teacher', school=school,
+                defaults={'description': 'Day-to-day teaching modules.', 'rank': SYSTEM_ROLE_RANKS['Teacher']},
+            )
+            if teacher_role.rank != SYSTEM_ROLE_RANKS['Teacher']:
+                teacher_role.rank = SYSTEM_ROLE_RANKS['Teacher']
+                teacher_role.save(update_fields=['rank'])
             teacher_role.permissions.set([permissions_by_code[c] for c in TEACHER_PERMISSIONS if permissions_by_code.get(c)])
             if not teacher_role.is_system_role:
                 teacher_role.is_system_role = True
