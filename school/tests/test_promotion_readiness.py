@@ -244,6 +244,13 @@ class PromotionReadinessAPIViewTests(ExamTestDataMixin, TestCase):
         self.assertNotIn(graduated_student.id, student_ids)
         self.assertEqual(data['summary']['ready'] + data['summary']['blocked'], 2)
 
+    def test_ready_row_includes_transition_preview_fields(self):
+        response = self._get(f'academic_year_id={self.ready_year.id}&grade_id={self.g1.id}')
+        data = response.data
+        row = next(r for r in data['students'] if r['student_id'] == self.ready_student.id)
+        self.assertEqual(row['next_grade_name'], 'Grade 2PRAV')
+        self.assertIsNone(row['exam_code'])
+
 
 from school.views.promotion_views import PromoteSingleStudentAPIView
 
