@@ -3,6 +3,11 @@ from django.http import JsonResponse
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import BasePermission
 
+from apps.identity.services import (
+    get_user_effective_rank as _get_user_effective_rank,
+    get_undelegatable_permission_codes as _get_undelegatable_permission_codes,
+)
+
 from school.models.rbac_models import Permission
 
 # Every RBAC-gated request (HasModulePermission, require_permission) calls
@@ -51,6 +56,36 @@ def get_user_permission_codes(user):
 
 def user_has_permission(user, code):
     return code in get_user_permission_codes(user)
+
+
+def validate_rank_authority(actor, target_role_rank):
+    """Raises PermissionDenied unless `actor` may create/edit/delete/assign/remove a Role
+    whose rank is `target_role_rank` (None = unranked). Lower rank number outranks higher;
+    an actor may only touch a role STRICTLY more junior (higher number) than their own
+    effective rank -- this blocks self-promotion and same-or-senior-rank tampering by
+    construction, since a role at or above the actor's own rank always fails the check."""
+    if actor.is_superuser:
+        return
+    if target_role_rank is None:
+        raise PermissionDenied(
+            "This role has no assigned rank and cannot be managed except by a superuser."
+        )
+    actor_rank = _get_user_effective_rank(actor.id)
+    if actor_rank is None or target_role_rank <= actor_rank:
+        raise PermissionDenied("You cannot manage a role at or above your own rank.")
+
+
+def validate_permission_delegation(actor, permission_codes):
+    """Raises PermissionDenied if `actor` doesn't personally hold every code in
+    `permission_codes` -- you cannot delegate a permission you don't have yourself,
+    regardless of rank."""
+    if actor.is_superuser:
+        return
+    illegal = _get_undelegatable_permission_codes(actor.id, permission_codes)
+    if illegal:
+        raise PermissionDenied(
+            "You cannot delegate permissions you do not possess: " + ", ".join(sorted(illegal))
+        )
 
 
 def get_user_role_label(user):
