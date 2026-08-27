@@ -12,7 +12,7 @@ from rest_framework.response import Response
 from rest_framework import status
 
 from apps.academics.models import (
-    ExamTerm, next_grade_level, get_or_create_class_stream, tier_requires_pathway_choice, AcademicYear,
+    ExamTerm, GradeLevel, next_grade_level, get_or_create_class_stream, tier_requires_pathway_choice, AcademicYear,
 )
 from apps.identity.models import StudentExtra
 from apps.students.models import NationalExamRecord, StudentPathwaySelection
@@ -370,6 +370,102 @@ class PromotionReadinessAPIView(APIView):
         return Response({
             'summary': {'ready': ready_count, 'blocked': len(rows) - ready_count, 'by_reason': by_reason},
             'students': rows,
+        })
+
+
+class PromotionPrerequisitesAPIView(APIView):
+    """
+    Read-only prerequisite checklist for a promotion scope. Groups currently-enrolled grades
+    by transition type and reports live progress against the exact requirement
+    _readiness_for_student enforces for that type — reusing _determine_transition and
+    results_finalized_for_year rather than re-deriving them, so this can never show a
+    different picture than what a readiness check or a promotion run will actually do.
+    """
+    permission_classes = [IsAuthenticated, HasModulePermission]
+    authentication_classes = [SessionAuthentication]
+    rbac_view_permission = 'results.view'
+
+    def get(self, request):
+        academic_year_id = request.query_params.get('academic_year_id')
+        if not academic_year_id:
+            return Response({"error": "academic_year_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            academic_year = AcademicYear.objects.get(id=academic_year_id)
+        except AcademicYear.DoesNotExist:
+            return Response({"error": "Academic year not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        grade_id = request.query_params.get('grade_id')
+        scope_grade_name = None
+        if grade_id:
+            grade_obj = GradeLevel.objects.filter(id=grade_id).first()
+            if grade_obj is None:
+                return Response({"error": "Grade not found."}, status=status.HTTP_404_NOT_FOUND)
+            scope_grade_name = grade_obj.name
+
+        students_qs = StudentExtra.objects.filter(status=True).exclude(
+            enrollment_state__in=['Graduated', 'Expelled', 'Transferred']
+        ).select_related('cl__grade__tier')
+        if grade_id:
+            students_qs = students_qs.filter(cl__grade_id=grade_id)
+
+        grade_ids = set(students_qs.exclude(cl__isnull=True).values_list('cl__grade_id', flat=True))
+        grades = GradeLevel.objects.filter(id__in=grade_ids).select_related('tier')
+
+        plain_grade_names = []
+        exam_buckets = {}  # (transition_type, exam_code) -> {'grade_names': [...], 'grade_ids': set()}
+
+        for grade in grades:
+            transition_type, exam_code, _next_grade = _determine_transition(grade)
+            if transition_type == 'plain':
+                plain_grade_names.append(grade.name)
+            else:
+                key = (transition_type, exam_code)
+                bucket = exam_buckets.setdefault(key, {'grade_names': [], 'grade_ids': set()})
+                bucket['grade_names'].append(grade.name)
+                bucket['grade_ids'].add(grade.id)
+
+        requirement_groups = []
+
+        if plain_grade_names:
+            terms = list(ExamTerm.objects.filter(academic_year=academic_year).order_by('start_date'))
+            finalized_count = sum(1 for t in terms if t.results_finalized)
+            satisfied = bool(terms) and finalized_count == len(terms)
+            requirement_groups.append({
+                'transition_type': 'plain',
+                'exam_code': None,
+                'grade_names': sorted(plain_grade_names),
+                'requirement': f'Results finalized for {academic_year.year}',
+                'satisfied': satisfied,
+                'detail': (
+                    f'{finalized_count} of {len(terms)} term(s) finalized' if terms
+                    else 'No terms configured for this academic year.'
+                ),
+                'terms': [
+                    {'id': t.id, 'name': t.name, 'results_finalized': t.results_finalized}
+                    for t in terms
+                ],
+            })
+
+        for (transition_type, exam_code), bucket in sorted(
+            exam_buckets.items(), key=lambda kv: (kv[0][0], kv[0][1] or '')
+        ):
+            bucket_students = students_qs.filter(cl__grade_id__in=bucket['grade_ids'])
+            total_count = bucket_students.count()
+            recorded_count = NationalExamRecord.objects.filter(
+                exam_code=exam_code, academic_year=academic_year, student__in=bucket_students,
+            ).count()
+            requirement_groups.append({
+                'transition_type': transition_type,
+                'exam_code': exam_code,
+                'grade_names': sorted(bucket['grade_names']),
+                'requirement': f'{exam_code} recorded',
+                'satisfied': total_count > 0 and recorded_count == total_count,
+                'detail': f'{recorded_count} of {total_count} student(s) recorded',
+            })
+
+        return Response({
+            'scope': {'academic_year': academic_year.year, 'grade_name': scope_grade_name},
+            'requirement_groups': requirement_groups,
         })
 
 
