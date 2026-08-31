@@ -295,11 +295,11 @@ export default function RoleEditor() {
             onChange={(e) => setDescription(e.target.value)} />
         </div>
         <div className="space-y-1.5">
-          <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block">Rank</label>
+          <label className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider block">Rank</label>
           <input type="number" min={1} placeholder="Leave blank for unranked" value={rank}
-            className="w-full border border-slate-300 rounded-xl p-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-white text-slate-800 transition-all"
+            className="w-full border border-slate-300 dark:border-slate-600 rounded-xl p-3 outline-none focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-500/20 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 transition-all"
             onChange={(e) => setRank(e.target.value)} />
-          <p className="text-xs text-slate-400">Lower number = more authority. An unranked role can't be managed by anyone except a superuser.</p>
+          <p className="text-xs text-slate-400 dark:text-slate-500">Lower number = more authority. An unranked role can't be managed by anyone except a superuser.</p>
         </div>
       </div>
 
