@@ -561,6 +561,13 @@ the Roles & Permissions page keeps showing existing roles once `RoleViewSet`
 starts filtering by school. The `academics` migration adds `Department.head`
 (nullable FK, no backfill required).
 
+**Operational note:** an unranked role isn't just cosmetically unlabeled — the
+rank guard treats a null rank as unmanageable by any non-superuser, including
+Admin (fail-closed, matching the Rank Guard Service section above). Every
+existing custom role stays unranked until Phase 3 seeds the wider hierarchy,
+so immediately after this migration, an ordinary Admin editing e.g. an
+existing "Secretary" role gets a 403 until a superuser assigns it a rank.
+
 ## Implementation order
 
 1. **Rank hierarchy** — `Role.rank`, `Role.school` (+ backfill command),
