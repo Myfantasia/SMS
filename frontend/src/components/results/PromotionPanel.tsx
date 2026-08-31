@@ -89,7 +89,15 @@ interface PrerequisitesResponse {
 }
 
 function downloadCsv(filename: string, headers: string[], rows: (string | number)[][]) {
-  const escape = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
+  // Guard against CSV/formula injection: a cell whose text starts with =, +, -, or @ can be
+  // interpreted as a formula by Excel/Sheets/LibreOffice when the file is opened. Some of
+  // these fields (student names, exam destinations) are admin-entered free text, so a leading
+  // single quote is prefixed to force spreadsheet apps to treat the value as literal text.
+  const escape = (v: string | number) => {
+    let s = String(v);
+    if (/^[=+\-@]/.test(s)) s = `'${s}`;
+    return `"${s.replace(/"/g, '""')}"`;
+  };
   const csv = [headers, ...rows].map((row) => row.map(escape).join(',')).join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
@@ -261,6 +269,7 @@ export default function PromotionPanel() {
   const [promoteResult, setPromoteResult] = useState<PromotionResult | null>(null);
   const [promoteError, setPromoteError] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [outcomeNameById, setOutcomeNameById] = useState<Record<number, string>>({});
 
   const handleCheckReadiness = async () => {
     if (!scopeYearId) return;
@@ -291,6 +300,9 @@ export default function PromotionPanel() {
         grade_id: scopeGradeId || undefined,
       });
       const result = await pollJob<PromotionResult>(response.data.job_id);
+      // Snapshot names before clearing readiness below — nameById is derived from `readiness`,
+      // so nulling it first would leave the outcome table/CSV with no names to resolve against.
+      setOutcomeNameById(Object.fromEntries(readiness.students.map((row) => [row.student_id, row.name])));
       setPromoteResult(result);
       setReadiness(null);
     } catch (err: any) {
@@ -300,12 +312,14 @@ export default function PromotionPanel() {
     }
   };
 
-  const step3Locked = !readiness || readiness.summary.ready === 0;
+  // A successful promoteResult must keep Step 3 unlocked on its own — otherwise clearing the
+  // stale pre-promotion `readiness` (above) would re-lock the very step meant to display that
+  // result, hiding the success alert, outcome table, and its CSV export the moment the run
+  // succeeds (both state updates land in the same batched render).
+  const step3Locked = !promoteResult && (!readiness || readiness.summary.ready === 0);
   const step3LockedReason = !readiness
     ? 'Run "Check Readiness" in Step 2 first.'
     : 'No students are currently ready to promote.';
-
-  const nameById = Object.fromEntries((readiness?.students ?? []).map((row) => [row.student_id, row.name]));
 
   const exportReadinessCsv = () => {
     if (!readiness) return;
@@ -328,7 +342,7 @@ export default function PromotionPanel() {
     downloadCsv(
       `promotion-outcomes-${scopeYearId}.csv`,
       ['Student', 'Outcome', 'Detail'],
-      promoteResult.outcomes.map((o) => [nameById[o.student_id] ?? `Student #${o.student_id}`, o.outcome, o.detail]),
+      promoteResult.outcomes.map((o) => [outcomeNameById[o.student_id] ?? `Student #${o.student_id}`, o.outcome, o.detail]),
     );
   };
 
@@ -598,7 +612,7 @@ export default function PromotionPanel() {
               <Alert severity="success" icon={<CheckCircle2 size={20} />}>
                 <Typography variant="body2">{promoteResult.message}</Typography>
               </Alert>
-              <ReadinessTable rows={promoteResult.outcomes} nameById={nameById} onExport={exportOutcomeCsv} />
+              <ReadinessTable rows={promoteResult.outcomes} nameById={outcomeNameById} onExport={exportOutcomeCsv} />
             </>
           )}
         </Stack>
