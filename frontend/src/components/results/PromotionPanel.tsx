@@ -575,7 +575,7 @@ export default function PromotionPanel() {
         lockedReason={step2LockedReason}
       >
         <Stack spacing={2}>
-          {!allRequirementsSatisfied && (
+          {prerequisites !== null && !allRequirementsSatisfied && (
             <Alert severity="warning">
               Not all Step 1 requirements are met yet for this scope: {unmetRequirements.map((g) => g.requirement).join('; ')}.
               Some students below may show as blocked for reasons Step 1 already explains.
