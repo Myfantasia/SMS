@@ -15,6 +15,7 @@ interface Role {
   id: number;
   name: string;
   description: string;
+  rank: number | null;
   permissions: Permission[];
   is_system_role: boolean;
   member_count: number;
@@ -64,6 +65,7 @@ export default function RoleEditor() {
 
   const [roleName, setRoleName] = useState(cloneFrom?.name ?? '');
   const [description, setDescription] = useState(cloneFrom?.description ?? '');
+  const [rank, setRank] = useState<string>('');
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set(cloneFrom?.permission_ids ?? []));
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [templateSearch, setTemplateSearch] = useState('');
@@ -82,6 +84,7 @@ export default function RoleEditor() {
         const role: Role = res.data;
         setRoleName(role.name);
         setDescription(role.description || '');
+        setRank(role.rank === null || role.rank === undefined ? '' : String(role.rank));
         setSelectedIds(new Set(role.permissions.map((p) => p.id)));
         setIsSystemRole(role.is_system_role);
         setMemberCount(role.member_count);
@@ -148,7 +151,12 @@ export default function RoleEditor() {
       return;
     }
     setSaving(true);
-    const payload = { name: roleName.trim(), description, permission_ids: Array.from(selectedIds) };
+    const payload = {
+      name: roleName.trim(),
+      description,
+      rank: rank === '' ? null : Number(rank),
+      permission_ids: Array.from(selectedIds),
+    };
     try {
       if (isEditing) {
         await api.patch(`/api/core/rbac/roles/${id}/`, payload);
@@ -285,6 +293,13 @@ export default function RoleEditor() {
           <input type="text" placeholder="Optional — what this role is for" value={description}
             className="w-full border border-slate-300 rounded-xl p-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-white text-slate-800 transition-all"
             onChange={(e) => setDescription(e.target.value)} />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block">Rank</label>
+          <input type="number" min={1} placeholder="Leave blank for unranked" value={rank}
+            className="w-full border border-slate-300 rounded-xl p-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-white text-slate-800 transition-all"
+            onChange={(e) => setRank(e.target.value)} />
+          <p className="text-xs text-slate-400">Lower number = more authority. An unranked role can't be managed by anyone except a superuser.</p>
         </div>
       </div>
 

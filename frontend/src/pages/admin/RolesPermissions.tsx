@@ -15,6 +15,7 @@ interface Role {
   id: number;
   name: string;
   description: string;
+  rank: number | null;
   permissions: Permission[];
   is_system_role: boolean;
   member_count: number;
@@ -265,6 +266,11 @@ export default function RolesPermissions() {
                           {role.is_system_role && (
                             <span className="bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full">
                               System
+                            </span>
+                          )}
+                          {role.rank !== null && role.rank !== undefined && (
+                            <span className="bg-slate-100 text-slate-500 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full">
+                              Rank {role.rank}
                             </span>
                           )}
                         </div>
