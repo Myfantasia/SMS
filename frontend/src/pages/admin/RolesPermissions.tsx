@@ -269,7 +269,7 @@ export default function RolesPermissions() {
                             </span>
                           )}
                           {role.rank !== null && role.rank !== undefined && (
-                            <span className="bg-slate-100 text-slate-500 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full">
+                            <span className="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full">
                               Rank {role.rank}
                             </span>
                           )}
