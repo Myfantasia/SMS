@@ -253,14 +253,12 @@ export default function PromotionPanel() {
     && prerequisites.requirement_groups.every((g) => g.satisfied);
   const unmetRequirements = prerequisites?.requirement_groups.filter((g) => !g.satisfied) ?? [];
 
-  const step2Locked = !scopeYearId || prereqLoading || noStudentsInScope || !allRequirementsSatisfied;
+  const step2Locked = !scopeYearId || prereqLoading || noStudentsInScope;
   const step2LockedReason = !scopeYearId
     ? 'Select an academic year above to begin.'
     : prereqLoading
       ? 'Checking requirements…'
-      : noStudentsInScope
-        ? 'No enrolled students in this scope.'
-        : `Complete Step 1 first: ${unmetRequirements.map((g) => g.requirement).join('; ')}`;
+      : 'No enrolled students in this scope.';
 
   const [checkingReadiness, setCheckingReadiness] = useState(false);
   const [readiness, setReadiness] = useState<ReadinessResponse | null>(null);
@@ -554,7 +552,11 @@ export default function PromotionPanel() {
                 {!group.terms && !group.satisfied && (
                   <Button
                     size="small" variant="outlined"
-                    onClick={() => examSectionRef.current?.scrollIntoView({ behavior: 'smooth' })}
+                    onClick={() => {
+                      if (group.exam_code) setExamCode(group.exam_code);
+                      if (scopeYearId) setExamYearId(scopeYearId);
+                      examSectionRef.current?.scrollIntoView({ behavior: 'smooth' });
+                    }}
                   >
                     Go to National Exam Recording
                   </Button>
@@ -573,6 +575,12 @@ export default function PromotionPanel() {
         lockedReason={step2LockedReason}
       >
         <Stack spacing={2}>
+          {!allRequirementsSatisfied && (
+            <Alert severity="warning">
+              Not all Step 1 requirements are met yet for this scope: {unmetRequirements.map((g) => g.requirement).join('; ')}.
+              Some students below may show as blocked for reasons Step 1 already explains.
+            </Alert>
+          )}
           <Box>
             <Button variant="outlined" disabled={checkingReadiness} onClick={handleCheckReadiness}>
               {checkingReadiness ? <CircularProgress size={20} /> : 'Check Readiness'}
