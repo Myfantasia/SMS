@@ -1,14 +1,11 @@
 from django.contrib import admin
-from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from unfold.admin import ModelAdmin, StackedInline, TabularInline
-from unfold.forms import AdminPasswordChangeForm, UserChangeForm, UserCreationForm
-from school.models.timetable_models import TimeSlot, Timetable, LessonAllocation
 from school.models.models import (
-    AdminExtra, StudentExtra, TeacherExtra, ParentExtra, StaffExtra,
     Notice, AttendanceSession, AttendanceRecord,
     Event, Notification, AcademicYear, ExamTerm, ExamEvent,
     GradingRule, ExamResult, StudentReportSummary, ClassExamStatus
 )
+from unfold.admin import ModelAdmin, StackedInline, TabularInline
+from school.models.timetable_models import TimeSlot, Timetable, LessonAllocation
 # UPDATED: Appended StudentSubjectEnrollment to the end of your exact imports group
 from school.models.classSubjects_models import ( ClassStream, Subject, SubjectQuota, Department,
                                 SubjectAllocation, SubjectSelectionRule, SubjectBlock, GradeLevel, SubjectExclusionRule, CurriculumPreset, StudentSubjectEnrollment, SubjectCurriculumProfile, QuotaDefaultRule, PresetCombination )
@@ -17,103 +14,6 @@ from school.models.assignments_models import (
     Assignment, Question, QuestionOption, StudentSubmission, StudentAnswer
 )
 from school.models.teachers_model import TeacherLeave, LongTermReliefAssignment
-
-# --- 1. ADMIN INLINE SETUP ---
-# This links the AdminExtra details to the User page in the admin panel
-# Updated to inherit from Unfold's StackedInline
-class AdminExtraInline(StackedInline):
-    model = AdminExtra
-    can_delete = False
-    verbose_name_plural = 'Admin Profile Details'
-    extra = 0  # ✅ prevents blank duplicate rows being created
-    max_num = 1
-
-
-# Updated to inherit from Unfold's customized UserAdmin
-class UserAdmin(BaseUserAdmin, ModelAdmin):
-    inlines = (AdminExtraInline,)
-
-    # Unfold's specific forms for the User model to ensure the UI doesn't break
-    form = UserChangeForm
-    add_form = UserCreationForm
-    change_password_form = AdminPasswordChangeForm
-
-
-from django.contrib.auth.models import User, Group
-admin.site.unregister(User)
-admin.site.register(User, UserAdmin)
-
-
-# --- ADMIN APPROVAL QUEUE ---
-# Signups via /adminsignup land here with status=False and are NOT in the ADMIN group
-# yet (group membership alone is what is_admin() checks). An existing superuser
-# reviews and approves/revokes them from this list.
-@admin.register(AdminExtra)
-class AdminExtraAdmin(ModelAdmin):
-    list_display = ('user', 'status', 'mobile')
-    list_filter = ('status',)
-    actions = ['approve_admins', 'revoke_admins']
-
-    @admin.action(description='Approve selected admins (grants ADMIN group access)')
-    def approve_admins(self, request, queryset):
-        admin_group, _ = Group.objects.get_or_create(name='ADMIN')
-        for admin_extra in queryset:
-            admin_extra.status = True
-            admin_extra.save()
-            admin_group.user_set.add(admin_extra.user)
-
-    @admin.action(description='Revoke admin access for selected')
-    def revoke_admins(self, request, queryset):
-        admin_group, _ = Group.objects.get_or_create(name='ADMIN')
-        for admin_extra in queryset:
-            admin_extra.status = False
-            admin_extra.save()
-            admin_group.user_set.remove(admin_extra.user)
-
-# --- NEW: STUDENT SUBJECT PROFILE INLINE LAYOUT ---
-class StudentSubjectEnrollmentInline(TabularInline):
-    """Allows superusers to manage individual student subject matches within the student profile view"""
-    model = StudentSubjectEnrollment
-    extra = 0
-    fields = ('subject', 'academic_year', 'status')
-
-
-# --- 2. OTHER MODELS REGISTRATION ---
-# All classes below are updated to inherit from unfold.admin.ModelAdmin
-
-@admin.register(StudentExtra)
-class StudentExtraAdmin(ModelAdmin):
-    list_display = ('get_name', 'roll', 'cl', 'mobile', 'status')
-    search_fields = ('user__first_name', 'user__last_name', 'roll')
-    # UPDATED: Seamlessly appended the new subject manager inline to your existing student card
-    inlines = [StudentSubjectEnrollmentInline]
-
-    def get_name(self, obj):
-        return obj.get_name
-
-    get_name.short_description = 'Student Name'
-
-
-@admin.register(TeacherExtra)
-class TeacherExtraAdmin(ModelAdmin):
-    list_display = ('get_name', 'subjects', 'mobile', 'status')
-
-    def get_name(self, obj):
-        return obj.get_name
-
-    get_name.short_description = 'Teacher Name'
-
-
-@admin.register(StaffExtra)
-class StaffExtraAdmin(ModelAdmin):
-    list_display = ('get_name', 'job_title', 'mobile', 'status')
-    search_fields = ('user__first_name', 'user__last_name', 'job_title')
-
-    def get_name(self, obj):
-        return obj.get_name
-
-    get_name.short_description = 'Staff Name'
-
 
 # ==========================================
 # UPGRADED ATTENDANCE, NOTICE & EVENT ADMINS
@@ -176,22 +76,6 @@ class LongTermReliefAssignmentAdmin(ModelAdmin):
 # ==========================================
 # REMAINING MODELS REGISTRATION
 # ==========================================
-
-@admin.register(ParentExtra)
-class ParentExtraAdmin(ModelAdmin):
-    list_display = ('get_name', 'get_children', 'relationship', 'mobile', 'status')
-    search_fields = ('user__first_name', 'user__last_name', 'mobile')
-
-    def get_name(self, obj):
-        return obj.get_name
-
-    get_name.short_description = 'Parent Name'
-
-    def get_children(self, obj):
-        # Grabs all students linked to this parent and joins their names with a comma
-        return ", ".join([child.get_name for child in obj.students.all()])
-
-    get_children.short_description = 'Linked Children'
 
 
 @admin.register(GradeLevel)
