@@ -216,3 +216,43 @@ class RoleAdmin(ModelAdmin):
         # hard-delete and skip soft_delete/cache invalidation entirely).
         for obj in queryset:
             self.delete_model(request, obj)
+
+
+@admin.register(UserRole)
+class UserRoleAdmin(ModelAdmin):
+    """The actual role-assignment screen -- where a superuser gives a user a Role."""
+    list_display = ('user', 'role', 'role_rank', 'assigned_at')
+    list_filter = ('role',)
+    search_fields = ('user__username', 'user__email', 'role__name')
+    autocomplete_fields = ('user', 'role')
+
+    def role_rank(self, obj):
+        return obj.role.rank
+    role_rank.short_description = 'Rank'
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        invalidate_user_permission_cache(obj.user_id)
+        write_audit_log(
+            operator_id=request.user.id,
+            action_type='UPDATE' if change else 'CREATE',
+            module='RBAC',
+            description=f"Assigned role '{obj.role.name}' to user '{obj.user.username}' via Django admin.",
+        )
+
+    def delete_model(self, request, obj):
+        user_id = obj.user_id
+        role_name = obj.role.name
+        username = obj.user.username
+        super().delete_model(request, obj)
+        invalidate_user_permission_cache(user_id)
+        write_audit_log(
+            operator_id=request.user.id,
+            action_type='DELETE',
+            module='RBAC',
+            description=f"Removed role '{role_name}' from user '{username}' via Django admin.",
+        )
+
+    def delete_queryset(self, request, queryset):
+        for obj in queryset:
+            self.delete_model(request, obj)

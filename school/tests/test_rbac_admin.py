@@ -69,3 +69,42 @@ class RoleAdminTests(TestCase):
         role.refresh_from_db()
         self.assertTrue(role.is_deleted)
         self.assertNotIn('finance.view', get_user_permission_codes(user.id))
+
+
+class UserRoleAdminTests(TestCase):
+    def setUp(self):
+        cache.clear()
+        self.superuser = User.objects.create_superuser(
+            username='root_admin2', password='x', email='root2@test.com')
+        self.client.force_login(self.superuser)
+        self.finance_view = Permission.objects.create(
+            code='finance.view', label='View finance', module='Finance')
+        self.role = Role.objects.create(name='Bursar Role', rank=6)
+        self.role.permissions.add(self.finance_view)
+        self.target_user = User.objects.create_user(username='new_bursar', password='x')
+
+    def test_assigning_a_role_grants_immediate_access_and_logs_it(self):
+        self.assertEqual(get_user_permission_codes(self.target_user.id), frozenset())
+
+        response = self.client.post(reverse('admin:identity_userrole_add'), {
+            'user': self.target_user.id, 'role': self.role.id,
+        })
+        self.assertEqual(response.status_code, 302, response.content)
+        self.assertTrue(UserRole.objects.filter(user=self.target_user, role=self.role).exists())
+        self.assertIn('finance.view', get_user_permission_codes(self.target_user.id))
+        self.assertTrue(SystemAuditLog.objects.filter(
+            module='RBAC', action_type='CREATE',
+            description__icontains='new_bursar').exists())
+
+    def test_removing_a_role_revokes_immediate_access_and_logs_it(self):
+        user_role = UserRole.objects.create(user=self.target_user, role=self.role)
+        self.assertIn('finance.view', get_user_permission_codes(self.target_user.id))
+
+        response = self.client.post(
+            reverse('admin:identity_userrole_delete', args=[user_role.id]), {'post': 'yes'})
+        self.assertEqual(response.status_code, 302, response.content)
+        self.assertFalse(UserRole.objects.filter(id=user_role.id).exists())
+        self.assertNotIn('finance.view', get_user_permission_codes(self.target_user.id))
+        self.assertTrue(SystemAuditLog.objects.filter(
+            module='RBAC', action_type='DELETE',
+            description__icontains='new_bursar').exists())
