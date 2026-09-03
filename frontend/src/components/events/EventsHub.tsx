@@ -24,10 +24,10 @@ export interface SchoolEvent {
 export default function EventsHub({ role }: EventsHubProps) {
   const [activeView, setActiveView] = useState<'agenda' | 'calendar'>('agenda');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  
+
   // NEW: State to track which event we are currently editing
   const [editingEvent, setEditingEvent] = useState<SchoolEvent | null>(null);
-  
+
   // 2. State to hold our real database records
   const [events, setEvents] = useState<SchoolEvent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -74,35 +74,35 @@ export default function EventsHub({ role }: EventsHubProps) {
       {/* Header & Controls */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div className="flex items-center gap-4">
-          <div className="p-3 rounded-2xl text-amber-600 bg-amber-50">
+          <div className="p-3 rounded-2xl text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10">
             <CalendarDays className="w-7 h-7" strokeWidth={2.5} />
           </div>
           <div>
-            <h1 className="text-2xl font-extrabold text-slate-800">School Calendar & Events</h1>
-            <p className="text-slate-500 text-sm mt-0.5">Manage activities across the public website and internal dashboards.</p>
+            <h1 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100">School Calendar & Events</h1>
+            <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5">Manage activities across the public website and internal dashboards.</p>
           </div>
         </div>
 
         <div className="flex items-center gap-4">
-          <div className="flex bg-slate-100 p-1 rounded-xl">
+          <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
             <button
               onClick={() => setActiveView('agenda')}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${activeView === 'agenda' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${activeView === 'agenda' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm dark:shadow-none' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
             >
               <List className="w-4 h-4" /> Agenda
             </button>
             <button
               onClick={() => setActiveView('calendar')}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${activeView === 'calendar' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${activeView === 'calendar' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm dark:shadow-none' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
             >
               <CalendarIcon className="w-4 h-4" /> Calendar
             </button>
           </div>
 
           {role === 'admin' && (
-            <button 
+            <button
               onClick={handleOpenNewModal}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-all shadow-sm"
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-all shadow-sm dark:shadow-none"
             >
               <Plus className="w-4 h-4" /> Add Event
             </button>
@@ -113,20 +113,20 @@ export default function EventsHub({ role }: EventsHubProps) {
       {/* Loading State */}
       {isLoading ? (
         <div className="flex justify-center items-center py-20">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+          <Loader2 className="w-8 h-8 animate-spin text-blue-500 dark:text-blue-400" />
         </div>
       ) : (
         <>
           {/* Pass the real events down to the Agenda */}
           {activeView === 'agenda' && (
-            <AgendaView 
-                role={role} 
-                events={events} 
-                onRefresh={fetchEvents} 
+            <AgendaView
+                role={role}
+                events={events}
+                onRefresh={fetchEvents}
                 onEdit={handleEditEvent} // Passed down to handle Edit clicks
             />
           )}
-          
+
           {activeView === 'calendar' && (
             <CalendarView role={role} events={events} />
           )}
@@ -134,9 +134,9 @@ export default function EventsHub({ role }: EventsHubProps) {
       )}
 
       {/* Pass the fetchEvents function to the modal so it can refresh the list on save */}
-      <EventFormModal 
-        isOpen={isModalOpen} 
-        onClose={handleCloseModal} 
+      <EventFormModal
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
         onSuccess={fetchEvents}
         initialData={editingEvent} // Passed down to populate the form for edits
       />

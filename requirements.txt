@@ -57,3 +57,8 @@ urllib3==2.6.3
 vine==5.1.0
 wcwidth==0.8.2
 zope.interface==8.5
+
+# --- Modular monolith boundary enforcement (dev tool, not a runtime dependency) ---
+# Run `lint-imports` from the repo root; config is in .importlinter. New addition --
+# run `pip install -r requirements.txt` yourself to pick it up.
+import-linter==2.9

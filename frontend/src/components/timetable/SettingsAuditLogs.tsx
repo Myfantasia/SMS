@@ -22,12 +22,12 @@ const ACTION_LABELS: Record<string, string> = {
 };
 
 const ACTION_COLORS: Record<string, string> = {
-  CREATE: 'bg-emerald-50 text-emerald-700 border-emerald-100',
-  UPDATE: 'bg-purple-50 text-purple-700 border-purple-100',
-  DELETE: 'bg-red-50 text-red-700 border-red-100',
-  RESTORE: 'bg-blue-50 text-blue-700 border-blue-100',
-  SIMULATION: 'bg-amber-50 text-amber-700 border-amber-100',
-  EXECUTION: 'bg-indigo-50 text-indigo-700 border-indigo-100',
+  CREATE: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-100 dark:border-emerald-500/20',
+  UPDATE: 'bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-100 dark:border-purple-500/20',
+  DELETE: 'bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 border-red-100 dark:border-red-500/20',
+  RESTORE: 'bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-100 dark:border-blue-500/20',
+  SIMULATION: 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-100 dark:border-amber-500/20',
+  EXECUTION: 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border-indigo-100 dark:border-indigo-500/20',
 };
 
 const PAGE_SIZE = 50;
@@ -92,8 +92,8 @@ export default function SettingsAuditLog() {
   if (loading && logs.length === 0) {
     return (
       <div className="space-y-6 max-w-5xl animate-pulse">
-        <div className="h-16 bg-slate-200 rounded-xl"></div>
-        <div className="h-80 bg-slate-200 rounded-xl"></div>
+        <div className="h-16 bg-slate-200 dark:bg-slate-800 rounded-xl"></div>
+        <div className="h-80 bg-slate-200 dark:bg-slate-800 rounded-xl"></div>
       </div>
     );
   }
@@ -102,22 +102,22 @@ export default function SettingsAuditLog() {
     <div className="space-y-6 max-w-5xl animate-fade-in">
 
       {/* Search and Advanced Filters Control Strip */}
-      <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-wrap gap-3 justify-between items-center shadow-sm">
+      <div className="bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 p-4 rounded-xl flex flex-wrap gap-3 justify-between items-center shadow-sm dark:shadow-none">
         <div className="flex gap-3 flex-1 min-w-75 flex-wrap">
           <div className="relative flex-1 min-w-48">
-            <Search className="w-4 h-4 absolute left-3 top-3.5 text-slate-400" />
+            <Search className="w-4 h-4 absolute left-3 top-3.5 text-slate-400 dark:text-slate-500" />
             <input
               type="text"
               placeholder="Search by operator name or alteration details..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full border border-slate-300 rounded-lg pl-9 pr-4 py-2 text-sm bg-white outline-none focus:border-indigo-500 font-medium text-slate-700"
+              className="w-full border border-slate-300 dark:border-slate-600 rounded-lg pl-9 pr-4 py-2 text-sm bg-white dark:bg-slate-800 outline-none focus:border-indigo-500 dark:focus:border-indigo-400 font-medium text-slate-700 dark:text-slate-200"
             />
           </div>
           <select
             value={actionFilter}
             onChange={(e) => setActionFilter(e.target.value)}
-            className="border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-indigo-500 font-bold text-slate-700"
+            className="border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 outline-none focus:border-indigo-500 dark:focus:border-indigo-400 font-bold text-slate-700 dark:text-slate-200"
           >
             <option value="">All Actions</option>
             {actionChoices.map(a => (
@@ -127,7 +127,7 @@ export default function SettingsAuditLog() {
           <select
             value={moduleFilter}
             onChange={(e) => setModuleFilter(e.target.value)}
-            className="border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:border-indigo-500 font-bold text-slate-700"
+            className="border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 outline-none focus:border-indigo-500 dark:focus:border-indigo-400 font-bold text-slate-700 dark:text-slate-200"
           >
             <option value="">All Modules</option>
             {moduleChoices.map(m => (
@@ -139,7 +139,7 @@ export default function SettingsAuditLog() {
         <button
           type="button"
           onClick={() => fetchAuditLogs(page)}
-          className="px-4 py-2 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold flex items-center gap-2 text-slate-600 transition shadow-sm"
+          className="px-4 py-2 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold flex items-center gap-2 text-slate-600 dark:text-slate-300 transition shadow-sm dark:shadow-none"
         >
           <RefreshCw className="w-3.5 h-3.5" /> Refresh Logs
         </button>
@@ -147,15 +147,15 @@ export default function SettingsAuditLog() {
 
       {/* Main Audit Records ledger */}
       {logs.length === 0 ? (
-        <div className="border border-dashed border-slate-200 rounded-xl p-12 text-center text-slate-400 flex flex-col items-center justify-center gap-2">
-          <AlertCircle className="w-8 h-8 text-slate-300" />
+        <div className="border border-dashed border-slate-200 dark:border-slate-700 rounded-xl p-12 text-center text-slate-400 dark:text-slate-500 flex flex-col items-center justify-center gap-2">
+          <AlertCircle className="w-8 h-8 text-slate-300 dark:text-slate-600" />
           <p className="text-sm font-bold">No historical change records match your search metrics.</p>
         </div>
       ) : (
-        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden shadow-sm dark:shadow-none">
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left border-collapse">
-              <thead className="bg-slate-50 text-slate-600 font-bold uppercase text-xs border-b border-slate-200">
+              <thead className="bg-slate-50 dark:bg-slate-800/40 text-slate-600 dark:text-slate-300 font-bold uppercase text-xs border-b border-slate-200 dark:border-slate-700">
                 <tr>
                   <th className="px-5 py-3.5">Timestamp</th>
                   <th className="px-5 py-3.5">Administrative Operator</th>
@@ -164,42 +164,42 @@ export default function SettingsAuditLog() {
                   <th className="px-5 py-3.5">Structural Delta Details</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-700 font-medium text-slate-700 dark:text-slate-200">
                 {logs.map((log) => (
-                  <tr key={log.id} className="hover:bg-slate-50/50 transition-colors">
+                  <tr key={log.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
                     {/* Date Context */}
-                    <td className="px-5 py-4 whitespace-nowrap text-xs text-slate-500 font-mono">
+                    <td className="px-5 py-4 whitespace-nowrap text-xs text-slate-500 dark:text-slate-400 font-mono">
                       <div className="flex items-center gap-1.5">
-                        <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                        <Calendar className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
                         <span>{log.timestamp}</span>
                       </div>
                     </td>
 
                     {/* User Context */}
-                    <td className="px-5 py-4 whitespace-nowrap text-sm font-bold text-slate-800">
+                    <td className="px-5 py-4 whitespace-nowrap text-sm font-bold text-slate-800 dark:text-slate-100">
                       <div className="flex items-center gap-1.5">
-                        <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <User className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 shrink-0" />
                         <span>{log.user_name}</span>
                       </div>
                     </td>
 
                     {/* Target Scope Mapping */}
                     <td className="px-5 py-4 whitespace-nowrap text-xs">
-                      <span className="flex items-center gap-1 text-slate-600 font-bold">
-                        <Layers className="w-3.5 h-3.5 text-slate-400" />
+                      <span className="flex items-center gap-1 text-slate-600 dark:text-slate-300 font-bold">
+                        <Layers className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
                         {log.target_type}
                       </span>
                     </td>
 
                     {/* Action Classification badges */}
                     <td className="px-5 py-4 whitespace-nowrap text-xs">
-                      <span className={`px-2 py-1 rounded-md font-black border uppercase tracking-wider text-[10px] ${ACTION_COLORS[log.action] || 'bg-slate-50 text-slate-700 border-slate-100'}`}>
+                      <span className={`px-2 py-1 rounded-md font-black border uppercase tracking-wider text-[10px] ${ACTION_COLORS[log.action] || 'bg-slate-50 dark:bg-slate-800/40 text-slate-700 dark:text-slate-200 border-slate-100 dark:border-slate-700'}`}>
                         {(ACTION_LABELS[log.action] || log.action).replace('_', ' ')}
                       </span>
                     </td>
 
                     {/* JSON/String Configuration Log Explanations */}
-                    <td className="px-5 py-4 text-xs text-slate-600 max-w-md leading-relaxed wrap-break-word font-mono bg-slate-50/30">
+                    <td className="px-5 py-4 text-xs text-slate-600 dark:text-slate-300 max-w-md leading-relaxed wrap-break-word font-mono bg-slate-50/30 dark:bg-slate-800/40">
                       {log.details}
                     </td>
                   </tr>
@@ -209,7 +209,7 @@ export default function SettingsAuditLog() {
           </div>
 
           {/* Pagination Controls */}
-          <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100 bg-slate-50/50 text-xs font-bold text-slate-500">
+          <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/40 text-xs font-bold text-slate-500 dark:text-slate-400">
             <span className="flex items-center gap-1.5">
               <History className="w-3.5 h-3.5" /> {totalCount} total record(s) — page {page} of {totalPages}
             </span>
@@ -220,7 +220,7 @@ export default function SettingsAuditLog() {
                 onClick={() => fetchAuditLogs(page - 1)}
                 title="Previous page"
                 aria-label="Previous page"
-                className="p-1.5 rounded-md border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="p-1.5 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <ChevronLeft className="w-3.5 h-3.5" />
               </button>
@@ -230,7 +230,7 @@ export default function SettingsAuditLog() {
                 onClick={() => fetchAuditLogs(page + 1)}
                 title="Next page"
                 aria-label="Next page"
-                className="p-1.5 rounded-md border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="p-1.5 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <ChevronRight className="w-3.5 h-3.5" />
               </button>

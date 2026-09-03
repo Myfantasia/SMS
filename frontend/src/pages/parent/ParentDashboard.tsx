@@ -70,20 +70,20 @@ export default function ParentDashboard() {
     return (
       <div className="flex flex-col xl:flex-row gap-6 animate-pulse">
         <div className="w-full xl:w-2/3 flex flex-col gap-8">
-          <div className="h-32 bg-slate-200 rounded-2xl"></div>
+          <div className="h-32 bg-slate-200 dark:bg-slate-800 rounded-2xl"></div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-            {[1, 2].map(i => <div key={i} className="h-40 bg-slate-200 rounded-2xl"></div>)}
+            {[1, 2].map(i => <div key={i} className="h-40 bg-slate-200 dark:bg-slate-800 rounded-2xl"></div>)}
           </div>
         </div>
-        <div className="w-full xl:w-1/3 h-96 bg-slate-200 rounded-2xl"></div>
+        <div className="w-full xl:w-1/3 h-96 bg-slate-200 dark:bg-slate-800 rounded-2xl"></div>
       </div>
     );
   }
 
   if (error || !data) {
     return (
-      <div className="p-8 text-center text-slate-500">
-        <ShieldAlert className="w-10 h-10 mx-auto mb-3 text-slate-300" />
+      <div className="p-8 text-center text-slate-500 dark:text-slate-400">
+        <ShieldAlert className="w-10 h-10 mx-auto mb-3 text-slate-300 dark:text-slate-600" />
         Couldn't load your dashboard right now. Please refresh the page.
       </div>
     );
@@ -111,10 +111,10 @@ export default function ParentDashboard() {
 
         {/* Children Overview */}
         <div className="flex flex-col gap-4">
-          <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest">Your Children</h3>
+          <h3 className="text-sm font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Your Children</h3>
 
           {data.children.length === 0 ? (
-            <div className="bg-white p-8 rounded-2xl border border-slate-100 text-center text-slate-400 text-sm">
+            <div className="bg-white dark:bg-slate-900 p-8 rounded-2xl border border-slate-100 dark:border-slate-700 text-center text-slate-400 dark:text-slate-500 text-sm">
               No linked student profiles yet. Contact the school office if this looks wrong.
             </div>
           ) : (
@@ -122,38 +122,38 @@ export default function ParentDashboard() {
               {data.children.map((child) => (
                 <div
                   key={child.id}
-                  className="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all overflow-hidden"
+                  className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm dark:shadow-none hover:shadow-md dark:hover:shadow-none transition-all overflow-hidden"
                 >
-                  <div className="p-5 flex items-center gap-3 border-b border-slate-50">
-                    <div className="w-11 h-11 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold shrink-0">
+                  <div className="p-5 flex items-center gap-3 border-b border-slate-50 dark:border-slate-800">
+                    <div className="w-11 h-11 rounded-full bg-emerald-100 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 flex items-center justify-center font-bold shrink-0">
                       {child.name.charAt(0).toUpperCase()}
                     </div>
                     <div className="min-w-0">
-                      <p className="font-bold text-slate-800 truncate">{child.name}</p>
-                      <p className="text-xs text-slate-400">{child.class_name} &middot; Roll {child.roll}</p>
+                      <p className="font-bold text-slate-800 dark:text-slate-100 truncate">{child.name}</p>
+                      <p className="text-xs text-slate-400 dark:text-slate-500">{child.class_name} &middot; Roll {child.roll}</p>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 divide-x divide-slate-50">
+                  <div className="grid grid-cols-2 divide-x divide-slate-50 dark:divide-slate-800">
                     <div className="p-4 flex items-center gap-2">
-                      <CalendarCheck className="w-4 h-4 text-blue-500 shrink-0" />
+                      <CalendarCheck className="w-4 h-4 text-blue-500 dark:text-blue-400 shrink-0" />
                       <div>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Attendance</p>
-                        <p className="text-sm font-bold text-slate-700">
+                        <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Attendance</p>
+                        <p className="text-sm font-bold text-slate-700 dark:text-slate-200">
                           {child.attendance.percentage != null ? `${child.attendance.percentage}%` : "--"}
                         </p>
                       </div>
                     </div>
                     <div className="p-4 flex items-center gap-2">
-                      <Wallet className="w-4 h-4 text-amber-500 shrink-0" />
+                      <Wallet className="w-4 h-4 text-amber-500 dark:text-amber-400 shrink-0" />
                       <div>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Fees</p>
-                        <p className="text-sm font-bold text-slate-700">{child.fee != null ? `$${child.fee}` : "--"}</p>
+                        <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Fees</p>
+                        <p className="text-sm font-bold text-slate-700 dark:text-slate-200">{child.fee != null ? `$${child.fee}` : "--"}</p>
                       </div>
                     </div>
                   </div>
                   <button
                     onClick={() => navigate('/parent-dashboard/results')}
-                    className="w-full flex items-center justify-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 py-2.5 transition-colors"
+                    className="w-full flex items-center justify-center gap-1 text-xs font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 py-2.5 transition-colors"
                   >
                     View Results <ChevronRight className="w-3.5 h-3.5" />
                   </button>
@@ -166,18 +166,18 @@ export default function ParentDashboard() {
         {/* Quick Links */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { label: "Results", to: "/parent-dashboard/results", icon: ChevronRight, color: "text-emerald-600 bg-emerald-50" },
-            { label: "Exams", to: "/parent-dashboard/exams", icon: GraduationCap, color: "text-purple-600 bg-purple-50" },
-            { label: "Notices", to: "/parent-dashboard/notices", icon: Bell, color: "text-blue-600 bg-blue-50" },
-            { label: "Events", to: "/parent-dashboard/events", icon: Users, color: "text-amber-600 bg-amber-50" },
+            { label: "Results", to: "/parent-dashboard/results", icon: ChevronRight, color: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10" },
+            { label: "Exams", to: "/parent-dashboard/exams", icon: GraduationCap, color: "text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-500/10" },
+            { label: "Notices", to: "/parent-dashboard/notices", icon: Bell, color: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10" },
+            { label: "Events", to: "/parent-dashboard/events", icon: Users, color: "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10" },
           ].map((link) => (
             <button
               key={link.label}
               onClick={() => navigate(link.to)}
-              className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all flex flex-col items-start gap-3 text-left"
+              className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm dark:shadow-none hover:shadow-md dark:hover:shadow-none hover:-translate-y-0.5 transition-all flex flex-col items-start gap-3 text-left"
             >
               <div className={`p-2.5 rounded-xl ${link.color}`}><link.icon className="w-5 h-5" /></div>
-              <span className="text-sm font-bold text-slate-700">{link.label}</span>
+              <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{link.label}</span>
             </button>
           ))}
         </div>

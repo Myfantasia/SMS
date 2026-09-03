@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from school.models.rbac_models import Permission, Role
+from apps.identity.models import Permission, Role
 
 
 class PermissionSerializer(serializers.ModelSerializer):

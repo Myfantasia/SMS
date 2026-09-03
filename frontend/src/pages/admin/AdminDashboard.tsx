@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Users, GraduationCap, UserSquare2, Briefcase, School, Calendar, Clock, Quote } from 'lucide-react';
+import { Users, GraduationCap, UserSquare2, Briefcase, School, Calendar, Clock, Quote, TrendingUp } from 'lucide-react';
 
 // Import our layout components
 import TodayAttendanceCard from '../../components/TodayAttendanceCard';
 import FinanceChart from '../../components/Finance/FinanceChart';
 import EventCalendar from '../../components/EventCalendar';
 import Announcements from '../../components/Announcements';
-import StudentCountChart from '../../components/StudentCountChart'; 
-import EventList from '../../components/lists pages/EventList'; 
+import StudentCountChart from '../../components/StudentCountChart';
+import EventList from '../../components/lists pages/EventList';
+import QuickActions from '../../components/QuickActions';
+import RecentActivity from '../../components/RecentActivity';
 import api from '../../libs/axiosInstance';
 
 interface DashboardMetrics {
@@ -16,7 +18,23 @@ interface DashboardMetrics {
   teacher_count: number;
   parent_count?: number;
   staff_count?: number;
+  student_new_30d?: number;
+  teacher_new_30d?: number;
+  parent_new_30d?: number;
+  staff_new_30d?: number;
   message: string;
+}
+
+// Renders "+N this month" under a stat card's count, muted emerald when there's real
+// growth or slate when N is 0 -- never fabricates a number when the field is absent.
+function TrendLine({ value }: { value?: number }) {
+  if (value === undefined || value === null) return null;
+  return (
+    <span className={`inline-flex items-center gap-1 text-[11px] font-semibold mt-1 ${value > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}`}>
+      <TrendingUp className="w-3 h-3" />
+      +{value} this month
+    </span>
+  );
 }
 
 // Matches the Django Notice model (see NoticesHub.tsx)
@@ -141,24 +159,25 @@ export default function AdminDashboard() {
       date: event.start_time.split('T')[0],
       description: event.description,
     }));
+  const eventDates = new Set(events.filter((event) => event.is_active).map((event) => event.start_time.split('T')[0]));
 
   // --- PREMIUM SKELETON LOADER ---
   if (loading) {
     return (
       <div className="flex flex-col xl:flex-row gap-6 animate-pulse">
         <div className="w-full xl:w-2/3 flex flex-col gap-8">
-          <div className="h-56 bg-slate-200 rounded-2xl"></div>
+          <div className="h-56 bg-slate-200 dark:bg-slate-800 rounded-2xl"></div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {[1, 2, 3, 4].map(i => <div key={i} className="h-28 bg-slate-200 rounded-2xl border border-slate-100"></div>)}
+            {[1, 2, 3, 4].map(i => <div key={i} className="h-28 bg-slate-200 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700"></div>)}
           </div>
           <div className="flex flex-col lg:flex-row gap-6">
-            <div className="w-full lg:w-1/3 h-96 bg-slate-200 rounded-2xl"></div>
-            <div className="w-full lg:w-2/3 h-96 bg-slate-200 rounded-2xl"></div>
+            <div className="w-full lg:w-1/3 h-96 bg-slate-200 dark:bg-slate-800 rounded-2xl"></div>
+            <div className="w-full lg:w-2/3 h-96 bg-slate-200 dark:bg-slate-800 rounded-2xl"></div>
           </div>
         </div>
         <div className="w-full xl:w-1/3 flex flex-col gap-8">
-          <div className="h-80 bg-slate-200 rounded-2xl"></div>
-          <div className="h-96 bg-slate-200 rounded-2xl"></div>
+          <div className="h-80 bg-slate-200 dark:bg-slate-800 rounded-2xl"></div>
+          <div className="h-96 bg-slate-200 dark:bg-slate-800 rounded-2xl"></div>
         </div>
       </div>
     );
@@ -169,7 +188,10 @@ export default function AdminDashboard() {
       <div className="w-full xl:w-2/3 flex flex-col gap-8">
         
         {/* --- UPGRADED Welcome Banner --- */}
-        <div className="relative bg-linear-to-r from-blue-700 via-blue-600 to-blue-500 p-8 rounded-2xl shadow-lg flex justify-between items-center text-white overflow-hidden">
+        {/* Deepened toward the admin role-accent (#3B5BA5, same hue as the navbar avatar)
+            instead of Tailwind's stock blue-500/600/700 -- the old gradient was the single
+            brightest/most saturated element on the page ("too bright" feedback). */}
+        <div className="relative p-8 rounded-2xl shadow-lg dark:shadow-none flex justify-between items-center text-white overflow-hidden" style={{ background: 'linear-gradient(to right, #24345E, #2E4577, #3B5BA5)' }}>
           <div className="relative z-10 space-y-4">
             <div>
               <h2 className="text-3xl font-extrabold mb-1">
@@ -206,38 +228,45 @@ export default function AdminDashboard() {
           <div className="absolute right-32 -bottom-10 w-32 h-32 bg-white opacity-10 rounded-full blur-2xl pointer-events-none"></div>
         </div>
 
+        {/* --- Quick Actions --- */}
+        <QuickActions />
+
         {/* --- UPGRADED Metrics Grid (60-30-10 Typography Rule) --- */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           
-          <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] hover:-translate-y-1 hover:shadow-lg transition-all duration-300 flex items-center gap-5 cursor-default">
-            <div className="p-4 bg-blue-50 text-blue-600 rounded-2xl"><Users className="w-7 h-7" strokeWidth={2.5} /></div>
+          <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] dark:shadow-none hover:-translate-y-1 hover:shadow-lg dark:hover:shadow-none transition-all duration-300 flex items-center gap-5 cursor-default">
+            <div className="p-4 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-2xl"><Users className="w-7 h-7" strokeWidth={2.5} /></div>
             <div className="flex flex-col">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Students</span>
-              <span className="text-3xl font-extrabold text-slate-800 leading-none">{metrics?.student_count || 0}</span>
+              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Total Students</span>
+              <span className="text-3xl font-extrabold text-slate-800 dark:text-slate-100 leading-none">{metrics?.student_count || 0}</span>
+              <TrendLine value={metrics?.student_new_30d} />
             </div>
           </div>
 
-          <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] hover:-translate-y-1 hover:shadow-lg transition-all duration-300 flex items-center gap-5 cursor-default">
-            <div className="p-4 bg-purple-50 text-purple-600 rounded-2xl"><GraduationCap className="w-7 h-7" strokeWidth={2.5} /></div>
+          <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] dark:shadow-none hover:-translate-y-1 hover:shadow-lg dark:hover:shadow-none transition-all duration-300 flex items-center gap-5 cursor-default">
+            <div className="p-4 bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 rounded-2xl"><GraduationCap className="w-7 h-7" strokeWidth={2.5} /></div>
             <div className="flex flex-col">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Teachers</span>
-              <span className="text-3xl font-extrabold text-slate-800 leading-none">{metrics?.teacher_count || 0}</span>
+              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Total Teachers</span>
+              <span className="text-3xl font-extrabold text-slate-800 dark:text-slate-100 leading-none">{metrics?.teacher_count || 0}</span>
+              <TrendLine value={metrics?.teacher_new_30d} />
             </div>
           </div>
 
-          <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] hover:-translate-y-1 hover:shadow-lg transition-all duration-300 flex items-center gap-5 cursor-default">
-            <div className="p-4 bg-emerald-50 text-emerald-600 rounded-2xl"><UserSquare2 className="w-7 h-7" strokeWidth={2.5} /></div>
+          <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] dark:shadow-none hover:-translate-y-1 hover:shadow-lg dark:hover:shadow-none transition-all duration-300 flex items-center gap-5 cursor-default">
+            <div className="p-4 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-2xl"><UserSquare2 className="w-7 h-7" strokeWidth={2.5} /></div>
             <div className="flex flex-col">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Parents</span>
-              <span className="text-3xl font-extrabold text-slate-800 leading-none">{metrics?.parent_count || "--"}</span>
+              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Total Parents</span>
+              <span className="text-3xl font-extrabold text-slate-800 dark:text-slate-100 leading-none">{metrics?.parent_count || "--"}</span>
+              <TrendLine value={metrics?.parent_new_30d} />
             </div>
           </div>
 
-          <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] hover:-translate-y-1 hover:shadow-lg transition-all duration-300 flex items-center gap-5 cursor-default">
-            <div className="p-4 bg-amber-50 text-amber-600 rounded-2xl"><Briefcase className="w-7 h-7" strokeWidth={2.5} /></div>
+          <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] dark:shadow-none hover:-translate-y-1 hover:shadow-lg dark:hover:shadow-none transition-all duration-300 flex items-center gap-5 cursor-default">
+            <div className="p-4 bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-2xl"><Briefcase className="w-7 h-7" strokeWidth={2.5} /></div>
             <div className="flex flex-col">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Staff</span>
-              <span className="text-3xl font-extrabold text-slate-800 leading-none">{metrics?.staff_count ?? "--"}</span>
+              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Total Staff</span>
+              <span className="text-3xl font-extrabold text-slate-800 dark:text-slate-100 leading-none">{metrics?.staff_count ?? "--"}</span>
+              <TrendLine value={metrics?.staff_new_30d} />
             </div>
           </div>
 
@@ -249,14 +278,15 @@ export default function AdminDashboard() {
             <div className="w-full lg:w-1/3 h-96 lg:h-96"><StudentCountChart /></div>
             <div className="w-full lg:w-2/3 h-96 lg:h-96"><TodayAttendanceCard /></div>
           </div>
-          <div className="w-full h-96 lg:h-96 mt-4 lg:mt-0"><FinanceChart data={financeData} /></div>
+          <div className="w-full h-[34rem] mt-4 lg:mt-0"><FinanceChart data={financeData} /></div>
         </div>
       </div>
 
       {/* RIGHT COLUMN */}
       <div className="w-full xl:w-1/3 flex flex-col gap-8">
-        <EventCalendar selectedDate={selectedDate} onDateChange={setSelectedDate} />
+        <EventCalendar selectedDate={selectedDate} onDateChange={setSelectedDate} eventDates={eventDates} />
         <EventList events={filteredEvents} selectedDate={selectedDate instanceof Date ? selectedDate : null} />
+        <RecentActivity />
         <div className="mt-2">
           <Announcements
             notices={[...notices]

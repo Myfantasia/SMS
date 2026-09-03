@@ -1,51 +1,41 @@
-from django.shortcuts import render,redirect,reverse
+from datetime import timedelta
+
+from django.shortcuts import redirect
 from django.db.models import Sum, Count
-from school.models.timetable_models import Timetable
-from school import forms
-from django.contrib.auth.models import Group
-from django.http import HttpResponseRedirect
-from django.contrib.auth.decorators import login_required,user_passes_test
+from apps.timetable.models import Timetable
+
+from apps.identity.models import (
+    AdminExtra, TeacherExtra, StudentExtra, ParentExtra, StaffExtra,
+    ForcedPasswordChange,
+)
+from apps.staff.models import TeacherLeave
+from django.contrib.auth.models import User, Group
+from django.contrib.auth.hashers import make_password
 from django.conf import settings
 from django.core.mail import send_mail
-
-from school.models.models import (
-    AdminExtra, AdminInviteCode, TeacherExtra, StudentExtra, ParentExtra, StaffExtra,
-    Notice, Event, ForcedPasswordChange,
-)
-from school.models.teachers_model import TeacherLeave
-from django.contrib.auth.models import User
-from django.contrib.auth import login, authenticate
-from django.contrib.auth.hashers import make_password, check_password
-import hashlib
 import json
 import re
-from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
-from django.contrib import messages
+import secrets
 
 from django.http import JsonResponse
 
-from school.decorators import (
-    is_admin, is_teacher, is_student, is_parent, is_school_staff,
-     is_approved_student, is_approved_parent, require_permission
-)
+from school.decorators import require_permission
 from django.contrib.auth import logout
 from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import Q
-import secrets
-from datetime import timedelta
 from django.utils import timezone
 from django.core.cache import cache
-from school.models.classSubjects_models import Subject, SubjectAllocation, StudentSubjectEnrollment
+from apps.academics.models import Subject, ClassStream, AcademicYear, grade_requires_pathway_choice
+from apps.allocations.models import SubjectAllocation
+from apps.students.models import StudentSubjectEnrollment, StudentPathwaySelection
 from school.permissions import api_login_required
 from school.rbac import get_user_permission_codes, is_class_teacher_of_student
-from school.models.rbac_models import Role, UserRole
-from school.models.classSubjects_models import SystemAuditLog
-from school.views.auth_rate_limit import (
-    is_login_rate_limited, record_login_failure, security_logger, client_ip,
-    is_student_search_rate_limited,
-)
+from apps.identity.models import Role, UserRole
+from apps.core.services import write_audit_log
+from school.views.auth_rate_limit import client_ip, is_student_search_rate_limited
+from school.validators import profile_pic_validator
 
 
 # Mapping from API user_type parameter to canonical module name for audit logs
@@ -57,7 +47,6 @@ _USER_TYPE_MODULE = {
 }
 
 
-@csrf_exempt
 @api_login_required
 def api_global_search(request):
     """
@@ -187,6 +176,26 @@ def api_global_search(request):
                     'role_label': 'Parent'
                 })
 
+        # ==========================================
+        # 4. SEARCH STAFF (Strict Admin Restriction)
+        # ==========================================
+        if is_admin_user:
+            staff = StaffExtra.objects.filter(
+                Q(user__first_name__icontains=query) |
+                Q(user__last_name__icontains=query) |
+                Q(user__username__icontains=query) |
+                Q(job_title__icontains=query)
+            ).select_related('user')
+
+            for st in staff:
+                results.append({
+                    'id': st.id,
+                    'name': st.get_name,
+                    'username': st.user.username,
+                    'type': 'staff',
+                    'role_label': st.job_title or 'Staff'
+                })
+
         return JsonResponse({'status': 'success', 'data': results, 'query': query})
 
     except Exception as e:
@@ -194,7 +203,6 @@ def api_global_search(request):
         return JsonResponse({'status': 'error', 'message': 'An internal search processing fault occurred.'}, status=500)
 
 
-@csrf_exempt
 def api_my_profile(request):
     # Ensure they are actually logged in via their session cookie
     if not request.user.is_authenticated:
@@ -214,9 +222,29 @@ def api_my_profile(request):
             'teacher_id': None,  # Default placeholder for non-teachers
             'subjects': None,  # Default placeholder for non-teachers
             'is_class_teacher': False,  # Default placeholder for non-teachers
+            'requires_pathway_choice': False,  # Default placeholder for non-students
             'permissions': sorted(get_user_permission_codes(request.user)),
             'must_change_password': ForcedPasswordChange.objects.filter(user=request.user).exists(),
         }
+
+        # --- Check if this user is an approved student -- only Grade 10 (the entry grade of
+        # a pathway-choice tier) sees the "My Pathway" menu item; see
+        # apps.academics.models.grade_requires_pathway_choice for why. ---
+        try:
+            student_profile = StudentExtra.objects.select_related('cl__grade__tier').get(user=request.user)
+            data['role'] = 'Student'
+            grade = student_profile.cl.grade if student_profile.cl else None
+            requires_choice = grade_requires_pathway_choice(grade)
+            if requires_choice:
+                current_year = AcademicYear.objects.filter(is_active=True).first()
+                # Once approved there's nothing left to choose -- keep showing the menu item
+                # while Pending/Rejected/absent so the student can still act on it.
+                requires_choice = not StudentPathwaySelection.objects.filter(
+                    student=student_profile, academic_year=current_year, status='Approved'
+                ).exists()
+            data['requires_pathway_choice'] = requires_choice
+        except StudentExtra.DoesNotExist:
+            pass
 
         # --- NEW: Check if this user is an approved teacher ---
         try:
@@ -279,7 +307,6 @@ def api_my_profile(request):
             return JsonResponse({'status': 'error', 'message': str(e)})
 
 
-@csrf_exempt
 @api_login_required
 def api_get_single_user(request, user_type, user_id):
     try:
@@ -410,7 +437,6 @@ def api_get_single_user(request, user_type, user_id):
         return JsonResponse({'status': 'error', 'message': str(e)})
 
 
-@csrf_exempt
 @require_permission('users.edit')
 def api_edit_single_user(request, user_type, user_id):
     """
@@ -623,7 +649,6 @@ def api_edit_single_user(request, user_type, user_id):
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
 
 
-@csrf_exempt
 @api_login_required
 def api_get_approved_users(request, user_type):
     data = []
@@ -738,7 +763,6 @@ def api_get_approved_users(request, user_type):
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 
 
-@csrf_exempt
 @require_permission('users.delete')
 def api_delete_user(request):
     if request.method == 'POST':
@@ -771,7 +795,6 @@ def api_delete_user(request):
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
 
 
-@csrf_exempt
 @require_permission('users.view')
 def api_get_pending_users(request, user_type):
 
@@ -834,14 +857,13 @@ def _generate_admin_verification_code(admin_extra, operator, request, descriptio
     admin_extra.code_generated_at = timezone.now()
     admin_extra.save()
     cache.delete(f'verify_code_attempts:{admin_extra.pk}')
-    SystemAuditLog.objects.create(
-        operator=operator, action_type='CREATE', module='AdminVerification',
+    write_audit_log(
+        operator_id=operator.id, action_type='CREATE', module='AdminVerification',
         description=description, ip_address=client_ip(request),
     )
     return code
 
 
-@csrf_exempt
 @require_permission('users.approve')
 def api_process_approval(request):
     """
@@ -891,8 +913,8 @@ def api_process_approval(request):
                 if user_type == 'staff' and obj.requested_role:
                     UserRole.objects.get_or_create(user=obj.user, role=obj.requested_role)
 
-                SystemAuditLog.objects.create(
-                    operator=request.user, action_type='APPROVE', module='AccountApproval',
+                write_audit_log(
+                    operator_id=request.user.id, action_type='APPROVE', module='AccountApproval',
                     description=f"Approved {user_type[:-1]} account for '{obj.user.username}'.",
                     ip_address=client_ip(request),
                 )
@@ -900,8 +922,8 @@ def api_process_approval(request):
                 # Deleting the core User automatically cascades to the Extra models
                 user = obj.user
                 username = user.username
-                SystemAuditLog.objects.create(
-                    operator=request.user, action_type='REJECT', module='AccountApproval',
+                write_audit_log(
+                    operator_id=request.user.id, action_type='REJECT', module='AccountApproval',
                     description=f"Rejected and deleted {user_type[:-1]} account for '{username}'.",
                     ip_address=client_ip(request),
                 )
@@ -912,6 +934,187 @@ def api_process_approval(request):
             return JsonResponse({'status': 'error', 'message': str(e)})
 
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
+
+
+# Purpose: Lets an admin create a fully-active account directly from the User Directory
+# (Students/Teachers/Parents/Staff), skipping the public self-signup + approval queue
+# entirely -- status=True from the moment the row is created. Reuses the same
+# Group/Role assignment shape as the public signup views (public_api_views.py) and the
+# same random-temp-password + ForcedPasswordChange pattern password_reset_views.py's
+# _reset_password_and_notify uses for admin-initiated resets, since this is the same
+# "admin hands someone a one-time password out-of-band" situation at account-creation
+# time instead of reset time.
+@require_permission('users.approve')
+def api_admin_create_user(request):
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
+
+    # multipart/form-data, not JSON -- the optional profile photo upload requires
+    # request.FILES, same convention api_signup_teacher/api_signup_student use.
+    data = request.POST
+    user_type = data.get('user_type')
+    if user_type not in ('students', 'teachers', 'parents', 'staff'):
+        return JsonResponse({'status': 'error', 'message': 'Invalid user type.'}, status=400)
+
+    first_name = (data.get('first_name') or '').strip()
+    last_name = (data.get('last_name') or '').strip()
+    username = (data.get('username') or '').strip()
+    email = (data.get('email') or '').strip().lower()
+    mobile = (data.get('mobile') or '').strip()
+    address = (data.get('address') or '').strip()
+    profile_pic = request.FILES.get('profile_pic')
+    if profile_pic:
+        try:
+            profile_pic_validator(profile_pic)
+        except DjangoValidationError as e:
+            return JsonResponse({'status': 'error', 'message': ' '.join(e.messages)}, status=400)
+
+    if not first_name or not last_name:
+        return JsonResponse({'status': 'error', 'message': 'First and last name are required.'}, status=400)
+    if not username:
+        return JsonResponse({'status': 'error', 'message': 'Username is required.'}, status=400)
+    if User.objects.filter(username=username).exists():
+        return JsonResponse({'status': 'error', 'message': 'This username is already taken.'}, status=400)
+
+    # Students get an auto-generated @student address (they log in with their admission
+    # number, not email) exactly like api_signup_student -- everyone else logs in with
+    # email, so it's a required field for them.
+    if user_type == 'students':
+        first_local = _sanitize_email_local_part(first_name)
+        last_local = _sanitize_email_local_part(last_name)
+        domain = "@student.myfantasia.com"
+        email = f"{first_local}.{last_local}{domain}"
+        counter = 1
+        while User.objects.filter(email=email).exists() and counter < 500:
+            email = f"{first_local}.{last_local}{counter}{domain}"
+            counter += 1
+        if User.objects.filter(email=email).exists():
+            email = f"{first_local}.{last_local}.{secrets.token_hex(3)}{domain}"
+    else:
+        if not email:
+            return JsonResponse({'status': 'error', 'message': 'Email is required.'}, status=400)
+        if User.objects.filter(email=email).exists():
+            return JsonResponse({'status': 'error', 'message': 'An account with this email already exists.'}, status=400)
+
+    # Type-specific required fields, validated before we touch the database so a bad
+    # class/role id doesn't leave behind a half-created User.
+    class_stream = None
+    role = None
+    student_ids = []
+    if user_type == 'students':
+        class_id = data.get('class_stream_id')
+        if class_id:
+            class_stream = ClassStream.objects.filter(id=class_id).first()
+            if not class_stream:
+                return JsonResponse({'status': 'error', 'message': 'Selected class was not found.'}, status=400)
+    elif user_type == 'parents':
+        student_ids = [int(sid) for sid in request.POST.getlist('student_ids') if sid]
+        if student_ids:
+            found = list(StudentExtra.objects.filter(id__in=student_ids))
+            if len(found) != len(set(student_ids)):
+                return JsonResponse({'status': 'error', 'message': 'One or more selected students were not found.'}, status=400)
+    elif user_type == 'staff':
+        role_id = data.get('role_id')
+        if role_id:
+            role = Role.objects.filter(id=role_id, is_system_role=False).first()
+            if not role:
+                return JsonResponse({'status': 'error', 'message': 'Selected role was not found.'}, status=400)
+
+    temp_password = secrets.token_urlsafe(9)
+
+    user = User.objects.create_user(
+        username=username, email=email, password=temp_password,
+        first_name=first_name, last_name=last_name,
+    )
+
+    if user_type == 'students':
+        student = StudentExtra.objects.create(
+            user=user, roll=username, mobile=mobile, address=address,
+            fee=data.get('fee') or None, cl=class_stream, status=True,
+            profile_pic=profile_pic,
+            family_structure=data.get('family_structure') or None,
+            single_parent_type=data.get('single_parent_type') or None,
+            father_name=data.get('father_name') or None, father_mobile=data.get('father_mobile') or None,
+            mother_name=data.get('mother_name') or None, mother_mobile=data.get('mother_mobile') or None,
+            guardian_name=data.get('guardian_name') or None, guardian_mobile=data.get('guardian_mobile') or None,
+            guardian_relationship=data.get('guardian_relationship') or None,
+        )
+        student.refresh_parent_summary()
+        student.save()
+        group_name = 'STUDENT'
+    elif user_type == 'teachers':
+        subjects_list = request.POST.getlist('subjects')
+        teacher = TeacherExtra.objects.create(
+            user=user, id_number=data.get('id_number') or None, mobile=mobile, address=address,
+            status=True, salary=data.get('salary') or 0, subjects=", ".join(subjects_list),
+            profile_pic=profile_pic,
+        )
+        if subjects_list:
+            teacher.qualified_subjects.set(Subject.objects.filter(name__in=subjects_list))
+        group_name = 'TEACHER'
+        teacher_role = Role.objects.filter(name='Teacher').first()
+        if teacher_role:
+            UserRole.objects.get_or_create(user=user, role=teacher_role)
+    elif user_type == 'parents':
+        parent = ParentExtra.objects.create(
+            user=user, mobile=mobile, relationship=data.get('relationship') or 'Father', status=True,
+        )
+        if student_ids:
+            parent.students.set(student_ids)
+        group_name = 'PARENT'
+    else:  # staff
+        staff = StaffExtra.objects.create(
+            user=user, job_title=data.get('job_title') or '', requested_role=role,
+            id_number=data.get('id_number') or None, mobile=mobile, address=address, status=True,
+            profile_pic=profile_pic,
+        )
+        group_name = 'STAFF'
+        if role:
+            UserRole.objects.get_or_create(user=user, role=role)
+
+    group, _ = Group.objects.get_or_create(name=group_name)
+    group.user_set.add(user)
+
+    # A temp password handed over by an admin must not quietly become permanent.
+    ForcedPasswordChange.objects.get_or_create(user=user)
+
+    email_sent = False
+    if user_type != 'students':
+        try:
+            send_mail(
+                subject='Your MyFantasia account was created',
+                message=(
+                    f"Hi {first_name},\n\n"
+                    f"An administrator ({request.user.get_full_name() or request.user.username}) created a "
+                    "MyFantasia account for you.\n\n"
+                    f"Username: {username}\n"
+                    f"Temporary password: {temp_password}\n\n"
+                    "Please log in and set your own new password immediately -- you'll be "
+                    "prompted for one automatically.\n\n"
+                    "— MyFantasia"
+                ),
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[email],
+                fail_silently=True,
+            )
+            email_sent = True
+        except Exception:
+            pass
+
+    write_audit_log(
+        operator_id=request.user.id, action_type='CREATE', module='UserManagement',
+        description=f"Created {user_type[:-1]} account for '{username}'.",
+        ip_address=client_ip(request),
+    )
+
+    return JsonResponse({
+        'status': 'success',
+        'message': f'{user_type[:-1].capitalize()} account created.',
+        'username': username,
+        'email': email,
+        'temp_password': temp_password,
+        'email_sent': email_sent,
+    })
 
 
 # Purpose: This fetches the live counts and sums directly from your PostgreSQL database
@@ -926,11 +1129,19 @@ def dashboard_stats(request):
     # Getting the logged-in admin's name, or defaulting to "Admin" if testing without session
     admin_name = request.user.first_name if request.user.is_authenticated else "Admin"
 
+    # "New this month" trend counts for the dashboard stat cards -- real data off each
+    # user's date_joined, not a fabricated placeholder.
+    thirty_days_ago = timezone.now() - timedelta(days=30)
+
     data = {
         "student_count": StudentExtra.objects.filter(status=True).count(),
         "teacher_count": TeacherExtra.objects.filter(status=True).count(),
         "parent_count": ParentExtra.objects.filter(status=True).count(),
         "staff_count": StaffExtra.objects.filter(status=True).count(),
+        "student_new_30d": StudentExtra.objects.filter(status=True, user__date_joined__gte=thirty_days_ago).count(),
+        "teacher_new_30d": TeacherExtra.objects.filter(status=True, user__date_joined__gte=thirty_days_ago).count(),
+        "parent_new_30d": ParentExtra.objects.filter(status=True, user__date_joined__gte=thirty_days_ago).count(),
+        "staff_new_30d": StaffExtra.objects.filter(status=True, user__date_joined__gte=thirty_days_ago).count(),
         "revenue": revenue,
         "admin_name": admin_name,
         "message": "Real-time statistics live from PostgreSQL."
@@ -972,214 +1183,15 @@ def pending_approvals_api(request):
     return JsonResponse(data)
 
 # Purpose: Accepts a GET request from the React frontend, safely terminates
-# the Django user session, and redirects the user back to the public HTML home page.
+# the Django user session, and redirects the user back to the public React home page.
+# Absolute redirect (not redirect('/')) because '/' on Django's own origin no longer
+# serves anything -- the public pages live in the React app now (see
+# school/views/public_api_views.py's _resolve_post_login_destination for the equivalent
+# post-login routing logic, now JSON-based).
 def custom_logout_view(request):
     logout(request)
-    return redirect('/')
+    return redirect('http://localhost:5173/')
 
-
-def admin_login_view(request):
-    # If already logged in, send them straight to the router
-    if request.user.is_authenticated:
-        return redirect('afterlogin')
-
-    if request.method == 'POST':
-        # --- Step 2 of admin approval: verifying the code an existing admin
-        # generated when they clicked "Approve" and relayed to the applicant. ---
-        submitted_code = request.POST.get('verification_code')
-        if submitted_code:
-            verify_email = request.POST.get('verify_email', '')
-            try:
-                pending_user = User.objects.get(email=verify_email)
-                admin_extra = AdminExtra.objects.get(user=pending_user, status=False)
-            except (User.DoesNotExist, AdminExtra.DoesNotExist):
-                messages.error(request, 'Verification session expired. Please log in again to restart.')
-                return render(request, 'school/admin/adminlogin.html')
-
-            # A 6-digit code is only 1-in-1,000,000 — cap guesses per admin_extra
-            # before forcing a fresh code, and expire codes after 30 minutes so a
-            # stale one can't be brute-forced indefinitely.
-            attempts_key = f'verify_code_attempts:{admin_extra.pk}'
-            attempts = cache.get(attempts_key, 0)
-            code_expired = (
-                admin_extra.code_generated_at is not None
-                and timezone.now() - admin_extra.code_generated_at > timedelta(minutes=30)
-            )
-
-            if attempts >= 5 or code_expired:
-                admin_extra.verification_code = None
-                admin_extra.code_generated_at = None
-                admin_extra.save()
-                cache.delete(attempts_key)
-                security_logger.warning('Verification code invalidated (expired or too many attempts) for %s', verify_email)
-                SystemAuditLog.objects.create(
-                    operator=pending_user, action_type='AUTH_FAILURE', module='Authentication',
-                    description=f"2FA verification code expired/exhausted for '{pending_user.username}'.",
-                    ip_address=client_ip(request),
-                )
-                messages.error(request, 'This code has expired. Ask the approving administrator to approve you again for a fresh code.')
-                return render(request, 'school/admin/adminlogin.html')
-
-            if admin_extra.verification_code and check_password(submitted_code.strip(), admin_extra.verification_code):
-                admin_extra.status = True
-                admin_extra.verification_code = None
-                admin_extra.code_generated_at = None
-                admin_extra.save()
-                cache.delete(attempts_key)
-
-                my_admin_group, _ = Group.objects.get_or_create(name='ADMIN')
-                my_admin_group.user_set.add(pending_user)
-                # RBAC coverage: grants this admin the same "Admin" system Role (every
-                # permission code) every other admin has — see seed_rbac.py. Kept as its own
-                # step (not implied by Group membership) so a super-admin can later swap this
-                # user onto a narrower custom Role and have that actually take effect.
-                # .filter().first() rather than .get(): defensive against `seed_rbac` not
-                # having been run yet — must never block a verified admin from finishing login.
-                admin_role = Role.objects.filter(name='Admin').first()
-                if admin_role:
-                    UserRole.objects.get_or_create(user=pending_user, role=admin_role)
-
-                SystemAuditLog.objects.create(
-                    operator=pending_user, action_type='AUTH_SUCCESS', module='Authentication',
-                    description=f"2FA verification succeeded for '{pending_user.username}'.",
-                    ip_address=client_ip(request),
-                )
-                messages.success(request, 'Account verified! You can now log in below.', extra_tags='signup_success')
-                return render(request, 'school/admin/adminlogin.html')
-
-            cache.set(attempts_key, attempts + 1, 30 * 60)
-            SystemAuditLog.objects.create(
-                operator=pending_user, action_type='AUTH_FAILURE', module='Authentication',
-                description=f"Incorrect 2FA verification code submitted for '{pending_user.username}' (attempt {attempts + 1}).",
-                ip_address=client_ip(request),
-            )
-            messages.error(request, 'Incorrect verification code. Please try again.')
-            return render(request, 'school/admin/adminlogin.html', {
-                'needs_verification': True,
-                'verification_email': verify_email,
-            })
-
-        email = request.POST.get('email')
-        password = request.POST.get('password')
-
-        if is_login_rate_limited(request, email):
-            messages.error(request, 'Invalid email or password.')
-            return render(request, 'school/admin/adminlogin.html')
-
-        try:
-            user = User.objects.get(email=email)
-        except User.DoesNotExist:
-            record_login_failure(request, email)
-            messages.error(request, 'No account found with this email.')
-            return render(request, 'school/admin/adminlogin.html')
-
-        auth_user = authenticate(username=user.username, password=password)
-        if auth_user is None:
-            record_login_failure(request, email)
-
-        if auth_user is not None and auth_user.groups.filter(name='ADMIN').exists():
-            login(request, auth_user)
-            return redirect('afterlogin')
-        elif auth_user is not None and AdminExtra.objects.filter(user=auth_user, status=False).exists():
-            admin_extra = AdminExtra.objects.get(user=auth_user)
-            if admin_extra.verification_code:
-                # An admin already clicked "Approve" and generated a code for this
-                # applicant — prompt them to enter it instead of just blocking them.
-                return render(request, 'school/admin/adminlogin.html', {
-                    'needs_verification': True,
-                    'verification_email': email,
-                })
-            messages.error(request, 'Your admin account is pending approval by an existing administrator.')
-        else:
-            messages.error(request, 'Invalid email or password.')
-
-    # GET request: just render the login page
-    return render(request, 'school/admin/adminlogin.html')
-
-
-def home_view(request):
-    recent_events = Event.objects.filter(is_active=True).order_by('-start_time')[:3]
-    return render(request, 'school/index.html', {'recent_events': recent_events})
-
-
-
-#for showing signup/login button for teacher
-def adminclick_view(request):
-    if request.user.is_authenticated:
-        return HttpResponseRedirect('afterlogin')
-    return render(request, 'school/admin/adminclick.html')
-
-
-#for showing signup/login button for teacher
-def teacherclick_view(request):
-    if request.user.is_authenticated:
-        return HttpResponseRedirect('afterlogin')
-    return render(request, 'school/teachers/teacherclick.html')
-
-
-#for showing signup/login button for student
-def studentclick_view(request):
-    if request.user.is_authenticated:
-        return HttpResponseRedirect('afterlogin')
-    return render(request, 'school/students/studentclick.html')
-
-
-def admin_signup_view(request):
-    form=forms.AdminSigupForm()
-    if request.method=='POST':
-        form=forms.AdminSigupForm(request.POST)
-        if form.is_valid():
-            # The very first admin bootstraps the system with immediate access, since
-            # there's no existing admin around yet to approve them or hand out an
-            # invite code. Every admin after that needs a valid, unexpired, unused
-            # invite code generated by an existing admin (see AdminInviteCode / the
-            # "Invite Codes & Verification" tab on the admins approval page).
-            is_bootstrap = not User.objects.filter(groups__name='ADMIN').exists()
-            invite_code = request.POST.get('invite_code', '')
-            invite = None
-
-            if not is_bootstrap:
-                invite = AdminInviteCode.objects.filter(
-                    code_hash=AdminInviteCode.hash_code(invite_code)
-                ).first() if invite_code else None
-                if not invite or invite.status != 'Active':
-                    messages.error(request, 'Invalid or expired invite code. Contact an existing administrator for access.')
-                    return render(request, 'school/admin/adminsignup.html', {'form': form})
-
-            user = form.save(commit=False)
-            user.email = form.cleaned_data['email']
-            user.set_password(form.cleaned_data['password'])
-            user.save()
-
-            admin_extra, _ = AdminExtra.objects.get_or_create(user=user)
-            admin_extra.mobile = form.cleaned_data['mobile']
-            admin_extra.address = form.cleaned_data['address']
-            admin_extra.status = is_bootstrap
-            admin_extra.save()
-
-            if invite is not None:
-                invite.used_at = timezone.now()
-                invite.used_by = user
-                invite.save()
-
-            my_admin_group, _ = Group.objects.get_or_create(name='ADMIN')
-            if is_bootstrap:
-                my_admin_group.user_set.add(user)
-                # See admin_login_view's matching assignment for why this is .filter().first()
-                # rather than .get() — a fresh install's very first admin must never be blocked
-                # from signing up just because `seed_rbac` hasn't been run yet.
-                admin_role = Role.objects.filter(name='Admin').first()
-                if admin_role:
-                    UserRole.objects.get_or_create(user=user, role=admin_role)
-                messages.success(request, 'Registration Successful! As the first administrator, you have immediate access.', extra_tags='signup_success')
-            else:
-                messages.success(request, 'Registration submitted! An existing administrator must approve your account before you can log in.', extra_tags='signup_success')
-
-            return redirect('adminlogin')
-    return render(request, 'school/admin/adminsignup.html', {'form':form})
-
-
-# school/views.py
 
 def _sanitize_email_local_part(value):
     """Strips everything but a-z/0-9 from a name before it goes into an auto-generated
@@ -1189,438 +1201,6 @@ def _sanitize_email_local_part(value):
     return cleaned or 'student'
 
 
-def student_signup_view(request):
-    form1 = forms.StudentUserForm()
-    form2 = forms.StudentExtraForm()
-
-    if request.method == 'POST':
-        form1 = forms.StudentUserForm(request.POST)
-        form2 = forms.StudentExtraForm(request.POST, request.FILES)
-
-        if form1.is_valid() and form2.is_valid():
-            # 1. Prepare User but don't save yet
-            user = form1.save(commit=False)
-            user.set_password(user.password)
-
-            # --- AUTOMATIC EMAIL GENERATION ---
-            # Uniqueness is only application-level (User.email has no DB unique constraint),
-            # so this is checked-then-set rather than atomic — a real risk only if two
-            # signups with the exact same name land in the same instant, which the counter
-            # loop below still resolves correctly for, just not race-safe. Acceptable for a
-            # school admission flow's traffic; not something worth a locking scheme over.
-            first = _sanitize_email_local_part(form1.cleaned_data['first_name'])
-            last = _sanitize_email_local_part(form1.cleaned_data['last_name'])
-            domain = "@student.myfantasia.com"
-            base_email = f"{first}.{last}{domain}"
-
-            email = base_email
-            counter = 1
-            while User.objects.filter(email=email).exists() and counter < 500:
-                email = f"{first}.{last}{counter}{domain}"
-                counter += 1
-            if User.objects.filter(email=email).exists():
-                # Pathological case: 500 same-name collisions. Fall back to a short random
-                # suffix rather than looping indefinitely.
-                email = f"{first}.{last}.{secrets.token_hex(3)}{domain}"
-
-            user.email = email
-            user.save()  # User is now saved with a unique email
-
-            # 2. Prepare Student Extra Details
-            f2 = form2.save(commit=False)
-            f2.user = user
-
-            f2.roll = form1.cleaned_data.get('username')
-
-            f2.status = False  # Account must be approved by admin
-
-            # Derives the legacy parent_name/parent_mobile summary from whichever of
-            # father_name/mother_name/guardian_name the family-structure fields filled in.
-            f2.refresh_parent_summary()
-            f2.save()
-
-            # 3. Handle Permissions (Groups)
-            my_student_group, _ = Group.objects.get_or_create(name='STUDENT')
-            my_student_group.user_set.add(user)
-
-            # 4. Trigger Success Popup (on the login page)
-            messages.success(request, 'Registration Successful!', extra_tags='signup_success')
-
-            return redirect('studentlogin')  # Redirect to the login page
-
-        else:
-            # CRITICAL: If the form fails, this prints the reason in your VS Code terminal
-            print("--- FORM VALIDATION ERROR ---")
-            print("User Form Errors:", form1.errors)
-            print("Student Extra Errors:", form2.errors)
-
-    # Re-renders the page with the typed data and error messages if any
-    return render(request, 'school/students/studentsignup.html', {'form1': form1, 'form2': form2})
-
-
-def student_login_view(request):
-    # If already logged in, send them straight to the router
-    if request.user.is_authenticated:
-        return redirect('afterlogin')
-
-    if request.method == 'POST':
-        username = request.POST.get('username')
-        password = request.POST.get('password')
-
-        if is_login_rate_limited(request, username):
-            messages.error(request, 'Invalid admission number or password.')
-            return render(request, 'school/students/studentlogin.html')
-
-        auth_user = authenticate(username=username, password=password)
-
-        if auth_user is not None:
-            login(request, auth_user)
-            return redirect('afterlogin')
-        else:
-            record_login_failure(request, username)
-            messages.error(request, 'Invalid admission number or password.')
-
-    # GET request: just render the login page
-    return render(request, 'school/students/studentlogin.html')
-
-
-def teacher_signup_view(request):
-    if request.method == 'POST':
-        # 1. Extract Text Data from the HTML Form
-        first_name = request.POST.get('first_name')
-        last_name = request.POST.get('last_name')
-        username = (request.POST.get('username') or '').strip()
-        email = (request.POST.get('email') or '').strip().lower()
-        password = request.POST.get('password')
-        password2 = request.POST.get('password2')
-
-        id_number = request.POST.get('id_number')
-        mobile = request.POST.get('mobile')
-        address = request.POST.get('address')
-
-        # 2. Extract the Uploaded File
-        profile_pic = request.FILES.get('profile_pic')
-
-        subjects_list = request.POST.getlist('subjects')
-        subjects_str = ", ".join(subjects_list)
-
-        # Plain POST fields (no ModelForm here), so uniqueness/password-confirmation must be
-        # checked by hand before create_user() — otherwise a duplicate username/email would
-        # crash with an uncaught IntegrityError instead of a friendly re-rendered error.
-        error = None
-        if User.objects.filter(username=username).exists():
-            error = 'This username is already taken. Please choose another.'
-        elif User.objects.filter(email=email).exists():
-            error = 'An account with this email already exists.'
-        elif not password:
-            error = 'Password is required.'
-        else:
-            try:
-                validate_password(password, user=User(
-                    username=username, email=email, first_name=first_name, last_name=last_name
-                ))
-            except DjangoValidationError as e:
-                error = ' '.join(e.messages)
-            if not error and password != password2:
-                error = 'Passwords do not match.'
-
-        if error:
-            messages.error(request, error)
-            subjects = Subject.objects.all().order_by('name')
-            return render(request, 'school/teachers/teachersignup.html', {'subjects': subjects})
-
-        # 3. Create the built-in Django User Object
-        user = User.objects.create_user(
-            username=username,
-            password=password,
-            email=email,
-            first_name=first_name,
-            last_name=last_name
-        )
-
-        # 4. Create the TeacherExtra Profile attached to the new User
-        teacher = TeacherExtra.objects.create(
-            user=user,
-            id_number=id_number,
-            mobile=mobile,
-            address=address,
-            profile_pic=profile_pic,
-            status=False,  # Automatically blocks dashboard access until Admin approves
-            salary=0,  # Default salary
-            subjects=subjects_str
-        )
-
-        # The subjects picked above are real Subject records (the dropdown posts their
-        # names) — link them to qualified_subjects too, the actual M2M every allocation/
-        # eligibility check reads. Leaving this unset was why the Edit Profile page's
-        # "Qualified Subjects" checklist always came up blank for a brand new teacher.
-        if subjects_list:
-            teacher.qualified_subjects.set(Subject.objects.filter(name__in=subjects_list))
-
-        # 5. Add to the TEACHER group
-        my_teacher_group, created = Group.objects.get_or_create(name='TEACHER')
-        my_teacher_group.user_set.add(user)
-
-        # RBAC coverage: grants the "Teacher" system Role (see seed_rbac.py's
-        # TEACHER_PERMISSIONS), mirroring the admin-signup assignment above. Defensive
-        # lookup — must never block signup if `seed_rbac` hasn't been run yet.
-        teacher_role = Role.objects.filter(name='Teacher').first()
-        if teacher_role:
-            UserRole.objects.get_or_create(user=user, role=teacher_role)
-
-        # 6. Auto-Login and Redirect
-        auth_user = authenticate(username=username, password=password)
-        if auth_user is not None:
-            login(request, auth_user)
-            messages.success(request, 'Application submitted successfully!', extra_tags='signup_success')
-            return redirect('afterlogin')
-
-    # --- UPDATED: GET REQUEST ---
-    # Fetch all subjects and pass them to the template
-    subjects = Subject.objects.all().order_by('name')
-    return render(request, 'school/teachers/teachersignup.html', {'subjects': subjects})
-
-
-def staff_signup_view(request):
-    """Self-signup for non-teaching staff (librarian, finance officer, secretary, etc).
-    Mirrors teacher_signup_view: plain Django auth, no Firebase. status=False until an
-    admin approves — and even once approved, this account has zero permissions until a
-    Role takes effect. The applicant picks their staff type from a dropdown of existing
-    Roles (requested_role); on approval that Role is auto-assigned so the admin isn't
-    hunting through Roles & Permissions for the right one — see StaffExtra docstring
-    and api_process_approval's 'staff' branch."""
-    # Non-system Roles only: Admin/Teacher are reserved for their own account types and
-    # would be a confusing (and wrong) choice in a Staff signup form.
-    roles = Role.objects.filter(is_system_role=False).order_by('name')
-
-    if request.method == 'POST':
-        first_name = request.POST.get('first_name')
-        last_name = request.POST.get('last_name')
-        username = (request.POST.get('username') or '').strip()
-        email = (request.POST.get('email') or '').strip().lower()
-        password = request.POST.get('password')
-        password2 = request.POST.get('password2')
-
-        job_title = request.POST.get('job_title')
-        id_number = request.POST.get('id_number')
-        mobile = request.POST.get('mobile')
-        address = request.POST.get('address')
-        requested_role = roles.filter(id=request.POST.get('role_id')).first()
-
-        # Plain POST fields (no ModelForm here), so uniqueness/password-confirmation must be
-        # checked by hand before create_user() — otherwise a duplicate username/email would
-        # crash with an uncaught IntegrityError instead of a friendly re-rendered error.
-        error = None
-        if User.objects.filter(username=username).exists():
-            error = 'This username is already taken. Please choose another.'
-        elif User.objects.filter(email=email).exists():
-            error = 'An account with this email already exists.'
-        elif not password:
-            error = 'Password is required.'
-        else:
-            try:
-                validate_password(password, user=User(
-                    username=username, email=email, first_name=first_name, last_name=last_name
-                ))
-            except DjangoValidationError as e:
-                error = ' '.join(e.messages)
-            if not error and password != password2:
-                error = 'Passwords do not match.'
-
-        if error:
-            messages.error(request, error)
-            return render(request, 'school/staff/staffsignup.html', {'roles': roles})
-
-        user = User.objects.create_user(
-            username=username,
-            password=password,
-            email=email,
-            first_name=first_name,
-            last_name=last_name
-        )
-
-        StaffExtra.objects.create(
-            user=user,
-            job_title=job_title,
-            requested_role=requested_role,
-            id_number=id_number,
-            mobile=mobile,
-            address=address,
-            status=False,  # Automatically blocks dashboard access until Admin approves
-        )
-
-        staff_group, created = Group.objects.get_or_create(name='STAFF')
-        staff_group.user_set.add(user)
-
-        auth_user = authenticate(username=username, password=password)
-        if auth_user is not None:
-            login(request, auth_user)
-            messages.success(request, 'Application submitted successfully!', extra_tags='signup_success')
-            return redirect('afterlogin')
-
-    return render(request, 'school/staff/staffsignup.html', {'roles': roles})
-
-
-def staffclick_view(request):
-    if request.user.is_authenticated:
-        return HttpResponseRedirect('afterlogin')
-    return render(request, 'school/staff/staffclick.html')
-
-
-def staff_login_view(request):
-    # If already logged in, send them straight to the router
-    if request.user.is_authenticated:
-        return redirect('afterlogin')
-
-    if request.method == 'POST':
-        email = request.POST.get('email')
-        password = request.POST.get('password')
-
-        try:
-            user = User.objects.get(email=email)
-            auth_user = authenticate(username=user.username, password=password)
-
-            if auth_user is not None:
-                login(request, auth_user)
-                return redirect('afterlogin')
-            else:
-                messages.error(request, 'Invalid email or password.')
-
-        except User.DoesNotExist:
-            messages.error(request, 'No account found with this email.')
-
-    return render(request, 'school/staff/stafflogin.html')
-
-
-
-# for aboutus and contact ussssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss
-def aboutus_view(request):
-    return render(request,'school/pages/aboutus.html')
-
-def events_view(request):
-    """
-    Renders the Events & Notices page.
-    """
-    return render(request, 'school/pages/events.html')
-
-def portal_view(request):
-    if request.user.is_authenticated:
-        return HttpResponseRedirect('afterlogin')
-    return render(request, 'school/portal_selection.html')
-
-
-def contactus_view(request):
-    sub = forms.ContactusForm()
-    success_popup = False  # Default: hidden
-
-    if request.method == 'POST':
-        sub = forms.ContactusForm(request.POST)
-        if sub.is_valid():
-            email = sub.cleaned_data['Email']
-            name = sub.cleaned_data['Name']
-            message = sub.cleaned_data['Message']
-
-            # Routed to the school's own inbox (same account the SMTP config sends
-            # from) rather than a separate "receiving" address, since none exists yet.
-            # Not fail_silently: a genuine SMTP failure here shouldn't look like success
-            # to the visitor, but it also must not 500 the page and lose their message —
-            # so we catch it and let them know to try again or use the phone/email above.
-            try:
-                send_mail(
-                    subject=f'{name} || {email}',
-                    message=message,
-                    from_email=settings.DEFAULT_FROM_EMAIL,
-                    recipient_list=[settings.EMAIL_HOST_USER or settings.DEFAULT_FROM_EMAIL],
-                    fail_silently=False,
-                )
-                success_popup = True
-                sub = forms.ContactusForm()  # Reset form to blank
-            except Exception:
-                messages.error(
-                    request,
-                    "Sorry, your message could not be sent right now. Please try again "
-                    "shortly, or reach us directly using the phone number or email above."
-                )
-
-    return render(request, 'school/pages/contactus.html', {'form': sub, 'success_popup': success_popup})
-
-
-def privacy_policy_view(request):
-    return render(request, 'school/pages/privacy.html')
-
-
-def terms_of_service_view(request):
-    return render(request, 'school/pages/terms.html')
-
-
-def system_status_view(request):
-    # Real (if minimal) check rather than a hardcoded "all green" board: confirms the
-    # primary database is actually reachable right now instead of just asserting it.
-    from django.db import connection
-    try:
-        with connection.cursor() as cursor:
-            cursor.execute('SELECT 1')
-        database_operational = True
-    except Exception:
-        database_operational = False
-
-    services = [
-        {'name': 'Web Portal & Login', 'operational': True},
-        {'name': 'Database', 'operational': database_operational},
-        {'name': 'Parent, Student & Teacher Dashboards', 'operational': True},
-        {'name': 'Fee Payments (M-PESA)', 'operational': True},
-        {'name': 'Results & Report Cards', 'operational': True},
-    ]
-    all_operational = all(s['operational'] for s in services)
-
-    return render(request, 'school/pages/status.html', {
-        'services': services,
-        'all_operational': all_operational,
-    })
-
-
-def parentclick_view(request):
-    if request.user.is_authenticated:
-        return HttpResponseRedirect('afterlogin')
-    return render(request,'school/parents/parentclick.html') # You'll need to create this template
-
-
-def parent_login_view(request):
-    # If already logged in, send them straight to the router
-    if request.user.is_authenticated:
-        return redirect('afterlogin')
-
-    if request.method == 'POST':
-        # Email-based login, same pattern as teacher_login_view — parents already provide a
-        # real email at signup (ParentUserForm), and their auto-generated username
-        # ("{childfirst}{childlast}_parent") isn't something they'd naturally remember.
-        email = request.POST.get('email')
-        password = request.POST.get('password')
-
-        if is_login_rate_limited(request, email):
-            messages.error(request, 'Invalid email or password.')
-            return render(request, 'school/parents/parentlogin.html')
-
-        try:
-            user = User.objects.get(email=email)
-            auth_user = authenticate(username=user.username, password=password)
-
-            if auth_user is not None:
-                login(request, auth_user)
-                return redirect('afterlogin')
-            else:
-                record_login_failure(request, email)
-                messages.error(request, 'Invalid email or password.')
-
-        except User.DoesNotExist:
-            record_login_failure(request, email)
-            messages.error(request, 'No account found with this email.')
-
-    # GET request: just render the login page
-    return render(request, 'school/parents/parentlogin.html')
-
-
-@csrf_exempt
 def api_search_students_for_parent_signup(request):
     """Public, pre-login student lookup for the parent signup page's child-linking step.
     Selection-by-ID from these results is what makes linking exact (no more typo-prone
@@ -1669,104 +1249,5 @@ def api_search_students_for_parent_signup(request):
         })
 
     return JsonResponse({'status': 'success', 'data': data})
-
-
-def parent_signup_view(request):
-    form1 = forms.ParentUserForm()
-    form2 = forms.ParentExtraForm()
-
-    if request.method == 'POST':
-        form1 = forms.ParentUserForm(request.POST)
-        form2 = forms.ParentExtraForm(request.POST)
-
-        if form1.is_valid() and form2.is_valid():
-            # 1. Save the Parent User (including Email)
-            user = form1.save(commit=False)
-            # Store the raw password before hashing it so we can log them in automatically later
-            raw_password = form1.cleaned_data['password']
-            user.set_password(raw_password)
-            user.email = form1.cleaned_data['email']
-            user.save()
-
-            # 2. Save Parent Extra & link every student picked via the search-select UI.
-            # cleaned_data['selected_student_ids'] is already a list of real StudentExtra
-            # objects (resolved and existence-checked in ParentExtraForm.clean_selected_student_ids),
-            # so no separate DB verification step is needed here — selecting a search
-            # result IS the verification.
-            parent_extra = form2.save(commit=False)
-            parent_extra.user = user
-            parent_extra.status = False  # Account needs admin approval
-            parent_extra.save()  # MUST BE SAVED BEFORE ADDING MANY-TO-MANY
-
-            parent_extra.students.set(form2.cleaned_data['selected_student_ids'])
-
-            # 3. Add to Parent Group
-            my_parent_group, _ = Group.objects.get_or_create(name='PARENT')
-            my_parent_group.user_set.add(user)
-
-            # --- THE MAGIC FIX: AUTO-LOGIN & INSTANT REDIRECT ---
-            # This authenticates the new user behind the scenes
-            user = authenticate(username=user.username, password=raw_password)
-            if user is not None:
-                login(request, user)  # Logs them in immediately
-                messages.success(request, 'Registration submitted successfully!', extra_tags='signup_success')
-                return redirect('afterlogin')  # Instantly triggers the Wait for Approval Page!
-
-            # (Fallback just in case)
-            return HttpResponseRedirect('parentlogin')
-
-        else:
-            # Catch standard form validation errors
-            print("--- PARENT FORM VALIDATION FAILED ---")
-            print("User Form Errors (Form 1):", form1.errors)
-            print("Extra Form Errors (Form 2):", form2.errors)
-
-    return render(request, 'school/parents/parentsignup.html', {'form1': form1, 'form2': form2})
-
-
-@ensure_csrf_cookie
-def afterlogin_view(request):
-    # Every login flow (admin/teacher/student/parent) funnels through here before landing
-    # in the React SPA on a different port. The SPA's POSTs go through DRF's
-    # SessionAuthentication, which requires the csrftoken cookie — but nothing else in the
-    # login chain ever actually sets it, so without this decorator the first POST any user
-    # makes (e.g. creating a Tier) fails with "CSRF Failed: CSRF cookie not set."
-    if request.user.is_superuser:
-        return redirect('/admin/')
-
-    if is_admin(request.user):
-        return redirect('http://localhost:5173/admin-dashboard')
-
-    elif is_teacher(request.user):
-        accountapproval=TeacherExtra.objects.all().filter(user_id=request.user.id,status=True)
-        if accountapproval:
-            return redirect('http://localhost:5173/teacher-dashboard')
-        else:
-            return render(request, 'school/teachers/teacher_wait_for_approval.html')
-
-    elif is_student(request.user):
-        accountapproval=StudentExtra.objects.all().filter(user_id=request.user.id,status=True)
-        if accountapproval:
-            return redirect('http://localhost:5173/student-dashboard')
-        else:
-            return render(request, 'school/students/student_wait_for_approval.html')
-
-    # ADD THIS PART:
-    elif is_parent(request.user):
-        accountapproval=ParentExtra.objects.all().filter(user_id=request.user.id,status=True)
-        if accountapproval:
-            return redirect('http://localhost:5173/parent-dashboard')
-        else:
-            return render(request,'school/parents/parent_wait_for_approval.html')
-
-    elif is_school_staff(request.user):
-        accountapproval = StaffExtra.objects.all().filter(user_id=request.user.id, status=True)
-        if accountapproval:
-            return redirect('http://localhost:5173/staff-dashboard')
-        else:
-            return render(request, 'school/staff/staff_wait_for_approval.html')
-
-    else:
-        return redirect('/')
 
 

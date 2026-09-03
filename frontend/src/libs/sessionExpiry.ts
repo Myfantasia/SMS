@@ -4,7 +4,7 @@
 // every recorded activity — it's an idle timeout, not a fixed time-since-login.
 const LAST_ACTIVITY_KEY = 'sms_last_activity_at';
 const IDLE_LIMIT_MS = 3 * 60 * 60 * 1000; // 3 hours
-export const SIGN_IN_URL = 'http://localhost:8000/portal';
+export const SIGN_IN_URL = 'http://localhost:5173/portal';
 
 // Idle expiry must go through the real logout endpoint, not straight to the portal: the
 // Django session (SESSION_SAVE_EVERY_REQUEST=True) only renews on requests, so a stray

@@ -5,8 +5,8 @@ from rest_framework.response import Response
 
 from django.db.models import Sum
 
-from school.models.models import StudentExtra, ParentExtra, TeacherExtra
-from school.models.assignments_models import (
+from apps.identity.models import StudentExtra, ParentExtra, TeacherExtra
+from apps.assignments.models import (
     QuestionOption, StudentAnswer, StudentSubmission, AssignmentGroup
 )
 

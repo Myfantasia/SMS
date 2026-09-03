@@ -79,7 +79,7 @@ const ContextFilters: React.FC<ContextFiltersProps> = ({
         if (yearRes.data?.status === 'success') {
           const fetchedYears = yearRes.data.data;
           setYears(fetchedYears);
-          
+
           // Auto-select the active year if nothing is selected
           if (!selectedYear) {
             const activeYear = fetchedYears.find((y: AcademicYear) => y.is_active);
@@ -184,29 +184,29 @@ const ContextFilters: React.FC<ContextFiltersProps> = ({
 
   // --- 6. THE UI (Tailwind Grid) ---
   return (
-    <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm relative">
+    <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm dark:shadow-none relative">
       {/* Decorative background accent — rounded to match the card's own corners instead of
           relying on the card clipping overflow, which would also clip the SearchableSelect
           dropdown that needs to render past the card's bottom edge. */}
       <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500 rounded-l-2xl"></div>
 
-      <div className="flex justify-between items-center mb-4 border-b border-slate-100 pb-3">
-        <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
-          <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 text-xs flex items-center justify-center font-black">1</span>
+      <div className="flex justify-between items-center mb-4 border-b border-slate-100 dark:border-slate-700 pb-3">
+        <h2 className="text-sm font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2">
+          <span className="w-5 h-5 rounded-full bg-indigo-100 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 text-xs flex items-center justify-center font-black">1</span>
           Select Context
         </h2>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        
+
         {/* YEAR DROPDOWN */}
         <div>
-          <label htmlFor="year-select" className="block text-sm font-medium text-slate-700 mb-1">
-            Academic Year <span className="text-red-500">*</span>
+          <label htmlFor="year-select" className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">
+            Academic Year <span className="text-red-500 dark:text-red-400">*</span>
           </label>
           <select
             id="year-select"
-            className="w-full border-slate-300 rounded-lg shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2.5 bg-slate-50 border text-sm transition-colors cursor-pointer"
+            className="w-full border-slate-300 dark:border-slate-600 rounded-lg shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 p-2.5 bg-slate-50 dark:bg-slate-800 border text-sm text-slate-800 dark:text-slate-100 transition-colors cursor-pointer"
             value={selectedYear}
             onChange={(e) => setSelectedYear(e.target.value)}
             disabled={isLoading}
@@ -222,13 +222,13 @@ const ContextFilters: React.FC<ContextFiltersProps> = ({
 
         {/* TERM DROPDOWN */}
         <div>
-          <label htmlFor="term-select" className="block text-sm font-medium text-slate-700 mb-1">
-            Exam Term <span className="text-red-500">*</span>
+          <label htmlFor="term-select" className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">
+            Exam Term <span className="text-red-500 dark:text-red-400">*</span>
           </label>
           <select
             id="term-select"
-            className={`w-full border-slate-300 rounded-lg shadow-sm p-2.5 border focus:ring-indigo-500 focus:border-indigo-500 text-sm transition-colors ${
-              !selectedYear ? 'bg-slate-100 cursor-not-allowed opacity-60' : 'bg-slate-50 cursor-pointer'
+            className={`w-full border-slate-300 dark:border-slate-600 rounded-lg shadow-sm p-2.5 border focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-indigo-500 dark:focus:border-indigo-400 text-sm text-slate-800 dark:text-slate-100 transition-colors ${
+              !selectedYear ? 'bg-slate-100 dark:bg-slate-800 cursor-not-allowed opacity-60' : 'bg-slate-50 dark:bg-slate-800 cursor-pointer'
             }`}
             value={selectedTerm}
             onChange={(e) => setSelectedTerm(e.target.value)}
@@ -246,24 +246,24 @@ const ContextFilters: React.FC<ContextFiltersProps> = ({
         {/* CLASS STREAM / ELECTIVE GROUP DROPDOWN */}
         <div>
           <div className="flex items-center justify-between mb-1">
-            <label htmlFor="class-select" className="block text-sm font-medium text-slate-700">
-              {viewMode === 'streams' ? 'Class Stream' : 'Elective Group'} <span className="text-red-500">*</span>
+            <label htmlFor="class-select" className="block text-sm font-medium text-slate-700 dark:text-slate-200">
+              {viewMode === 'streams' ? 'Class Stream' : 'Elective Group'} <span className="text-red-500 dark:text-red-400">*</span>
             </label>
           </div>
 
           {/* Streams vs Elective Groups toggle */}
-          <div className="flex bg-slate-100 p-1 rounded-lg mb-2 w-fit">
+          <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg mb-2 w-fit">
             <button
               type="button"
               onClick={() => { setViewMode('streams'); setSelectedClass(''); }}
-              className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${viewMode === 'streams' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${viewMode === 'streams' ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
             >
               Streams
             </button>
             <button
               type="button"
               onClick={() => { setViewMode('electives'); setSelectedClass(''); }}
-              className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${viewMode === 'electives' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${viewMode === 'electives' ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
             >
               🧩 Elective Groups
             </button>

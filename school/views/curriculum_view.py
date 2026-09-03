@@ -1,6 +1,5 @@
 from django.db.models import ProtectedError
 from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
 from rest_framework import viewsets
 from rest_framework.authentication import SessionAuthentication
 from rest_framework.decorators import action
@@ -8,9 +7,11 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import BasePermission, IsAuthenticated
 from rest_framework.response import Response
 
+from apps.core.services import write_audit_log
+from apps.identity.services import get_current_school_id
 from school.decorators import require_permission
-from school.models.classSubjects_models import (
-    Curriculum, CurriculumPreset, Pathway, PresetCombination, SubjectCurriculumProfile, SystemAuditLog, Tier, Track,
+from apps.academics.models import (
+    Curriculum, CurriculumPreset, Pathway, PresetCombination, SubjectCurriculumProfile, Tier, Track,
 )
 from school.rbac import HasModulePermission, assert_curriculum_editable, user_has_permission
 from school.serializers.curriculum_serializers import (
@@ -19,7 +20,6 @@ from school.serializers.curriculum_serializers import (
 )
 
 
-@csrf_exempt
 @require_permission('curriculum.view')
 def api_curriculum_presets(request):
     """
@@ -32,7 +32,7 @@ def api_curriculum_presets(request):
     """
     if request.method == 'GET':
         try:
-            presets = CurriculumPreset.objects.all()
+            presets = CurriculumPreset.objects.filter(school_id=get_current_school_id(request))
 
             data = []
             for preset in presets:
@@ -85,15 +85,15 @@ class CurriculumViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         curriculum = serializer.save()
-        SystemAuditLog.objects.create(
-            operator=self.request.user, action_type='CREATE', module='Curriculum',
+        write_audit_log(
+            operator_id=self.request.user.id, action_type='CREATE', module='Curriculum',
             description=f"Created curriculum '{curriculum.name}' ({curriculum.code})."
         )
 
     def perform_update(self, serializer):
         curriculum = serializer.save()
-        SystemAuditLog.objects.create(
-            operator=self.request.user, action_type='UPDATE', module='Curriculum',
+        write_audit_log(
+            operator_id=self.request.user.id, action_type='UPDATE', module='Curriculum',
             description=f"Updated curriculum '{curriculum.name}' ({curriculum.code})."
         )
 
@@ -108,8 +108,8 @@ class CurriculumViewSet(viewsets.ModelViewSet):
         curriculum = self.get_object()
         curriculum.is_active_for_new_grades = False
         curriculum.save(update_fields=['is_active_for_new_grades'])
-        SystemAuditLog.objects.create(
-            operator=request.user, action_type='UPDATE', module='Curriculum',
+        write_audit_log(
+            operator_id=request.user.id, action_type='UPDATE', module='Curriculum',
             description=f"Sunset curriculum '{curriculum.name}' — no longer selectable for new grades."
         )
         return Response(CurriculumSerializer(curriculum).data)
@@ -119,8 +119,8 @@ class CurriculumViewSet(viewsets.ModelViewSet):
         curriculum = self.get_object()
         curriculum.is_archived = True
         curriculum.save(update_fields=['is_archived'])
-        SystemAuditLog.objects.create(
-            operator=request.user, action_type='UPDATE', module='Curriculum',
+        write_audit_log(
+            operator_id=request.user.id, action_type='UPDATE', module='Curriculum',
             description=f"Archived curriculum '{curriculum.name}' — its presets/pathways/pools are now frozen."
         )
         return Response(CurriculumSerializer(curriculum).data)
@@ -145,16 +145,16 @@ class PathwayViewSet(viewsets.ModelViewSet):
         curriculum = serializer.validated_data.get('curriculum')
         assert_curriculum_editable(curriculum, self.request.user)
         pathway = serializer.save()
-        SystemAuditLog.objects.create(
-            operator=self.request.user, action_type='CREATE', module='Curriculum',
+        write_audit_log(
+            operator_id=self.request.user.id, action_type='CREATE', module='Curriculum',
             description=f"Created pathway '{pathway.name}' under {pathway.curriculum.code}."
         )
 
     def perform_update(self, serializer):
         assert_curriculum_editable(serializer.instance.curriculum, self.request.user)
         pathway = serializer.save()
-        SystemAuditLog.objects.create(
-            operator=self.request.user, action_type='UPDATE', module='Curriculum',
+        write_audit_log(
+            operator_id=self.request.user.id, action_type='UPDATE', module='Curriculum',
             description=f"Updated pathway '{pathway.name}' ({pathway.curriculum.code})."
         )
 
@@ -162,8 +162,8 @@ class PathwayViewSet(viewsets.ModelViewSet):
         assert_curriculum_editable(instance.curriculum, self.request.user)
         name, code = instance.name, instance.curriculum.code
         instance.delete()
-        SystemAuditLog.objects.create(
-            operator=self.request.user, action_type='DELETE', module='Curriculum',
+        write_audit_log(
+            operator_id=self.request.user.id, action_type='DELETE', module='Curriculum',
             description=f"Deleted pathway '{name}' ({code})."
         )
 
@@ -193,16 +193,16 @@ class TrackViewSet(viewsets.ModelViewSet):
         pathway = serializer.validated_data.get('pathway')
         assert_curriculum_editable(pathway.curriculum, self.request.user)
         track = serializer.save()
-        SystemAuditLog.objects.create(
-            operator=self.request.user, action_type='CREATE', module='Curriculum',
+        write_audit_log(
+            operator_id=self.request.user.id, action_type='CREATE', module='Curriculum',
             description=f"Created track '{track.name}' under pathway '{track.pathway.name}'."
         )
 
     def perform_update(self, serializer):
         assert_curriculum_editable(serializer.instance.pathway.curriculum, self.request.user)
         track = serializer.save()
-        SystemAuditLog.objects.create(
-            operator=self.request.user, action_type='UPDATE', module='Curriculum',
+        write_audit_log(
+            operator_id=self.request.user.id, action_type='UPDATE', module='Curriculum',
             description=f"Updated track '{track.name}' ({track.pathway.name})."
         )
 
@@ -213,8 +213,8 @@ class TrackViewSet(viewsets.ModelViewSet):
         # Tier's PROTECT), since losing a track is a much smaller structural event than
         # losing a whole pathway — they just fall back to "no track" rather than blocking.
         instance.delete()
-        SystemAuditLog.objects.create(
-            operator=self.request.user, action_type='DELETE', module='Curriculum',
+        write_audit_log(
+            operator_id=self.request.user.id, action_type='DELETE', module='Curriculum',
             description=f"Deleted track '{name}' ({pathway_name})."
         )
 
@@ -243,16 +243,16 @@ class TierViewSet(viewsets.ModelViewSet):
         curriculum = serializer.validated_data.get('curriculum')
         assert_curriculum_editable(curriculum, self.request.user)
         tier = serializer.save()
-        SystemAuditLog.objects.create(
-            operator=self.request.user, action_type='CREATE', module='Curriculum',
+        write_audit_log(
+            operator_id=self.request.user.id, action_type='CREATE', module='Curriculum',
             description=f"Created tier '{tier.name}' under {tier.curriculum.code}."
         )
 
     def perform_update(self, serializer):
         assert_curriculum_editable(serializer.instance.curriculum, self.request.user)
         tier = serializer.save()
-        SystemAuditLog.objects.create(
-            operator=self.request.user, action_type='UPDATE', module='Curriculum',
+        write_audit_log(
+            operator_id=self.request.user.id, action_type='UPDATE', module='Curriculum',
             description=f"Updated tier '{tier.name}' ({tier.curriculum.code})."
         )
 
@@ -266,8 +266,8 @@ class TierViewSet(viewsets.ModelViewSet):
                 f"Cannot delete tier '{name}' — it's still assigned to one or more grades. "
                 "Reassign those grades first."
             )
-        SystemAuditLog.objects.create(
-            operator=self.request.user, action_type='DELETE', module='Curriculum',
+        write_audit_log(
+            operator_id=self.request.user.id, action_type='DELETE', module='Curriculum',
             description=f"Deleted tier '{name}' ({code})."
         )
 
@@ -282,6 +282,7 @@ class CurriculumPresetViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
+        qs = qs.filter(school_id=get_current_school_id(self.request))
         curriculum_id = self.request.query_params.get('curriculum')
         if curriculum_id:
             qs = qs.filter(curriculum_id=curriculum_id)
@@ -290,17 +291,17 @@ class CurriculumPresetViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         curriculum = serializer.validated_data.get('curriculum')
         assert_curriculum_editable(curriculum, self.request.user)
-        preset = serializer.save()
-        SystemAuditLog.objects.create(
-            operator=self.request.user, action_type='CREATE', module='Curriculum',
+        preset = serializer.save(school_id=get_current_school_id(self.request))
+        write_audit_log(
+            operator_id=self.request.user.id, action_type='CREATE', module='Curriculum',
             description=f"Created curriculum preset '{preset.name}'."
         )
 
     def perform_update(self, serializer):
         assert_curriculum_editable(serializer.instance.curriculum, self.request.user)
         preset = serializer.save()
-        SystemAuditLog.objects.create(
-            operator=self.request.user, action_type='UPDATE', module='Curriculum',
+        write_audit_log(
+            operator_id=self.request.user.id, action_type='UPDATE', module='Curriculum',
             description=f"Updated curriculum preset '{preset.name}'."
         )
 
@@ -308,8 +309,8 @@ class CurriculumPresetViewSet(viewsets.ModelViewSet):
         assert_curriculum_editable(instance.curriculum, self.request.user)
         name = instance.name
         instance.delete()
-        SystemAuditLog.objects.create(
-            operator=self.request.user, action_type='DELETE', module='Curriculum',
+        write_audit_log(
+            operator_id=self.request.user.id, action_type='DELETE', module='Curriculum',
             description=f"Deleted curriculum preset '{name}'."
         )
 
@@ -342,16 +343,16 @@ class PresetCombinationViewSet(viewsets.ModelViewSet):
         track = serializer.validated_data.get('track')
         assert_curriculum_editable(track.pathway.curriculum, self.request.user)
         combo = serializer.save()
-        SystemAuditLog.objects.create(
-            operator=self.request.user, action_type='CREATE', module='Curriculum',
+        write_audit_log(
+            operator_id=self.request.user.id, action_type='CREATE', module='Curriculum',
             description=f"Created preset combination '{combo.display_name()}' under track '{combo.track.name}'."
         )
 
     def perform_update(self, serializer):
         assert_curriculum_editable(serializer.instance.track.pathway.curriculum, self.request.user)
         combo = serializer.save()
-        SystemAuditLog.objects.create(
-            operator=self.request.user, action_type='UPDATE', module='Curriculum',
+        write_audit_log(
+            operator_id=self.request.user.id, action_type='UPDATE', module='Curriculum',
             description=f"Updated preset combination '{combo.display_name()}' ({combo.track.name})."
         )
 
@@ -359,8 +360,8 @@ class PresetCombinationViewSet(viewsets.ModelViewSet):
         assert_curriculum_editable(instance.track.pathway.curriculum, self.request.user)
         name, track_name = instance.display_name(), instance.track.name
         instance.delete()
-        SystemAuditLog.objects.create(
-            operator=self.request.user, action_type='DELETE', module='Curriculum',
+        write_audit_log(
+            operator_id=self.request.user.id, action_type='DELETE', module='Curriculum',
             description=f"Deleted preset combination '{name}' ({track_name})."
         )
 
@@ -395,8 +396,8 @@ class SubjectCurriculumProfileViewSet(viewsets.ModelViewSet):
         curriculum = serializer.validated_data.get('curriculum')
         assert_curriculum_editable(curriculum, self.request.user)
         profile = serializer.save()
-        SystemAuditLog.objects.create(
-            operator=self.request.user, action_type='CREATE', module='Curriculum',
+        write_audit_log(
+            operator_id=self.request.user.id, action_type='CREATE', module='Curriculum',
             description=f"Assigned subject '{profile.subject.code}' to {profile.curriculum.code}"
                         + (f"/{profile.tier.code}" if profile.tier else "") + "."
         )
@@ -404,8 +405,8 @@ class SubjectCurriculumProfileViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         assert_curriculum_editable(serializer.instance.curriculum, self.request.user)
         profile = serializer.save()
-        SystemAuditLog.objects.create(
-            operator=self.request.user, action_type='UPDATE', module='Curriculum',
+        write_audit_log(
+            operator_id=self.request.user.id, action_type='UPDATE', module='Curriculum',
             description=f"Updated subject profile for '{profile.subject.code}' ({profile.curriculum.code})."
         )
 
@@ -413,7 +414,7 @@ class SubjectCurriculumProfileViewSet(viewsets.ModelViewSet):
         assert_curriculum_editable(instance.curriculum, self.request.user)
         subject_code, scope = instance.subject.code, instance.curriculum.code
         instance.delete()
-        SystemAuditLog.objects.create(
-            operator=self.request.user, action_type='DELETE', module='Curriculum',
+        write_audit_log(
+            operator_id=self.request.user.id, action_type='DELETE', module='Curriculum',
             description=f"Removed subject '{subject_code}' from {scope}."
         )

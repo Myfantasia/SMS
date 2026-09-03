@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand
-from school.models.models import TeacherExtra
-from school.models.classSubjects_models import Subject
+from apps.identity.models import TeacherExtra
+from apps.academics.models import Subject
 
 
 class Command(BaseCommand):

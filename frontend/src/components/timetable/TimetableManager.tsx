@@ -103,19 +103,19 @@ export default function TimetableManager() {
     toast((t) => (
       <div className="flex flex-col gap-3 font-sans text-left max-w-sm">
         <div>
-          <p className="text-xs font-black uppercase tracking-wider text-slate-400 mb-1">
+          <p className="text-xs font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">
             Confirm Lifecycle Shift
           </p>
-          <p className="text-xs font-medium text-slate-700 leading-relaxed">
+          <p className="text-xs font-medium text-slate-700 dark:text-slate-200 leading-relaxed">
             {alertMessage}
           </p>
         </div>
 
-        <div className="flex justify-end gap-2 pt-1 border-t border-slate-100">
+        <div className="flex justify-end gap-2 pt-1 border-t border-slate-100 dark:border-slate-700">
           <button
             type="button"
             onClick={() => toast.dismiss(t.id)}
-            className="px-3 py-1.5 text-xs font-bold text-slate-500 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+            className="px-3 py-1.5 text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors cursor-pointer"
           >
             Cancel
           </button>
@@ -510,8 +510,8 @@ export default function TimetableManager() {
   if (loading) {
     return (
       <div className="space-y-6 animate-pulse">
-        <div className="h-16 bg-slate-200 rounded-2xl"></div>
-        <div className="h-[60vh] bg-slate-200 rounded-2xl"></div>
+        <div className="h-16 bg-slate-200 dark:bg-slate-800 rounded-2xl"></div>
+        <div className="h-[60vh] bg-slate-200 dark:bg-slate-800 rounded-2xl"></div>
       </div>
     );
   }
@@ -591,35 +591,35 @@ export default function TimetableManager() {
           {role === 'admin' && !isDailyCoverMode && <TimetableBuckets buckets={buckets} />}
 
           {role === 'admin' && isDailyCoverMode && (
-            <div className="w-80 bg-amber-50/40 border border-amber-200 p-4 rounded-2xl shadow-sm h-full flex flex-col gap-3 animate-fade-in">
-              <h3 className="font-bold text-sm text-amber-900 tracking-tight uppercase border-b border-amber-200 pb-2">
+            <div className="w-80 bg-amber-50/40 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/40 p-4 rounded-2xl shadow-sm dark:shadow-none h-full flex flex-col gap-3 animate-fade-in">
+              <h3 className="font-bold text-sm text-amber-900 dark:text-amber-300 tracking-tight uppercase border-b border-amber-200 dark:border-amber-500/40 pb-2">
                 Date Adjustments ledger
               </h3>
-              <p className="text-xs font-semibold text-amber-700/80 leading-relaxed">
+              <p className="text-xs font-semibold text-amber-700/80 dark:text-amber-400 leading-relaxed">
                 Click any active cell badge icon on the calendar grid to register a single-day teacher absence.
               </p>
               <div className="flex-1 overflow-y-auto space-y-2">
                 {dailyCovers.length === 0 ? (
-                  <div className="h-full bg-white/50 border border-dashed border-amber-200 rounded-xl p-3 flex flex-col items-center justify-center text-center text-slate-400 text-xs">
+                  <div className="h-full bg-white/50 dark:bg-slate-900/50 border border-dashed border-amber-200 dark:border-amber-500/40 rounded-xl p-3 flex flex-col items-center justify-center text-center text-slate-400 dark:text-slate-500 text-xs">
                     No covers assigned for {selectedDate} yet.
                   </div>
                 ) : (
                   dailyCovers.map(cover => (
-                    <div key={cover.id} className="bg-white border border-amber-200 rounded-lg p-3 text-xs space-y-1 shadow-sm">
+                    <div key={cover.id} className="bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-500/40 rounded-lg p-3 text-xs space-y-1 shadow-sm dark:shadow-none">
                       <div className="flex justify-between items-start gap-2">
-                        <span className="font-bold text-slate-800">{cover.subject_name}</span>
+                        <span className="font-bold text-slate-800 dark:text-slate-100">{cover.subject_name}</span>
                         <button
                           onClick={() => handleCancelCover(cover.id)}
-                          className="text-red-500 hover:text-red-700 font-bold shrink-0"
+                          className="text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-bold shrink-0"
                           title="Cancel this cover"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
-                      <p className="text-slate-500">
-                        <span className="text-red-600 font-semibold">{cover.absent_teacher_name}</span>
+                      <p className="text-slate-500 dark:text-slate-400">
+                        <span className="text-red-600 dark:text-red-400 font-semibold">{cover.absent_teacher_name}</span>
                         {' → '}
-                        <span className="text-emerald-600 font-semibold">{cover.covering_teacher_name}</span>
+                        <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{cover.covering_teacher_name}</span>
                       </p>
                     </div>
                   ))
@@ -657,16 +657,16 @@ export default function TimetableManager() {
         const target = lessons.find(l => l.id === lessonToDelete);
         return (
           <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-70 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-fade-in p-6 text-center space-y-4">
-              <div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-2"><Trash2 className="w-6 h-6" /></div>
-              <h3 className="font-bold text-xl text-slate-800">Remove Lesson?</h3>
+            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl dark:shadow-none w-full max-w-sm overflow-hidden animate-fade-in p-6 text-center space-y-4">
+              <div className="w-12 h-12 bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-400 rounded-full flex items-center justify-center mx-auto mb-2"><Trash2 className="w-6 h-6" /></div>
+              <h3 className="font-bold text-xl text-slate-800 dark:text-slate-100">Remove Lesson?</h3>
               {target && (
-                <p className="text-sm text-slate-500">
-                  <span className="font-bold text-slate-700">{target.subject_name}</span> with {target.teacher_name} will be unscheduled and returned to the bucket.
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  <span className="font-bold text-slate-700 dark:text-slate-200">{target.subject_name}</span> with {target.teacher_name} will be unscheduled and returned to the bucket.
                 </p>
               )}
               <div className="flex gap-3 pt-4">
-                <button onClick={() => setLessonToDelete(null)} className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-600 rounded-lg font-bold hover:bg-slate-50">Cancel</button>
+                <button onClick={() => setLessonToDelete(null)} className="flex-1 px-4 py-2.5 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-lg font-bold hover:bg-slate-50 dark:hover:bg-slate-800">Cancel</button>
                 <button onClick={confirmRemoveLesson} className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700">Remove</button>
               </div>
             </div>
@@ -681,34 +681,34 @@ export default function TimetableManager() {
           : 'the selected class';
         return (
           <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-70 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-fade-in p-6 text-center space-y-4">
-              <div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-2">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl dark:shadow-none w-full max-w-sm overflow-hidden animate-fade-in p-6 text-center space-y-4">
+              <div className="w-12 h-12 bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-400 rounded-full flex items-center justify-center mx-auto mb-2">
                 <Trash2 className="w-6 h-6" />
               </div>
-              <h3 className="font-bold text-xl text-slate-800">Clear Schedule?</h3>
+              <h3 className="font-bold text-xl text-slate-800 dark:text-slate-100">Clear Schedule?</h3>
 
               {/* Scope selector — `clearScope` used to be dead state with no way to set it,
                   so "Clear Entire Grid?" always meant just the current stream regardless
                   of what the copy implied. Now the choice is explicit. */}
               <div className="flex flex-col gap-2 text-left">
-                <label className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${clearScope === 'stream' ? 'border-red-300 bg-red-50/60' : 'border-slate-200 hover:bg-slate-50'}`}>
+                <label className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${clearScope === 'stream' ? 'border-red-300 dark:border-red-500/40 bg-red-50/60 dark:bg-red-500/10' : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
                   <input type="radio" name="clear-scope" className="mt-1" checked={clearScope === 'stream'} onChange={() => setClearScope('stream')} />
                   <span>
-                    <span className="block text-sm font-bold text-slate-800">Just {currentClassLabel}</span>
-                    <span className="block text-xs text-slate-500">Removes lessons for this class only. Other classes are untouched.</span>
+                    <span className="block text-sm font-bold text-slate-800 dark:text-slate-100">Just {currentClassLabel}</span>
+                    <span className="block text-xs text-slate-500 dark:text-slate-400">Removes lessons for this class only. Other classes are untouched.</span>
                   </span>
                 </label>
-                <label className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${clearScope === 'all' ? 'border-red-300 bg-red-50/60' : 'border-slate-200 hover:bg-slate-50'}`}>
+                <label className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${clearScope === 'all' ? 'border-red-300 dark:border-red-500/40 bg-red-50/60 dark:bg-red-500/10' : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
                   <input type="radio" name="clear-scope" className="mt-1" checked={clearScope === 'all'} onChange={() => setClearScope('all')} />
                   <span>
-                    <span className="block text-sm font-bold text-slate-800">The entire school</span>
-                    <span className="block text-xs text-slate-500">Removes every scheduled lesson for every class in this term. Cannot be undone.</span>
+                    <span className="block text-sm font-bold text-slate-800 dark:text-slate-100">The entire school</span>
+                    <span className="block text-xs text-slate-500 dark:text-slate-400">Removes every scheduled lesson for every class in this term. Cannot be undone.</span>
                   </span>
                 </label>
               </div>
 
               <div className="flex gap-3 pt-2">
-                <button onClick={() => setShowClearConfirm(false)} className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-600 rounded-lg font-bold hover:bg-slate-50">Cancel</button>
+                <button onClick={() => setShowClearConfirm(false)} className="flex-1 px-4 py-2.5 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-lg font-bold hover:bg-slate-50 dark:hover:bg-slate-800">Cancel</button>
                 <button onClick={confirmClearGrid} className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700">
                   {clearScope === 'all' ? 'Clear Entire School' : `Clear ${currentClassLabel}`}
                 </button>
@@ -726,40 +726,40 @@ export default function TimetableManager() {
         const currentGradeName = currentClass?.grade_name ?? 'this grade';
         return (
           <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-70 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-fade-in p-6 text-center space-y-4">
-              <div className="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-2">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl dark:shadow-none w-full max-w-sm overflow-hidden animate-fade-in p-6 text-center space-y-4">
+              <div className="w-12 h-12 bg-indigo-100 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-full flex items-center justify-center mx-auto mb-2">
                 <Wand2 className="w-6 h-6" />
               </div>
-              <h3 className="font-bold text-xl text-slate-800">Auto-Generate Timetable</h3>
+              <h3 className="font-bold text-xl text-slate-800 dark:text-slate-100">Auto-Generate Timetable</h3>
 
               {/* Same explicit scope pattern as Clear Grid above — Auto-Generate can run for
                   just the selected class, every stream in its grade, or the whole school. */}
               <div className="flex flex-col gap-2 text-left">
-                <label className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${generateScope === 'class' ? 'border-indigo-300 bg-indigo-50/60' : 'border-slate-200 hover:bg-slate-50'}`}>
+                <label className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${generateScope === 'class' ? 'border-indigo-300 dark:border-indigo-500/40 bg-indigo-50/60 dark:bg-indigo-500/10' : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
                   <input type="radio" name="generate-scope" className="mt-1" checked={generateScope === 'class'} onChange={() => setGenerateScope('class')} />
                   <span>
-                    <span className="block text-sm font-bold text-slate-800">Just {currentClassLabel}</span>
-                    <span className="block text-xs text-slate-500">Generates lessons for this class only. Other classes are untouched.</span>
+                    <span className="block text-sm font-bold text-slate-800 dark:text-slate-100">Just {currentClassLabel}</span>
+                    <span className="block text-xs text-slate-500 dark:text-slate-400">Generates lessons for this class only. Other classes are untouched.</span>
                   </span>
                 </label>
-                <label className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${generateScope === 'grade' ? 'border-indigo-300 bg-indigo-50/60' : 'border-slate-200 hover:bg-slate-50'}`}>
+                <label className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${generateScope === 'grade' ? 'border-indigo-300 dark:border-indigo-500/40 bg-indigo-50/60 dark:bg-indigo-500/10' : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
                   <input type="radio" name="generate-scope" className="mt-1" checked={generateScope === 'grade'} onChange={() => setGenerateScope('grade')} />
                   <span>
-                    <span className="block text-sm font-bold text-slate-800">All of {currentGradeName}</span>
-                    <span className="block text-xs text-slate-500">Generates every stream in this grade in one run.</span>
+                    <span className="block text-sm font-bold text-slate-800 dark:text-slate-100">All of {currentGradeName}</span>
+                    <span className="block text-xs text-slate-500 dark:text-slate-400">Generates every stream in this grade in one run.</span>
                   </span>
                 </label>
-                <label className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${generateScope === 'all' ? 'border-indigo-300 bg-indigo-50/60' : 'border-slate-200 hover:bg-slate-50'}`}>
+                <label className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${generateScope === 'all' ? 'border-indigo-300 dark:border-indigo-500/40 bg-indigo-50/60 dark:bg-indigo-500/10' : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
                   <input type="radio" name="generate-scope" className="mt-1" checked={generateScope === 'all'} onChange={() => setGenerateScope('all')} />
                   <span>
-                    <span className="block text-sm font-bold text-slate-800">The entire school</span>
-                    <span className="block text-xs text-slate-500">Generates every class in this term. Locked lessons are always left untouched.</span>
+                    <span className="block text-sm font-bold text-slate-800 dark:text-slate-100">The entire school</span>
+                    <span className="block text-xs text-slate-500 dark:text-slate-400">Generates every class in this term. Locked lessons are always left untouched.</span>
                   </span>
                 </label>
               </div>
 
               <div className="flex gap-3 pt-2">
-                <button onClick={() => setShowGenerateConfirm(false)} className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-600 rounded-lg font-bold hover:bg-slate-50">Cancel</button>
+                <button onClick={() => setShowGenerateConfirm(false)} className="flex-1 px-4 py-2.5 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-lg font-bold hover:bg-slate-50 dark:hover:bg-slate-800">Cancel</button>
                 <button onClick={confirmAutoGenerate} className="flex-1 px-4 py-2.5 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700">
                   {generateScope === 'all' ? 'Generate Whole School' : generateScope === 'grade' ? `Generate ${currentGradeName}` : `Generate ${currentClassLabel}`}
                 </button>

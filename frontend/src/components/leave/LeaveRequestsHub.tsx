@@ -63,15 +63,15 @@ export default function LeaveRequestsHub({ role }: LeaveRequestsHubProps) {
 
   const handleCancel = (leave: TeacherLeaveRequest) => {
     toast.custom((t) => (
-      <div className={`${t.visible ? 'animate-enter' : 'animate-leave'} max-w-md w-full bg-white shadow-2xl rounded-xl pointer-events-auto ring-1 ring-black ring-opacity-5 overflow-hidden border border-slate-200 p-4`}>
-        <p className="text-sm font-bold text-slate-900">Cancel this leave application?</p>
-        <p className="mt-1 text-sm text-slate-500">
+      <div className={`${t.visible ? 'animate-enter' : 'animate-leave'} max-w-md w-full bg-white dark:bg-slate-900 shadow-2xl dark:shadow-none rounded-xl pointer-events-auto ring-1 ring-black dark:ring-white/10 ring-opacity-5 overflow-hidden border border-slate-200 dark:border-slate-700 p-4`}>
+        <p className="text-sm font-bold text-slate-900 dark:text-slate-100">Cancel this leave application?</p>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
           Your {leave.leave_type_display.toLowerCase()} request will be permanently withdrawn.
         </p>
         <div className="mt-4 flex justify-end gap-3">
           <button
             onClick={() => toast.dismiss(t.id)}
-            className="px-4 py-2 text-xs font-bold text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 transition-all uppercase tracking-wider"
+            className="px-4 py-2 text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition-all uppercase tracking-wider"
           >
             Keep It
           </button>
@@ -87,7 +87,7 @@ export default function LeaveRequestsHub({ role }: LeaveRequestsHubProps) {
                 toast.error('Could not cancel this application.');
               }
             }}
-            className="px-4 py-2 text-xs font-bold text-white bg-rose-600 rounded-lg hover:bg-rose-700 transition-all shadow-sm uppercase tracking-wider"
+            className="px-4 py-2 text-xs font-bold text-white bg-rose-600 rounded-lg hover:bg-rose-700 transition-all shadow-sm dark:shadow-none uppercase tracking-wider"
           >
             Cancel It
           </button>
@@ -110,14 +110,14 @@ export default function LeaveRequestsHub({ role }: LeaveRequestsHubProps) {
     <div className="max-w-5xl mx-auto">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div className="flex items-center gap-4">
-          <div className="p-3 rounded-2xl text-blue-600 bg-blue-50">
+          <div className="p-3 rounded-2xl text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10">
             <CalendarClock className="w-7 h-7" strokeWidth={2.5} />
           </div>
           <div>
-            <h1 className="text-2xl font-extrabold text-slate-800">
+            <h1 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100">
               {role === 'admin' ? 'Leave Requests Directory' : 'My Leave Applications'}
             </h1>
-            <p className="text-slate-500 text-sm mt-0.5">
+            <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5">
               {role === 'admin'
                 ? 'A live record of every leave application submitted across the school.'
                 : 'Apply for leave and track the status of every application you have submitted.'}
@@ -129,7 +129,7 @@ export default function LeaveRequestsHub({ role }: LeaveRequestsHubProps) {
           {role === 'admin' && stats.pending > 0 && (
             <button
               onClick={() => navigate('/admin-dashboard/approvals/leave')}
-              className="flex items-center gap-2 px-4 py-2 bg-amber-50 text-amber-700 border border-amber-200 font-semibold rounded-lg hover:bg-amber-100 transition-all text-sm"
+              className="flex items-center gap-2 px-4 py-2 bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/40 font-semibold rounded-lg hover:bg-amber-100 dark:hover:bg-amber-500/20 transition-all text-sm"
             >
               <ShieldCheck className="w-4 h-4" /> Review {stats.pending} Pending
             </button>
@@ -137,7 +137,7 @@ export default function LeaveRequestsHub({ role }: LeaveRequestsHubProps) {
           {role === 'teacher' && (
             <button
               onClick={handleOpenApply}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-all shadow-sm"
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-all shadow-sm dark:shadow-none"
             >
               <Plus className="w-4 h-4" /> Apply for Leave
             </button>
@@ -151,19 +151,19 @@ export default function LeaveRequestsHub({ role }: LeaveRequestsHubProps) {
 
       <div className="flex flex-col sm:flex-row gap-3 mb-5">
         <div className="relative flex-1">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
           <input
             type="text"
             placeholder={role === 'admin' ? 'Search by teacher or leave type...' : 'Search by leave type...'}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm text-slate-700"
+            className="w-full pl-9 pr-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 outline-none text-sm bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200"
           />
         </div>
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as LeaveStatus | 'All')}
-          className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-sm text-slate-700"
+          className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 outline-none bg-white dark:bg-slate-800 text-sm text-slate-700 dark:text-slate-200"
         >
           <option value="All">All Statuses</option>
           <option value="Pending">Pending</option>
@@ -174,11 +174,11 @@ export default function LeaveRequestsHub({ role }: LeaveRequestsHubProps) {
 
       {isLoading ? (
         <div className="flex justify-center items-center py-20">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+          <Loader2 className="w-8 h-8 animate-spin text-blue-500 dark:text-blue-400" />
         </div>
       ) : filteredLeaves.length === 0 ? (
-        <div className="text-center py-20 bg-white border border-slate-200 rounded-2xl shadow-inner">
-          <p className="text-slate-400 font-semibold tracking-tight italic">
+        <div className="text-center py-20 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-inner dark:shadow-none">
+          <p className="text-slate-400 dark:text-slate-500 font-semibold tracking-tight italic">
             {leaves.length === 0
               ? (role === 'admin' ? 'No leave applications have been submitted yet.' : "You haven't applied for any leave yet.")
               : 'No applications match your current filters.'}

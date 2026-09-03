@@ -1,5 +1,6 @@
 from rest_framework import serializers
-from school.models.models import StudentExtra, ExamResult
+from apps.identity.models import StudentExtra
+from apps.exams.models import ExamResult
 
 
 class StudentGridSerializer(serializers.ModelSerializer):

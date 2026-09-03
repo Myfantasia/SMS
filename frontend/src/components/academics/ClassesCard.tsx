@@ -64,7 +64,7 @@ export default function ClassesCard({ grades, tiers, onRefresh, onAddStream, onE
   const [loadingTeacherOptions, setLoadingTeacherOptions] = useState(false);
 
   if (grades.length === 0) {
-    return <div className="p-8 text-center text-slate-400" title="No Data Available">No classes configured yet.</div>;
+    return <div className="p-8 text-center text-slate-400 dark:text-slate-500" title="No Data Available">No classes configured yet.</div>;
   }
 
   // NEW: Fetch function for the class profile
@@ -196,39 +196,39 @@ const handleDeleteConfirm = async () => {
   return (
     <div className="w-full relative">
       {grades.map((grade) => (
-        <div key={grade.id} className="border-b border-slate-100 last:border-0">
-          <div className="bg-slate-50 px-4 py-3 flex justify-between items-center">
-            <span className="font-semibold text-slate-700">
+        <div key={grade.id} className="border-b border-slate-100 dark:border-slate-700 last:border-0">
+          <div className="bg-slate-50 dark:bg-slate-800/40 px-4 py-3 flex justify-between items-center">
+            <span className="font-semibold text-slate-700 dark:text-slate-200">
               {grade.grade_name}
-              <span className="ml-2 text-[10px] uppercase tracking-wider text-slate-400 border border-slate-300 px-1.5 py-0.5 rounded" title="Curriculum Type">
+              <span className="ml-2 text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 border border-slate-300 dark:border-slate-600 px-1.5 py-0.5 rounded" title="Curriculum Type">
                 {grade.curriculum_type || 'CBC'}
                 {grade.tier_id ? ` · ${tiers.find(t => t.id === grade.tier_id)?.code ?? ''}` : ''}
               </span>
             </span>
 
             <div className="flex items-center gap-3">
-              <span className="text-xs font-medium bg-blue-100 text-blue-700 px-2 py-1 rounded-full" title="Total streams in this grade">
+              <span className="text-xs font-medium bg-blue-100 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 px-2 py-1 rounded-full" title="Total streams in this grade">
                 {grade.total_streams} Streams
               </span>
               <button
                 onClick={() => onEditGrade(grade)}
                 title={`Edit ${grade.grade_name}'s curriculum settings`}
-                className="flex items-center gap-1 text-xs font-bold text-slate-500 hover:text-amber-600 bg-white border border-slate-200 hover:border-amber-300 px-2 py-1 rounded transition shadow-sm"
+                className="flex items-center gap-1 text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-amber-300 dark:hover:border-amber-500/40 px-2 py-1 rounded transition shadow-sm dark:shadow-none"
               >
                 <Settings className="w-3.5 h-3.5" /> Edit Grade
               </button>
               <button
                 onClick={() => onAddStream(grade.id, grade.grade_name)}
                 title={`Add a new stream to ${grade.grade_name}`}
-                className="flex items-center gap-1 text-xs font-bold text-slate-500 hover:text-blue-600 bg-white border border-slate-200 hover:border-blue-300 px-2 py-1 rounded transition shadow-sm"
+                className="flex items-center gap-1 text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-500/40 px-2 py-1 rounded transition shadow-sm dark:shadow-none"
               >
                 <Plus className="w-3.5 h-3.5" /> Add Stream
               </button>
             </div>
           </div>
-          
+
           <table className="w-full text-sm text-left">
-            <thead className="text-xs text-slate-400 uppercase bg-white border-b border-slate-100">
+            <thead className="text-xs text-slate-400 dark:text-slate-500 uppercase bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-700">
               <tr>
                 <th className="px-4 py-3 font-medium w-1/5">Stream</th>
                 <th className="px-4 py-3 font-medium w-1/5">Class Teacher</th>
@@ -237,48 +237,48 @@ const handleDeleteConfirm = async () => {
                 <th className="px-4 py-3 font-medium text-right w-1/5">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50">
+            <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
               {grade.streams.map((stream) => {
                 const fillPct = stream.capacity > 0 ? Math.round((stream.enrolled_count / stream.capacity) * 100) : 0;
                 const barColor = fillPct >= 100 ? 'bg-red-500' : fillPct >= 80 ? 'bg-amber-500' : 'bg-emerald-500';
                 return (
-                <tr key={stream.id} className="hover:bg-slate-50/80 transition-colors group">
-                  <td className="px-4 py-3 font-medium text-slate-800">
+                <tr key={stream.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/60 transition-colors group">
+                  <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-100">
                     <div className="flex items-center gap-2" title={`Stream Name: ${grade.grade_name} ${stream.name}`}>
                       {stream.name}
                     </div>
                   </td>
                   <td className="px-4 py-3">
                     {stream.class_teacher ? (
-                      <span className="inline-flex items-center gap-1 text-xs font-semibold bg-amber-50 text-amber-700 px-2 py-1 rounded-full">
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 px-2 py-1 rounded-full">
                         <Star className="w-3 h-3 fill-amber-500 text-amber-500" /> {stream.class_teacher}
                       </span>
                     ) : (
-                      <span className="text-xs text-slate-300 italic">Not assigned</span>
+                      <span className="text-xs text-slate-300 dark:text-slate-600 italic">Not assigned</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-slate-500">
+                  <td className="px-4 py-3 text-slate-500 dark:text-slate-400">
                     <div className="flex items-center gap-1" title={`Enrolled: ${stream.enrolled_count} out of ${stream.capacity}`}>
                       <Users className="w-4 h-4" /> {stream.enrolled_count} / {stream.capacity}
                     </div>
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2" title={`${fillPct}% full`}>
-                      <div className="w-16 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                      <div className="w-16 h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
                         <div className={`h-full rounded-full ${barColor}`} style={{ width: `${Math.min(fillPct, 100)}%` }} />
                       </div>
-                      <span className="text-xs font-semibold text-slate-500">{fillPct}%</span>
+                      <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">{fillPct}%</span>
                     </div>
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => openAction(stream, grade, 'view')} className="text-slate-400 hover:text-blue-600 transition-colors p-1" title="View Deep Details">
+                      <button onClick={() => openAction(stream, grade, 'view')} className="text-slate-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors p-1" title="View Deep Details">
                         <Eye className="w-4 h-4" />
                       </button>
-                      <button onClick={() => openAction(stream, grade, 'edit')} className="text-slate-400 hover:text-amber-600 transition-colors p-1" title={`Edit ${stream.name}`}>
+                      <button onClick={() => openAction(stream, grade, 'edit')} className="text-slate-400 dark:text-slate-500 hover:text-amber-600 dark:hover:text-amber-400 transition-colors p-1" title={`Edit ${stream.name}`}>
                         <Edit className="w-4 h-4" />
                       </button>
-                      <button onClick={() => openAction(stream, grade, 'delete')} className="text-slate-400 hover:text-red-600 transition-colors p-1" title={`Delete ${stream.name}`}>
+                      <button onClick={() => openAction(stream, grade, 'delete')} className="text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400 transition-colors p-1" title={`Delete ${stream.name}`}>
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
@@ -288,7 +288,7 @@ const handleDeleteConfirm = async () => {
               })}
               {grade.streams.length === 0 && (
                 <tr>
-                   <td colSpan={5} className="px-4 py-6 text-center text-slate-400 text-xs italic">
+                   <td colSpan={5} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500 text-xs italic">
                      No streams in this grade yet. Click "Add Stream" above.
                    </td>
                 </tr>
@@ -301,27 +301,27 @@ const handleDeleteConfirm = async () => {
       {/* MODALS OVERLAY */}
       {modalType && selectedStream && (
         <div className="fixed inset-0 z-60 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col animate-fade-in">
-            
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl dark:shadow-none w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col animate-fade-in">
+
             {/* Modal Header */}
-            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-              <h3 className="text-lg font-bold text-slate-800 capitalize" title="Modal Title">
+            <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-800/40">
+              <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 capitalize" title="Modal Title">
                 {modalType === 'view' ? 'Class Profile & Analytics' : modalType === 'edit' ? 'Edit Class Configuration' : 'Confirm Deletion'}
               </h3>
-              <button type="button" onClick={closeModal} className="text-slate-400 hover:text-slate-600 transition" title="Close window">
+              <button type="button" onClick={closeModal} className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition" title="Close window">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {/* Modal Body - VIEW */}
             {modalType === 'view' && (
-              <div className="p-6 overflow-y-auto space-y-6 bg-slate-50/50">
+              <div className="p-6 overflow-y-auto space-y-6 bg-slate-50/50 dark:bg-slate-800/40">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h2 className="text-2xl font-black text-slate-800">{selectedStream.grade.grade_name} {selectedStream.stream.name}</h2>
-                    <p className="text-sm text-slate-500 mt-1 flex items-center gap-2 flex-wrap">
+                    <h2 className="text-2xl font-black text-slate-800 dark:text-slate-100">{selectedStream.grade.grade_name} {selectedStream.stream.name}</h2>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-2 flex-wrap">
                       <span>Capacity: {selectedStream.stream.enrolled_count} / {selectedStream.stream.capacity} Enrolled</span>
-                      <span className="text-[10px] uppercase tracking-wider text-slate-400 border border-slate-300 px-1.5 py-0.5 rounded">
+                      <span className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 border border-slate-300 dark:border-slate-600 px-1.5 py-0.5 rounded">
                         {selectedStream.grade.curriculum_type || 'CBC'}
                         {selectedStream.grade.tier_id ? ` · ${tiers.find(t => t.id === selectedStream.grade.tier_id)?.code ?? ''}` : ''}
                       </span>
@@ -329,50 +329,50 @@ const handleDeleteConfirm = async () => {
                   </div>
                   <div className={`px-3 py-1.5 rounded-lg text-sm font-bold flex items-center gap-2 ${
                     selectedStream.stream.enrolled_count >= selectedStream.stream.capacity
-                      ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'
+                      ? 'bg-red-100 dark:bg-red-500/10 text-red-800 dark:text-red-400' : 'bg-blue-100 dark:bg-blue-500/10 text-blue-800 dark:text-blue-400'
                   }`} title="Enrollment fill rate">
                     <Users className="w-4 h-4" />
                     {selectedStream.stream.capacity > 0 ? Math.round((selectedStream.stream.enrolled_count / selectedStream.stream.capacity) * 100) : 0}% Full
                   </div>
                 </div>
 
-                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                  <div className="flex items-center gap-2 text-blue-600 mb-2 font-semibold">
+                <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm dark:shadow-none">
+                  <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 mb-2 font-semibold">
                     <GraduationCap className="w-4 h-4" /> Leadership
                   </div>
                   {selectedStream.stream.class_teacher ? (
-                    <p className="text-sm text-slate-600 flex items-center gap-1.5">
-                      <span className="font-medium text-slate-800">Class Teacher:</span> {selectedStream.stream.class_teacher}
+                    <p className="text-sm text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
+                      <span className="font-medium text-slate-800 dark:text-slate-100">Class Teacher:</span> {selectedStream.stream.class_teacher}
                       <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
                     </p>
                   ) : (
-                    <p className="text-sm text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                    <p className="text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border border-amber-100 dark:border-amber-500/20 rounded-lg px-3 py-2">
                       No class teacher assigned yet. Click the edit icon on this stream to assign one.
                     </p>
                   )}
                 </div>
 
-                <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                   <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/80 font-semibold text-slate-700 flex items-center gap-2 justify-between">
-                     <span className="flex items-center gap-2"><BookOpen className="w-4 h-4 text-indigo-500" /> Subject Teachers Assigned</span>
-                     {isLoadingTeachers && <Loader2 className="w-4 h-4 animate-spin text-slate-400" />}
+                <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm dark:shadow-none overflow-hidden">
+                   <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/40 font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-2 justify-between">
+                     <span className="flex items-center gap-2"><BookOpen className="w-4 h-4 text-indigo-500 dark:text-indigo-400" /> Subject Teachers Assigned</span>
+                     {isLoadingTeachers && <Loader2 className="w-4 h-4 animate-spin text-slate-400 dark:text-slate-500" />}
                    </div>
-                   <div className="p-4 text-sm text-slate-500 min-h-25">
+                   <div className="p-4 text-sm text-slate-500 dark:text-slate-400 min-h-25">
                      {isLoadingTeachers ? (
-                       <div className="flex items-center justify-center h-full text-slate-400 italic">
+                       <div className="flex items-center justify-center h-full text-slate-400 dark:text-slate-500 italic">
                          Loading assignments...
                        </div>
                      ) : assignedTeachers.length > 0 ? (
                        <ul className="grid grid-cols-2 gap-4">
                          {assignedTeachers.map((item, idx) => (
-                           <li key={idx} className="flex flex-col border-b border-slate-50 pb-2">
-                             <span className="font-bold text-slate-700">{item.subject}</span>
-                             <span className="text-slate-500">{item.teacher}</span>
+                           <li key={idx} className="flex flex-col border-b border-slate-50 dark:border-slate-800 pb-2">
+                             <span className="font-bold text-slate-700 dark:text-slate-200">{item.subject}</span>
+                             <span className="text-slate-500 dark:text-slate-400">{item.teacher}</span>
                            </li>
                          ))}
                        </ul>
                      ) : (
-                       <div className="flex items-center justify-center h-full text-slate-400 italic">
+                       <div className="flex items-center justify-center h-full text-slate-400 dark:text-slate-500 italic">
                          No subject teachers actively assigned to this stream.
                        </div>
                      )}
@@ -384,43 +384,43 @@ const handleDeleteConfirm = async () => {
             {/* Modal Body - EDIT */}
             {modalType === 'edit' && (
               <div className="p-6 space-y-4">
-                <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5">
-                  <span className="text-xs font-semibold text-slate-500 flex items-center gap-1.5">
+                <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-2.5">
+                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
                     <Users className="w-3.5 h-3.5" /> Currently Enrolled
                   </span>
-                  <span className="text-sm font-bold text-slate-700">
+                  <span className="text-sm font-bold text-slate-700 dark:text-slate-200">
                     {selectedStream.stream.enrolled_count} / {selectedStream.stream.capacity} students
                   </span>
                 </div>
                 <div className="space-y-2">
-                  <label htmlFor="stream-name" className="text-sm font-medium text-slate-700">Stream Name</label>
+                  <label htmlFor="stream-name" className="text-sm font-medium text-slate-700 dark:text-slate-200">Stream Name</label>
                   <input
                     id="stream-name"
                     type="text"
                     title="Edit stream name"
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
-                    className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none"
+                    className="w-full border border-slate-300 dark:border-slate-600 rounded-md p-2 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 outline-none"
                   />
                 </div>
                 <div className="space-y-2">
-                  <label htmlFor="capacity" className="text-sm font-medium text-slate-700">Capacity</label>
+                  <label htmlFor="capacity" className="text-sm font-medium text-slate-700 dark:text-slate-200">Capacity</label>
                   <input
                     id="capacity"
                     type="number"
                     title="Edit stream capacity"
                     value={editCapacity}
                     onChange={(e) => setEditCapacity(e.target.value)}
-                    className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none"
+                    className="w-full border border-slate-300 dark:border-slate-600 rounded-md p-2 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 outline-none"
                   />
                   {Number(editCapacity) < selectedStream.stream.enrolled_count && (
-                    <p className="text-xs text-red-600 font-medium">
+                    <p className="text-xs text-red-600 dark:text-red-400 font-medium">
                       Capacity can't go below {selectedStream.stream.enrolled_count} — that many students are already enrolled here.
                     </p>
                   )}
                 </div>
                 <div className="space-y-2">
-                  <label htmlFor="class-teacher" className="text-sm font-medium text-slate-700">Class Teacher</label>
+                  <label htmlFor="class-teacher" className="text-sm font-medium text-slate-700 dark:text-slate-200">Class Teacher</label>
                   <div className="flex items-center gap-2">
                     <div className="flex-1">
                       <SearchableSelect
@@ -439,13 +439,13 @@ const handleDeleteConfirm = async () => {
                         type="button"
                         onClick={() => setEditTeacherId('')}
                         title="Unassign class teacher"
-                        className="text-xs font-semibold text-slate-500 hover:text-red-600 border border-slate-200 hover:border-red-300 rounded-md px-2.5 py-2 transition shrink-0"
+                        className="text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 border border-slate-200 dark:border-slate-700 hover:border-red-300 dark:hover:border-red-500/40 rounded-md px-2.5 py-2 transition shrink-0"
                       >
                         Clear
                       </button>
                     )}
                   </div>
-                  <p className="text-xs text-slate-400">A teacher already leading another stream must be removed there first.</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500">A teacher already leading another stream must be removed there first.</p>
                 </div>
 
                 <button
@@ -462,23 +462,23 @@ const handleDeleteConfirm = async () => {
             {/* Modal Body - DELETE */}
             {modalType === 'delete' && (
               <div className="p-6 text-center space-y-4">
-                <div className="mx-auto w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-4">
-                  <Trash2 className="w-6 h-6 text-red-600" />
+                <div className="mx-auto w-12 h-12 bg-red-100 dark:bg-red-500/10 rounded-full flex items-center justify-center mb-4">
+                  <Trash2 className="w-6 h-6 text-red-600 dark:text-red-400" />
                 </div>
-                <h3 className="text-xl font-bold text-slate-800">Delete {selectedStream.grade.grade_name} {selectedStream.stream.name}?</h3>
-                <p className="text-slate-500 text-sm">This action cannot be undone. All historical data, student assignments, and performance records tied exclusively to this stream will be permanently lost.</p>
+                <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">Delete {selectedStream.grade.grade_name} {selectedStream.stream.name}?</h3>
+                <p className="text-slate-500 dark:text-slate-400 text-sm">This action cannot be undone. All historical data, student assignments, and performance records tied exclusively to this stream will be permanently lost.</p>
                 <div className="flex gap-4 mt-6">
-                  <button 
-                    onClick={closeModal} 
-                    disabled={isSubmitting} 
+                  <button
+                    onClick={closeModal}
+                    disabled={isSubmitting}
                     title="Cancel deletion"
-                    className="flex-1 bg-slate-100 text-slate-700 py-2 rounded-md font-medium hover:bg-slate-200 transition"
+                    className="flex-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 py-2 rounded-md font-medium hover:bg-slate-200 dark:hover:bg-slate-700 transition"
                   >
                     Cancel
                   </button>
-                  <button 
-                    onClick={handleDeleteConfirm} 
-                    disabled={isSubmitting} 
+                  <button
+                    onClick={handleDeleteConfirm}
+                    disabled={isSubmitting}
                     title="Confirm Permanent Deletion"
                     className="flex-1 bg-red-600 text-white py-2 rounded-md font-medium hover:bg-red-700 disabled:bg-red-400 transition"
                   >

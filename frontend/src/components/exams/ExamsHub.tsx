@@ -17,15 +17,15 @@ const ExamsHub: React.FC<ExamsHubProps> = ({ role }) => {
 
   // Define tabs based on RBAC
   const tabs = [
-    ...(role === 'admin' 
-      ? [{ id: 'setup', label: 'Exam Setup & Grading', icon: Settings }] 
+    ...(role === 'admin'
+      ? [{ id: 'setup', label: 'Exam Setup & Grading', icon: Settings }]
       : []
     ),
     { id: 'entry', label: 'Rapid Marks Entry', icon: FileEdit },
-    
+
     // NEW: Verification tab added securely to the array
     { id: 'verify', label: 'Marks Verification', icon: ShieldCheck },
-    
+
     { id: 'reports', label: 'Broadsheets & Analytics', icon: BarChart3 },
     { id: 'reportcards', label: 'Report Cards', icon: FileText },
   ];
@@ -34,13 +34,13 @@ const ExamsHub: React.FC<ExamsHubProps> = ({ role }) => {
   // (They should ideally be routed to a purely read-only 'ResultsHub' instead)
   if (role === 'student' || role === 'parent') {
     return (
-      <div className="flex flex-col items-center justify-center text-center p-8 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200 min-h-100">
-        <div className="w-20 h-20 bg-slate-100 rounded-3xl flex items-center justify-center border border-slate-200/60 shadow-inner mb-6">
-          <AlertCircle className="w-10 h-10 text-slate-400" />
+      <div className="flex flex-col items-center justify-center text-center p-8 bg-slate-50/50 dark:bg-slate-800/40 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 min-h-100">
+        <div className="w-20 h-20 bg-slate-100 dark:bg-slate-800 rounded-3xl flex items-center justify-center border border-slate-200/60 dark:border-slate-700 shadow-inner mb-6">
+          <AlertCircle className="w-10 h-10 text-slate-400 dark:text-slate-500" />
         </div>
-        <h2 className="text-2xl font-black text-slate-800 tracking-tight">Restricted Access</h2>
-        <p className="text-sm text-slate-500 font-medium leading-relaxed max-w-md mt-2">
-          Exam management is staff-only. Head to <strong className="text-blue-600">Results</strong> from the sidebar to view published grades and report cards.
+        <h2 className="text-2xl font-black text-slate-800 dark:text-slate-100 tracking-tight">Restricted Access</h2>
+        <p className="text-sm text-slate-500 dark:text-slate-400 font-medium leading-relaxed max-w-md mt-2">
+          Exam management is staff-only. Head to <strong className="text-blue-600 dark:text-blue-400">Results</strong> from the sidebar to view published grades and report cards.
         </p>
       </div>
     );
@@ -51,12 +51,12 @@ const ExamsHub: React.FC<ExamsHubProps> = ({ role }) => {
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <div className="p-3 rounded-2xl text-rose-600 bg-rose-50">
+          <div className="p-3 rounded-2xl text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10">
             <FileSignature className="w-7 h-7" strokeWidth={2.5} />
           </div>
           <div>
-            <h1 className="text-2xl font-extrabold text-slate-800">Examinations Management</h1>
-            <p className="text-sm text-slate-500 mt-0.5">
+            <h1 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100">Examinations Management</h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
               Manage exam sessions, grading configurations, and academic data entry.
             </p>
           </div>
@@ -64,7 +64,7 @@ const ExamsHub: React.FC<ExamsHubProps> = ({ role }) => {
       </div>
 
       {/* Tab Navigation */}
-      <div className="bg-white p-1.5 rounded-2xl shadow-sm border border-slate-100 inline-flex w-full md:w-auto overflow-x-auto gap-1">
+      <div className="bg-white dark:bg-slate-900 p-1.5 rounded-2xl shadow-sm dark:shadow-none border border-slate-100 dark:border-slate-700 inline-flex w-full md:w-auto overflow-x-auto gap-1">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -74,8 +74,8 @@ const ExamsHub: React.FC<ExamsHubProps> = ({ role }) => {
               onClick={() => setActiveTab(tab.id)}
               className={`flex items-center gap-2 px-6 py-2.5 text-sm font-medium rounded-xl transition-all whitespace-nowrap ${
                 isActive
-                  ? 'bg-slate-800 text-white shadow'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                  ? 'bg-slate-800 dark:bg-slate-700 text-white shadow'
+                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800'
               }`}
             >
               <Icon className="w-4 h-4" />
@@ -86,8 +86,8 @@ const ExamsHub: React.FC<ExamsHubProps> = ({ role }) => {
       </div>
 
       {/* Active Tab Content Area */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 min-h-125">
-        
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm dark:shadow-none border border-slate-100 dark:border-slate-700 min-h-125">
+
         {activeTab === 'setup' && (
           <div className="p-6">
             <ExamSetupTab />

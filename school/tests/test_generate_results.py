@@ -5,10 +5,11 @@ from celery.exceptions import MaxRetriesExceededError
 from django.core.cache import cache
 from django.test import TestCase, RequestFactory, override_settings
 
-from school.models.jobs_models import BackgroundJob
-from school.models.models import ExamResult, Notification
-from school.models.resultsModels import SubjectTermResult, StudentTermResult
-from school.tasks import _mark_success, _mark_failure, _acquire_lock_or_retry
+from apps.core.models import BackgroundJob
+from apps.exams.models import ExamResult
+from apps.messaging.models import Notification
+from apps.results.models import SubjectTermResult, StudentTermResult
+from orchestration.tasks import _mark_success, _mark_failure, _acquire_lock_or_retry
 from school.tests.base import ExamTestDataMixin
 from school.views.results_views import GenerateTermResultsAPIView, BulkGenerateTermResultsAPIView
 
@@ -95,7 +96,7 @@ class BulkGenerateTermResultsTests(ExamTestDataMixin, TestCase):
     generate_results_for_stream()), report a per-class summary rather than failing the whole
     batch on one empty class, and reject non-admin callers.
 
-    The endpoint queues a Celery task (school/tasks.py:bulk_generate_term_results_task)
+    The endpoint queues a Celery task (orchestration/tasks.py:bulk_generate_term_results_task)
     rather than compiling inline — CELERY_TASK_ALWAYS_EAGER is on for tests (see
     schoolmanagement/settings.py), so `.delay()` runs synchronously in-process and the
     BackgroundJob row is already SUCCESS/FAILURE by the time the POST returns.
@@ -163,7 +164,7 @@ class BulkGenerateTermResultsTests(ExamTestDataMixin, TestCase):
         # Simulates a real race: someone else's run is holding the per-term lock when this
         # admin's request comes in. It's still accepted (202) with an informational note —
         # not rejected outright — since bulk_generate_term_results_task retries against the
-        # lock and runs automatically once it frees up (school/tasks.py:_acquire_lock_or_retry).
+        # lock and runs automatically once it frees up (orchestration/tasks.py:_acquire_lock_or_retry).
         cache.add(f"bulk_results_lock_term_{self.term.id}", "another_admin", timeout=300)
         response = self._post(self.admin_user)
         self.assertEqual(response.status_code, 202)
@@ -181,7 +182,7 @@ class BulkGenerateTermResultsTests(ExamTestDataMixin, TestCase):
 
 class JobCompletionNotificationTests(ExamTestDataMixin, TestCase):
     """
-    A completed background job (school/tasks.py) always notifies the operator who
+    A completed background job (orchestration/tasks.py) always notifies the operator who
     triggered it via the existing Notification model/bell — not just via the frontend's
     poll, so an admin who navigated away still finds out. Covers _mark_success/
     _mark_failure directly rather than round-tripping a whole view+task run, since the
@@ -212,7 +213,7 @@ class JobCompletionNotificationTests(ExamTestDataMixin, TestCase):
 
 class LockRetryMechanismTests(TestCase):
     """
-    Covers _acquire_lock_or_retry (school/tasks.py) directly, with a mock task double
+    Covers _acquire_lock_or_retry (orchestration/tasks.py) directly, with a mock task double
     standing in for the real Celery bound task — this is what actually makes "someone
     else's bulk operation is running" turn into "queued, will run automatically once it
     frees up" rather than an outright rejection. CELERY_TASK_ALWAYS_EAGER is on for the

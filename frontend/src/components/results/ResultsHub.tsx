@@ -16,20 +16,20 @@ export default function ResultsHub({ role }: ResultsHubProps) {
   // If a student or parent logs in, they get a completely different, simplified view
   if (role === 'student' || role === 'parent') {
     return (
-      <div className="flex flex-col items-center justify-center text-center p-8 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200 min-h-100">
+      <div className="flex flex-col items-center justify-center text-center p-8 bg-slate-50/50 dark:bg-slate-800/40 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 min-h-100">
         <div className="relative mb-6">
-          <div className="w-20 h-20 bg-amber-100/80 rounded-3xl flex items-center justify-center border border-amber-200/60 shadow-inner">
-            <Award className="w-10 h-10 text-amber-600" />
+          <div className="w-20 h-20 bg-amber-100/80 dark:bg-amber-500/10 rounded-3xl flex items-center justify-center border border-amber-200/60 dark:border-amber-500/20 shadow-inner">
+            <Award className="w-10 h-10 text-amber-600 dark:text-amber-400" />
           </div>
           <div className="absolute -top-2 -right-2 w-8 h-8 bg-indigo-500 text-white rounded-full flex items-center justify-center shadow-md">
             <Sparkles className="w-4 h-4" />
           </div>
         </div>
-        <span className="px-3 py-1 bg-amber-100 text-amber-800 text-[10px] font-black uppercase tracking-wider rounded-md border border-amber-200 inline-flex items-center gap-1.5 mb-3">
+        <span className="px-3 py-1 bg-amber-100 dark:bg-amber-500/10 text-amber-800 dark:text-amber-400 text-[10px] font-black uppercase tracking-wider rounded-md border border-amber-200 dark:border-amber-500/40 inline-flex items-center gap-1.5 mb-3">
           <Clock className="w-3 h-3" /> Coming Soon
         </span>
-        <h2 className="text-2xl font-black text-slate-800 tracking-tight">My Academic Results</h2>
-        <p className="text-sm text-slate-500 font-medium leading-relaxed max-w-md mt-2">
+        <h2 className="text-2xl font-black text-slate-800 dark:text-slate-100 tracking-tight">My Academic Results</h2>
+        <p className="text-sm text-slate-500 dark:text-slate-400 font-medium leading-relaxed max-w-md mt-2">
           A personal report card viewer is on the way. In the meantime, published exam results are announced through Notices.
         </p>
       </div>
@@ -47,27 +47,27 @@ export default function ResultsHub({ role }: ResultsHubProps) {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
-        <div className="p-3 rounded-2xl text-yellow-600 bg-yellow-50">
+        <div className="p-3 rounded-2xl text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-500/10">
           <Award className="w-7 h-7" strokeWidth={2.5} />
         </div>
         <div>
-          <h1 className="text-2xl font-extrabold text-slate-800">Results & Analytics</h1>
-          <p className="text-slate-500 text-sm mt-0.5">
+          <h1 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100">Results & Analytics</h1>
+          <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5">
             Review published exam broadsheets, class performance, and student report cards.
           </p>
         </div>
       </div>
 
       {/* Tab Navigation */}
-      <div className="bg-white p-1.5 rounded-2xl border border-slate-100 inline-flex gap-1 shadow-sm">
+      <div className="bg-white dark:bg-slate-900 p-1.5 rounded-2xl border border-slate-100 dark:border-slate-700 inline-flex gap-1 shadow-sm dark:shadow-none">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={`px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 transition-colors ${
               activeTab === tab.id
-                ? 'bg-blue-50 text-blue-700'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400'
+                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800'
             }`}
           >
             <tab.icon className="w-4 h-4" />
@@ -79,28 +79,28 @@ export default function ResultsHub({ role }: ResultsHubProps) {
       {/* Dynamic Content Area */}
       <div>
         {activeTab === 'performance' && (
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-            <h2 className="text-lg font-semibold text-slate-800 mb-4">Class Performance Summary</h2>
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm dark:shadow-none border border-slate-100 dark:border-slate-700">
+            <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-4">Class Performance Summary</h2>
             <ClassPerformanceSummary role={role} />
           </div>
         )}
 
         {activeTab === 'reports' && (
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-            <h2 className="text-lg font-semibold text-slate-800 mb-4">Student Report Cards</h2>
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm dark:shadow-none border border-slate-100 dark:border-slate-700">
+            <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-4">Student Report Cards</h2>
             <StudentReportCardViewer role={role} />
           </div>
         )}
 
         {activeTab === 'analytics' && (
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-            <h2 className="text-lg font-semibold text-slate-800 mb-4">School-Wide Trends</h2>
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm dark:shadow-none border border-slate-100 dark:border-slate-700">
+            <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-4">School-Wide Trends</h2>
             <ResultsAnalytics role={role}/>
           </div>
         )}
 
         {activeTab === 'promotion' && role === 'admin' && (
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm dark:shadow-none border border-slate-100 dark:border-slate-700">
             <PromotionPanel />
           </div>
         )}

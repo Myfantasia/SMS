@@ -1,7 +1,7 @@
 from django.test import TestCase, RequestFactory
 
-from school.models.classSubjects_models import StudentSubjectEnrollment
-from school.models.models import ExamResult
+from apps.students.models import StudentSubjectEnrollment
+from apps.exams.models import ExamResult
 from school.tests.base import ExamTestDataMixin
 from school.views.exams_views import RapidMarksEntryView
 

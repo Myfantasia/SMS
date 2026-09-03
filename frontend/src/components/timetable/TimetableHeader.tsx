@@ -47,7 +47,7 @@ export default function TimetableHeader({
   return (
     <div className="flex flex-col gap-4 w-full shrink-0">
       {/* Primary Header Control Row */}
-      <div className="flex justify-between items-center bg-white p-6 rounded-2xl shadow-sm border border-slate-200 shrink-0 flex-wrap gap-4 relative overflow-hidden">
+      <div className="flex justify-between items-center bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm dark:shadow-none border border-slate-200 dark:border-slate-700 shrink-0 flex-wrap gap-4 relative overflow-hidden">
         
         {/* --- RESTORED: PROFESSIONAL BACKGROUND GRAPHICS --- */}
         <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden rounded-2xl">
@@ -68,32 +68,32 @@ export default function TimetableHeader({
         {/* Left Section: Title & Filters */}
         <div className="flex flex-col gap-2 z-10">
           <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-black text-slate-800 tracking-tight">
+            <h1 className="text-3xl font-black text-slate-800 dark:text-slate-100 tracking-tight">
               {isDailyCoverMode ? "Daily Cover Console" : "Schedule Viewer"}
             </h1>
 
             {/* Live Timetable Status Badge */}
             {activeTimetable && (
               <span className={`px-2 py-0.5 rounded-md text-[10px] font-black border uppercase tracking-wider flex items-center gap-1 shadow-xs mt-1 animate-fade-in ${
-                isPublished 
-                  ? 'bg-blue-50 text-blue-700 border-blue-200' 
-                  : 'bg-amber-50 text-amber-700 border-amber-200'
+                isPublished
+                  ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-500/40'
+                  : 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-500/40'
               }`}>
-                {isPublished ? <Globe className="w-3 h-3 text-blue-500" /> : <EyeOff className="w-3 h-3 text-amber-500" />}
+                {isPublished ? <Globe className="w-3 h-3 text-blue-500 dark:text-blue-400" /> : <EyeOff className="w-3 h-3 text-amber-500 dark:text-amber-400" />}
                 {activeTimetable.status || 'Draft'}
               </span>
             )}
           </div>
 
           <div className="flex items-center gap-4 flex-wrap">
-            <p className="text-slate-500 font-medium whitespace-nowrap">
-              Active Term: <span className="text-indigo-600 font-bold">{activeTimetable?.name || "None Selected"}</span>
+            <p className="text-slate-500 dark:text-slate-400 font-medium whitespace-nowrap">
+              Active Term: <span className="text-indigo-600 dark:text-indigo-400 font-bold">{activeTimetable?.name || "None Selected"}</span>
             </p>
-            <select 
-              value={selectedClassId || ''} 
+            <select
+              value={selectedClassId || ''}
               onChange={(e) => setSelectedClassId(Number(e.target.value))}
               disabled={isEngineBusy}
-              className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm font-bold text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-slate-50 shadow-sm disabled:opacity-60"
+              className="border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-1.5 text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-500/20 bg-slate-50 dark:bg-slate-800 shadow-sm dark:shadow-none disabled:opacity-60"
             >
               {classes.map(c => {
                 const displayName = c.name.toLowerCase().includes(c.grade_name.toLowerCase())
@@ -108,18 +108,18 @@ export default function TimetableHeader({
               })}
             </select>
 
-            <div className="bg-slate-100 p-1 rounded-xl flex gap-1 border border-slate-200 shadow-inner">
-              <button 
+            <div className="bg-slate-100 dark:bg-slate-800 p-1 rounded-xl flex gap-1 border border-slate-200 dark:border-slate-700 shadow-inner">
+              <button
                 onClick={() => setViewType('Weekdays')}
                 disabled={isEngineBusy}
-                className={`px-3 py-1.5 rounded-lg text-[10px] font-black transition-all ${viewType === 'Weekdays' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400'}`}
+                className={`px-3 py-1.5 rounded-lg text-[10px] font-black transition-all ${viewType === 'Weekdays' ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm dark:shadow-none' : 'text-slate-400 dark:text-slate-500'}`}
               >
                 WEEKDAYS
               </button>
-              <button 
+              <button
                 onClick={() => setViewType('Weekends')}
                 disabled={isEngineBusy}
-                className={`px-3 py-1.5 rounded-lg text-[10px] font-black transition-all ${viewType === 'Weekends' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400'}`}
+                className={`px-3 py-1.5 rounded-lg text-[10px] font-black transition-all ${viewType === 'Weekends' ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm dark:shadow-none' : 'text-slate-400 dark:text-slate-500'}`}
               >
                 WEEKENDS
               </button>
@@ -130,10 +130,10 @@ export default function TimetableHeader({
               <button
                 onClick={onOpenTeacherAvailability}
                 disabled={isEngineBusy}
-                className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200/80 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs hover:shadow-sm disabled:opacity-50 cursor-pointer"
+                className="px-3 py-1.5 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 text-indigo-700 dark:text-indigo-400 border border-indigo-200/80 dark:border-indigo-500/40 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs hover:shadow-sm dark:hover:shadow-none disabled:opacity-50 cursor-pointer"
                 title="Configure teacher off-days and blackout slots"
               >
-                <UserX className="w-3.5 h-3.5 text-indigo-600" />
+                <UserX className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
                 <span>Availability</span>
               </button>
             )}
@@ -143,22 +143,22 @@ export default function TimetableHeader({
             <button
               onClick={onOpenMasterTimetable}
               disabled={isEngineBusy}
-              className="px-3 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200/80 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs hover:shadow-sm disabled:opacity-50 cursor-pointer"
+              className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs hover:shadow-sm dark:hover:shadow-none disabled:opacity-50 cursor-pointer"
               title="View every class stream's schedule at once"
             >
-              <LayoutGrid className="w-3.5 h-3.5 text-slate-600" />
+              <LayoutGrid className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
               <span>Whole-School View</span>
             </button>
 
             {/* Contextual Date Selection Display */}
             {isDailyCoverMode && (
-              <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-1.5 shadow-inner animate-fade-in z-10">
-                <Calendar className="w-4 h-4 text-amber-600" />
-                <input 
-                  type="date" 
-                  value={selectedDate} 
+              <div className="flex items-center gap-2 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/40 rounded-xl px-3 py-1.5 shadow-inner animate-fade-in z-10">
+                <Calendar className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                <input
+                  type="date"
+                  value={selectedDate}
                   onChange={(e) => setSelectedDate(e.target.value)}
-                  className="bg-transparent text-xs font-bold text-amber-900 outline-none cursor-pointer"
+                  className="bg-transparent text-xs font-bold text-amber-900 dark:text-amber-300 outline-none cursor-pointer"
                 />
               </div>
             )}
@@ -170,12 +170,12 @@ export default function TimetableHeader({
           <div className="flex items-center gap-4 flex-wrap z-10 animate-fade-in">
             
             {/* Workspace Operation Mode Toggle Switch */}
-            <div className="bg-slate-100 p-1 rounded-xl flex gap-1 border border-slate-200 shadow-inner mr-2">
+            <div className="bg-slate-100 dark:bg-slate-800 p-1 rounded-xl flex gap-1 border border-slate-200 dark:border-slate-700 shadow-inner mr-2">
               <button
                 type="button"
                 onClick={() => setIsDailyCoverMode(false)}
                 title="Edit the recurring weekly schedule"
-                className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${!isDailyCoverMode ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${!isDailyCoverMode ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm dark:shadow-none' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}`}
               >
                 <Layers className="w-3.5 h-3.5" /> Master Template
               </button>
@@ -183,7 +183,7 @@ export default function TimetableHeader({
                 type="button"
                 onClick={() => setIsDailyCoverMode(true)}
                 title="Assign one-off substitute teachers for a specific date, without touching the weekly template"
-                className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${isDailyCoverMode ? 'bg-amber-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${isDailyCoverMode ? 'bg-amber-600 text-white shadow-sm dark:shadow-none' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}`}
               >
                 <Calendar className="w-3.5 h-3.5" /> Substitution Cover
               </button>
@@ -191,52 +191,52 @@ export default function TimetableHeader({
 
             {/* Render Administrative Management Tools when Master Mode is Active */}
             {!isDailyCoverMode ? (
-              <div className="flex items-center gap-1 p-1.5 bg-white/60 backdrop-blur-md border border-slate-200/80 rounded-xl shadow-sm animate-fade-in">
+              <div className="flex items-center gap-1 p-1.5 bg-white/60 dark:bg-slate-900/60 backdrop-blur-md border border-slate-200/80 dark:border-slate-700 rounded-xl shadow-sm dark:shadow-none animate-fade-in">
                 <button
                   onClick={() => setShowSettings(true)}
                   disabled={isEngineBusy}
                   title="Configure terms, bell schedule, subject quotas, option blocks & workload policies"
-                  className="px-3 py-2 text-slate-600 text-sm font-bold rounded-lg hover:bg-slate-100/80 hover:text-slate-900 transition flex items-center gap-2"
+                  className="px-3 py-2 text-slate-600 dark:text-slate-300 text-sm font-bold rounded-lg hover:bg-slate-100/80 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100 transition flex items-center gap-2"
                 >
                   <Settings className="w-4 h-4" /> Config
                 </button>
-                
-                <div className="w-px h-5 bg-slate-200 mx-1 hidden sm:block"></div>
-                
+
+                <div className="w-px h-5 bg-slate-200 dark:bg-slate-700 mx-1 hidden sm:block"></div>
+
                 {/* Auto-Generate Button (Disabled if Timetable is Live) */}
-                <button 
-                  onClick={handleAutoGenerate} 
-                  disabled={isEngineBusy || !activeTimetable || isPublished} 
-                  className={`px-3 py-2 text-sm font-bold rounded-lg transition flex items-center gap-2 ${isEngineBusy ? 'bg-amber-50 text-amber-700' : 'text-slate-600 hover:bg-slate-100/80 hover:text-indigo-600'} disabled:opacity-40 disabled:cursor-not-allowed`}
+                <button
+                  onClick={handleAutoGenerate}
+                  disabled={isEngineBusy || !activeTimetable || isPublished}
+                  className={`px-3 py-2 text-sm font-bold rounded-lg transition flex items-center gap-2 ${isEngineBusy ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100/80 dark:hover:bg-slate-800 hover:text-indigo-600 dark:hover:text-indigo-400'} disabled:opacity-40 disabled:cursor-not-allowed`}
                   title={isPublished ? "Grid locked. Revert to Draft state to activate automatic compiler configurations." : "Compile schedule entries"}
                 >
                   {isEngineBusy ? (
                     <>
-                      <Loader2 className="w-4 h-4 animate-spin text-amber-600" />
+                      <Loader2 className="w-4 h-4 animate-spin text-amber-600 dark:text-amber-400" />
                       <span>Engine Compiling...</span>
                     </>
                   ) : (
                     <>
-                      <Wand2 className="w-4 h-4 text-indigo-500" />
+                      <Wand2 className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
                       <span>Auto-Generate</span>
                     </>
                   )}
                 </button>
-                
-                <div className="w-px h-5 bg-slate-200 mx-1 hidden sm:block"></div>
+
+                <div className="w-px h-5 bg-slate-200 dark:bg-slate-700 mx-1 hidden sm:block"></div>
 
                 {/* Clear Grid Button (Disabled if Timetable is Live) */}
-                <button 
-                  onClick={handleClearTimetable} 
+                <button
+                  onClick={handleClearTimetable}
                   disabled={isEngineBusy || isPublished}
-                  className="px-3 py-2 text-slate-600 text-sm font-bold rounded-lg hover:bg-red-50/80 hover:text-red-600 transition flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="px-3 py-2 text-slate-600 dark:text-slate-300 text-sm font-bold rounded-lg hover:bg-red-50/80 dark:hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400 transition flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                   title={isPublished ? "Grid locked." : "Clear allocations"}
                 >
-                  <Trash2 className="w-4 h-4 text-slate-400 hover:text-red-500" /> Clear Grid
+                  <Trash2 className="w-4 h-4 text-slate-400 dark:text-slate-500 hover:text-red-500 dark:hover:text-red-400" /> Clear Grid
                 </button>
               </div>
             ) : (
-              <div className="px-4 py-2 bg-amber-100 border border-amber-200 text-amber-800 text-xs font-bold rounded-xl shadow-sm animate-fade-in">
+              <div className="px-4 py-2 bg-amber-100 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/40 text-amber-800 dark:text-amber-400 text-xs font-bold rounded-xl shadow-sm dark:shadow-none animate-fade-in">
                 ⚡ Operational Mode: Date-Bound Overrides Active
               </div>
             )}
@@ -268,29 +268,29 @@ export default function TimetableHeader({
 
       {/* Unscheduled Basket Warnings Dashboard overlay tray */}
       {isAdmin && !isDailyCoverMode && unscheduledBasket.length > 0 && showBasketTray && (
-        <div className="w-full bg-amber-50 border border-amber-200 rounded-2xl p-5 shadow-sm animate-slide-in flex flex-col gap-3 z-10">
-          <div className="flex justify-between items-center border-b border-amber-200 pb-2">
-            <div className="flex items-center gap-2 text-amber-800">
-              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
+        <div className="w-full bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/40 rounded-2xl p-5 shadow-sm dark:shadow-none animate-slide-in flex flex-col gap-3 z-10">
+          <div className="flex justify-between items-center border-b border-amber-200 dark:border-amber-500/40 pb-2">
+            <div className="flex items-center gap-2 text-amber-800 dark:text-amber-400">
+              <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
               <h2 className="text-sm font-black uppercase tracking-wider">
                 Generator Exception Log ({unscheduledBasket.length} items dropped)
               </h2>
             </div>
             <div className="flex items-center gap-2">
-              <button 
+              <button
                 onClick={() => setUnscheduledBasket([])}
-                className="text-xs font-bold text-amber-700 hover:text-amber-900 bg-white/60 hover:bg-white border border-amber-300 rounded-md px-2 py-1 transition shadow-sm"
+                className="text-xs font-bold text-amber-700 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-300 bg-white/60 dark:bg-slate-900/60 hover:bg-white dark:hover:bg-slate-900 border border-amber-300 dark:border-amber-500/40 rounded-md px-2 py-1 transition shadow-sm dark:shadow-none"
               >
                 Clear Log
               </button>
-              <button onClick={() => setShowBasketTray(false)} title="Dismiss" aria-label="Dismiss exception log" className="text-amber-400 hover:text-amber-600 p-1">
+              <button onClick={() => setShowBasketTray(false)} title="Dismiss" aria-label="Dismiss exception log" className="text-amber-400 dark:text-amber-500 hover:text-amber-600 dark:hover:text-amber-300 p-1">
                 <X className="w-4 h-4" />
               </button>
             </div>
           </div>
-          <div className="max-h-32 overflow-y-auto custom-scrollbar text-xs font-medium text-amber-900 space-y-1.5 pr-2">
+          <div className="max-h-32 overflow-y-auto custom-scrollbar text-xs font-medium text-amber-900 dark:text-amber-300 space-y-1.5 pr-2">
             {unscheduledBasket.map((errorMsg, index) => (
-              <div key={index} className="flex items-start gap-2 bg-white/40 border border-amber-100/50 rounded-lg p-2 leading-tight">
+              <div key={index} className="flex items-start gap-2 bg-white/40 dark:bg-slate-900/40 border border-amber-100/50 dark:border-amber-500/20 rounded-lg p-2 leading-tight">
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mt-1.5 shrink-0"></span>
                 <p>{errorMsg}</p>
               </div>

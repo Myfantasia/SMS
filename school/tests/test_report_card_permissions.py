@@ -1,7 +1,7 @@
 from django.test import TestCase
 from rest_framework.test import APIRequestFactory
 
-from school.models.resultsModels import StudentTermResult
+from apps.results.models import StudentTermResult
 from school.tests.base import ExamTestDataMixin
 from school.views.results_views import StudentReportCardAPIView
 

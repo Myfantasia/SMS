@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
-from school.models.models import TeacherExtra
-from school.models.teachers_model import TeacherLeave
+from apps.identity.models import TeacherExtra
+from apps.staff.models import TeacherLeave
 
 
 class TeacherLeaveSerializer(serializers.ModelSerializer):

@@ -37,40 +37,40 @@ const MatrixTable: React.FC<MatrixTableProps> = ({ data, onTeacherChange, readOn
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-left border-collapse">
-        <thead className="bg-slate-50 border-b border-slate-200">
+        <thead className="bg-slate-50 dark:bg-slate-800/40 border-b border-slate-200 dark:border-slate-700">
           <tr>
-            <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Subject</th>
-            <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Assign Teacher</th>
-            <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
+            <th className="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Subject</th>
+            <th className="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Assign Teacher</th>
+            <th className="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Status</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-100 bg-white">
+        <tbody className="divide-y divide-slate-100 dark:divide-slate-700 bg-white dark:bg-slate-900">
           {groups.map(({ block, rows }) => (
             <React.Fragment key={block}>
-              <tr className="bg-slate-50/70">
+              <tr className="bg-slate-50/70 dark:bg-slate-800/40">
                 <td colSpan={3} className="px-6 py-2">
                   <span className={`inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider ${
-                    block === 'Core Subject' ? 'text-slate-500' : 'text-indigo-600'
+                    block === 'Core Subject' ? 'text-slate-500 dark:text-slate-400' : 'text-indigo-600 dark:text-indigo-400'
                   }`}>
                     {block !== 'Core Subject' && <Layers className="w-3.5 h-3.5" />}
-                    {block} <span className="text-slate-400 font-normal normal-case">&middot; {rows.length} subject{rows.length !== 1 ? 's' : ''}</span>
+                    {block} <span className="text-slate-400 dark:text-slate-500 font-normal normal-case">&middot; {rows.length} subject{rows.length !== 1 ? 's' : ''}</span>
                   </span>
                 </td>
               </tr>
               {rows.map((row) => (
-                <tr key={row.subject_id} className="hover:bg-slate-50/50 transition-colors">
+                <tr key={row.subject_id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/60 transition-colors">
                   {/* SUBJECT INFO */}
                   <td className="px-6 py-4">
                     <div className="flex flex-col">
-                      <span className="font-semibold text-slate-800">{row.subject_name}</span>
-                      <span className="text-xs text-slate-400 font-mono">{row.subject_code}</span>
+                      <span className="font-semibold text-slate-800 dark:text-slate-100">{row.subject_name}</span>
+                      <span className="text-xs text-slate-400 dark:text-slate-500 font-mono">{row.subject_code}</span>
                     </div>
                   </td>
 
                   {/* TEACHER SELECTION DROPDOWN */}
                   <td className="px-6 py-4">
                     {row.routed_to_groups ? (
-                      <p className="text-xs text-indigo-600 max-w-xs">
+                      <p className="text-xs text-indigo-600 dark:text-indigo-400 max-w-xs">
                         Staffed per elective group, not here — switch to <span className="font-semibold">Elective Groups</span> above to assign teachers for each group.
                       </p>
                     ) : (
@@ -102,7 +102,7 @@ const MatrixTable: React.FC<MatrixTableProps> = ({ data, onTeacherChange, readOn
                           if (ratio < 0.8) return null;
                           const atOrOverCap = assigned.current_load >= assigned.max_weekly_lessons;
                           return (
-                            <p className={`text-[11px] font-bold mt-1 flex items-center gap-1 ${atOrOverCap ? 'text-red-600' : 'text-amber-600'}`}>
+                            <p className={`text-[11px] font-bold mt-1 flex items-center gap-1 ${atOrOverCap ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'}`}>
                               <AlertCircle className="w-3 h-3" />
                               {assigned.name.split(' ')[0]} is {atOrOverCap ? 'at/over' : 'near'} the weekly lesson cap
                               ({assigned.current_load}/{assigned.max_weekly_lessons})
@@ -116,22 +116,22 @@ const MatrixTable: React.FC<MatrixTableProps> = ({ data, onTeacherChange, readOn
                   {/* STATUS INDICATORS (Algorithm Feedback) */}
                   <td className="px-6 py-4">
                     {row.routed_to_groups ? (
-                      <div className={`flex items-center gap-2 ${row.group_status?.startsWith('0 of') ? 'text-red-600' : row.group_status?.match(/^(\d+) of \1/) ? 'text-emerald-600' : 'text-amber-600'}`}>
+                      <div className={`flex items-center gap-2 ${row.group_status?.startsWith('0 of') ? 'text-red-600 dark:text-red-400' : row.group_status?.match(/^(\d+) of \1/) ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
                         <Puzzle className="w-4 h-4" />
                         <span className="text-xs font-medium">{row.group_status || 'Split into elective groups'}</span>
                       </div>
                     ) : row.status?.includes('Failed') ? (
-                      <div className="flex items-center gap-2 text-red-600 bg-red-50 p-2 rounded-md border border-red-100">
+                      <div className="flex items-center gap-2 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 p-2 rounded-md border border-red-100 dark:border-red-500/20">
                         <AlertCircle className="w-4 h-4 shrink-0" />
                         <span className="text-xs font-medium leading-tight">Requires Manual Action</span>
                       </div>
                     ) : row.assigned_teacher_id ? (
-                      <div className="flex items-center gap-2 text-emerald-600">
+                      <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
                         <CheckCircle2 className="w-4 h-4" />
                         <span className="text-xs font-medium">Ready</span>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-2 text-slate-400">
+                      <div className="flex items-center gap-2 text-slate-400 dark:text-slate-500">
                         <Info className="w-4 h-4" />
                         <span className="text-xs">Awaiting Selection</span>
                       </div>

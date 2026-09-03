@@ -160,16 +160,16 @@ export default function SettingsSubjectBlocks({ grades, subjects, quotas, confir
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fade-in">
       
       {/* Subject Cluster Form Panel Configuration Workspace */}
-      <form onSubmit={handleSaveBlockTemplate} className="lg:col-span-1 space-y-4 bg-slate-50 p-5 rounded-xl border border-slate-200 h-fit sticky top-4 shadow-sm">
-        <div className="flex justify-between items-center border-b border-slate-200 pb-2">
-          <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wide">
+      <form onSubmit={handleSaveBlockTemplate} className="lg:col-span-1 space-y-4 bg-slate-50 dark:bg-slate-800/40 p-5 rounded-xl border border-slate-200 dark:border-slate-700 h-fit sticky top-4 shadow-sm dark:shadow-none">
+        <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-700 pb-2">
+          <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm uppercase tracking-wide">
             {selectedBlockId ? "Edit Cluster Design" : "Build Option Block"}
           </h3>
           {selectedBlockId && (
-            <button 
-              type="button" 
+            <button
+              type="button"
               onClick={() => { setSelectedBlockId(null); setBlockName(''); setSelectedGradeId(''); setSelectedSubjectIds([]); setPeriodStructure('MIXED'); }}
-              className="text-xs font-bold text-indigo-600 hover:underline"
+              className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
             >
               Reset Form
             </button>
@@ -177,24 +177,24 @@ export default function SettingsSubjectBlocks({ grades, subjects, quotas, confir
         </div>
 
         <div className="space-y-1">
-          <label className="text-xs font-bold text-slate-600">Block Name Identifier</label>
-          <input 
-            type="text" 
-            required 
+          <label className="text-xs font-bold text-slate-600 dark:text-slate-300">Block Name Identifier</label>
+          <input
+            type="text"
+            required
             placeholder="e.g., Form 4 Technical Block"
-            value={blockName} 
-            onChange={(e) => setBlockName(e.target.value)} 
-            className="w-full border border-slate-300 rounded-lg p-2.5 text-sm outline-none focus:border-blue-500 bg-white font-medium" 
+            value={blockName}
+            onChange={(e) => setBlockName(e.target.value)}
+            className="w-full border border-slate-300 dark:border-slate-600 rounded-lg p-2.5 text-sm outline-none focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-slate-800 font-medium text-slate-800 dark:text-slate-100"
           />
         </div>
 
         <div className="space-y-1">
-          <label className="text-xs font-bold text-slate-600">Target Grade Level Context</label>
-          <select 
-            required 
-            value={selectedGradeId} 
-            onChange={(e) => setSelectedGradeId(e.target.value)} 
-            className="w-full border border-slate-300 rounded-lg p-2.5 text-sm outline-none bg-white font-bold text-slate-700"
+          <label className="text-xs font-bold text-slate-600 dark:text-slate-300">Target Grade Level Context</label>
+          <select
+            required
+            value={selectedGradeId}
+            onChange={(e) => setSelectedGradeId(e.target.value)}
+            className="w-full border border-slate-300 dark:border-slate-600 rounded-lg p-2.5 text-sm outline-none bg-white dark:bg-slate-800 font-bold text-slate-700 dark:text-slate-200"
           >
             <option value="">-- Assign Grade Level --</option>
             {grades.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
@@ -202,17 +202,17 @@ export default function SettingsSubjectBlocks({ grades, subjects, quotas, confir
         </div>
 
         <div className="space-y-1">
-          <label className="text-xs font-bold text-slate-600">Lesson Period Structure</label>
+          <label className="text-xs font-bold text-slate-600 dark:text-slate-300">Lesson Period Structure</label>
           <select
             value={periodStructure}
             onChange={(e) => setPeriodStructure(e.target.value as PeriodStructure)}
-            className="w-full border border-slate-300 rounded-lg p-2.5 text-sm outline-none bg-white font-bold text-slate-700"
+            className="w-full border border-slate-300 dark:border-slate-600 rounded-lg p-2.5 text-sm outline-none bg-white dark:bg-slate-800 font-bold text-slate-700 dark:text-slate-200"
           >
             {(Object.keys(PERIOD_STRUCTURE_LABELS) as PeriodStructure[]).map(key => (
               <option key={key} value={key}>{PERIOD_STRUCTURE_LABELS[key]}</option>
             ))}
           </select>
-          <p className="text-[10px] text-slate-400 leading-relaxed">
+          <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-relaxed">
             Governs how the quota and timetable engines split this block's lessons. e.g. a Technical
             practical block is usually "All Double"; a Humanities options block is usually "All Single".
           </p>
@@ -220,21 +220,21 @@ export default function SettingsSubjectBlocks({ grades, subjects, quotas, confir
 
         {/* Dynamic Multi-Select Checked Chip Box Grid for Subject Pooling */}
         <div className="space-y-1.5">
-          <label className="text-xs font-bold text-slate-600 block">Select Elective Subjects to Pool</label>
-          <div className="border border-slate-200 rounded-lg max-h-48 overflow-y-auto bg-white p-2 space-y-1 custom-scrollbar">
+          <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block">Select Elective Subjects to Pool</label>
+          <div className="border border-slate-200 dark:border-slate-700 rounded-lg max-h-48 overflow-y-auto bg-white dark:bg-slate-800 p-2 space-y-1 custom-scrollbar">
             {crossGradeSubjects.map(sub => {
               const isChecked = selectedSubjectIds.includes(sub.id);
               return (
-                <div 
+                <div
                   key={sub.id}
                   onClick={() => toggleSubjectSelection(sub.id)}
-                  className={`flex items-center justify-between p-2 rounded-lg cursor-pointer text-xs font-bold transition-colors ${isChecked ? 'bg-indigo-50 text-indigo-700 border border-indigo-100' : 'hover:bg-slate-50 text-slate-600 border border-transparent'}`}
+                  className={`flex items-center justify-between p-2 rounded-lg cursor-pointer text-xs font-bold transition-colors ${isChecked ? 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-500/20' : 'hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-600 dark:text-slate-300 border border-transparent'}`}
                 >
                   <div className="min-w-0 pr-2">
                     <p className="truncate">{sub.name}</p>
-                    <p className="text-[10px] font-medium text-slate-400 mt-0.5">{sub.code || 'No Code'}</p>
+                    <p className="text-[10px] font-medium text-slate-400 dark:text-slate-500 mt-0.5">{sub.code || 'No Code'}</p>
                   </div>
-                  <div className={`w-4 h-4 rounded-md border flex items-center justify-center shrink-0 transition-colors ${isChecked ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 bg-white'}`}>
+                  <div className={`w-4 h-4 rounded-md border flex items-center justify-center shrink-0 transition-colors ${isChecked ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800'}`}>
                     {isChecked && <Check className="w-3 h-3 stroke-3" />}
                   </div>
                 </div>
@@ -243,10 +243,10 @@ export default function SettingsSubjectBlocks({ grades, subjects, quotas, confir
           </div>
         </div>
 
-        <button 
-          type="submit" 
+        <button
+          type="submit"
           disabled={saving}
-          className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold text-sm flex justify-center items-center gap-2 transition-colors shadow-md shadow-indigo-600/10 disabled:opacity-50"
+          className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold text-sm flex justify-center items-center gap-2 transition-colors shadow-md dark:shadow-none shadow-indigo-600/10 disabled:opacity-50"
         >
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
           <span>Save Structural Block</span>
@@ -255,56 +255,56 @@ export default function SettingsSubjectBlocks({ grades, subjects, quotas, confir
 
       {/* Roster Layout Sheet Grid Displaying Existing Registered Blocks */}
       <div className="lg:col-span-2 space-y-4">
-        <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wide">Registered Subject Clusters</h3>
-        
+        <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm uppercase tracking-wide">Registered Subject Clusters</h3>
+
         {loadingBlocks ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-pulse">
-            {[1, 2, 3, 4].map((i) => <div key={i} className="h-28 bg-slate-200 rounded-xl"></div>)}
+            {[1, 2, 3, 4].map((i) => <div key={i} className="h-28 bg-slate-200 dark:bg-slate-800 rounded-xl"></div>)}
           </div>
         ) : blocks.length === 0 ? (
-          <div className="border border-dashed border-slate-200 rounded-xl p-12 text-center text-slate-400 text-xs font-medium flex flex-col items-center justify-center gap-2">
-            <Layers className="w-8 h-8 text-slate-300" />
+          <div className="border border-dashed border-slate-200 dark:border-slate-700 rounded-xl p-12 text-center text-slate-400 dark:text-slate-500 text-xs font-medium flex flex-col items-center justify-center gap-2">
+            <Layers className="w-8 h-8 text-slate-300 dark:text-slate-600" />
             <p>No option block structures registered under this year/term matrix yet.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {blocks.map(block => (
-              <div 
+              <div
                 key={block.id}
                 onClick={() => loadBlockIntoWorkspace(block)}
-                className={`p-4 rounded-xl border bg-white flex flex-col justify-between gap-4 cursor-pointer transition-all hover:shadow-md ${selectedBlockId === block.id ? 'border-indigo-500 ring-2 ring-indigo-100 shadow-sm' : 'border-slate-200 hover:border-slate-300'}`}
+                className={`p-4 rounded-xl border bg-white dark:bg-slate-900 flex flex-col justify-between gap-4 cursor-pointer transition-all hover:shadow-md dark:hover:shadow-none ${selectedBlockId === block.id ? 'border-indigo-500 dark:border-indigo-400 ring-2 ring-indigo-100 dark:ring-indigo-500/20 shadow-sm dark:shadow-none' : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'}`}
               >
                 <div className="space-y-1.5">
                   <div className="flex justify-between items-start gap-2">
-                    <h4 className="font-black text-slate-800 tracking-tight leading-snug">{block.name}</h4>
+                    <h4 className="font-black text-slate-800 dark:text-slate-100 tracking-tight leading-snug">{block.name}</h4>
                     <button
                       onClick={(e) => handleDeleteBlockTemplate(block.id, block.name, e)}
                       title="Delete block"
                       aria-label={`Delete ${block.name} block`}
-                      className="text-slate-400 hover:text-red-600 p-1.5 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100"
+                      className="text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400 p-1.5 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors border border-transparent hover:border-red-100 dark:hover:border-red-500/20"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
-                  <div className="flex gap-2 flex-wrap text-[10px] font-black uppercase tracking-wider text-indigo-600">
-                    <span className="bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded">{block.grade_level_name}</span>
-                    {block.term && <span className="bg-slate-100 border border-slate-200 text-slate-500 px-1.5 py-0.5 rounded">{block.term}</span>}
-                    <span className="bg-amber-50 border border-amber-100 text-amber-700 px-1.5 py-0.5 rounded">
+                  <div className="flex gap-2 flex-wrap text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
+                    <span className="bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/20 px-1.5 py-0.5 rounded">{block.grade_level_name}</span>
+                    {block.term && <span className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded">{block.term}</span>}
+                    <span className="bg-amber-50 dark:bg-amber-500/10 border border-amber-100 dark:border-amber-500/20 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded">
                       {PERIOD_STRUCTURE_LABELS[block.period_structure] || 'Mixed'}
                     </span>
                   </div>
                 </div>
 
                 {/* Sub-Subject Badge Loop Pills */}
-                <div className="border-t border-slate-100 pt-3">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                <div className="border-t border-slate-100 dark:border-slate-700 pt-3">
+                  <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1">
                     <BookOpen className="w-3 h-3" /> Bundled Cluster Subjects ({block.subjects.length})
                   </p>
                   <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto custom-scrollbar pr-1">
                     {block.subjects.map(s => (
-                      <span 
-                        key={s.id} 
-                        className="text-[10px] font-bold px-2 py-0.5 bg-slate-100 text-slate-700 border border-slate-200 rounded-md whitespace-nowrap"
+                      <span
+                        key={s.id}
+                        className="text-[10px] font-bold px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-md whitespace-nowrap"
                       >
                         {s.name}
                       </span>

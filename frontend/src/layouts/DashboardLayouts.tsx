@@ -1,12 +1,16 @@
 import { useState, useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
+import { ThemeProvider } from '@mui/material/styles';
 import { School, X } from 'lucide-react';
 import Menu from '../components/Menu';
 import Navbar from '../components/Navbar';
 import ForcedPasswordChangeGate from '../components/ForcedPasswordChangeGate';
+import { ChatProvider } from '../components/chats/ChatProvider';
 import api from '../libs/axiosInstance';
 import toast from 'react-hot-toast';
 import { recordActivity, redirectToSignInIfSessionExpired, SIGN_IN_URL } from '../libs/sessionExpiry';
+import { getAdminTheme } from './theme/adminTheme';
+import { useDashboardThemeMode } from './theme/useDashboardThemeMode';
 
 interface LayoutProps {
   role: 'admin' | 'teacher' | 'student' | 'parent' | 'staff';
@@ -23,10 +27,13 @@ export default function DashboardLayout({ role }: LayoutProps) {
   const [userId, setUserId] = useState<number | null>(null);
   const [userName, setUserName] = useState("Loading...");
   const [isClassTeacher, setIsClassTeacher] = useState(false);
+  const [requiresPathwayChoice, setRequiresPathwayChoice] = useState(false);
   const [permissions, setPermissions] = useState<string[]>([]);
   const [authStatus, setAuthStatus] = useState<'checking' | 'authorized' | 'denied'>('checking');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mustChangePassword, setMustChangePassword] = useState(false);
+  const { mode, toggleMode } = useDashboardThemeMode();
+  const adminTheme = getAdminTheme(mode);
 
   // 1. DYNAMIC FETCH — also acts as the auth gate for this route group.
   useEffect(() => {
@@ -36,10 +43,11 @@ export default function DashboardLayout({ role }: LayoutProps) {
       .then((res) => {
         if (cancelled) return;
         if (res.data?.data) {
-          const { id, first_name, last_name, is_class_teacher, permissions, must_change_password } = res.data.data;
+          const { id, first_name, last_name, is_class_teacher, requires_pathway_choice, permissions, must_change_password } = res.data.data;
           setUserId(id ?? null);
           setUserName(`${first_name} ${last_name}`);
           setIsClassTeacher(!!is_class_teacher);
+          setRequiresPathwayChoice(!!requires_pathway_choice);
           setPermissions(permissions || []);
           setMustChangePassword(!!must_change_password);
           setAuthStatus('authorized');
@@ -106,9 +114,9 @@ export default function DashboardLayout({ role }: LayoutProps) {
   // Block rendering of dashboard chrome and content until the session is confirmed.
   if (authStatus !== 'authorized') {
     return (
-      <div className="h-screen w-screen flex flex-col items-center justify-center bg-slate-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
-        <p className="text-slate-500 font-medium">
+      <div data-dashboard-theme={mode} className="h-screen w-screen flex flex-col items-center justify-center bg-slate-100 dark:bg-slate-950">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 dark:border-blue-400 mb-4"></div>
+        <p className="text-slate-500 dark:text-slate-400 font-medium">
           {authStatus === 'denied' ? 'Redirecting to login...' : 'Verifying session...'}
         </p>
       </div>
@@ -118,11 +126,17 @@ export default function DashboardLayout({ role }: LayoutProps) {
   // A temporary/admin-reset password blocks all dashboard access until the user sets
   // their own new one — checked after the session gate above so we know who they are.
   if (mustChangePassword) {
-    return <ForcedPasswordChangeGate onSuccess={() => setMustChangePassword(false)} />;
+    return (
+      <ThemeProvider theme={adminTheme}>
+        <ForcedPasswordChangeGate onSuccess={() => setMustChangePassword(false)} />
+      </ThemeProvider>
+    );
   }
 
   return (
-    <div className="h-screen flex bg-slate-50 font-sans overflow-hidden">
+    <ThemeProvider theme={adminTheme}>
+    <ChatProvider>
+    <div data-dashboard-theme={mode} className="h-screen flex bg-slate-100 dark:bg-slate-950 font-sans overflow-hidden">
 
       {/* Mobile backdrop — closes the drawer on outside tap, only relevant below `lg` */}
       {mobileMenuOpen && (
@@ -141,7 +155,7 @@ export default function DashboardLayout({ role }: LayoutProps) {
         onClick={(e) => {
           if ((e.target as HTMLElement).closest('a')) setMobileMenuOpen(false);
         }}
-        className={`fixed inset-y-0 left-0 z-50 w-72 max-w-[80%] px-4 py-4 bg-white border-r border-slate-200 overflow-y-scroll scrollbar-hide flex flex-col transition-transform duration-300 ease-in-out
+        className={`fixed inset-y-0 left-0 z-50 w-72 max-w-[80%] px-4 py-4 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-700 overflow-y-scroll scrollbar-hide flex flex-col transition-transform duration-300 ease-in-out
           ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
           lg:static lg:translate-x-0 lg:z-auto lg:w-[18%] xl:w-[16%] lg:shrink-0`}
       >
@@ -151,8 +165,8 @@ export default function DashboardLayout({ role }: LayoutProps) {
               <School className="w-5 h-5 text-white" />
             </div>
             <div className="flex flex-col leading-none min-w-0">
-              <span className="font-extrabold text-lg text-slate-800 truncate">SMS Portal</span>
-              <span className="text-[10px] text-slate-400 font-medium tracking-wide">School Management</span>
+              <span className="font-extrabold text-lg text-slate-800 dark:text-slate-100 truncate">SMS Portal</span>
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium tracking-wide">School Management</span>
             </div>
           </div>
           {/* Close button — only relevant below `lg`, where the sidebar is an off-canvas drawer */}
@@ -160,20 +174,20 @@ export default function DashboardLayout({ role }: LayoutProps) {
             type="button"
             onClick={() => setMobileMenuOpen(false)}
             aria-label="Close menu"
-            className="lg:hidden shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+            className="lg:hidden shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
           >
             <X className="w-4.5 h-4.5" />
           </button>
         </div>
-        <div className="h-px bg-slate-100 mb-2" />
-        <Menu userRole={role} isClassTeacher={isClassTeacher} permissions={permissions} />
+        <div className="h-px bg-slate-100 dark:bg-slate-800 mb-2" />
+        <Menu userRole={role} isClassTeacher={isClassTeacher} requiresPathwayChoice={requiresPathwayChoice} permissions={permissions} />
       </div>
 
       {/* Main Content Pane */}
-      <div className="flex-1 min-w-0 bg-slate-50 flex flex-col overflow-hidden">
+      <div className="flex-1 min-w-0 bg-slate-100 dark:bg-slate-950 flex flex-col overflow-hidden">
 
         {/* Universal Top Navbar */}
-        <Navbar role={role} userName={userName} onMenuClick={() => setMobileMenuOpen((open) => !open)} />
+        <Navbar role={role} userName={userName} onMenuClick={() => setMobileMenuOpen((open) => !open)} mode={mode} onToggleMode={toggleMode} />
 
         {/* Dynamic Page Content */}
         <main className="p-4 md:p-8 overflow-y-auto flex-1 scrollbar-hide">
@@ -182,5 +196,7 @@ export default function DashboardLayout({ role }: LayoutProps) {
 
       </div>
     </div>
+    </ChatProvider>
+    </ThemeProvider>
   );
 }

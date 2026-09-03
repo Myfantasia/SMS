@@ -1,14 +1,14 @@
 import { Link, useLocation } from 'react-router-dom';
-import { 
-  Home, 
-  GraduationCap, 
-  Users, 
-  UserSquare2, 
-  CheckSquare, 
-  CircleDollarSign, 
-  Megaphone, 
-  UserPlus, 
-  User, 
+import {
+  Home,
+  GraduationCap,
+  Users,
+  UserSquare2,
+  CheckSquare,
+  CircleDollarSign,
+  Megaphone,
+  UserPlus,
+  User,
   LogOut,
   Library,       // <-- NEW: For the Academics Hub
   Layers,        // For Classes
@@ -27,13 +27,16 @@ import {
   BookMarked,  // For Curriculum
   GitBranch,   // For Pathway
   Briefcase,   // For Staff
+  Newspaper,   // For public-site Blog & Alumni content
   Trash2       // For Trash
 } from 'lucide-react';
 import { clearActivity } from '../libs/sessionExpiry';
+import { ROLE_ACCENTS } from '../public/theme/publicTheme';
 
 interface MenuProps {
   userRole: 'admin' | 'teacher' | 'student' | 'parent' | 'staff';
   isClassTeacher?: boolean;
+  requiresPathwayChoice?: boolean;
   permissions?: string[];
 }
 
@@ -45,6 +48,7 @@ interface MenuItemDef {
   href: string;
   visible: Role[];
   requiresClassTeacher?: boolean;
+  requiresPathwayChoice?: boolean;
   requiredPermission?: string;
 }
 
@@ -92,9 +96,9 @@ const menuItems: { title: string; items: MenuItemDef[] }[] = [
       { icon: Library, label: "Academics", href: "/admin-dashboard/academics", visible: ["admin"] }, // <-- UPDATED ICON
       { icon: BookMarked, label: "Curriculum", href: "/admin-dashboard/curriculum", visible: ["admin", "teacher"] },
       { icon: Layers, label: "Classes", href: "/admin-dashboard/classes", visible: ["admin", "teacher"] },
-      { icon: BookOpen, label: "Subjects", href: "/admin-dashboard/subjects", visible: ["admin", "teacher", "student"] },
-      { icon: ListChecks, label: "My Electives", href: "/admin-dashboard/my-electives", visible: ["student"] },
-      { icon: GitBranch, label: "My Pathway", href: "/admin-dashboard/my-pathway", visible: ["student"] },
+      { icon: BookOpen, label: "Subjects", href: "/admin-dashboard/subjects", visible: ["admin", "teacher"] },
+      { icon: BookOpen, label: "My Subjects", href: "/admin-dashboard/subjects", visible: ["student"] },
+      { icon: GitBranch, label: "My Pathway", href: "/admin-dashboard/my-pathway", visible: ["student"], requiresPathwayChoice: true },
       { icon: ClipboardList, label: "Allocations", href: "/admin-dashboard/allocations", visible: ["admin"] },
 
       { icon: CalendarDays, label: "Timetable", href: "/admin-dashboard/timetable", visible: ["admin", "teacher"] },
@@ -133,6 +137,7 @@ const menuItems: { title: string; items: MenuItemDef[] }[] = [
     items: [
       { icon: ShieldCheck, label: "Roles & Permissions", href: "/admin-dashboard/roles-permissions", visible: ["admin"] },
       { icon: Trash2, label: "Trash", href: "/admin-dashboard/trash", visible: ["admin"], requiredPermission: "trash.view" },
+      { icon: Newspaper, label: "Blog & Alumni Content", href: "/admin-dashboard/content", visible: ["admin"] },
     ],
   },
   {
@@ -144,31 +149,33 @@ const menuItems: { title: string; items: MenuItemDef[] }[] = [
   },
 ];
 
-export default function Menu({ userRole, isClassTeacher = false, permissions = [] }: MenuProps) {
+export default function Menu({ userRole, isClassTeacher = false, requiresPathwayChoice = false, permissions = [] }: MenuProps) {
   const location = useLocation();
 
   if (userRole === 'staff') {
     const visibleItems = staffMenuItems.filter((item) => permissions.includes(item.permission));
+    const accent = ROLE_ACCENTS.staff;
     return (
       <div className="mt-2 text-sm pb-8 flex flex-col gap-6">
         <div className="flex flex-col gap-1">
           <Link
             to="/staff-dashboard"
             title="Dashboard"
+            style={location.pathname === '/staff-dashboard' ? { backgroundColor: accent } : undefined}
             className={`relative flex items-center justify-start gap-3 py-2.5 px-2 lg:px-3 rounded-xl transition-all duration-150 ${
               location.pathname === '/staff-dashboard'
-                ? "bg-blue-600 text-white font-semibold shadow-sm shadow-blue-200"
-                : "text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                ? "text-white font-semibold shadow-sm shadow-blue-200 dark:shadow-none"
+                : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-200"
             }`}
           >
-            <Home className={`w-[18px] h-[18px] shrink-0 ${location.pathname === '/staff-dashboard' ? "text-white" : "text-slate-400"}`} />
+            <Home className={`w-[18px] h-[18px] shrink-0 ${location.pathname === '/staff-dashboard' ? "text-white" : "text-slate-400 dark:text-slate-500"}`} />
             <span className="block text-[13px]">Dashboard</span>
           </Link>
         </div>
 
         {visibleItems.length > 0 && (
           <div className="flex flex-col gap-1">
-            <span className="block text-slate-400 font-bold mb-1 px-2 text-[10px] tracking-widest uppercase">
+            <span className="block text-slate-400 dark:text-slate-500 font-bold mb-1 px-2 text-[10px] tracking-widest uppercase">
               Your Modules
             </span>
             {visibleItems.map((item) => {
@@ -178,13 +185,14 @@ export default function Menu({ userRole, isClassTeacher = false, permissions = [
                   to={item.href}
                   key={item.href}
                   title={item.label}
+                  style={isActive ? { backgroundColor: accent } : undefined}
                   className={`relative flex items-center justify-start gap-3 py-2.5 px-2 lg:px-3 rounded-xl transition-all duration-150 ${
                     isActive
-                      ? "bg-blue-600 text-white font-semibold shadow-sm shadow-blue-200"
-                      : "text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                      ? "text-white font-semibold shadow-sm shadow-blue-200 dark:shadow-none"
+                      : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-200"
                   }`}
                 >
-                  <item.icon className={`w-[18px] h-[18px] shrink-0 ${isActive ? "text-white" : "text-slate-400"}`} />
+                  <item.icon className={`w-[18px] h-[18px] shrink-0 ${isActive ? "text-white" : "text-slate-400 dark:text-slate-500"}`} />
                   <span className="block text-[13px] truncate">{item.label}</span>
                 </Link>
               );
@@ -193,26 +201,27 @@ export default function Menu({ userRole, isClassTeacher = false, permissions = [
         )}
 
         <div className="flex flex-col gap-1">
-          <span className="block text-slate-400 font-bold mb-1 px-2 text-[10px] tracking-widest uppercase">
+          <span className="block text-slate-400 dark:text-slate-500 font-bold mb-1 px-2 text-[10px] tracking-widest uppercase">
             User
           </span>
           <Link
             to="/staff-dashboard/profile"
             title="Profile"
+            style={location.pathname === '/staff-dashboard/profile' ? { backgroundColor: accent } : undefined}
             className={`relative flex items-center justify-start gap-3 py-2.5 px-2 lg:px-3 rounded-xl transition-all duration-150 ${
               location.pathname === '/staff-dashboard/profile'
-                ? "bg-blue-600 text-white font-semibold shadow-sm shadow-blue-200"
-                : "text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                ? "text-white font-semibold shadow-sm shadow-blue-200 dark:shadow-none"
+                : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-200"
             }`}
           >
-            <User className={`w-[18px] h-[18px] shrink-0 ${location.pathname === '/staff-dashboard/profile' ? "text-white" : "text-slate-400"}`} />
+            <User className={`w-[18px] h-[18px] shrink-0 ${location.pathname === '/staff-dashboard/profile' ? "text-white" : "text-slate-400 dark:text-slate-500"}`} />
             <span className="block text-[13px]">Profile</span>
           </Link>
           <a
             href="http://localhost:8000/logout/"
             title="Logout"
             onClick={clearActivity}
-            className="group flex items-center justify-start gap-3 py-2.5 px-2 lg:px-3 rounded-xl transition-colors text-red-500 hover:bg-red-50 hover:text-red-700 font-medium"
+            className="group flex items-center justify-start gap-3 py-2.5 px-2 lg:px-3 rounded-xl transition-colors text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-700 dark:hover:text-red-300 font-medium"
           >
             <LogOut className="w-[18px] h-[18px] shrink-0" />
             <span className="block text-[13px]">Logout</span>
@@ -221,6 +230,8 @@ export default function Menu({ userRole, isClassTeacher = false, permissions = [
       </div>
     );
   }
+
+  const accent = ROLE_ACCENTS[userRole] ?? '#2563EB';
 
   return (
     <div className="mt-2 text-sm pb-8 flex flex-col gap-6">
@@ -231,6 +242,7 @@ export default function Menu({ userRole, isClassTeacher = false, permissions = [
         const visibleItems = section.items.filter(item =>
           item.visible.includes(userRole) &&
           !(item.requiresClassTeacher && userRole === 'teacher' && !isClassTeacher) &&
+          !(item.requiresPathwayChoice && userRole === 'student' && !requiresPathwayChoice) &&
           (!item.requiredPermission || permissions.includes(item.requiredPermission))
         );
 
@@ -239,7 +251,7 @@ export default function Menu({ userRole, isClassTeacher = false, permissions = [
 
         return (
           <div className="flex flex-col gap-1" key={section.title}>
-            <span className="block text-slate-400 font-bold mb-1 px-2 text-[10px] tracking-widest uppercase">
+            <span className="block text-slate-400 dark:text-slate-500 font-bold mb-1 px-2 text-[10px] tracking-widest uppercase">
               {section.title}
             </span>
             {visibleItems.map((item) => {
@@ -252,7 +264,7 @@ export default function Menu({ userRole, isClassTeacher = false, permissions = [
                     key={item.label}
                     title={item.label}
                     onClick={clearActivity}
-                    className="group flex items-center justify-start gap-3 py-2.5 px-2 lg:px-3 rounded-xl transition-colors text-red-500 hover:bg-red-50 hover:text-red-700 font-medium"
+                    className="group flex items-center justify-start gap-3 py-2.5 px-2 lg:px-3 rounded-xl transition-colors text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-700 dark:hover:text-red-300 font-medium"
                   >
                     <item.icon className="w-[18px] h-[18px] shrink-0" />
                     <span className="block text-[13px]">{item.label}</span>
@@ -274,13 +286,14 @@ export default function Menu({ userRole, isClassTeacher = false, permissions = [
                   to={dynamicHref}
                   key={item.label}
                   title={item.label}
+                  style={isActive ? { backgroundColor: accent } : undefined}
                   className={`relative flex items-center justify-start gap-3 py-2.5 px-2 lg:px-3 rounded-xl transition-all duration-150 ${
                     isActive
-                      ? "bg-blue-600 text-white font-semibold shadow-sm shadow-blue-200"
-                      : "text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                      ? "text-white font-semibold shadow-sm shadow-blue-200 dark:shadow-none"
+                      : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-200"
                   }`}
                 >
-                  <IconComponent className={`w-[18px] h-[18px] shrink-0 ${isActive ? "text-white" : "text-slate-400 group-hover:text-slate-600"}`} />
+                  <IconComponent className={`w-[18px] h-[18px] shrink-0 ${isActive ? "text-white" : "text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300"}`} />
                   <span className="block text-[13px] truncate">{item.label}</span>
                 </Link>
               );

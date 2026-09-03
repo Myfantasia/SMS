@@ -2,7 +2,8 @@ from django import forms
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
-from school import models
+from apps.identity.models import StudentExtra, ParentExtra
+from apps.academics.models import ClassStream
 
 
 def _validate_signup_password(form, cleaned, password_field='password', password2_field='password2'):
@@ -93,7 +94,7 @@ class StudentUserForm(forms.ModelForm):
 
 class StudentExtraForm(forms.ModelForm):
     cl = forms.ModelChoiceField(
-        queryset=models.ClassStream.objects.all().order_by('grade__numeric_order', 'name'),
+        queryset=ClassStream.objects.all().order_by('grade__numeric_order', 'name'),
         empty_label="--- Select Your Class / Stream ---",
         label="Class / Stream"
     )
@@ -104,11 +105,11 @@ class StudentExtraForm(forms.ModelForm):
     # guardian_name below are, and StudentExtra.refresh_parent_summary() derives the
     # legacy parent_name/parent_mobile summary from whichever of them got filled in.
     family_structure = forms.ChoiceField(
-        choices=models.StudentExtra.FAMILY_STRUCTURE_CHOICES,
+        choices=StudentExtra.FAMILY_STRUCTURE_CHOICES,
         label="Family Structure",
     )
     single_parent_type = forms.ChoiceField(
-        choices=models.StudentExtra.SINGLE_PARENT_CHOICES,
+        choices=StudentExtra.SINGLE_PARENT_CHOICES,
         required=False,
         label="This parent is the child's",
     )
@@ -122,7 +123,7 @@ class StudentExtraForm(forms.ModelForm):
                                              help_text="e.g. Aunt, Grandfather, Family Friend")
 
     class Meta:
-        model = models.StudentExtra
+        model = StudentExtra
         fields = [
             'cl', 'mobile', 'address', 'profile_pic',
             'family_structure', 'single_parent_type',
@@ -208,7 +209,7 @@ class ParentExtraForm(forms.ModelForm):
     selected_student_ids = forms.CharField(widget=forms.HiddenInput(), required=True)
 
     class Meta:
-        model = models.ParentExtra
+        model = ParentExtra
         # Only 'mobile' and 'relationship' are taken from the form directly.
         # 'user' and 'status' are set in views.py; 'students' comes from selected_student_ids.
         fields = ['mobile', 'relationship']
@@ -226,7 +227,7 @@ class ParentExtraForm(forms.ModelForm):
         if not ids:
             raise forms.ValidationError("Search for your child above and select them from the results.")
 
-        students = list(models.StudentExtra.objects.filter(id__in=ids))
+        students = list(StudentExtra.objects.filter(id__in=ids))
         if len(students) != len(set(ids)):
             raise forms.ValidationError("One or more selected students could not be found — please search and select again.")
 

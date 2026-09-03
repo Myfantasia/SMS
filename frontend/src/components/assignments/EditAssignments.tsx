@@ -221,10 +221,10 @@ export default function EditAssignment({ role }: EditAssignmentProps) {
   if (!initialFetchDone) {
     return (
       <div className="max-w-5xl mx-auto space-y-6 animate-pulse">
-        <div className="h-14 bg-slate-200 rounded-2xl"></div>
-        <div className="h-40 bg-slate-200 rounded-2xl"></div>
-        <div className="h-56 bg-slate-200 rounded-2xl"></div>
-        <div className="h-40 bg-slate-200 rounded-2xl"></div>
+        <div className="h-14 bg-slate-200 dark:bg-slate-800 rounded-2xl"></div>
+        <div className="h-40 bg-slate-200 dark:bg-slate-800 rounded-2xl"></div>
+        <div className="h-56 bg-slate-200 dark:bg-slate-800 rounded-2xl"></div>
+        <div className="h-40 bg-slate-200 dark:bg-slate-800 rounded-2xl"></div>
       </div>
     );
   }
@@ -239,35 +239,35 @@ export default function EditAssignment({ role }: EditAssignmentProps) {
             onClick={() => navigate('..')}
             aria-label="Go back"
             title="Go back"
-            className="p-2 bg-white border border-slate-200 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-50 transition-colors"
+            className="p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <div className="p-2.5 rounded-2xl text-amber-600 bg-amber-50">
+          <div className="p-2.5 rounded-2xl text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10">
             <ListPlus className="w-6 h-6" strokeWidth={2.5} />
           </div>
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-slate-800">Edit Assignment</h1>
+              <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Edit Assignment</h1>
               {isPublishedMode && (
-                <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 text-xs font-semibold rounded-md border border-emerald-200 flex items-center gap-1">
+                <span className="px-2.5 py-1 bg-emerald-100 dark:bg-emerald-500/10 text-emerald-800 dark:text-emerald-400 text-xs font-semibold rounded-md border border-emerald-200 dark:border-emerald-500/40 flex items-center gap-1">
                   <Lock className="w-3 h-3" /> Live (Limited Editing)
                 </span>
               )}
             </div>
-            <p className="text-sm text-slate-500">Update details or extend deadlines.</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Update details or extend deadlines.</p>
           </div>
         </div>
-        
+
         <div className="flex gap-3">
           {/* Only show "Save Draft" if it isn't already published */}
           {!isPublishedMode && (
-            <button 
+            <button
               onClick={(e) => handleSubmit(e, true)}
               disabled={loading}
               aria-label="Save draft"
               title="Save draft"
-              className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors disabled:opacity-50"
+              className="px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
             >
               Save Draft
             </button>
@@ -287,10 +287,10 @@ export default function EditAssignment({ role }: EditAssignmentProps) {
         
         {/* 2. ADMIN ONLY: Impersonation Block (Disabled if published to prevent ownership breaking) */}
         {role === 'admin' && (
-          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5">
+          <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/40 rounded-2xl p-5">
             <div className="flex items-center gap-2 mb-3">
-              <UserSquare2 className="w-5 h-5 text-amber-600" />
-              <h3 className="font-semibold text-amber-800">Admin Override: Assigned Teacher</h3>
+              <UserSquare2 className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+              <h3 className="font-semibold text-amber-800 dark:text-amber-300">Admin Override: Assigned Teacher</h3>
             </div>
             <div className="w-full md:w-1/2">
               <SearchableSelect
@@ -310,24 +310,24 @@ export default function EditAssignment({ role }: EditAssignmentProps) {
         )}
 
         {/* 3. Basic Details Card */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-5">
-          <h3 className="text-lg font-semibold text-slate-800 border-b border-slate-100 pb-3">General Information</h3>
-          
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm dark:shadow-none border border-slate-100 dark:border-slate-700 space-y-5">
+          <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 border-b border-slate-100 dark:border-slate-700 pb-3">General Information</h3>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-slate-700 mb-1">Assignment Title <span className="text-red-500">*</span></label>
-              <input 
-                type="text" 
-                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none transition-all focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">Assignment Title <span className="text-red-500">*</span></label>
+              <input
+                type="text"
+                className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none transition-all focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-400"
                 value={assignment.title || ''}
                 onChange={(e) => handleAssignmentChange('title', e.target.value)}
               />
             </div>
 
             <div>
-              <label htmlFor="class-stream" className="flex text-sm font-medium text-slate-700 mb-1 justify-between">
+              <label htmlFor="class-stream" className="flex text-sm font-medium text-slate-700 dark:text-slate-200 mb-1 justify-between">
                 <span>Class Stream <span className="text-red-500">*</span></span>
-                {isPublishedMode && <Lock className="w-4 h-4 text-slate-400" />}
+                {isPublishedMode && <Lock className="w-4 h-4 text-slate-400 dark:text-slate-500" />}
               </label>
               <SearchableSelect
                 id="class-stream"
@@ -348,9 +348,9 @@ export default function EditAssignment({ role }: EditAssignmentProps) {
             </div>
 
             <div>
-              <label className="flex text-sm font-medium text-slate-700 mb-1 justify-between">
+              <label className="flex text-sm font-medium text-slate-700 dark:text-slate-200 mb-1 justify-between">
                 <span>Subject <span className="text-red-500">*</span></span>
-                {isPublishedMode && <Lock className="w-4 h-4 text-slate-400" />}
+                {isPublishedMode && <Lock className="w-4 h-4 text-slate-400 dark:text-slate-500" />}
               </label>
               <SearchableSelect
                 aria-label="Subject"
@@ -366,18 +366,18 @@ export default function EditAssignment({ role }: EditAssignmentProps) {
         </div>
 
         {/* 4. Curriculum Type */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-5">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-            <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
-              Curriculum Mapping 
-              {isPublishedMode && <Lock className="w-4 h-4 text-slate-400" />}
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm dark:shadow-none border border-slate-100 dark:border-slate-700 space-y-5">
+          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 pb-3">
+            <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+              Curriculum Mapping
+              {isPublishedMode && <Lock className="w-4 h-4 text-slate-400 dark:text-slate-500" />}
             </h3>
-            <div className={`flex p-1 rounded-lg ${isPublishedMode ? 'bg-slate-50 opacity-50 pointer-events-none' : 'bg-slate-100'}`}>
+            <div className={`flex p-1 rounded-lg ${isPublishedMode ? 'bg-slate-50 dark:bg-slate-800/40 opacity-50 pointer-events-none' : 'bg-slate-100 dark:bg-slate-800'}`}>
               <button
                 type="button"
                 onClick={() => handleAssignmentChange('curriculum_type', 'CBC')}
                 aria-pressed={assignment.curriculum_type === 'CBC'}
-                className={`px-3 py-1 text-sm font-medium rounded-md transition-all ${assignment.curriculum_type === 'CBC' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                className={`px-3 py-1 text-sm font-medium rounded-md transition-all ${assignment.curriculum_type === 'CBC' ? 'bg-white dark:bg-slate-700 text-blue-700 dark:text-blue-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
               >
                 CBC
               </button>
@@ -385,7 +385,7 @@ export default function EditAssignment({ role }: EditAssignmentProps) {
                 type="button"
                 onClick={() => handleAssignmentChange('curriculum_type', '8-4-4')}
                 aria-pressed={assignment.curriculum_type === '8-4-4'}
-                className={`px-3 py-1 text-sm font-medium rounded-md transition-all ${assignment.curriculum_type === '8-4-4' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                className={`px-3 py-1 text-sm font-medium rounded-md transition-all ${assignment.curriculum_type === '8-4-4' ? 'bg-white dark:bg-slate-700 text-blue-700 dark:text-blue-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
               >
                 8-4-4
               </button>
@@ -395,10 +395,10 @@ export default function EditAssignment({ role }: EditAssignmentProps) {
           {assignment.curriculum_type === 'CBC' ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Curriculum Strand</label>
-                <input 
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">Curriculum Strand</label>
+                <input
                   type="text"
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none disabled:opacity-50 disabled:bg-slate-100"
+                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none disabled:opacity-50 disabled:bg-slate-100 dark:disabled:bg-slate-800"
                   value={(assignment as any).strand_name || ''}
                   onChange={(e) => handleAssignmentChange('strand_name', e.target.value)}
                   disabled={isPublishedMode}
@@ -406,7 +406,7 @@ export default function EditAssignment({ role }: EditAssignmentProps) {
               </div>
             </div>
           ) : (
-            <div className="text-sm text-slate-500 py-2 flex items-center gap-2">
+            <div className="text-sm text-slate-500 dark:text-slate-400 py-2 flex items-center gap-2">
               <BookOpen className="w-4 h-4" />
               Standard 8-4-4 Curriculum selected. No strand mapping required.
             </div>
@@ -414,32 +414,32 @@ export default function EditAssignment({ role }: EditAssignmentProps) {
         </div>
 
         {/* 5. Schedule & Timers (Always Editable so Teachers can extend deadlines) */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-5">
-          <h3 className="text-lg font-semibold text-slate-800 border-b border-slate-100 pb-3">Schedule & Deadlines</h3>
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm dark:shadow-none border border-slate-100 dark:border-slate-700 space-y-5">
+          <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 border-b border-slate-100 dark:border-slate-700 pb-3">Schedule & Deadlines</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Publish Date</label>
-              <input 
-                type="datetime-local" 
-                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:bg-white"
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">Publish Date</label>
+              <input
+                type="datetime-local"
+                className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:bg-white dark:focus:bg-slate-800"
                 value={assignment.publish_date || ''}
                 onChange={(e) => handleAssignmentChange('publish_date', e.target.value)}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Due Date</label>
-              <input 
-                type="datetime-local" 
-                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:bg-white"
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">Due Date</label>
+              <input
+                type="datetime-local"
+                className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:bg-white dark:focus:bg-slate-800"
                 value={assignment.due_date || ''}
                 onChange={(e) => handleAssignmentChange('due_date', e.target.value)}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Cutoff Date</label>
-              <input 
-                type="datetime-local" 
-                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:bg-white"
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">Cutoff Date</label>
+              <input
+                type="datetime-local"
+                className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none focus:bg-white dark:focus:bg-slate-800"
                 value={assignment.cutoff_date || ''}
                 onChange={(e) => handleAssignmentChange('cutoff_date', e.target.value)}
               />
@@ -456,12 +456,12 @@ export default function EditAssignment({ role }: EditAssignmentProps) {
         />
 
         {/* 6. Content Mode Toggle */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-5 relative">
-          <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-             <h3 className="text-lg font-semibold text-slate-800">Assignment Content</h3>
-             {isPublishedMode && <span className="text-xs text-red-500 font-medium">Content is locked for live assignments</span>}
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm dark:shadow-none border border-slate-100 dark:border-slate-700 space-y-5 relative">
+          <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-700 pb-3">
+             <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Assignment Content</h3>
+             {isPublishedMode && <span className="text-xs text-red-500 dark:text-red-400 font-medium">Content is locked for live assignments</span>}
           </div>
-          
+
           <div className="grid grid-cols-2 gap-4">
             <button
               type="button"
@@ -469,7 +469,7 @@ export default function EditAssignment({ role }: EditAssignmentProps) {
               disabled={isPublishedMode} // Lock the toggle if published
               aria-pressed={uploadMode}
               className={`p-4 rounded-xl border-2 flex flex-col items-center justify-center gap-2 transition-all
-                ${uploadMode ? 'border-blue-600 bg-blue-50/50 text-blue-700' : 'border-slate-200 bg-white text-slate-500'}
+                ${uploadMode ? 'border-blue-600 dark:border-blue-500 bg-blue-50/50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400'}
                 ${isPublishedMode && !uploadMode ? 'opacity-40 cursor-not-allowed' : ''}
               `}
             >
@@ -483,7 +483,7 @@ export default function EditAssignment({ role }: EditAssignmentProps) {
               disabled={isPublishedMode} // Lock the toggle if published
               aria-pressed={!uploadMode}
               className={`p-4 rounded-xl border-2 flex flex-col items-center justify-center gap-2 transition-all
-                ${!uploadMode ? 'border-blue-600 bg-blue-50/50 text-blue-700' : 'border-slate-200 bg-white text-slate-500'}
+                ${!uploadMode ? 'border-blue-600 dark:border-blue-500 bg-blue-50/50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400'}
                 ${isPublishedMode && uploadMode ? 'opacity-40 cursor-not-allowed' : ''}
               `}
             >
@@ -498,47 +498,47 @@ export default function EditAssignment({ role }: EditAssignmentProps) {
                 onDragOver={(e) => { e.preventDefault(); if (!isPublishedMode) setIsDraggingFile(true); }}
                 onDragLeave={() => setIsDraggingFile(false)}
                 onDrop={handleFileDrop}
-                className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${isPublishedMode ? 'opacity-70 pointer-events-none border-slate-300 bg-slate-50' : isDraggingFile ? 'border-blue-400 bg-blue-50 cursor-pointer' : 'border-slate-300 bg-slate-50 hover:bg-slate-100 cursor-pointer'}`}
+                className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${isPublishedMode ? 'opacity-70 pointer-events-none border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800' : isDraggingFile ? 'border-blue-400 dark:border-blue-500 bg-blue-50 dark:bg-blue-500/10 cursor-pointer' : 'border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer'}`}
               >
                 <input
-                  type="file" 
-                  id="file-upload" 
-                  className="hidden" 
+                  type="file"
+                  id="file-upload"
+                  className="hidden"
                   onChange={handleFileChange}
                   accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
                   disabled={isPublishedMode}
                 />
                 <label htmlFor="file-upload" className={isPublishedMode ? "cursor-default flex flex-col items-center gap-3" : "cursor-pointer flex flex-col items-center gap-3"}>
-                  <div className="p-3 bg-white shadow-sm rounded-full">
-                    <UploadCloud className="w-6 h-6 text-blue-600" />
+                  <div className="p-3 bg-white dark:bg-slate-900 shadow-sm dark:shadow-none rounded-full">
+                    <UploadCloud className="w-6 h-6 text-blue-600 dark:text-blue-400" />
                   </div>
                   <div>
-                    <p className="font-medium text-slate-700">Click to browse or drag and drop</p>
+                    <p className="font-medium text-slate-700 dark:text-slate-200">Click to browse or drag and drop</p>
                   </div>
                   {/* Show existing file from backend string, OR newly attached File object */}
                   {assignment.teacher_attachment && (
-                    <div className="mt-4 px-4 py-2 bg-emerald-50 text-emerald-700 rounded-lg text-sm font-medium border border-emerald-200">
+                    <div className="mt-4 px-4 py-2 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded-lg text-sm font-medium border border-emerald-200 dark:border-emerald-500/40">
                       File attached: {typeof assignment.teacher_attachment === 'string' ? 'Current Master Document' : (assignment.teacher_attachment as File).name}
                     </div>
                   )}
                 </label>
               </div>
             ) : (
-              <div className="border border-slate-200 rounded-xl p-8 text-center bg-slate-50 flex flex-col items-center justify-center">
-                <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-4">
+              <div className="border border-slate-200 dark:border-slate-700 rounded-xl p-8 text-center bg-slate-50 dark:bg-slate-800 flex flex-col items-center justify-center">
+                <div className="w-16 h-16 bg-blue-100 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center mb-4">
                   <span className="text-2xl font-bold">{questions.length}</span>
                 </div>
-                <h4 className="text-lg font-semibold text-slate-800 mb-1">Questions Prepared</h4>
+                <h4 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-1">Questions Prepared</h4>
                 {!isPublishedMode ? (
-                   <button 
-                     type="button" 
+                   <button
+                     type="button"
                      onClick={() => setIsQuestionModalOpen(true)}
-                     className="inline-flex items-center gap-2 px-6 py-3 mt-4 bg-white border border-slate-300 rounded-lg font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 transition-all shadow-sm"
+                     className="inline-flex items-center gap-2 px-6 py-3 mt-4 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg font-medium text-slate-700 dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-blue-500/10 hover:text-blue-700 dark:hover:text-blue-400 hover:border-blue-200 dark:hover:border-blue-500/40 transition-all shadow-sm dark:shadow-none"
                    >
                      <ListPlus className="w-5 h-5" /> Edit Questions
                    </button>
                 ) : (
-                   <div className="text-sm text-amber-600 bg-amber-50 px-4 py-2 rounded-lg border border-amber-200 mt-2 flex items-center gap-2">
+                   <div className="text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 px-4 py-2 rounded-lg border border-amber-200 dark:border-amber-500/40 mt-2 flex items-center gap-2">
                      <Lock className="w-4 h-4" /> Editing questions on a published assignment is disabled to protect student grades.
                    </div>
                 )}
@@ -551,34 +551,34 @@ export default function EditAssignment({ role }: EditAssignmentProps) {
       {/* --- The Question Builder Modal Overlay --- */}
       {isQuestionModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 sm:p-6 animate-in fade-in duration-200">
-          <div className="bg-slate-50 w-full max-w-5xl max-h-[95vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="bg-white px-6 py-4 border-b border-slate-200 flex items-center justify-between shrink-0">
+          <div className="bg-slate-50 dark:bg-slate-800/40 w-full max-w-5xl max-h-[95vh] rounded-2xl shadow-2xl dark:shadow-none flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 border border-transparent dark:border-slate-700">
+            <div className="bg-white dark:bg-slate-900 px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><ListPlus className="w-5 h-5" /></div>
+                <div className="p-2 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-lg"><ListPlus className="w-5 h-5" /></div>
                 <div>
-                  <h2 className="text-xl font-bold text-slate-800">Question Builder</h2>
-                  <p className="text-xs text-slate-500">Edit and arrange questions.</p>
+                  <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">Question Builder</h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Edit and arrange questions.</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setIsQuestionModalOpen(false)}
-                className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg"
+                className="p-2 text-slate-400 dark:text-slate-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg"
                 title="Close Question Builder"
                 aria-label="Close Question Builder"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
-            
+
             <div className="p-6 overflow-y-auto flex-1">
               <QuestionBuilder questions={questions} setQuestions={setQuestions} />
             </div>
 
-            <div className="bg-white px-6 py-4 border-t border-slate-200 flex justify-end gap-3 shrink-0">
-              <button 
+            <div className="bg-white dark:bg-slate-900 px-6 py-4 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3 shrink-0">
+              <button
                 type="button"
-                onClick={() => setIsQuestionModalOpen(false)} 
+                onClick={() => setIsQuestionModalOpen(false)}
                 className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm"
               >
                 Save & Close Builder

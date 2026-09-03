@@ -89,20 +89,20 @@ export default function NoticesHub({ role }: NoticesHubProps) {
     <div className="max-w-5xl mx-auto">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div className="flex items-center gap-4">
-          <div className="p-3 rounded-2xl text-blue-600 bg-blue-50">
+          <div className="p-3 rounded-2xl text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10">
             <Megaphone className="w-7 h-7" strokeWidth={2.5} />
           </div>
           <div>
-            <h1 className="text-2xl font-extrabold text-slate-800">Digital Noticeboard</h1>
-            <p className="text-slate-500 text-sm mt-0.5">Broadcast announcements and attach downloadable resources.</p>
+            <h1 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100">Digital Noticeboard</h1>
+            <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5">Broadcast announcements and attach downloadable resources.</p>
           </div>
         </div>
 
         {/* Only Admins can post notices; teachers, students and parents are view-only */}
         {role === 'admin' && (
-          <button 
+          <button
             onClick={handleOpenNewModal}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-all shadow-sm"
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-all shadow-sm dark:shadow-none"
           >
             <Plus className="w-4 h-4" /> Post Notice
           </button>
@@ -111,7 +111,7 @@ export default function NoticesHub({ role }: NoticesHubProps) {
 
       {isLoading ? (
         <div className="flex justify-center items-center py-20">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+          <Loader2 className="w-8 h-8 animate-spin text-blue-500 dark:text-blue-400" />
         </div>
       ) : (
         <>
@@ -126,7 +126,7 @@ export default function NoticesHub({ role }: NoticesHubProps) {
               <button
                 onClick={loadMoreNotices}
                 disabled={isLoadingMore}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-all disabled:opacity-60"
+                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-all disabled:opacity-60"
               >
                 {isLoadingMore && <Loader2 className="w-4 h-4 animate-spin" />}
                 {isLoadingMore ? 'Loading...' : 'Load more'}
@@ -137,9 +137,9 @@ export default function NoticesHub({ role }: NoticesHubProps) {
       )}
 
       {/* The form modal for creating or editing notices */}
-      <NoticeFormModal 
-        isOpen={isModalOpen} 
-        onClose={handleCloseModal} 
+      <NoticeFormModal
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
         onSuccess={fetchNotices}
         initialData={editingNotice} // Passed down to populate the form
       />

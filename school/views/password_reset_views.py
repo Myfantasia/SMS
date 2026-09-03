@@ -1,47 +1,34 @@
 """
-Hardened password reset flow + an admin-triggered reset for accounts that can't use
-self-service reset yet (currently: students, whose signup email is an auto-generated
-@student.myfantasia.com address with no real inbox behind it — not a limitation of
-this flow itself, just of student email addresses today. Once those become real,
-the same self-service reset below will start working for them with no changes needed).
+Admin-triggered password reset for accounts that can't use self-service reset yet
+(currently: students, whose signup email is an auto-generated @student.myfantasia.com
+address with no real inbox behind it — not a limitation of the self-service flow
+itself, just of student email addresses today. Once those become real, the self-service
+flow in school/views/public_api_views.py -- api_password_reset_request/
+api_password_reset_confirm -- starts working for them with no changes needed).
 
 Resetting someone else's password is admin-only (api_admin_reset_user_password) and
 deliberately can't target another admin account — every other role only ever changes
 their own password via their own "My Profile" self-service form.
+
+The self-service "forgot password" flow used to live in this file as
+RateLimitedPasswordResetView/NotifyingPasswordResetConfirmView (Django's server-rendered
+auth views) -- removed when the public pages moved to React; see
+school/views/public_api_views.py's api_password_reset_request/api_password_reset_confirm
+for its JSON-API replacement (a separate, self-contained token/throttle implementation --
+it doesn't reuse anything in this file, since it lets the user set their own chosen
+password rather than generating one, unlike _reset_password_and_notify below).
 """
 import json
 import secrets
 
 from django.conf import settings
-from django.contrib.auth import views as auth_views
-from django.contrib.auth.models import User
-from django.core.cache import cache
 from django.core.mail import send_mail
 from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
 
-from school.models.models import TeacherExtra, StudentExtra, ParentExtra, StaffExtra, ForcedPasswordChange
-from school.models.classSubjects_models import SystemAuditLog
+from apps.identity.models import TeacherExtra, StudentExtra, ParentExtra, StaffExtra, ForcedPasswordChange
+from apps.core.services import write_audit_log
 from school.decorators import require_permission
 from school.permissions import api_login_required
-
-# Deliberately generous — this throttles abuse (spamming a target's inbox, or probing
-# many emails to fingerprint which ones exist via response timing), not normal use.
-# It never changes what the requester sees: the "check your email" page renders
-# identically whether the request was throttled, the email didn't match an account,
-# or a real email actually went out — so a rate-limited request leaks nothing.
-MAX_REQUESTS_PER_IP_PER_HOUR = 5
-MAX_REQUESTS_PER_EMAIL_PER_HOUR = 3
-
-# The initial "forgot password" page is shared by every role's login screen, so the
-# "Back to Login" link has to know which one sent the visitor here (?role=... on the
-# link, see admin/teacher/parentlogin.html) rather than hardcoding one role's login URL.
-ROLE_LOGIN_URLS = {
-    'admin': '/adminlogin',
-    'teacher': '/teacherlogin/',
-    'parent': '/parentlogin',
-    'staff': '/stafflogin/',
-}
 
 
 def _client_ip(request):
@@ -88,61 +75,6 @@ def _reset_password_and_notify(user, actor_description):
     return new_password, email_sent
 
 
-class RateLimitedPasswordResetView(auth_views.PasswordResetView):
-    """Same as Django's PasswordResetView, except over-threshold requests are
-    silently dropped (no email sent) while still rendering the normal success page,
-    so throttling itself can't be used to enumerate accounts either."""
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['login_url'] = ROLE_LOGIN_URLS.get(self.request.GET.get('role'), '/')
-        return context
-
-    def form_valid(self, form):
-        ip_key = f'pwreset:ip:{_client_ip(self.request)}'
-        email_key = f'pwreset:email:{form.cleaned_data.get("email", "").strip().lower()}'
-
-        ip_count = cache.get(ip_key, 0)
-        email_count = cache.get(email_key, 0)
-
-        if ip_count >= MAX_REQUESTS_PER_IP_PER_HOUR or email_count >= MAX_REQUESTS_PER_EMAIL_PER_HOUR:
-            return super(auth_views.PasswordResetView, self).form_valid(form)  # skip save(), just redirect to done
-
-        cache.set(ip_key, ip_count + 1, 60 * 60)
-        cache.set(email_key, email_count + 1, 60 * 60)
-        return super().form_valid(form)
-
-
-class NotifyingPasswordResetConfirmView(auth_views.PasswordResetConfirmView):
-    """Same as Django's PasswordResetConfirmView, but emails the account owner a
-    heads-up whenever their password is actually changed through this flow, so a
-    reset they didn't request doesn't go unnoticed."""
-
-    def form_valid(self, form):
-        response = super().form_valid(form)
-        user = getattr(self, 'user', None)
-        if user is not None and user.email:
-            try:
-                send_mail(
-                    subject='Your MyFantasia password was changed',
-                    message=(
-                        f"Hi {user.first_name or user.username},\n\n"
-                        "Your MyFantasia account password was just changed using the "
-                        "\"Forgot password\" link.\n\n"
-                        "If this was you, no action is needed. If it wasn't, contact the "
-                        "school administration immediately — someone else may have access "
-                        "to your account.\n\n"
-                        "— MyFantasia"
-                    ),
-                    from_email=settings.DEFAULT_FROM_EMAIL,
-                    recipient_list=[user.email],
-                    fail_silently=True,
-                )
-            except Exception:
-                pass
-        return response
-
-
 _ROLE_MODELS = {
     'students': StudentExtra,
     'teachers': TeacherExtra,
@@ -151,7 +83,6 @@ _ROLE_MODELS = {
 }
 
 
-@csrf_exempt
 @api_login_required
 @require_permission('users.reset_password')
 def api_admin_reset_user_password(request):
@@ -184,8 +115,8 @@ def api_admin_reset_user_password(request):
 
     new_password, email_sent = _reset_password_and_notify(extra.user, 'An administrator')
 
-    SystemAuditLog.objects.create(
-        operator=request.user, action_type='UPDATE', module='PasswordReset',
+    write_audit_log(
+        operator_id=request.user.id, action_type='UPDATE', module='PasswordReset',
         description=f"Admin reset password for {user_type[:-1]} account '{extra.user.username}'.",
         ip_address=_client_ip(request),
     )

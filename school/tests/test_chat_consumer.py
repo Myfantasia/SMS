@@ -6,7 +6,7 @@ from django.core.cache import cache
 from django.test import TransactionTestCase
 from django.utils import timezone
 
-from school.models.chat_models import ChatThread, ThreadParticipant, MessageAudit
+from apps.messaging.models import ChatThread, ThreadParticipant, MessageAudit
 from school.routing import websocket_urlpatterns
 
 # Tested directly against the URLRouter, bypassing AuthMiddlewareStack (which reads a

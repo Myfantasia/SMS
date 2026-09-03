@@ -81,26 +81,26 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, initialDat
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
-        <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
-          <h2 className="text-lg font-bold text-slate-800">
+      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-xl dark:shadow-none border border-transparent dark:border-slate-700 w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-800">
+          <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">
             {initialData ? 'Edit Leave Application' : 'Apply for Leave'}
           </h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
+          <button onClick={onClose} className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 overflow-y-auto flex-1 space-y-5">
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1">Leave Type *</label>
+            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Leave Type *</label>
             <div className="relative">
-              <Tag className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Tag className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
               <select
                 required
                 value={leaveType}
                 onChange={(e) => setLeaveType(e.target.value as LeaveType)}
-                className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-slate-700 appearance-none"
+                className="w-full pl-10 pr-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 outline-none bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 appearance-none"
               >
                 {LEAVE_TYPE_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -111,36 +111,36 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, initialDat
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1">Start Date *</label>
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Start Date *</label>
               <div className="relative">
-                <CalendarDays className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <CalendarDays className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
                 <input
                   required
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-slate-700"
+                  className="w-full pl-10 pr-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 outline-none bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200"
                 />
               </div>
             </div>
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1">End Date *</label>
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">End Date *</label>
               <div className="relative">
-                <CalendarDays className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <CalendarDays className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
                 <input
                   required
                   type="date"
                   value={endDate}
                   min={startDate || undefined}
                   onChange={(e) => setEndDate(e.target.value)}
-                  className="w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-slate-700"
+                  className="w-full pl-10 pr-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 outline-none bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200"
                 />
               </div>
             </div>
           </div>
 
           {durationDays > 0 && (
-            <div className={`flex items-start gap-2 text-xs font-semibold px-3 py-2.5 rounded-lg border ${isLongTerm ? 'bg-purple-50 text-purple-700 border-purple-100' : 'bg-blue-50 text-blue-700 border-blue-100'}`}>
+            <div className={`flex items-start gap-2 text-xs font-semibold px-3 py-2.5 rounded-lg border ${isLongTerm ? 'bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-100 dark:border-purple-500/20' : 'bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-100 dark:border-blue-500/20'}`}>
               <Info className="w-4 h-4 mt-0.5 shrink-0" />
               <span>
                 {durationDays} day{durationDays === 1 ? '' : 's'} requested.
@@ -150,31 +150,31 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, initialDat
           )}
 
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1">Reason (optional)</label>
+            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Reason (optional)</label>
             <div className="relative">
-              <AlignLeft className="w-5 h-5 absolute left-3 top-3 text-slate-400" />
+              <AlignLeft className="w-5 h-5 absolute left-3 top-3 text-slate-400 dark:text-slate-500" />
               <textarea
                 rows={4}
                 placeholder="Add any context for the admin reviewing this request..."
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none text-slate-700"
+                className="w-full pl-10 pr-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 outline-none resize-none bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200"
               />
             </div>
           </div>
 
-          <div className="pt-2 border-t border-slate-200 flex justify-end gap-3">
+          <div className="pt-2 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
             <button
               type="button"
               onClick={onClose}
-              className="px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+              className="px-5 py-2.5 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-5 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-70 shadow-sm"
+              className="px-5 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-70 shadow-sm dark:shadow-none"
             >
               {isSubmitting ? 'Submitting...' : (initialData ? 'Update Application' : 'Submit Application')}
             </button>

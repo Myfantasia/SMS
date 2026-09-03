@@ -8,7 +8,7 @@ import ActionButtons from './ActionButtons';
 import api from '../../libs/axiosInstance';
 
 // We will build this in Step 3
-import SplittingEngineModal from './SplittingEngineModal'; 
+import SplittingEngineModal from './SplittingEngineModal';
 
 const AllocationDashboard: React.FC = () => {
   // --- 1. THE STATE ---
@@ -21,7 +21,7 @@ const AllocationDashboard: React.FC = () => {
 
   const [matrixData, setMatrixData] = useState<MatrixRow[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  
+
   // NEW: State to track if the selected class is a virtual elective split
   const [isVirtualStream, setIsVirtualStream] = useState<boolean>(false);
 
@@ -58,7 +58,7 @@ const AllocationDashboard: React.FC = () => {
             year_id: yearId,
           }
         });
-        
+
         setMatrixData(response.data.matrix);
         // Capture the virtual flag from Django
         setIsVirtualStream(response.data.is_virtual || false);
@@ -76,14 +76,14 @@ const AllocationDashboard: React.FC = () => {
     };
 
     fetchMatrix();
-  }, [yearId, termId, classId, refreshKey]); 
+  }, [yearId, termId, classId, refreshKey]);
 
   // --- 3. STATE HANDLER ---
   const handleTeacherChange = (subjectId: number, teacherId: string | number) => {
-    setMatrixData(prevData => 
-      prevData.map(row => 
-        row.subject_id === subjectId 
-          ? { ...row, assigned_teacher_id: teacherId } 
+    setMatrixData(prevData =>
+      prevData.map(row =>
+        row.subject_id === subjectId
+          ? { ...row, assigned_teacher_id: teacherId }
           : row
       )
     );
@@ -96,18 +96,18 @@ const AllocationDashboard: React.FC = () => {
   // --- 4. RENDER ---
   return (
     <div>
-      <div className="max-w-7xl mx-auto bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        
+      <div className="max-w-7xl mx-auto bg-white dark:bg-slate-900 rounded-2xl shadow-sm dark:shadow-none border border-slate-200 dark:border-slate-700 overflow-hidden">
+
         {/* Header Section */}
-        <div className="px-6 py-5 flex items-center gap-4 border-b border-slate-100">
-          <div className="p-3 rounded-2xl text-indigo-600 bg-indigo-50 shrink-0">
+        <div className="px-6 py-5 flex items-center gap-4 border-b border-slate-100 dark:border-slate-700">
+          <div className="p-3 rounded-2xl text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 shrink-0">
             <ClipboardList className="w-6 h-6" strokeWidth={2.5} />
           </div>
           <div>
-            <h1 className="text-2xl font-extrabold text-slate-800">
+            <h1 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100">
               Subject Teacher Allocations
             </h1>
-            <p className="text-slate-500 text-sm mt-0.5">
+            <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5">
               Assign and manage staff teaching loads per class
             </p>
           </div>
@@ -148,11 +148,11 @@ const AllocationDashboard: React.FC = () => {
 
             {/* NEW: AMBER WARNING FOR VIRTUAL STREAMS */}
             {isVirtualStream && (
-              <div className="mb-6 flex items-start gap-3 bg-amber-50 border border-amber-200 p-4 rounded-xl shadow-sm">
-                <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <div className="mb-6 flex items-start gap-3 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/40 p-4 rounded-xl shadow-sm dark:shadow-none">
+                <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                 <div>
-                  <h4 className="text-sm font-bold text-amber-800">Virtual Elective Split Group</h4>
-                  <p className="text-sm text-amber-700 mt-1">
+                  <h4 className="text-sm font-bold text-amber-800 dark:text-amber-300">Virtual Elective Split Group</h4>
+                  <p className="text-sm text-amber-700 dark:text-amber-400 mt-1">
                     You are modifying an Elective Split Group. Changes saved here apply specifically to students enrolled in this elective section. Core subjects will not be shown.
                   </p>
                 </div>
@@ -160,11 +160,11 @@ const AllocationDashboard: React.FC = () => {
             )}
 
             {isPublished && (
-              <div className="mb-6 flex items-start gap-3 bg-emerald-50 border border-emerald-200 p-4 rounded-xl shadow-sm">
-                <ClipboardList className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+              <div className="mb-6 flex items-start gap-3 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/40 p-4 rounded-xl shadow-sm dark:shadow-none">
+                <ClipboardList className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
                 <div>
-                  <h4 className="text-sm font-bold text-emerald-800">Published — Locked</h4>
-                  <p className="text-sm text-emerald-700 mt-1">
+                  <h4 className="text-sm font-bold text-emerald-800 dark:text-emerald-300">Published — Locked</h4>
+                  <p className="text-sm text-emerald-700 dark:text-emerald-400 mt-1">
                     This class's allocation is published. It's read-only until you unpublish it from the toolbar above.
                   </p>
                 </div>
@@ -173,11 +173,11 @@ const AllocationDashboard: React.FC = () => {
 
             {isLoading ? (
               <div className="flex flex-col items-center justify-center p-20 space-y-4">
-                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
-                <p className="text-slate-500 animate-pulse">Analyzing subject requirements...</p>
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 dark:border-blue-400"></div>
+                <p className="text-slate-500 dark:text-slate-400 animate-pulse">Analyzing subject requirements...</p>
               </div>
             ) : matrixData.length > 0 ? (
-               <div className="border border-slate-100 rounded-2xl overflow-hidden shadow-sm bg-white">
+               <div className="border border-slate-100 dark:border-slate-700 rounded-2xl overflow-hidden shadow-sm dark:shadow-none bg-white dark:bg-slate-900">
                  <MatrixTable
                     data={matrixData}
                     onTeacherChange={handleTeacherChange}
@@ -185,13 +185,13 @@ const AllocationDashboard: React.FC = () => {
                  />
                </div>
             ) : (
-              <div className="text-center py-20 px-6 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
+              <div className="text-center py-20 px-6 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl bg-slate-50/50 dark:bg-slate-800/40">
                 <div className="max-w-xs mx-auto space-y-3">
-                  <div className="bg-slate-200 w-12 h-12 rounded-full flex items-center justify-center mx-auto">
-                    <HelpCircle className="w-6 h-6 text-slate-500" />
+                  <div className="bg-slate-200 dark:bg-slate-700 w-12 h-12 rounded-full flex items-center justify-center mx-auto">
+                    <HelpCircle className="w-6 h-6 text-slate-500 dark:text-slate-400" />
                   </div>
-                  <h3 className="text-slate-700 font-semibold">No Class Selected</h3>
-                  <p className="text-slate-500 text-sm">
+                  <h3 className="text-slate-700 dark:text-slate-200 font-semibold">No Class Selected</h3>
+                  <p className="text-slate-500 dark:text-slate-400 text-sm">
                     Select an Academic Year, Term, and Class above to generate the teaching matrix.
                   </p>
                 </div>
@@ -199,17 +199,17 @@ const AllocationDashboard: React.FC = () => {
             )}
           </div>
         </div>
-        
+
       </div>
 
       {/* 3. THE SPLITTING ENGINE MODAL */}
       {isSplittingModalOpen && (
-        <SplittingEngineModal 
+        <SplittingEngineModal
           onClose={() => setIsSplittingModalOpen(false)}
           onSuccess={() => {
             setIsSplittingModalOpen(false);
             // This triggers ContextFilters to refetch and shows the new virtual classes instantly!
-            triggerRefresh(); 
+            triggerRefresh();
           }}
         />
       )}

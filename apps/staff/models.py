@@ -90,3 +90,68 @@ def _register_leave_trash():
 
 _register_leave_trash()
 
+
+class LongTermReliefAssignment(models.Model):
+    """
+    WORKLOAD SURROGATE CONSOLE:
+    Maps a relief teacher to take over all SubjectAllocation contracts
+    of an absent teacher during a long-term leave window.
+    """
+    absent_teacher = models.ForeignKey(
+        'identity.TeacherExtra', on_delete=models.CASCADE, related_name='relief_covers_needed'
+    )
+    relief_teacher = models.ForeignKey(
+        'identity.TeacherExtra', on_delete=models.CASCADE, related_name='relief_covers_provided'
+    )
+    associated_leave = models.OneToOneField(
+        TeacherLeave, on_delete=models.CASCADE, limit_choices_to={'status': 'Approved'},
+        help_text="Links directly to an approved long-term leave instance."
+    )
+    start_date = models.DateField()
+    end_date = models.DateField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'school_longtermreliefassignment'
+        unique_together = ('absent_teacher', 'start_date', 'end_date')
+
+    def clean(self):
+        if self.relief_teacher == self.absent_teacher:
+            raise ValidationError("Collision Guard: A teacher cannot act as a relief replacement for themselves.")
+
+        # Verify alignment with the linked leave window
+        if self.start_date < self.associated_leave.start_date or self.end_date > self.associated_leave.end_date:
+            raise ValidationError("Window Mismatch: Relief dates must fit within the approved leave duration.")
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"Relief: {self.relief_teacher.get_name()} taking over from {self.absent_teacher.get_name()}"
+
+
+class TeacherStructuralAvailability(models.Model):
+    """
+    MASTER GENERATION MATRIX:
+    Blocks out specific time slots where a teacher is permanently unavailable
+    (e.g., Administrative duties, Part-time schedules).
+    """
+    teacher = models.ForeignKey('identity.TeacherExtra', on_delete=models.CASCADE, related_name='unavailable_slots')
+    time_slot = models.ForeignKey('academics.TimeSlot', on_delete=models.CASCADE)
+
+    # Allows the admin to label WHY the teacher is blocked on the dashboard
+    reason = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text="e.g., 'HOD Meeting', 'Part-time off-day'"
+    )
+
+    class Meta:
+        db_table = 'school_teacherstructuralavailability'
+        # A teacher cannot be marked "unavailable" twice for the exact same time slot
+        unique_together = ('teacher', 'time_slot')
+
+    def __str__(self):
+        return f"{self.teacher.get_name} - Unavailable: {self.time_slot.day} {self.time_slot.start_time.strftime('%H:%M')}"

@@ -7,7 +7,7 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from school.models.models import AdminExtra
+from apps.identity.models import AdminExtra
 
 
 class AdminLoginRateLimitTests(TestCase):
@@ -18,25 +18,26 @@ class AdminLoginRateLimitTests(TestCase):
         Group.objects.get_or_create(name='ADMIN')[0].user_set.add(self.user)
 
     def test_correct_login_works_under_threshold(self):
-        response = self.client.post(reverse('adminlogin'), {
+        response = self.client.post(reverse('api_public_login_admin'), {
             'email': 'ada@hardening.test', 'password': 'correct-horse',
         })
-        # Not following the redirect further — afterlogin_view's own role-based
-        # routing is out of scope here.
-        self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.url, reverse('afterlogin'))
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data['status'], 'success')
+        self.assertEqual(data['destination'], 'dashboard')
 
     def test_repeated_wrong_passwords_eventually_locked_out(self):
         for _ in range(8):
-            self.client.post(reverse('adminlogin'), {
+            self.client.post(reverse('api_public_login_admin'), {
                 'email': 'ada@hardening.test', 'password': 'wrong-password',
             })
 
         # Even the CORRECT password is now rejected while the identifier is locked out.
-        response = self.client.post(reverse('adminlogin'), {
+        response = self.client.post(reverse('api_public_login_admin'), {
             'email': 'ada@hardening.test', 'password': 'correct-horse',
         })
-        self.assertEqual(response.status_code, 200)  # re-rendered login page, not a redirect
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()['status'], 'error')
         self.assertFalse(response.wsgi_request.user.is_authenticated)
 
     def test_lockout_is_per_identifier_not_global(self):
@@ -45,18 +46,18 @@ class AdminLoginRateLimitTests(TestCase):
         Group.objects.get_or_create(name='ADMIN')[0].user_set.add(other_user)
 
         for _ in range(8):
-            self.client.post(reverse('adminlogin'), {
+            self.client.post(reverse('api_public_login_admin'), {
                 'email': 'ada@hardening.test', 'password': 'wrong-password',
             })
 
         # A different identifier from the same client is unaffected.
-        response = self.client.post(reverse('adminlogin'), {
+        response = self.client.post(reverse('api_public_login_admin'), {
             'email': 'bob@hardening.test', 'password': 'correct-horse',
         })
-        # Not following the redirect further — afterlogin_view's own role-based
-        # routing is out of scope here.
-        self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.url, reverse('afterlogin'))
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data['status'], 'success')
+        self.assertEqual(data['destination'], 'dashboard')
 
 
 class TeacherStudentLoginRateLimitTests(TestCase):
@@ -66,10 +67,10 @@ class TeacherStudentLoginRateLimitTests(TestCase):
     def test_teacher_login_locks_out_after_repeated_failures(self):
         User.objects.create_user(username='t1', email='t1@hardening.test', password='correct-horse')
         for _ in range(8):
-            self.client.post(reverse('teacherlogin'), {
+            self.client.post(reverse('api_public_login_teacher'), {
                 'email': 't1@hardening.test', 'password': 'wrong',
             })
-        response = self.client.post(reverse('teacherlogin'), {
+        response = self.client.post(reverse('api_public_login_teacher'), {
             'email': 't1@hardening.test', 'password': 'correct-horse',
         })
         self.assertFalse(response.wsgi_request.user.is_authenticated)
@@ -77,10 +78,10 @@ class TeacherStudentLoginRateLimitTests(TestCase):
     def test_student_login_locks_out_after_repeated_failures(self):
         User.objects.create_user(username='s1', password='correct-horse')
         for _ in range(8):
-            self.client.post(reverse('studentlogin'), {
+            self.client.post(reverse('api_public_login_student'), {
                 'username': 's1', 'password': 'wrong',
             })
-        response = self.client.post(reverse('studentlogin'), {
+        response = self.client.post(reverse('api_public_login_student'), {
             'username': 's1', 'password': 'correct-horse',
         })
         self.assertFalse(response.wsgi_request.user.is_authenticated)
@@ -93,24 +94,24 @@ class ParentLoginRateLimitTests(TestCase):
             username='parent1', email='parent1@hardening.test', password='correct-horse')
 
     def test_correct_login_works_under_threshold(self):
-        # parent_login_view is email-based (templates/school/parents/parentlogin.html's
-        # form field is literally named "email"), matching admin/teacher/student login —
-        # not Django's generic username-based AuthenticationForm.
-        response = self.client.post(reverse('parentlogin'), {
+        # api_login_parent is email-based (matching admin/teacher/student login), not
+        # Django's generic username-based AuthenticationForm.
+        response = self.client.post(reverse('api_public_login_parent'), {
             'email': 'parent1@hardening.test', 'password': 'correct-horse',
         })
-        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['status'], 'success')
 
     def test_locks_out_after_repeated_failures(self):
         for _ in range(8):
-            self.client.post(reverse('parentlogin'), {
+            self.client.post(reverse('api_public_login_parent'), {
                 'email': 'parent1@hardening.test', 'password': 'wrong',
             })
-        response = self.client.post(reverse('parentlogin'), {
+        response = self.client.post(reverse('api_public_login_parent'), {
             'email': 'parent1@hardening.test', 'password': 'correct-horse',
         })
         self.assertFalse(response.wsgi_request.user.is_authenticated)
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 400)
 
 
 class VerificationCodeHardeningTests(TestCase):
@@ -124,13 +125,13 @@ class VerificationCodeHardeningTests(TestCase):
         )
 
     def _submit_code(self, code):
-        return self.client.post(reverse('adminlogin'), {
+        return self.client.post(reverse('api_public_login_admin'), {
             'verification_code': code, 'verify_email': 'pending@hardening.test',
         })
 
     def test_correct_code_within_window_succeeds(self):
         response = self._submit_code('123456')
-        self.assertContains(response, 'verified')
+        self.assertIn('verified', response.json()['message'])
         self.pending_user.refresh_from_db()
         self.assertTrue(self.pending_user.groups.filter(name='ADMIN').exists())
 
@@ -139,7 +140,7 @@ class VerificationCodeHardeningTests(TestCase):
         self.admin_extra.save()
 
         response = self._submit_code('123456')
-        self.assertContains(response, 'expired')
+        self.assertIn('expired', response.json()['message'])
         self.pending_user.refresh_from_db()
         self.assertFalse(self.pending_user.groups.filter(name='ADMIN').exists())
 
@@ -153,7 +154,7 @@ class VerificationCodeHardeningTests(TestCase):
 
         # Even the genuinely correct code no longer works — it was invalidated.
         response = self._submit_code('123456')
-        self.assertContains(response, 'expired')
+        self.assertIn('expired', response.json()['message'])
         self.pending_user.refresh_from_db()
         self.assertFalse(self.pending_user.groups.filter(name='ADMIN').exists())
 
@@ -162,6 +163,6 @@ class VerificationCodeHardeningTests(TestCase):
             self._submit_code('000000')
 
         response = self._submit_code('123456')
-        self.assertContains(response, 'verified')
+        self.assertIn('verified', response.json()['message'])
         self.pending_user.refresh_from_db()
         self.assertTrue(self.pending_user.groups.filter(name='ADMIN').exists())

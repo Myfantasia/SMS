@@ -1,8 +1,12 @@
 import json
 
+from django.contrib.auth.models import User
 from django.test import TestCase, RequestFactory
 
-from school.models.classSubjects_models import SubjectQuota, StudentSubjectEnrollment
+from apps.academics.models import ClassStream, Curriculum, CurriculumPreset, GradeLevel, Subject, SubjectPool, Tier
+from apps.allocations.models import SubjectQuota
+from apps.identity.models import School, StudentExtra
+from apps.students.models import StudentSubjectEnrollment
 from school.tests.base import ExamTestDataMixin
 from school.views.subject_views import api_student_elective_options, api_student_elective_request
 
@@ -92,3 +96,99 @@ class StudentElectiveSelfServiceTests(ExamTestDataMixin, TestCase):
         result = self._delete_request(self.student_user, enrollment.id)
         self.assertEqual(result['status'], 'error')
         self.assertTrue(StudentSubjectEnrollment.objects.filter(id=enrollment.id).exists())
+
+
+class PoolDrivenElectiveSelfServiceTests(ExamTestDataMixin, TestCase):
+    """
+    Covers self-service requests for CurriculumPreset/SubjectPool-driven electives (the newer
+    system api_student_elective_options already reads from — see its 'preset' branch), as
+    opposed to the legacy flat SubjectQuota electives covered above. Reproduces a real bug: a
+    grade with a resolved preset has pool subjects that carry no SubjectQuota row at all (they
+    were never meant to need one), but api_student_elective_request's validity check looked at
+    SubjectQuota exclusively, 400ing on every pool-driven request no matter how valid.
+
+    Pool shape modeled on the real seeded "Senior Secondary Preset" CORE_COMPULSORY pool: 4
+    always-auto-assigned core subjects (English, Kiswahili, PE, Community Service), the two
+    system-managed maths (Core/Essential Mathematics — assigned automatically based on pathway
+    by _ensure_core_mathematics, never student-picked here; see SYSTEM_MANAGED_MATH_CODES),
+    plus one real student-pickable alternative (French) to exercise the positive request path.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+
+        cls.school = School.objects.create(name='Pool Test School', level='COMBINED')
+        cls.curriculum = Curriculum.objects.create(code='CBC-POOL', name='CBC (pool test)')
+        cls.tier = Tier.objects.create(curriculum=cls.curriculum, name='Senior Secondary', code='SSS')
+        cls.grade_sss = GradeLevel.objects.create(
+            name='Grade 10 (pool test)', numeric_order=10, curriculum=cls.curriculum, tier=cls.tier)
+        cls.stream_sss = ClassStream.objects.create(name='Pool Stream', grade=cls.grade_sss)
+
+        cls.sss_student_user = User.objects.create_user(username='pool_student', password='x')
+        cls.sss_student = StudentExtra.objects.create(
+            user=cls.sss_student_user, roll='SP01', cl=cls.stream_sss, status=True)
+
+        cls.preset = CurriculumPreset.objects.create(
+            school=cls.school, name='Senior Secondary Preset (pool test)',
+            curriculum=cls.curriculum, tier=cls.tier)
+        cls.pool = SubjectPool.objects.create(
+            preset=cls.preset, pool_type='CORE_COMPULSORY', min_subjects=5, max_subjects=6)
+
+        cls.core_math = Subject.objects.create(code='CMAT', name='Core Mathematics', is_core=False)
+        cls.essential_math = Subject.objects.create(code='EMAT', name='Essential Mathematics', is_core=False)
+        cls.french = Subject.objects.create(code='FRE201', name='French', is_core=False)
+        always_core = [
+            Subject.objects.create(code=c, name=n, is_core=True)
+            for c, n in [('ENG', 'English'), ('KIS', 'Kiswahili'), ('PE', 'Physical Education'), ('CSL', 'Community Service')]
+        ]
+        cls.pool.subjects.set([cls.core_math, cls.essential_math, cls.french, *always_core])
+
+    def setUp(self):
+        self.factory = RequestFactory()
+
+    def _get_options(self, user):
+        request = self.factory.get('/api/subjects/my-electives/')
+        request.user = user
+        return json.loads(api_student_elective_options(request).content)
+
+    def _post_request(self, user, subject_id):
+        request = self.factory.post(
+            '/api/subjects/my-electives/request/',
+            data=json.dumps({'subject_id': subject_id}), content_type='application/json')
+        request.user = user
+        return json.loads(api_student_elective_request(request).content)
+
+    def test_pool_driven_alternative_subject_can_be_requested(self):
+        result = self._post_request(self.sss_student_user, self.french.id)
+        self.assertEqual(result['status'], 'success', result)
+        self.assertTrue(
+            StudentSubjectEnrollment.objects.filter(
+                student=self.sss_student, subject=self.french, status='Pending').exists()
+        )
+
+    def test_system_managed_math_subjects_are_not_offered_via_the_pool(self):
+        result = self._get_options(self.sss_student_user)
+        self.assertEqual(result['status'], 'success', result)
+        pool_data = next(p for p in result['data']['pools'] if p['pool_type'] == 'CORE_COMPULSORY')
+
+        shown_subject_names = {s['subject_name'] for s in pool_data['subjects']}
+        self.assertEqual(shown_subject_names, {'French'})
+
+    def test_math_subjects_cannot_be_requested_directly(self):
+        for subject in (self.core_math, self.essential_math):
+            result = self._post_request(self.sss_student_user, subject.id)
+            self.assertEqual(result['status'], 'error', result)
+            self.assertFalse(
+                StudentSubjectEnrollment.objects.filter(student=self.sss_student, subject=subject).exists()
+            )
+
+    def test_pool_min_max_excludes_always_core_and_system_managed_math_subjects(self):
+        result = self._get_options(self.sss_student_user)
+        pool_data = next(p for p in result['data']['pools'] if p['pool_type'] == 'CORE_COMPULSORY')
+
+        # Pool is configured for 5-6 of its 7 total subjects; 4 always-core + 2
+        # system-managed maths (6 total) are excluded from the shown pick range, leaving
+        # room only for French.
+        self.assertEqual(pool_data['min_subjects'], 0)
+        self.assertEqual(pool_data['max_subjects'], 0)

@@ -2,7 +2,7 @@ from django.contrib.auth.models import User
 from django.test import TestCase
 from django.urls import reverse
 
-from school.models.chat_models import ChatThread, ThreadParticipant, MessageAudit
+from apps.messaging.models import ChatThread, ThreadParticipant, MessageAudit
 
 
 class LeaveConversationAPITests(TestCase):

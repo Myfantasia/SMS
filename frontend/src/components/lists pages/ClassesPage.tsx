@@ -109,8 +109,8 @@ export default function ClassesPage() {
   if (loading) {
     return (
       <div className="max-w-7xl mx-auto space-y-6 animate-pulse">
-        <div className="h-12 w-80 bg-slate-200 rounded-2xl"></div>
-        {[1, 2, 3].map((i) => <div key={i} className="h-40 bg-slate-200 rounded-2xl"></div>)}
+        <div className="h-12 w-80 bg-slate-200 dark:bg-slate-800 rounded-2xl"></div>
+        {[1, 2, 3].map((i) => <div key={i} className="h-40 bg-slate-200 dark:bg-slate-800 rounded-2xl"></div>)}
       </div>
     );
   }
@@ -119,71 +119,71 @@ export default function ClassesPage() {
     <div className="max-w-7xl mx-auto space-y-8 relative">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <div className="p-3 rounded-2xl text-blue-600 bg-blue-50">
+          <div className="p-3 rounded-2xl text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10">
             <Layers className="w-7 h-7" strokeWidth={2.5} />
           </div>
           <div>
-            <h1 className="text-2xl font-extrabold text-slate-800">Class Operations</h1>
-            <p className="text-sm text-slate-500 mt-0.5">
+            <h1 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100">Class Operations</h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
               {totalStreams} streams &middot; {totalEnrolled} / {totalCapacity} students enrolled
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2 rounded-full ring-1 ring-slate-200 px-3 py-2 bg-slate-50 focus-within:ring-2 focus-within:ring-blue-500 focus-within:bg-white transition-all w-full md:w-72">
-          <Search className="w-4 h-4 text-slate-400 shrink-0" />
+        <div className="flex items-center gap-2 rounded-full ring-1 ring-slate-200 dark:ring-slate-700 px-3 py-2 bg-slate-50 dark:bg-slate-800 focus-within:ring-2 focus-within:ring-blue-500 dark:focus-within:ring-blue-400 focus-within:bg-white dark:focus-within:bg-slate-800 transition-all w-full md:w-72">
+          <Search className="w-4 h-4 text-slate-400 dark:text-slate-500 shrink-0" />
           <input
             type="text"
             placeholder="Search by stream, grade or teacher..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-transparent outline-none text-sm text-slate-700 placeholder:text-slate-400"
+            className="w-full bg-transparent outline-none text-sm text-slate-700 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500"
           />
         </div>
       </div>
 
       {filteredGrades.length === 0 ? (
-        <div className="text-slate-400 bg-white p-10 rounded-2xl border border-slate-100 text-center text-sm">
+        <div className="text-slate-400 dark:text-slate-500 bg-white dark:bg-slate-900 p-10 rounded-2xl border border-slate-100 dark:border-slate-700 text-center text-sm">
           {grades.length === 0 ? 'No classes found. Set them up in the Academics Hub first.' : `No classes match "${searchTerm}".`}
         </div>
       ) : (
         filteredGrades.map((grade) => (
-          <div key={grade.grade_id} className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-            <div className="bg-slate-50 px-6 py-4 border-b border-slate-100 flex items-center gap-2">
-              <h2 className="text-lg font-bold text-slate-700">{grade.grade_name}</h2>
-              <span className="bg-white text-slate-400 text-xs font-bold px-2 py-0.5 rounded-full border border-slate-200">{grade.streams.length}</span>
+          <div key={grade.grade_id} className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm dark:shadow-none border border-slate-100 dark:border-slate-700 overflow-hidden">
+            <div className="bg-slate-50 dark:bg-slate-800 px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex items-center gap-2">
+              <h2 className="text-lg font-bold text-slate-700 dark:text-slate-200">{grade.grade_name}</h2>
+              <span className="bg-white dark:bg-slate-900 text-slate-400 dark:text-slate-500 text-xs font-bold px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-700">{grade.streams.length}</span>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-white text-slate-500 text-xs uppercase tracking-wider border-b border-slate-200">
+                  <tr className="bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider border-b border-slate-200 dark:border-slate-700">
                     <th className="px-6 py-3 font-medium">Stream Name</th>
                     <th className="px-6 py-3 font-medium">Class Teacher</th>
                     <th className="px-6 py-3 font-medium">Enrollment</th>
                     <th className="px-6 py-3 font-medium text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="text-sm text-slate-700 divide-y divide-slate-100">
+                <tbody className="text-sm text-slate-700 dark:text-slate-200 divide-y divide-slate-100 dark:divide-slate-700">
                   {grade.streams.length === 0 ? (
                     <tr>
-                      <td colSpan={4} className="px-6 py-4 text-center text-slate-400">No streams available for this grade.</td>
+                      <td colSpan={4} className="px-6 py-4 text-center text-slate-400 dark:text-slate-500">No streams available for this grade.</td>
                     </tr>
                   ) : (
                     grade.streams.map((stream) => (
-                      <tr key={stream.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="px-6 py-4 font-semibold text-slate-800">
+                      <tr key={stream.id} className="hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                        <td className="px-6 py-4 font-semibold text-slate-800 dark:text-slate-100">
                           {stream.name}
                         </td>
                         <td className="px-6 py-4">
-                          <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${stream.class_teacher !== 'Not Assigned' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>
-                            {stream.class_teacher !== 'Not Assigned' && <Star className="w-3 h-3 fill-blue-600 text-blue-600" />}
+                          <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${stream.class_teacher !== 'Not Assigned' ? 'bg-blue-100 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400' : 'bg-amber-100 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400'}`}>
+                            {stream.class_teacher !== 'Not Assigned' && <Star className="w-3 h-3 fill-blue-600 dark:fill-blue-400 text-blue-600 dark:text-blue-400" />}
                             {stream.class_teacher}
                           </span>
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-2">
-                            <Users className="w-3.5 h-3.5 text-slate-400" />
-                            <span className="text-slate-600">{stream.enrolled_count} / {stream.capacity}</span>
-                            <div className="w-16 bg-slate-100 rounded-full h-1.5 hidden sm:block">
+                            <Users className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
+                            <span className="text-slate-600 dark:text-slate-300">{stream.enrolled_count} / {stream.capacity}</span>
+                            <div className="w-16 bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 hidden sm:block">
                               <div
                                 className={`h-1.5 rounded-full ${stream.enrolled_count >= stream.capacity ? 'bg-red-400' : 'bg-blue-500'}`}
                                 style={{ width: `${stream.capacity > 0 ? Math.min(100, Math.round((stream.enrolled_count / stream.capacity) * 100)) : 0}%` }}
@@ -195,7 +195,7 @@ export default function ClassesPage() {
 
                           <button
                             onClick={() => navigate(`${basePath}/classes/view/${stream.id}`)}
-                            className="text-slate-400 hover:text-blue-600 transition"
+                            className="text-slate-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 transition"
                             title="View details"
                           >
                             <Eye className="w-4 h-4" />
@@ -206,7 +206,7 @@ export default function ClassesPage() {
                             <>
                               <button
                                 onClick={() => navigate(`${basePath}/classes/edit/${stream.id}`)}
-                                className="text-slate-400 hover:text-amber-600 transition"
+                                className="text-slate-400 dark:text-slate-500 hover:text-amber-600 dark:hover:text-amber-400 transition"
                                 title="Update class & Assign Teacher"
                               >
                                 <Edit className="w-4 h-4" />
@@ -214,7 +214,7 @@ export default function ClassesPage() {
 
                               <button
                                 onClick={() => openDeleteModal(stream, grade.grade_name)}
-                                className="text-slate-400 hover:text-red-600 transition"
+                                className="text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400 transition"
                                 title="Delete class"
                               >
                                 <Trash2 className="w-4 h-4" />
@@ -235,28 +235,28 @@ export default function ClassesPage() {
 
       {streamToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col">
-            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-              <h3 className="text-lg font-bold text-slate-800">Confirm Deletion</h3>
-              <button onClick={closeDeleteModal} className="text-slate-400 hover:text-slate-600 transition" title="Close">
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl dark:shadow-none border border-transparent dark:border-slate-700 w-full max-w-md overflow-hidden flex flex-col">
+            <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-800">
+              <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">Confirm Deletion</h3>
+              <button onClick={closeDeleteModal} className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-200 transition" title="Close">
                 <X className="w-5 h-5" />
               </button>
             </div>
             <div className="p-6 text-center space-y-4">
-              <div className="mx-auto w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-4">
-                <Trash2 className="w-6 h-6 text-red-600" />
+              <div className="mx-auto w-12 h-12 bg-red-100 dark:bg-red-500/10 rounded-full flex items-center justify-center mb-4">
+                <Trash2 className="w-6 h-6 text-red-600 dark:text-red-400" />
               </div>
-              <h3 className="text-xl font-bold text-slate-800">
+              <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">
                 Delete {streamToDelete.gradeName} {streamToDelete.stream.name}?
               </h3>
-              <p className="text-slate-500 text-sm">
+              <p className="text-slate-500 dark:text-slate-400 text-sm">
                 This action cannot be undone. All class rosters, records, and assignments linked to this physical stream will be lost.
               </p>
               <div className="flex gap-4 mt-6">
-                <button onClick={closeDeleteModal} disabled={isDeleting} className="flex-1 bg-slate-100 text-slate-700 py-2 rounded-md font-medium hover:bg-slate-200">
+                <button onClick={closeDeleteModal} disabled={isDeleting} className="flex-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 py-2 rounded-md font-medium hover:bg-slate-200 dark:hover:bg-slate-700">
                   Cancel
                 </button>
-                <button onClick={confirmDelete} disabled={isDeleting} className="flex-1 bg-red-600 text-white py-2 rounded-md font-medium hover:bg-red-700 disabled:bg-red-400">
+                <button onClick={confirmDelete} disabled={isDeleting} className="flex-1 bg-red-600 text-white py-2 rounded-md font-medium hover:bg-red-700 disabled:bg-red-400 dark:disabled:bg-red-900/60">
                   {isDeleting ? 'Deleting...' : 'Permanently Delete'}
                 </button>
               </div>

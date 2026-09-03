@@ -4,31 +4,24 @@ from rest_framework.response import Response
 from rest_framework.authentication import SessionAuthentication
 from datetime import datetime
 from django.db.models import F, Q
-from school.models.timetable_models import LessonAllocation, Timetable
-from school.models.models import (
+from apps.timetable.models import LessonAllocation, Timetable
+from apps.identity.models import (
     TeacherExtra,
-    Notice,
-    ExamEvent,
     StudentExtra,
-    AttendanceSession,
 )
+from apps.exams.models import ExamEvent
 from django.db import transaction
-from school.models.assignments_models import StudentSubmission
-from school.models.chat_models import ThreadParticipant
+from apps.attendance.models import AttendanceSession
+from apps.assignments.models import StudentSubmission
+from apps.messaging.models import ThreadParticipant, Notice
 from school.serializers.teacher_serializers import TeacherProfileSerializer, TodayTimetableSerializer, NoticeSerializer
-from django.contrib.auth import authenticate, login
-from django.contrib.auth.models import User
 from school.decorators import require_permission
 from school.rbac import HasModulePermission
-from django.shortcuts import render, redirect
-from django.contrib import messages
 from rest_framework import status
 import json
 from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
-from school.models.teachers_model import TeacherStructuralAvailability, TeacherLeave
-from school.models.classSubjects_models import SystemAuditLog
-from school.views.auth_rate_limit import is_login_rate_limited, record_login_failure
+from apps.staff.models import TeacherStructuralAvailability, TeacherLeave
+from apps.core.services import write_audit_log
 
 class TeacherDashboardOverviewAPI(APIView):
     """
@@ -130,43 +123,6 @@ class TeacherDashboardOverviewAPI(APIView):
         })
 
 
-def teacher_login_view(request):
-    # If already logged in, send them straight to the router
-    if request.user.is_authenticated:
-        return redirect('afterlogin')
-
-    if request.method == 'POST':
-        # Extract email instead of username from the POST request
-        email = request.POST.get('email')
-        password = request.POST.get('password')
-
-        if is_login_rate_limited(request, email):
-            messages.error(request, 'Invalid email or password.')
-            return render(request, 'school/teachers/teacherlogin.html')
-
-        try:
-            # 1. Find the User object linked to this email
-            user = User.objects.get(email=email)
-
-            # 2. Authenticate using the username tied to that email
-            auth_user = authenticate(username=user.username, password=password)
-
-            if auth_user is not None:
-                # Log them into Django
-                login(request, auth_user)
-                return redirect('afterlogin')
-            else:
-                record_login_failure(request, email)
-                messages.error(request, 'Invalid email or password.')
-
-        except User.DoesNotExist:
-            record_login_failure(request, email)
-            messages.error(request, 'No account found with this email.')
-
-    # GET request: just render the login page
-    return render(request, 'school/teachers/teacherlogin.html')
-
-
 class TeacherPersonalTimetableAPIView(APIView):
     """
     Secure RBAC Endpoint for the Teacher Dashboard workspace.
@@ -231,7 +187,6 @@ class TeacherPersonalTimetableAPIView(APIView):
         }, status=status.HTTP_200_OK)
 
 
-@csrf_exempt
 @require_permission('timetable.view', edit_permission='timetable.edit')
 def api_manage_teacher_availability(request, teacher_id):
     """
@@ -273,8 +228,8 @@ def api_manage_teacher_availability(request, teacher_id):
                         time_slot_id__in=time_slot_ids
                     ).delete()
                     msg = f"Removed blockouts across {len(time_slot_ids)} slot(s)."
-                    SystemAuditLog.objects.create(
-                        operator=request.user if request.user.is_authenticated else None,
+                    write_audit_log(
+                        operator_id=request.user.id if request.user.is_authenticated else None,
                         action_type='DELETE',
                         module='TeacherStructuralAvailability',
                         description=f"{msg} (teacher_id={teacher_id})"
@@ -301,8 +256,8 @@ def api_manage_teacher_availability(request, teacher_id):
                     if ejected_count > 0:
                         msg += f" {ejected_count} existing lesson(s) returned to unscheduled buckets."
 
-                    SystemAuditLog.objects.create(
-                        operator=request.user if request.user.is_authenticated else None,
+                    write_audit_log(
+                        operator_id=request.user.id if request.user.is_authenticated else None,
                         action_type='UPDATE',
                         module='TeacherStructuralAvailability',
                         description=f"{msg} (teacher_id={teacher_id}, reason='{reason}')"

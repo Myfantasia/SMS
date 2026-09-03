@@ -1,6 +1,37 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import DashboardLayout from './layouts/DashboardLayouts';
+import PublicShell from './public/PublicShell';
+import Home from './public/pages/Home';
+import PortalSelection from './public/pages/PortalSelection';
+import AboutUs from './public/pages/AboutUs';
+import ContactUs from './public/pages/ContactUs';
+import Events from './public/pages/Events';
+import BlogList from './public/pages/blog/BlogList';
+import BlogDetail from './public/pages/blog/BlogDetail';
+import PrivacyPolicy from './public/pages/PrivacyPolicy';
+import TermsOfService from './public/pages/TermsOfService';
+import SystemStatus from './public/pages/SystemStatus';
+import AdminClick from './public/pages/admin/AdminClick';
+import AdminLogin from './public/pages/admin/AdminLogin';
+import AdminSignup from './public/pages/admin/AdminSignup';
+import StudentClick from './public/pages/student/StudentClick';
+import StudentLogin from './public/pages/student/StudentLogin';
+import StudentSignup from './public/pages/student/StudentSignup';
+import TeacherClick from './public/pages/teacher/TeacherClick';
+import TeacherLogin from './public/pages/teacher/TeacherLogin';
+import TeacherSignup from './public/pages/teacher/TeacherSignup';
+import ParentClick from './public/pages/parent/ParentClick';
+import ParentLogin from './public/pages/parent/ParentLogin';
+import ParentSignup from './public/pages/parent/ParentSignup';
+import StaffClick from './public/pages/staff/StaffClick';
+import StaffLogin from './public/pages/staff/StaffLogin';
+import StaffSignup from './public/pages/staff/StaffSignup';
+import WaitForApproval from './public/pages/WaitForApproval';
+import RequestReset from './public/pages/password-reset/RequestReset';
+import ResetDone from './public/pages/password-reset/ResetDone';
+import ResetConfirm from './public/pages/password-reset/ResetConfirm';
+import ResetComplete from './public/pages/password-reset/ResetComplete';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import PendingApprovals from './pages/admin/PendingApprovals';
 import UserDirectory from './pages/admin/UserDirectory';
@@ -8,7 +39,6 @@ import ViewProfile from './pages/admin/ViewProfile';
 import EditProfile from './pages/admin/EditProfile';
 import AdminProfile from './pages/admin/AdminProfile';
 import RolesPermissions from './pages/admin/RolesPermissions';
-import Trash from './pages/admin/Trash';
 import RoleEditor from './pages/admin/RoleEditor';
 import CurriculumHub from './pages/admin/CurriculumHub';
 import PathwayRequestsHub from './components/curriculum/PathwayRequestsHub';
@@ -28,7 +58,6 @@ import NoticesHub from './components/notices/NoticesHub';
 import ExamsHub from './components/exams/ExamsHub';
 import ResultsHub from './components/results/ResultsHub';
 import AllocationDashboard from './components/subjectAllocations/AllocationDashboard';
-import { ChatProvider } from './components/chats/ChatProvider';
 import AssignmentsHub from './components/assignments/AssignmentsHub';
 import AssignmentCreator from './components/assignments/AssignmentCreator';
 import SubmissionManager from './components/assignments/SubmissionManager';
@@ -41,7 +70,7 @@ import StudentDashboard from './pages/student/StudentDashboard';
 import StudentProfile from './pages/student/StudentProfile';
 import StudentTasks from './pages/student/StudentTasks';
 import StudentAssignments from './pages/student/StudentAssignments';
-import StudentElectiveChoices from './pages/student/StudentElectiveChoices';
+import StudentSubjects from './pages/student/StudentSubjects';
 import ParentDashboard from './pages/parent/ParentDashboard';
 import ParentProfile from './pages/parent/ParentProfile';
 import ParentAssignments from './pages/parent/ParentAssignments';
@@ -51,6 +80,8 @@ import AssignSubjectsPage from './components/action routes/AssignSubjectsPage';
 import LeaveRequestsHub from './components/leave/LeaveRequestsHub';
 import ApproveLeaves from './components/leave/ApproveLeaves';
 import FinanceHub from './components/Finance/FinanceHub';
+import ContentHub from './components/content/ContentHub';
+import Trash from './pages/admin/Trash';
 
 
 export default function App() {
@@ -72,13 +103,52 @@ export default function App() {
           },
         }}
       />
-      {/* --- NEW: WRAP ALL ROUTES IN THE CHAT PROVIDER --- */}
-      {/* This ensures every page (including the Navbar) has access to chat data */}
-      <ChatProvider>
-        <Routes>
-          {/* Redirect root access to the admin dashboard by default */}
-          <Route path="/" element={<Navigate to="/admin-dashboard" replace />} />
-          
+      {/* Chat data (inbox + WS) is only wired up per-dashboard, inside DashboardLayout,
+          once a real session is confirmed -- see layouts/DashboardLayouts.tsx. Wrapping it
+          here too used to open the /ws/inbox/ socket on the public (pre-login) pages,
+          where the backend rejects the unauthenticated handshake on a loop. */}
+      <Routes>
+          {/* Public (pre-login) pages -- see /home/jordan/.claude/plans/scalable-kindling-lampson.md */}
+          <Route path="/" element={<PublicShell />}>
+            <Route index element={<Home />} />
+            <Route path="portal" element={<PortalSelection />} />
+            <Route path="aboutus" element={<AboutUs />} />
+            <Route path="contactus" element={<ContactUs />} />
+            <Route path="events" element={<Events />} />
+            <Route path="blog" element={<BlogList />} />
+            <Route path="blog/:slug" element={<BlogDetail />} />
+            <Route path="privacy-policy" element={<PrivacyPolicy />} />
+            <Route path="terms-of-service" element={<TermsOfService />} />
+            <Route path="system-status" element={<SystemStatus />} />
+
+            <Route path="adminclick" element={<AdminClick />} />
+            <Route path="adminlogin" element={<AdminLogin />} />
+            <Route path="adminsignup" element={<AdminSignup />} />
+
+            <Route path="studentclick" element={<StudentClick />} />
+            <Route path="studentlogin" element={<StudentLogin />} />
+            <Route path="studentsignup" element={<StudentSignup />} />
+
+            <Route path="teacherclick" element={<TeacherClick />} />
+            <Route path="teacherlogin" element={<TeacherLogin />} />
+            <Route path="teachersignup" element={<TeacherSignup />} />
+
+            <Route path="parentclick" element={<ParentClick />} />
+            <Route path="parentlogin" element={<ParentLogin />} />
+            <Route path="parentsignup" element={<ParentSignup />} />
+
+            <Route path="staffclick" element={<StaffClick />} />
+            <Route path="stafflogin" element={<StaffLogin />} />
+            <Route path="staffsignup" element={<StaffSignup />} />
+
+            <Route path="wait-for-approval" element={<WaitForApproval />} />
+
+            <Route path="password-reset" element={<RequestReset />} />
+            <Route path="password-reset/done" element={<ResetDone />} />
+            <Route path="password-reset-confirm/:uidb64/:token" element={<ResetConfirm />} />
+            <Route path="password-reset-complete" element={<ResetComplete />} />
+          </Route>
+
           {/* Admin Route Group wrapped in the Layout */}
           <Route path="/admin-dashboard/*" element={<DashboardLayout role="admin" />}>
             <Route index element={<AdminDashboard />} />
@@ -104,7 +174,6 @@ export default function App() {
 
             {/* RBAC Management */}
             <Route path="roles-permissions" element={<RolesPermissions />} />
-            <Route path="trash" element={<Trash />} />
             <Route path="roles-permissions/new" element={<RoleEditor />} />
             <Route path="roles-permissions/:id/edit" element={<RoleEditor />} />
 
@@ -157,6 +226,12 @@ export default function App() {
 
             {/* --- NEW: MESSAGING ROUTE --- */}
             <Route path="messages" element={<ChatDashboard />} />
+
+            {/* --- PUBLIC-SITE CONTENT: BLOG & ALUMNI REVIEWS --- */}
+            <Route path="content" element={<ContentHub />} />
+
+            {/* --- TRASH: SOFT-DELETED ITEMS --- */}
+            <Route path="trash" element={<Trash />} />
           </Route>
 
           {/* TEACHER ROUTE GROUP */}
@@ -212,9 +287,7 @@ export default function App() {
             <Route path="profile" element={<StudentProfile />} />
             <Route path="search" element={<SearchResults />} />
 
-            <Route path="subjects" element={<SubjectsPage />} />
-            <Route path="subjects/view/:id" element={<ViewSubject />} />
-            <Route path="my-electives" element={<StudentElectiveChoices />} />
+            <Route path="subjects" element={<StudentSubjects />} />
             <Route path="my-pathway" element={<StudentPathwayChoice />} />
 
             <Route path="exams" element={<ExamsHub role="student" />} />
@@ -278,8 +351,7 @@ export default function App() {
 
           {/* Catch-all route to prevent 404 errors */}
           <Route path="*" element={<Navigate to="/admin-dashboard" replace />} />
-        </Routes>
-      </ChatProvider>
+      </Routes>
     </BrowserRouter>
   );
 }

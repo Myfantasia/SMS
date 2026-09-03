@@ -8,7 +8,7 @@ import DepartmentsCard from './DepartmentsCard';
 // 1. Import the Modals
 import AddGradeModal from './AddGradeModal';
 import AddSubjectModal from './AddSubjectModal';
-import AddDepartmentModal from './AddDepartmentModal';
+import DepartmentModal from './DepartmentModal';
 import AddStreamModal from './AddStreamModal'; // NEW: Import the Stream Modal
 import EditGradeModal from './EditGradeModal';
 import api from '../../libs/axiosInstance';
@@ -67,7 +67,10 @@ export default function AcademicHub() {
   const [isGradeModalOpen, setGradeModalOpen] = useState(false);
   const [isSubjectModalOpen, setSubjectModalOpen] = useState(false);
   const [isDepartmentModalOpen, setDepartmentModalOpen] = useState(false);
+  const [departmentToEdit, setDepartmentToEdit] = useState<Department | null>(null);
   const [editingGrade, setEditingGrade] = useState<GradeSummary | null>(null);
+  const [selectedDeptCurriculumId, setSelectedDeptCurriculumId] = useState<number | null>(null);
+  const [selectedSubjectTierId, setSelectedSubjectTierId] = useState<number | null>(null);
 
   // NEW: State for the Stream Modal
   const [streamModalConfig, setStreamModalConfig] = useState<{
@@ -137,8 +140,8 @@ const fetchAcademicData = () => {
   if (loading) {
     return (
       <div className="max-w-7xl mx-auto space-y-6 animate-pulse">
-        <div className="h-12 w-80 bg-slate-200 rounded-2xl"></div>
-        <div className="h-96 bg-slate-200 rounded-2xl"></div>
+        <div className="h-12 w-80 bg-slate-200 dark:bg-slate-800 rounded-2xl"></div>
+        <div className="h-96 bg-slate-200 dark:bg-slate-800 rounded-2xl"></div>
       </div>
     );
   }
@@ -148,33 +151,33 @@ const fetchAcademicData = () => {
       {/* Header Section */}
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-4">
-          <div className="p-3 rounded-2xl text-indigo-600 bg-indigo-50">
+          <div className="p-3 rounded-2xl text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10">
             <Library className="w-7 h-7" strokeWidth={2.5} />
           </div>
           <div>
-            <h1 className="text-2xl font-extrabold text-slate-800">Academic Structure Hub</h1>
-            <p className="text-sm text-slate-500 mt-0.5">Manage grade levels, streams, and master curriculum.</p>
+            <h1 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100">Academic Structure Hub</h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Manage grade levels, streams, and master curriculum.</p>
           </div>
         </div>
         <Link
           to="/curriculum"
           title="Manage curriculum templates, pathways, and presets"
-          className="flex items-center gap-1.5 text-sm font-semibold text-indigo-600 hover:text-indigo-700 transition"
+          className="flex items-center gap-1.5 text-sm font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition"
         >
           Manage Curricula <ArrowRight className="w-4 h-4" />
         </Link>
       </div>
 
       {/* Tabbed Layout — each entity gets the full width to show its own detail */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col">
-        <div className="px-4 pt-3 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 flex-wrap gap-y-2">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm dark:shadow-none border border-slate-100 dark:border-slate-700 overflow-hidden flex flex-col">
+        <div className="px-4 pt-3 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/40 flex-wrap gap-y-2">
           <div className="flex items-center gap-1 flex-wrap">
             <button
               onClick={() => setActiveTab('grades')}
               className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-colors ${
                 activeTab === 'grades'
-                  ? 'border-blue-600 text-blue-700'
-                  : 'border-transparent text-slate-500 hover:text-slate-700'
+                  ? 'border-blue-600 dark:border-blue-400 text-blue-700 dark:text-blue-400'
+                  : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
               }`}
             >
               <Layers className="w-4 h-4" /> Grades & Streams
@@ -183,8 +186,8 @@ const fetchAcademicData = () => {
               onClick={() => setActiveTab('subjects')}
               className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-colors ${
                 activeTab === 'subjects'
-                  ? 'border-emerald-600 text-emerald-700'
-                  : 'border-transparent text-slate-500 hover:text-slate-700'
+                  ? 'border-emerald-600 dark:border-emerald-400 text-emerald-700 dark:text-emerald-400'
+                  : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
               }`}
             >
               <BookOpen className="w-4 h-4" /> Master Curriculum
@@ -193,8 +196,8 @@ const fetchAcademicData = () => {
               onClick={() => setActiveTab('departments')}
               className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-colors ${
                 activeTab === 'departments'
-                  ? 'border-indigo-600 text-indigo-700'
-                  : 'border-transparent text-slate-500 hover:text-slate-700'
+                  ? 'border-indigo-600 dark:border-indigo-400 text-indigo-700 dark:text-indigo-400'
+                  : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
               }`}
             >
               <Building2 className="w-4 h-4" /> Departments
@@ -219,7 +222,7 @@ const fetchAcademicData = () => {
           )}
           {activeTab === 'departments' && (
             <button
-              onClick={() => setDepartmentModalOpen(true)}
+              onClick={() => { setDepartmentToEdit(null); setDepartmentModalOpen(true); }}
               title="Click to add a new Department"
               className="mb-2.5 bg-indigo-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-indigo-700 transition">
               + New Department
@@ -238,20 +241,70 @@ const fetchAcademicData = () => {
             />
           )}
           {activeTab === 'subjects' && (
-            <SubjectsCard
-              subjects={data.subjects}
-              curricula={curricula}
-              tiers={tiers}
-              subjectProfiles={subjectProfiles}
-              departments={departments}
-              onRefresh={refreshAll}
-            />
+            <div className="flex flex-col h-full">
+              <div className="flex px-4 py-3 bg-slate-50 dark:bg-slate-800/40 border-b border-slate-100 dark:border-slate-700 gap-2 overflow-x-auto shrink-0">
+                <button
+                  onClick={() => setSelectedSubjectTierId(null)}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-full transition-colors whitespace-nowrap ${selectedSubjectTierId === null ? 'bg-emerald-600 text-white' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 shadow-sm dark:shadow-none'}`}
+                >
+                  All Tiers
+                </button>
+                {tiers.map(t => (
+                  <button
+                    key={t.id}
+                    onClick={() => setSelectedSubjectTierId(t.id)}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-full transition-colors whitespace-nowrap ${selectedSubjectTierId === t.id ? 'bg-emerald-600 text-white' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 shadow-sm dark:shadow-none'}`}
+                  >
+                    {t.name}
+                  </button>
+                ))}
+              </div>
+              <div className="flex-1 overflow-y-auto">
+                <SubjectsCard
+                  subjects={selectedSubjectTierId ? data.subjects.filter(s => subjectProfiles.some(p => p.subject === s.id && p.tier === selectedSubjectTierId)) : data.subjects}
+                  curricula={curricula}
+                  tiers={tiers}
+                  subjectProfiles={subjectProfiles}
+                  departments={departments}
+                  selectedTierId={selectedSubjectTierId}
+                  onRefresh={refreshAll}
+                />
+              </div>
+            </div>
           )}
           {activeTab === 'departments' && (
-            <DepartmentsCard
-              departments={departments}
-              onRefresh={fetchDepartments}
-            />
+            <div className="flex flex-col h-full">
+              <div className="flex px-4 py-3 bg-slate-50 dark:bg-slate-800/40 border-b border-slate-100 dark:border-slate-700 gap-2 overflow-x-auto shrink-0">
+                <button
+                  onClick={() => setSelectedDeptCurriculumId(null)}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-full transition-colors whitespace-nowrap ${selectedDeptCurriculumId === null ? 'bg-indigo-600 text-white' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 shadow-sm dark:shadow-none'}`}
+                >
+                  All Curricula
+                </button>
+                {curricula.map(c => (
+                  <button
+                    key={c.id}
+                    onClick={() => setSelectedDeptCurriculumId(c.id)}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-full transition-colors whitespace-nowrap ${selectedDeptCurriculumId === c.id ? 'bg-indigo-600 text-white' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 shadow-sm dark:shadow-none'}`}
+                  >
+                    {c.name}
+                  </button>
+                ))}
+              </div>
+              <div className="flex-1 overflow-y-auto">
+                <DepartmentsCard
+                  departments={selectedDeptCurriculumId ? departments.filter(d => d.curriculum_id === selectedDeptCurriculumId) : departments}
+                  curricula={curricula}
+                  subjects={data.subjects}
+                  subjectProfiles={subjectProfiles}
+                  onRefresh={refreshAll}
+                  onEdit={(dept) => {
+                    setDepartmentToEdit(dept);
+                    setDepartmentModalOpen(true);
+                  }}
+                />
+              </div>
+            </div>
           )}
         </div>
       </div>
@@ -272,10 +325,15 @@ const fetchAcademicData = () => {
         onSuccess={refreshAll}
       />
 
-      <AddDepartmentModal
+      <DepartmentModal
         isOpen={isDepartmentModalOpen}
-        onClose={() => setDepartmentModalOpen(false)}
-        onSuccess={fetchDepartments}
+        curricula={curricula}
+        defaultCurriculumId={selectedDeptCurriculumId}
+        departmentToEdit={departmentToEdit}
+        subjects={data.subjects}
+        subjectProfiles={subjectProfiles}
+        onClose={() => { setDepartmentModalOpen(false); setDepartmentToEdit(null); }}
+        onSuccess={refreshAll}
       />
 
       {/* NEW: Render the Stream Modal */}

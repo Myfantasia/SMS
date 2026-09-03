@@ -1,7 +1,7 @@
 from django.core.exceptions import PermissionDenied
 from functools import wraps
 from django.http import JsonResponse
-from . import models
+from apps.identity.services import get_teacher_profile, get_student_profile, get_parent_profile
 from .rbac import user_has_permission
 
 # --- BASIC GROUP CHECKS ---
@@ -27,22 +27,22 @@ def is_school_staff(user):
 
 def is_approved_teacher(user):
     if is_teacher(user):
-        teacher = models.TeacherExtra.objects.filter(user_id=user.id, status=True).first()
-        if teacher:
+        teacher = get_teacher_profile(user.id)
+        if teacher and teacher.status:
             return True
     raise PermissionDenied
 
 def is_approved_student(user):
     if is_student(user):
-        student = models.StudentExtra.objects.filter(user_id=user.id, status=True).first()
-        if student:
+        student = get_student_profile(user.id)
+        if student and student.status:
             return True
     raise PermissionDenied
 
 def is_approved_parent(user):
     if is_parent(user):
-        parent = models.ParentExtra.objects.filter(user_id=user.id, status=True).first()
-        if parent:
+        parent = get_parent_profile(user.id)
+        if parent and parent.status:
             return True
     raise PermissionDenied
 
@@ -70,6 +70,10 @@ def require_permission(view_permission, edit_permission=None):
                     'status': 'error',
                     'message': 'Authentication required.'
                 }, status=401)
+
+            # Superusers bypass RBAC checks
+            if request.user.is_superuser:
+                return view_func(request, *args, **kwargs)
 
             needed = view_permission
             if edit_permission and request.method not in ('GET', 'HEAD', 'OPTIONS'):

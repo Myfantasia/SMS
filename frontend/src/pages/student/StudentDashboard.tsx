@@ -67,20 +67,20 @@ export default function StudentDashboard() {
     return (
       <div className="flex flex-col xl:flex-row gap-6 animate-pulse">
         <div className="w-full xl:w-2/3 flex flex-col gap-8">
-          <div className="h-44 bg-slate-200 rounded-2xl"></div>
+          <div className="h-44 bg-slate-200 dark:bg-slate-800 rounded-2xl"></div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-            {[1, 2, 3].map(i => <div key={i} className="h-28 bg-slate-200 rounded-2xl"></div>)}
+            {[1, 2, 3].map(i => <div key={i} className="h-28 bg-slate-200 dark:bg-slate-800 rounded-2xl"></div>)}
           </div>
         </div>
-        <div className="w-full xl:w-1/3 h-96 bg-slate-200 rounded-2xl"></div>
+        <div className="w-full xl:w-1/3 h-96 bg-slate-200 dark:bg-slate-800 rounded-2xl"></div>
       </div>
     );
   }
 
   if (error || !data) {
     return (
-      <div className="p-8 text-center text-slate-500">
-        <ShieldAlert className="w-10 h-10 mx-auto mb-3 text-slate-300" />
+      <div className="p-8 text-center text-slate-500 dark:text-slate-400">
+        <ShieldAlert className="w-10 h-10 mx-auto mb-3 text-slate-300 dark:text-slate-600" />
         Couldn't load your dashboard right now. Please refresh the page.
       </div>
     );
@@ -90,10 +90,10 @@ export default function StudentDashboard() {
   const attendancePct = data.attendance.percentage;
 
   const quickLinks = [
-    { label: "Results", to: "/student-dashboard/results", icon: IdCard, color: "text-emerald-600 bg-emerald-50" },
-    { label: "Subjects", to: "/student-dashboard/subjects", icon: GraduationCap, color: "text-purple-600 bg-purple-50" },
-    { label: "Notices", to: "/student-dashboard/notices", icon: Bell, color: "text-blue-600 bg-blue-50" },
-    { label: "Events", to: "/student-dashboard/events", icon: CalendarDays, color: "text-amber-600 bg-amber-50" },
+    { label: "Results", to: "/student-dashboard/results", icon: IdCard, color: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10" },
+    { label: "Subjects", to: "/student-dashboard/subjects", icon: GraduationCap, color: "text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-500/10" },
+    { label: "Notices", to: "/student-dashboard/notices", icon: Bell, color: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10" },
+    { label: "Events", to: "/student-dashboard/events", icon: CalendarDays, color: "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10" },
   ];
 
   return (
@@ -125,27 +125,27 @@ export default function StudentDashboard() {
 
         {/* Metrics */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-          <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] hover:-translate-y-1 hover:shadow-lg transition-all duration-300 flex items-center gap-5">
-            <div className="p-4 bg-blue-50 text-blue-600 rounded-2xl"><CalendarCheck className="w-7 h-7" strokeWidth={2.5} /></div>
+          <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] dark:shadow-none hover:-translate-y-1 hover:shadow-lg dark:hover:shadow-none transition-all duration-300 flex items-center gap-5">
+            <div className="p-4 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-2xl"><CalendarCheck className="w-7 h-7" strokeWidth={2.5} /></div>
             <div className="flex flex-col">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Attendance (30d)</span>
-              <span className="text-3xl font-extrabold text-slate-800 leading-none">{attendancePct != null ? `${attendancePct}%` : "--"}</span>
+              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Attendance (30d)</span>
+              <span className="text-3xl font-extrabold text-slate-800 dark:text-slate-100 leading-none">{attendancePct != null ? `${attendancePct}%` : "--"}</span>
             </div>
           </div>
 
-          <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] hover:-translate-y-1 hover:shadow-lg transition-all duration-300 flex items-center gap-5">
-            <div className="p-4 bg-amber-50 text-amber-600 rounded-2xl"><FileEdit className="w-7 h-7" strokeWidth={2.5} /></div>
+          <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] dark:shadow-none hover:-translate-y-1 hover:shadow-lg dark:hover:shadow-none transition-all duration-300 flex items-center gap-5">
+            <div className="p-4 bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-2xl"><FileEdit className="w-7 h-7" strokeWidth={2.5} /></div>
             <div className="flex flex-col">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Pending Assignments</span>
-              <span className="text-3xl font-extrabold text-slate-800 leading-none">{data.action_items.pending_assignments}</span>
+              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Pending Assignments</span>
+              <span className="text-3xl font-extrabold text-slate-800 dark:text-slate-100 leading-none">{data.action_items.pending_assignments}</span>
             </div>
           </div>
 
-          <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] hover:-translate-y-1 hover:shadow-lg transition-all duration-300 flex items-center gap-5">
-            <div className="p-4 bg-emerald-50 text-emerald-600 rounded-2xl"><Wallet className="w-7 h-7" strokeWidth={2.5} /></div>
+          <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] dark:shadow-none hover:-translate-y-1 hover:shadow-lg dark:hover:shadow-none transition-all duration-300 flex items-center gap-5">
+            <div className="p-4 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-2xl"><Wallet className="w-7 h-7" strokeWidth={2.5} /></div>
             <div className="flex flex-col">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">School Fees</span>
-              <span className="text-3xl font-extrabold text-slate-800 leading-none">{data.profile.fee != null ? `$${data.profile.fee}` : "--"}</span>
+              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">School Fees</span>
+              <span className="text-3xl font-extrabold text-slate-800 dark:text-slate-100 leading-none">{data.profile.fee != null ? `$${data.profile.fee}` : "--"}</span>
             </div>
           </div>
         </div>
@@ -156,10 +156,10 @@ export default function StudentDashboard() {
             <button
               key={link.label}
               onClick={() => navigate(link.to)}
-              className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all flex flex-col items-start gap-3 text-left"
+              className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm dark:shadow-none hover:shadow-md dark:hover:shadow-none hover:-translate-y-0.5 transition-all flex flex-col items-start gap-3 text-left"
             >
               <div className={`p-2.5 rounded-xl ${link.color}`}><link.icon className="w-5 h-5" /></div>
-              <span className="text-sm font-bold text-slate-700 flex items-center gap-1">
+              <span className="text-sm font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1">
                 {link.label} <ArrowRight className="w-3.5 h-3.5 opacity-40" />
               </span>
             </button>

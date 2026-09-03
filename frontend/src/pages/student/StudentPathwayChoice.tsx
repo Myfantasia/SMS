@@ -42,9 +42,9 @@ interface Selection {
 }
 
 const STATUS_STYLE: Record<string, string> = {
-  Pending: 'bg-amber-50 text-amber-700 border-amber-200',
-  Approved: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  Rejected: 'bg-red-50 text-red-700 border-red-200',
+  Pending: 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-500/40',
+  Approved: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/40',
+  Rejected: 'bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 border-red-200 dark:border-red-500/40',
 };
 
 export default function StudentPathwayChoice() {
@@ -52,6 +52,7 @@ export default function StudentPathwayChoice() {
   const [selection, setSelection] = useState<Selection | null>(null);
   const [gradeName, setGradeName] = useState('');
   const [academicYear, setAcademicYear] = useState('');
+  const [requiresPathwayChoice, setRequiresPathwayChoice] = useState(true);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [trackChoice, setTrackChoice] = useState<Record<number, number | ''>>({});
@@ -67,6 +68,7 @@ export default function StudentPathwayChoice() {
         setSelection(result.data.selection);
         setGradeName(result.data.grade_name);
         setAcademicYear(result.data.academic_year);
+        setRequiresPathwayChoice(result.data.requires_pathway_choice ?? true);
       } else {
         toast.error(result.message || 'Failed to load pathway options.');
       }
@@ -129,33 +131,63 @@ export default function StudentPathwayChoice() {
   if (loading) {
     return (
       <div className="max-w-5xl mx-auto space-y-6 animate-pulse">
-        <div className="h-12 w-80 bg-slate-200 rounded-2xl"></div>
-        <div className="h-64 bg-slate-200 rounded-2xl"></div>
+        <div className="h-12 w-80 bg-slate-200 dark:bg-slate-800 rounded-2xl"></div>
+        <div className="h-64 bg-slate-200 dark:bg-slate-800 rounded-2xl"></div>
       </div>
     );
   }
 
-  const isLocked = selection?.status === 'Approved';
+  // Locked once a choice is Approved OR still Pending review -- a student must withdraw
+  // their own Pending request (see the Withdraw button below) before picking a different
+  // pathway; only a Rejected/absent selection leaves the other cards pickable.
+  const isLocked = selection?.status === 'Approved' || selection?.status === 'Pending';
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       <div className="flex items-center gap-4">
-        <div className="p-3 rounded-2xl text-indigo-600 bg-indigo-50">
+        <div className="p-3 rounded-2xl text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10">
           <GitBranch className="w-7 h-7" strokeWidth={2.5} />
         </div>
         <div>
-          <h1 className="text-2xl font-extrabold text-slate-800">My Pathway</h1>
-          <p className="text-sm text-slate-500 mt-0.5">
-            {gradeName ? `${gradeName} · ` : ''}Choose your Senior Secondary specialization{academicYear ? ` for ${academicYear}` : ''}. An administrator or your Class Teacher reviews and approves it.
+          <h1 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100">My Pathway</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+            {gradeName ? `${gradeName} · ` : ''}
+            {requiresPathwayChoice
+              ? `Choose your Senior Secondary specialization${academicYear ? ` for ${academicYear}` : ''}. An administrator or your Class Teacher reviews and approves it.`
+              : 'Pathway choice happens once, on arrival at Senior Secondary — your specialization below was locked in then and carries forward.'}
           </p>
         </div>
       </div>
 
-      {pathways.length === 0 ? (
-        <div className="text-slate-400 bg-white p-10 rounded-2xl border border-slate-100 text-center text-sm">
+      {!requiresPathwayChoice && selection && (
+        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm dark:shadow-none border border-emerald-100 dark:border-emerald-500/20 p-5">
+          <div className="flex items-center gap-2 mb-1">
+            <h3 className="font-bold text-slate-800 dark:text-slate-100">{selection.pathway_name}</h3>
+            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${STATUS_STYLE[selection.status]}`}>
+              {selection.status === 'Approved' && <CheckCircle2 className="w-3 h-3" />}
+              {selection.status}
+            </span>
+          </div>
+          {selection.track_name && (
+            <p className="text-xs text-slate-500 dark:text-slate-400">Track: <span className="font-semibold text-slate-700 dark:text-slate-200">{selection.track_name}</span></p>
+          )}
+          {selection.preset_combination_name && (
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Combination: <span className="font-semibold text-slate-700 dark:text-slate-200">{selection.preset_combination_name}</span></p>
+          )}
+        </div>
+      )}
+
+      {!requiresPathwayChoice && !selection && (
+        <div className="text-slate-400 dark:text-slate-500 bg-white dark:bg-slate-900 p-10 rounded-2xl border border-slate-100 dark:border-slate-700 text-center text-sm">
+          Pathway choice isn't available for your grade.
+        </div>
+      )}
+
+      {requiresPathwayChoice && pathways.length === 0 ? (
+        <div className="text-slate-400 dark:text-slate-500 bg-white dark:bg-slate-900 p-10 rounded-2xl border border-slate-100 dark:border-slate-700 text-center text-sm">
           No pathways are configured for your curriculum yet.
         </div>
-      ) : (
+      ) : requiresPathwayChoice ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {pathways.map((p) => {
             const isMine = selection?.pathway_id === p.id;
@@ -163,14 +195,14 @@ export default function StudentPathwayChoice() {
             return (
               <div
                 key={p.id}
-                className={`bg-white rounded-2xl shadow-sm border p-5 space-y-3 transition-colors ${
-                  isMine ? 'border-indigo-300 ring-1 ring-indigo-100' : 'border-slate-100'
+                className={`bg-white dark:bg-slate-900 rounded-2xl shadow-sm dark:shadow-none border p-5 space-y-3 transition-colors ${
+                  isMine ? 'border-indigo-300 dark:border-indigo-500/40 ring-1 ring-indigo-100 dark:ring-indigo-500/20' : 'border-slate-100 dark:border-slate-700'
                 }`}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <h3 className="font-bold text-slate-800">{p.name}</h3>
-                    {p.description && <p className="text-xs text-slate-500 mt-1">{p.description}</p>}
+                    <h3 className="font-bold text-slate-800 dark:text-slate-100">{p.name}</h3>
+                    {p.description && <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{p.description}</p>}
                   </div>
                   {isMine && (
                     <span className={`shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${STATUS_STYLE[selection!.status]}`}>
@@ -183,18 +215,23 @@ export default function StudentPathwayChoice() {
                 </div>
 
                 {isMine && selection!.track_name && (
-                  <p className="text-xs text-slate-500 -mt-2">Track: <span className="font-semibold text-slate-700">{selection!.track_name}</span></p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 -mt-2">Track: <span className="font-semibold text-slate-700 dark:text-slate-200">{selection!.track_name}</span></p>
                 )}
                 {isMine && selection!.preset_combination_name && (
-                  <p className="text-xs text-slate-500 -mt-2">Combination: <span className="font-semibold text-slate-700">{selection!.preset_combination_name}</span></p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 -mt-2">Combination: <span className="font-semibold text-slate-700 dark:text-slate-200">{selection!.preset_combination_name}</span></p>
                 )}
+                {isMine && (() => {
+                  const myTrack = p.tracks.find((t) => t.id === selection!.track_id);
+                  if (!myTrack?.description) return null;
+                  return <p className="text-xs text-slate-500 dark:text-slate-400">{myTrack.description}</p>;
+                })()}
 
                 {!isMine && p.tracks.length > 0 && !isLocked && (
                   <select
                     aria-label={`Track for ${p.name}`}
                     value={trackChoice[p.id] ?? ''}
                     onChange={(e) => setTrackChoice((prev) => ({ ...prev, [p.id]: e.target.value ? Number(e.target.value) : '' }))}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                    className="w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 px-3 py-2 text-xs outline-none focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-1 focus:ring-indigo-500 dark:focus:ring-indigo-400"
                   >
                     <option value="">Select a track...</option>
                     {p.tracks.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
@@ -202,17 +239,23 @@ export default function StudentPathwayChoice() {
                 )}
 
                 {!isMine && !isLocked && (() => {
+                  const chosenTrack = p.tracks.find((t) => t.id === trackChoice[p.id]);
+                  if (!chosenTrack?.description) return null;
+                  return <p className="text-xs text-slate-500 dark:text-slate-400">{chosenTrack.description}</p>;
+                })()}
+
+                {!isMine && !isLocked && (() => {
                   const trackId = trackChoice[p.id];
                   const track = p.tracks.find((t) => t.id === trackId);
                   if (!track || track.preset_combinations.length === 0) return null;
                   return (
                     <div className="space-y-1.5">
-                      <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">Choose an approved combination</p>
+                      <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Choose an approved combination</p>
                       <select
                         aria-label={`Subject combination for ${track.name}`}
                         value={comboChoice[track.id] ?? ''}
                         onChange={(e) => setComboChoice((prev) => ({ ...prev, [track.id]: e.target.value ? Number(e.target.value) : '' }))}
-                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                        className="w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 px-3 py-2 text-xs outline-none focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-1 focus:ring-indigo-500 dark:focus:ring-indigo-400"
                       >
                         <option value="">Select a combination...</option>
                         {track.preset_combinations.map((c) => (
@@ -225,12 +268,12 @@ export default function StudentPathwayChoice() {
 
                 <div className="pt-1">
                   {isMine && selection!.status === 'Approved' ? (
-                    <span className="text-xs text-slate-300 italic">Locked in</span>
+                    <span className="text-xs text-slate-300 dark:text-slate-600 italic">Locked in</span>
                   ) : isMine && selection!.status === 'Pending' ? (
                     <button
                       onClick={handleWithdraw}
                       disabled={busy}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-600 text-xs font-bold rounded-lg transition-colors border border-slate-200 disabled:opacity-50"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold rounded-lg transition-colors border border-slate-200 dark:border-slate-600 disabled:opacity-50"
                     >
                       <Undo2 className="w-3.5 h-3.5" /> Withdraw
                     </button>
@@ -238,8 +281,12 @@ export default function StudentPathwayChoice() {
                     <button
                       onClick={() => handleRequest(p)}
                       disabled={busy || isLocked}
-                      title={isLocked ? 'Your pathway is already approved and locked.' : undefined}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-lg transition-colors border border-indigo-200 disabled:opacity-50"
+                      title={
+                        selection?.status === 'Approved' ? 'Your pathway is already approved and locked.'
+                        : selection?.status === 'Pending' ? 'Withdraw your pending request before choosing a different pathway.'
+                        : undefined
+                      }
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 text-indigo-700 dark:text-indigo-400 text-xs font-bold rounded-lg transition-colors border border-indigo-200 dark:border-indigo-500/40 disabled:opacity-50"
                     >
                       <Send className="w-3.5 h-3.5" /> {isMine && selection?.status === 'Rejected' ? 'Request Again' : 'Request'}
                     </button>
@@ -249,7 +296,7 @@ export default function StudentPathwayChoice() {
             );
           })}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand
 
-from school.models.classSubjects_models import Curriculum, GradeLevel
+from apps.academics.models import Curriculum, GradeLevel
 
 # Matches GradeLevel.CURRICULUM_CHOICES exactly — this command's only job is to turn those
 # two hardcoded string values into real Curriculum rows and backfill GradeLevel.curriculum

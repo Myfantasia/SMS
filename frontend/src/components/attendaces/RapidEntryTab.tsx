@@ -145,7 +145,7 @@ export default function RapidEntryTab({ role }: RapidEntryProps) {
   const selectedClassName = classes.find(c => c.id.toString() === selectedClass)?.name || '';
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+    <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm dark:shadow-none border border-slate-200 dark:border-slate-700 overflow-hidden">
 
       {/* 3. Pass the role down to the Filter component */}
       <AttendanceFilter
@@ -162,17 +162,17 @@ export default function RapidEntryTab({ role }: RapidEntryProps) {
       />
 
       {alreadySubmitted && (
-        <div className="mx-6 mt-4 px-4 py-2.5 bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg font-medium">
+        <div className="mx-6 mt-4 px-4 py-2.5 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/40 text-amber-800 dark:text-amber-300 text-sm rounded-lg font-medium">
           Register already submitted{submittedBy ? ` by ${submittedBy}` : ''} for this date — showing a read-only view.
         </div>
       )}
 
       {loadingRoster ? (
-        <div className="p-12 flex items-center justify-center text-slate-400 gap-2">
+        <div className="p-12 flex items-center justify-center text-slate-400 dark:text-slate-500 gap-2">
           <Loader2 className="w-5 h-5 animate-spin" /> Loading roster...
         </div>
       ) : students.length === 0 ? (
-        <div className="p-12 text-center text-slate-400 text-sm">
+        <div className="p-12 text-center text-slate-400 dark:text-slate-500 text-sm">
           {selectedClass ? 'No roster loaded yet.' : 'Select a class to begin.'}
         </div>
       ) : (
@@ -187,9 +187,9 @@ export default function RapidEntryTab({ role }: RapidEntryProps) {
 
       {/* Footer Submit Bar */}
       {students.length > 0 && !alreadySubmitted && (
-        <div className="p-6 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
-          <div className="text-sm text-slate-600">
-            <span className="font-semibold text-slate-800">{Object.keys(exceptions).length}</span> exceptions noted out of <span className="font-semibold text-slate-800">{students.length}</span> students.
+        <div className="p-6 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 flex items-center justify-between">
+          <div className="text-sm text-slate-600 dark:text-slate-300">
+            <span className="font-semibold text-slate-800 dark:text-slate-100">{Object.keys(exceptions).length}</span> exceptions noted out of <span className="font-semibold text-slate-800 dark:text-slate-100">{students.length}</span> students.
           </div>
           <button
             onClick={handleSubmit}

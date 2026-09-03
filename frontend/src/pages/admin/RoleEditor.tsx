@@ -177,9 +177,9 @@ export default function RoleEditor() {
   if (loading) {
     return (
       <div className="max-w-6xl mx-auto space-y-6 animate-pulse">
-        <div className="h-8 w-64 bg-slate-200 rounded-lg"></div>
-        <div className="h-40 bg-slate-200 rounded-2xl"></div>
-        <div className="h-96 bg-slate-200 rounded-2xl"></div>
+        <div className="h-8 w-64 bg-slate-200 dark:bg-slate-800 rounded-lg"></div>
+        <div className="h-40 bg-slate-200 dark:bg-slate-800 rounded-2xl"></div>
+        <div className="h-96 bg-slate-200 dark:bg-slate-800 rounded-2xl"></div>
       </div>
     );
   }
@@ -187,45 +187,45 @@ export default function RoleEditor() {
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-16">
       {/* Breadcrumb */}
-      <div className="flex items-center gap-1.5 text-sm text-slate-500">
-        <Link to="/admin-dashboard/roles-permissions" className="hover:text-blue-600 transition font-medium flex items-center gap-1">
+      <div className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400">
+        <Link to="/admin-dashboard/roles-permissions" className="hover:text-blue-600 dark:hover:text-blue-400 transition font-medium flex items-center gap-1">
           <ChevronLeft className="w-4 h-4" /> Roles & Permissions
         </Link>
-        <ChevronRight className="w-3.5 h-3.5 text-slate-300" />
-        <span className="text-slate-700 font-semibold">{isEditing ? `Editing role '${roleName}'` : 'Add new role'}</span>
+        <ChevronRight className="w-3.5 h-3.5 text-slate-300 dark:text-slate-600" />
+        <span className="text-slate-700 dark:text-slate-200 font-semibold">{isEditing ? `Editing role '${roleName}'` : 'Add new role'}</span>
       </div>
 
       {/* Sticky header: title + save/cancel, mirroring the "top of page" save bar pattern */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm dark:shadow-none p-5">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center shrink-0">
+          <div className="w-10 h-10 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center shrink-0">
             <ShieldCheck className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-xl font-extrabold text-slate-800 flex items-center gap-2">
+            <h1 className="text-xl font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-2">
               {isEditing ? `Editing role '${roleName}'` : 'Add new role'}
               {isSystemRole && (
-                <span className="bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full">
+                <span className="bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/40 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full">
                   System
                 </span>
               )}
             </h1>
-            <p className="text-xs text-slate-500 flex items-center gap-2">
+            <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-2">
               <span>{selectedIds.size} permission{selectedIds.size !== 1 ? 's' : ''} selected</span>
               {isEditing && (
-                <span className="flex items-center gap-1 text-slate-400">
+                <span className="flex items-center gap-1 text-slate-400 dark:text-slate-500">
                   <Users className="w-3 h-3" /> {memberCount} {memberCount === 1 ? 'user holds' : 'users hold'} this role
                 </span>
               )}
               {!isEditing && cloneFrom && (
-                <span className="text-blue-500">— duplicated from {cloneFrom.name.replace(/ \(Copy\)$/, '')}, review before saving</span>
+                <span className="text-blue-500 dark:text-blue-400">— duplicated from {cloneFrom.name.replace(/ \(Copy\)$/, '')}, review before saving</span>
               )}
             </p>
           </div>
         </div>
         <div className="flex gap-3">
           <button onClick={() => navigate('/admin-dashboard/roles-permissions')} disabled={saving}
-            className="px-5 py-2.5 border border-slate-200 text-slate-600 rounded-xl font-bold hover:bg-slate-50 transition-colors">
+            className="px-5 py-2.5 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-xl font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
             Cancel
           </button>
           <button onClick={handleSave} disabled={saving}
@@ -238,21 +238,21 @@ export default function RoleEditor() {
 
       {/* Quick Templates — only meaningful for a brand-new role */}
       {!isEditing && (
-        <div className="bg-blue-50/60 border border-blue-100 rounded-2xl p-5 space-y-3">
-          <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block">Quick Templates</label>
-          <div className="flex items-center gap-2 rounded-full ring-1 ring-slate-200 px-3 py-2 bg-white focus-within:ring-2 focus-within:ring-blue-500 transition-all max-w-lg">
-            <Search className="w-4 h-4 text-slate-400 shrink-0" />
+        <div className="bg-blue-50/60 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 rounded-2xl p-5 space-y-3">
+          <label className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider block">Quick Templates</label>
+          <div className="flex items-center gap-2 rounded-full ring-1 ring-slate-200 dark:ring-slate-700 px-3 py-2 bg-white dark:bg-slate-800 focus-within:ring-2 focus-within:ring-blue-500 dark:focus-within:ring-blue-400 transition-all max-w-lg">
+            <Search className="w-4 h-4 text-slate-400 dark:text-slate-500 shrink-0" />
             <input
               type="text"
               placeholder="Search common roles: secretary, finance, librarian..."
               value={templateSearch}
               onChange={(e) => setTemplateSearch(e.target.value)}
-              className="w-full bg-transparent outline-none text-sm text-slate-700 placeholder:text-slate-400"
+              className="w-full bg-transparent outline-none text-sm text-slate-700 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500"
             />
           </div>
           <div className="flex flex-wrap gap-2">
             {filteredTemplates.length === 0 ? (
-              <p className="text-xs text-slate-400 italic px-1">No matching template — just type a custom name below.</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500 italic px-1">No matching template — just type a custom name below.</p>
             ) : (
               filteredTemplates.map((t) => (
                 <button
@@ -263,7 +263,7 @@ export default function RoleEditor() {
                   className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition ${
                     roleName === t.name
                       ? 'bg-blue-600 border-blue-600 text-white'
-                      : 'bg-white border-slate-200 text-slate-600 hover:border-blue-300 hover:text-blue-700'
+                      : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-blue-300 dark:hover:border-blue-500/40 hover:text-blue-700 dark:hover:text-blue-400'
                   }`}
                 >
                   {t.name}
@@ -275,23 +275,23 @@ export default function RoleEditor() {
       )}
 
       {/* Role details */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm dark:shadow-none p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-1.5">
-          <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block">
-            Role Name <span className="text-red-500">*</span>
+          <label className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider block">
+            Role Name <span className="text-red-500 dark:text-red-400">*</span>
           </label>
           <input required type="text" placeholder="e.g. Curriculum Coordinator" value={roleName}
             disabled={isSystemRole}
-            className="w-full border border-slate-300 rounded-xl p-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-white text-slate-800 transition-all disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed"
+            className="w-full border border-slate-300 dark:border-slate-600 rounded-xl p-3 outline-none focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-500/20 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 transition-all disabled:bg-slate-50 dark:disabled:bg-slate-800/40 disabled:text-slate-400 dark:disabled:text-slate-500 disabled:cursor-not-allowed"
             onChange={(e) => setRoleName(e.target.value)} />
           {isSystemRole && (
-            <p className="text-xs text-slate-400">System roles can't be renamed — permissions are still fully editable.</p>
+            <p className="text-xs text-slate-400 dark:text-slate-500">System roles can't be renamed — permissions are still fully editable.</p>
           )}
         </div>
         <div className="space-y-1.5">
-          <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block">Description</label>
+          <label className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider block">Description</label>
           <input type="text" placeholder="Optional — what this role is for" value={description}
-            className="w-full border border-slate-300 rounded-xl p-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-white text-slate-800 transition-all"
+            className="w-full border border-slate-300 dark:border-slate-600 rounded-xl p-3 outline-none focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-500/20 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 transition-all"
             onChange={(e) => setDescription(e.target.value)} />
         </div>
         <div className="space-y-1.5">
@@ -305,28 +305,28 @@ export default function RoleEditor() {
 
       {/* Permissions — a full-width, module-by-module grid instead of a cramped modal list */}
       <div className="space-y-3">
-        <h2 className="text-sm font-bold text-slate-600 uppercase tracking-wider">Permissions</h2>
+        <h2 className="text-sm font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">Permissions</h2>
         {permissionsByModule.length === 0 ? (
-          <p className="text-sm text-slate-400 italic">No permissions in the catalog yet.</p>
+          <p className="text-sm text-slate-400 dark:text-slate-500 italic">No permissions in the catalog yet.</p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {permissionsByModule.map(([module, perms]) => {
               const allSelected = perms.every((p) => selectedIds.has(p.id));
               const someSelected = perms.some((p) => selectedIds.has(p.id));
               return (
-                <div key={module} className="bg-white border border-slate-100 rounded-2xl shadow-sm p-5 space-y-3">
+                <div key={module} className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-2xl shadow-sm dark:shadow-none p-5 space-y-3">
                   <button
                     type="button"
                     onClick={() => toggleModule(perms)}
                     className="w-full flex items-center justify-between gap-2 text-left group"
                   >
-                    <span className="text-xs font-bold text-slate-500 uppercase tracking-widest group-hover:text-blue-600 transition">
+                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest group-hover:text-blue-600 dark:group-hover:text-blue-400 transition">
                       {module}
                     </span>
                     {allSelected ? (
-                      <CheckSquare className="w-4 h-4 text-blue-600 shrink-0" />
+                      <CheckSquare className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
                     ) : (
-                      <Square className={`w-4 h-4 shrink-0 ${someSelected ? 'text-blue-300' : 'text-slate-300'}`} />
+                      <Square className={`w-4 h-4 shrink-0 ${someSelected ? 'text-blue-300 dark:text-blue-500/50' : 'text-slate-300 dark:text-slate-600'}`} />
                     )}
                   </button>
                   <div className="space-y-2.5">
@@ -334,10 +334,10 @@ export default function RoleEditor() {
                       <label key={perm.id} className="flex items-start gap-3 cursor-pointer">
                         <input type="checkbox" checked={selectedIds.has(perm.id)}
                           onChange={() => togglePermission(perm.id)}
-                          className="w-4 h-4 mt-0.5 text-blue-600 border-slate-300 rounded focus:ring-blue-500 shrink-0" />
+                          className="w-4 h-4 mt-0.5 text-blue-600 border-slate-300 dark:border-slate-600 rounded focus:ring-blue-500 dark:focus:ring-blue-400 shrink-0" />
                         <span className="flex flex-col">
-                          <span className="text-slate-700 text-sm font-medium leading-snug">{perm.label}</span>
-                          <span className="text-xs text-slate-400 font-mono">{perm.code}</span>
+                          <span className="text-slate-700 dark:text-slate-200 text-sm font-medium leading-snug">{perm.label}</span>
+                          <span className="text-xs text-slate-400 dark:text-slate-500 font-mono">{perm.code}</span>
                         </span>
                       </label>
                     ))}
@@ -350,9 +350,9 @@ export default function RoleEditor() {
       </div>
 
       {/* Bottom save bar too, so it's reachable without scrolling back up on a long permission grid */}
-      <div className="flex justify-end gap-3 sticky bottom-4 bg-white/90 backdrop-blur-sm border border-slate-100 shadow-lg rounded-2xl p-4">
+      <div className="flex justify-end gap-3 sticky bottom-4 bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm border border-slate-100 dark:border-slate-700 shadow-lg dark:shadow-none rounded-2xl p-4">
         <button onClick={() => navigate('/admin-dashboard/roles-permissions')} disabled={saving}
-          className="px-5 py-2.5 border border-slate-200 text-slate-600 rounded-xl font-bold hover:bg-slate-50 transition-colors">
+          className="px-5 py-2.5 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-xl font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
           Cancel
         </button>
         <button onClick={handleSave} disabled={saving}

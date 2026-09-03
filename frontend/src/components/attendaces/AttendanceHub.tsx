@@ -20,26 +20,26 @@ export default function AttendanceHub({ role }: AttendanceHubProps) {
       {/* Header & Tabs */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div className="flex items-center gap-4">
-          <div className="p-3 rounded-2xl text-blue-600 bg-blue-50">
+          <div className="p-3 rounded-2xl text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10">
             <CalendarCheck className="w-7 h-7" strokeWidth={2.5} />
           </div>
           <div>
             {/* Dynamic Header based on role */}
-            <h1 className="text-2xl font-extrabold text-slate-800">
+            <h1 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100">
               {role === 'admin' ? 'School Attendance Overview' : 'My Class Attendance'}
             </h1>
-            <p className="text-slate-500 text-sm mt-0.5">
+            <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5">
               {role === 'admin' ? 'Monitor school-wide daily registers.' : 'Submit your daily class register.'}
             </p>
           </div>
         </div>
 
-        <div className="flex bg-slate-100 p-1 rounded-xl">
+        <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
           {/* Admin Only Tab */}
           {role === 'admin' && (
             <button
               onClick={() => setActiveTab('overview')}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${activeTab === 'overview' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${activeTab === 'overview' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm dark:shadow-none' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
             >
               <LayoutDashboard className="w-4 h-4" /> School Overview
             </button>
@@ -49,7 +49,7 @@ export default function AttendanceHub({ role }: AttendanceHubProps) {
           {(role === 'admin' || role === 'teacher') && (
             <button
               onClick={() => setActiveTab('entry')}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${activeTab === 'entry' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${activeTab === 'entry' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm dark:shadow-none' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
             >
               <CheckSquare className="w-4 h-4" /> {role === 'admin' ? 'Proxy Entry' : 'Daily Register'}
             </button>
@@ -58,7 +58,7 @@ export default function AttendanceHub({ role }: AttendanceHubProps) {
           {/* Shared Tab: Reports */}
           <button
             onClick={() => setActiveTab('reports')}
-            className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${activeTab === 'reports' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${activeTab === 'reports' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm dark:shadow-none' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
           >
             {role === 'admin' ? 'Master Reports' : 'My Reports'}
           </button>
