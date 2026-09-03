@@ -30,9 +30,9 @@ const TermModal: React.FC<TermModalProps> = ({ isOpen, onClose, onSuccess, acade
         endDate: editData.endDate,
       });
     } else {
-      setTermForm({ 
-        academic_year_id: academicYears.length > 0 ? academicYears[0].id.toString() : '', 
-        name: '', startDate: '', endDate: '' 
+      setTermForm({
+        academic_year_id: academicYears.length > 0 ? academicYears[0].id.toString() : '',
+        name: '', startDate: '', endDate: ''
       });
     }
   }, [editData, academicYears, isOpen]);
@@ -63,41 +63,41 @@ const TermModal: React.FC<TermModalProps> = ({ isOpen, onClose, onSuccess, acade
 
   return (
     <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-          <h2 className="font-semibold text-slate-800">{editData ? 'Edit Academic Term' : 'Add Academic Term'}</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-xl dark:shadow-none border border-transparent dark:border-slate-700 w-full max-w-md overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-800">
+          <h2 className="font-semibold text-slate-800 dark:text-slate-100">{editData ? 'Edit Academic Term' : 'Add Academic Term'}</h2>
+          <button onClick={onClose} className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-200">
             <X className="w-5 h-5" />
           </button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4 text-sm">
           <div>
-            <label htmlFor="academicYear" className="block text-slate-600 font-medium mb-1">Select Academic Year</label>
-            <select id="academicYear" required className="w-full border border-slate-200 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+            <label htmlFor="academicYear" className="block text-slate-600 dark:text-slate-300 font-medium mb-1">Select Academic Year</label>
+            <select id="academicYear" required className="w-full border border-slate-200 dark:border-slate-700 rounded-md p-2 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 outline-none bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100"
               value={termForm.academic_year_id} onChange={(e) => setTermForm({...termForm, academic_year_id: e.target.value})}>
               <option value="">-- Choose Year --</option>
               {academicYears.map(y => <option key={y.id} value={String(y.id)}>{y.year}</option>)}
             </select>
           </div>
           <div>
-            <label htmlFor="termName" className="block text-slate-600 font-medium mb-1">Term Name</label>
-            <input id="termName" required type="text" placeholder="e.g. Term 1" className="w-full border border-slate-200 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none" 
+            <label htmlFor="termName" className="block text-slate-600 dark:text-slate-300 font-medium mb-1">Term Name</label>
+            <input id="termName" required type="text" placeholder="e.g. Term 1" className="w-full border border-slate-200 dark:border-slate-700 rounded-md p-2 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 outline-none bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
               value={termForm.name} onChange={(e) => setTermForm({...termForm, name: e.target.value})} />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label htmlFor="startDate" className="block text-slate-600 font-medium mb-1">Start Date</label>
-              <input id="startDate" aria-label="Start Date" required type="date" className="w-full border border-slate-200 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none" 
+              <label htmlFor="startDate" className="block text-slate-600 dark:text-slate-300 font-medium mb-1">Start Date</label>
+              <input id="startDate" aria-label="Start Date" required type="date" className="w-full border border-slate-200 dark:border-slate-700 rounded-md p-2 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 outline-none bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100"
                 value={termForm.startDate} onChange={(e) => setTermForm({...termForm, startDate: e.target.value})} />
             </div>
             <div>
-              <label htmlFor="endDate" className="block text-slate-600 font-medium mb-1">End Date</label>
-              <input id="endDate" aria-label="End Date" required type="date" className="w-full border border-slate-200 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none" 
+              <label htmlFor="endDate" className="block text-slate-600 dark:text-slate-300 font-medium mb-1">End Date</label>
+              <input id="endDate" aria-label="End Date" required type="date" className="w-full border border-slate-200 dark:border-slate-700 rounded-md p-2 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 outline-none bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100"
                 value={termForm.endDate} onChange={(e) => setTermForm({...termForm, endDate: e.target.value})} />
             </div>
           </div>
-          <div className="pt-4 flex justify-end gap-3 border-t border-slate-100 mt-6">
-            <button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-md font-medium">Cancel</button>
+          <div className="pt-4 flex justify-end gap-3 border-t border-slate-100 dark:border-slate-700 mt-6">
+            <button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md font-medium">Cancel</button>
             <button type="submit" disabled={isSubmitting} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium disabled:opacity-50">
               {isSubmitting ? 'Saving...' : (editData ? 'Update Term' : 'Save Term')}
             </button>

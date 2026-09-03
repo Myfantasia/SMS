@@ -6,7 +6,7 @@ from django.conf import settings
 from django.core.cache import cache
 from django.utils import timezone
 
-from school.models.chat_models import ChatThread, ThreadParticipant, MessageAudit
+from apps.messaging.models import ChatThread, ThreadParticipant, MessageAudit
 from school.views.chat_views import check_is_admin, serialize_message_audit
 
 EDIT_WINDOW = timedelta(hours=2)

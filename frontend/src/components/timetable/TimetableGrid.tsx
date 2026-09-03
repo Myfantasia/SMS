@@ -35,38 +35,38 @@ export default function TimetableGrid({
   const uniqueTimes = Array.from(new Set(slots.filter(s => activeDays.includes(s.day)).map(s => `${s.start_time} - ${s.end_time}`))).sort();
 
   return (
-    <div className="flex-1 bg-white border border-slate-200 rounded-2xl shadow-sm flex flex-col overflow-hidden relative">
+    <div className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-sm dark:shadow-none flex flex-col overflow-hidden relative">
       <div className="flex-1 overflow-auto custom-scrollbar">
         <div className={`w-full flex flex-col ${viewType === 'Weekends' ? 'max-w-4xl' : ''}`}>
-          
-          <div className={`grid ${gridColClass} border-b border-slate-100 bg-slate-50 sticky top-0 z-50 shadow-sm`}>
-            <div className="p-4 flex items-center justify-center border-r border-slate-100 bg-slate-50"><Clock className="w-5 h-5 text-slate-400" /></div>
+
+          <div className={`grid ${gridColClass} border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 sticky top-0 z-50 shadow-sm dark:shadow-none`}>
+            <div className="p-4 flex items-center justify-center border-r border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40"><Clock className="w-5 h-5 text-slate-400 dark:text-slate-500" /></div>
             {activeDays.map(day => (
-              <div key={day} className="p-4 text-center font-bold text-slate-700 text-sm uppercase tracking-wider border-r border-slate-100 bg-slate-50">{day}</div>
+              <div key={day} className="p-4 text-center font-bold text-slate-700 dark:text-slate-200 text-sm uppercase tracking-wider border-r border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40">{day}</div>
             ))}
           </div>
 
           <div className="flex-1">
             {uniqueTimes.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-64 text-slate-400">
-                <Clock className="w-12 h-12 mb-3 text-slate-200" />
+              <div className="flex flex-col items-center justify-center h-64 text-slate-400 dark:text-slate-500">
+                <Clock className="w-12 h-12 mb-3 text-slate-200 dark:text-slate-700" />
                 <p className="font-medium">No slots for {viewType}.</p>
               </div>
             ) : (
               uniqueTimes.map((timeStr, rowIndex) => (
-                <div key={timeStr} className={`grid ${gridColClass} border-b border-slate-100 group`} style={{ zIndex: 40 - rowIndex, position: 'relative' }}>
-                  
-                  <div className="p-4 text-xs font-bold text-slate-500 flex flex-col justify-center items-center text-center border-r border-slate-100 bg-slate-50/30">
-                    <span>{timeStr.split(' - ')[0]}</span><span className="text-slate-300 font-normal">to</span><span>{timeStr.split(' - ')[1]}</span>
+                <div key={timeStr} className={`grid ${gridColClass} border-b border-slate-100 dark:border-slate-700 group`} style={{ zIndex: 40 - rowIndex, position: 'relative' }}>
+
+                  <div className="p-4 text-xs font-bold text-slate-500 dark:text-slate-400 flex flex-col justify-center items-center text-center border-r border-slate-100 dark:border-slate-700 bg-slate-50/30 dark:bg-slate-800/40">
+                    <span>{timeStr.split(' - ')[0]}</span><span className="text-slate-300 dark:text-slate-600 font-normal">to</span><span>{timeStr.split(' - ')[1]}</span>
                   </div>
 
                   {activeDays.map(day => {
                     const slot = slots.find(s => s.day === day && `${s.start_time} - ${s.end_time}` === timeStr);
-                    if (!slot) return <div key={day} className="p-2 border-r border-slate-100 bg-slate-50/50"></div>;
-                    
+                    if (!slot) return <div key={day} className="p-2 border-r border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/40"></div>;
+
                     if (slot.is_global) return (
-                      <div key={slot.id} className="p-2 border-r border-slate-100 flex items-center justify-center">
-                        <div className="w-full h-full min-h-15 bg-slate-100 rounded-lg flex items-center justify-center text-slate-400 font-bold text-sm tracking-wide border border-dashed border-slate-300 p-2 text-center leading-tight wrap-break-word">
+                      <div key={slot.id} className="p-2 border-r border-slate-100 dark:border-slate-700 flex items-center justify-center">
+                        <div className="w-full h-full min-h-15 bg-slate-100 dark:bg-slate-800 rounded-lg flex items-center justify-center text-slate-400 dark:text-slate-500 font-bold text-sm tracking-wide border border-dashed border-slate-300 dark:border-slate-600 p-2 text-center leading-tight wrap-break-word">
                           {slot.global_label}
                         </div>
                       </div>
@@ -94,8 +94,8 @@ export default function TimetableGrid({
                       // once a substitute is actually assigned, switch to green so it reads as "resolved."
                       const colors = isDailyCoverMode
                         ? (activeCover
-                            ? 'bg-emerald-50/60 text-emerald-900 border-emerald-300 shadow-inner'
-                            : 'bg-amber-50/60 text-amber-900 border-amber-300 shadow-inner')
+                            ? 'bg-emerald-50/60 dark:bg-emerald-500/10 text-emerald-900 dark:text-emerald-300 border-emerald-300 dark:border-emerald-500/40 shadow-inner'
+                            : 'bg-amber-50/60 dark:bg-amber-500/10 text-amber-900 dark:text-amber-300 border-amber-300 dark:border-amber-500/40 shadow-inner')
                         : (isOptionBlock ? 'bg-slate-800 text-white border-slate-700' : getSubjectColor(lesson.subject_name));
 
                       let isFirstHalf = false;
@@ -113,10 +113,10 @@ export default function TimetableGrid({
                          if (nextLesson && !isSecondHalf) isFirstHalf = true;
                       }
 
-                      if (isSecondHalf) return <div key={slot.id} className="p-2 border-r border-slate-100 relative"><div className="w-full min-h-20"></div></div>;
+                      if (isSecondHalf) return <div key={slot.id} className="p-2 border-r border-slate-100 dark:border-slate-700 relative"><div className="w-full min-h-20"></div></div>;
 
                       return (
-                        <div key={slot.id} className="p-2 border-r border-slate-100 relative">
+                        <div key={slot.id} className="p-2 border-r border-slate-100 dark:border-slate-700 relative">
                           {isFirstHalf && <div className="w-full min-h-20"></div>}
                           <div 
                             className={`${isFirstHalf ? 'absolute top-2 left-2 right-2 z-20 shadow-lg' : 'w-full h-full min-h-20 relative'} rounded-xl border p-3 flex flex-col justify-between group/card hover:shadow-md min-w-0 transition-all ${colors}`}
@@ -186,7 +186,7 @@ export default function TimetableGrid({
                                         onClick={(e) => { e.stopPropagation(); onToggleLock(lesson.id); }}
                                         title={lesson.is_locked ? "Unlock lesson (allow automation to move it)" : "Lock lesson (pin it against auto-generate/sync)"}
                                         aria-label={lesson.is_locked ? `Unlock ${lesson.subject_name} lesson` : `Lock ${lesson.subject_name} lesson`}
-                                        className={`p-1.5 rounded-md transition-colors ${isOptionBlock ? 'bg-slate-600 hover:bg-slate-500 text-white shadow-sm' : 'bg-white hover:bg-amber-50 text-amber-600 shadow-sm border border-slate-200'}`}
+                                        className={`p-1.5 rounded-md transition-colors ${isOptionBlock ? 'bg-slate-600 hover:bg-slate-500 text-white shadow-sm dark:shadow-none' : 'bg-white dark:bg-slate-900 hover:bg-amber-50 dark:hover:bg-amber-500/10 text-amber-600 dark:text-amber-400 shadow-sm dark:shadow-none border border-slate-200 dark:border-slate-700'}`}
                                       >
                                         {lesson.is_locked ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
                                       </button>
@@ -196,7 +196,7 @@ export default function TimetableGrid({
                                         onClick={(e) => { e.stopPropagation(); setLessonToDelete(lesson.id); }}
                                         title="Remove lesson"
                                         aria-label={`Remove ${lesson.subject_name} lesson`}
-                                        className={`p-1.5 rounded-md transition-colors ${isOptionBlock ? 'bg-red-500 hover:bg-red-600 text-white shadow-sm' : 'bg-white hover:bg-red-50 text-red-500 shadow-sm border border-slate-200'}`}
+                                        className={`p-1.5 rounded-md transition-colors ${isOptionBlock ? 'bg-red-500 hover:bg-red-600 text-white shadow-sm dark:shadow-none' : 'bg-white dark:bg-slate-900 hover:bg-red-50 dark:hover:bg-red-500/10 text-red-500 dark:text-red-400 shadow-sm dark:shadow-none border border-slate-200 dark:border-slate-700'}`}
                                       >
                                         <Trash2 className="w-4 h-4" />
                                       </button>
@@ -212,13 +212,13 @@ export default function TimetableGrid({
                     }
 
                     return (
-                      <div key={slot.id} className={`p-2 border-r border-slate-100 transition flex items-center justify-center min-h-20 ${isAdmin && !isDailyCoverMode ? 'cursor-pointer' : ''} ${slot.is_remedial ? 'bg-purple-50/30 hover:bg-purple-100/50' : 'hover:bg-blue-50/50'}`}>
+                      <div key={slot.id} className={`p-2 border-r border-slate-100 dark:border-slate-700 transition flex items-center justify-center min-h-20 ${isAdmin && !isDailyCoverMode ? 'cursor-pointer' : ''} ${slot.is_remedial ? 'bg-purple-50/30 dark:bg-purple-500/10 hover:bg-purple-100/50 dark:hover:bg-purple-500/20' : 'hover:bg-blue-50/50 dark:hover:bg-blue-500/10'}`}>
                         {isAdmin && !isDailyCoverMode && (
                           <button
                             onClick={(e) => { e.stopPropagation(); setActiveSlotId(slot.id); }}
                             title="Schedule a lesson in this slot"
                             aria-label={`Schedule a lesson on ${day} ${timeStr}`}
-                            className="w-9 h-9 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center opacity-0 group-hover:opacity-100 focus:opacity-100 focus-visible:ring-2 focus-visible:ring-blue-400 outline-none transition-opacity hover:bg-blue-100 hover:text-blue-600 shadow-sm"
+                            className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 flex items-center justify-center opacity-0 group-hover:opacity-100 focus:opacity-100 focus-visible:ring-2 focus-visible:ring-blue-400 dark:focus-visible:ring-blue-400 outline-none transition-opacity hover:bg-blue-100 dark:hover:bg-blue-500/20 hover:text-blue-600 dark:hover:text-blue-400 shadow-sm dark:shadow-none"
                           >
                             <Plus className="w-4 h-4" />
                           </button>
@@ -234,14 +234,14 @@ export default function TimetableGrid({
       </div>
 
       {/* Legend — explains cell coloring/icons that aren't otherwise self-evident */}
-      <div className="shrink-0 border-t border-slate-100 px-4 py-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 bg-slate-50/60 text-[11px] font-medium text-slate-500">
-        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-purple-100 border border-purple-200 shrink-0"></span> Remedial period</span>
+      <div className="shrink-0 border-t border-slate-100 dark:border-slate-700 px-4 py-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 bg-slate-50/60 dark:bg-slate-800/40 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-purple-100 dark:bg-purple-500/10 border border-purple-200 dark:border-purple-500/40 shrink-0"></span> Remedial period</span>
         <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-slate-800 shrink-0"></span> Elective option block</span>
-        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-amber-100 border border-amber-300 shrink-0"></span> Cover needed</span>
-        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-100 border border-emerald-300 shrink-0"></span> Cover assigned</span>
+        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-amber-100 dark:bg-amber-500/10 border border-amber-300 dark:border-amber-500/40 shrink-0"></span> Cover needed</span>
+        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-100 dark:bg-emerald-500/10 border border-emerald-300 dark:border-emerald-500/40 shrink-0"></span> Cover assigned</span>
         <span className="flex items-center gap-1.5"><Lock className="w-3 h-3 shrink-0" /> Locked (pinned against auto-generate/sync)</span>
         {isAdmin && !isDailyCoverMode && (
-          <span className="flex items-center gap-1.5 ml-auto text-slate-400">
+          <span className="flex items-center gap-1.5 ml-auto text-slate-400 dark:text-slate-500">
             <Info className="w-3 h-3" /> Hover an empty slot and click <Plus className="w-3 h-3 inline" /> to schedule a lesson
           </span>
         )}

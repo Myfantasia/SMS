@@ -1,12 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Phone, Mail, MapPin, BookOpen, Layers, Star, Edit, ShieldAlert, UserX, Heart, Users, ShieldCheck, Wallet, Hash, Calendar } from 'lucide-react';
+import { ArrowLeft, Phone, Mail, MapPin, BookOpen, Layers, Star, Edit, ShieldAlert, UserX, Heart, Users, ShieldCheck, Wallet, Hash, Calendar, IdCard } from 'lucide-react';
 import api from '../../libs/axiosInstance';
 
 const ENROLLMENT_BADGE: Record<string, string> = {
-  Suspended: 'bg-amber-50 text-amber-700',
-  Expelled: 'bg-red-50 text-red-700',
-  Transferred: 'bg-slate-100 text-slate-600',
+  Suspended: 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400',
+  Expelled: 'bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400',
+  Transferred: 'bg-slate-100 dark:bg-slate-500/10 text-slate-600 dark:text-slate-400',
 };
 
 interface AllocationItem {
@@ -21,12 +21,12 @@ interface AllocationItem {
 function DetailChip({ icon, label, value }: { icon: React.ReactNode; label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-center gap-3">
-      <div className="w-9 h-9 rounded-full bg-slate-50 text-slate-500 flex items-center justify-center shrink-0">
+      <div className="w-9 h-9 rounded-full bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 flex items-center justify-center shrink-0">
         {icon}
       </div>
       <div className="min-w-0">
-        <p className="text-xs text-slate-400 font-semibold uppercase tracking-wide">{label}</p>
-        <p className="text-slate-800 font-medium truncate">{value}</p>
+        <p className="text-xs text-slate-400 dark:text-slate-500 font-semibold uppercase tracking-wide">{label}</p>
+        <p className="text-slate-800 dark:text-slate-100 font-medium truncate">{value}</p>
       </div>
     </div>
   );
@@ -42,6 +42,20 @@ function StatPill({ icon, label, value, tint }: { icon: React.ReactNode; label: 
         <p className="text-lg font-extrabold leading-none">{value}</p>
         <p className="text-[11px] font-semibold uppercase tracking-wide opacity-70 mt-1">{label}</p>
       </div>
+    </div>
+  );
+}
+
+// One independent tile in the detail grid below the profile summary — wide screens lay
+// several of these out side by side instead of one long scroll of stacked sections.
+function Card({ icon, title, span, children }: { icon: ReactNode; title: string; span?: string; children: ReactNode }) {
+  return (
+    <div className={`bg-white dark:bg-slate-900 rounded-2xl shadow-sm dark:shadow-none border border-slate-100 dark:border-slate-700 p-6 ${span ?? ''}`}>
+      <div className="flex items-center gap-2 mb-4 text-slate-800 dark:text-slate-100">
+        {icon}
+        <h2 className="text-lg font-semibold">{title}</h2>
+      </div>
+      {children}
     </div>
   );
 }
@@ -99,38 +113,45 @@ useEffect(() => {
 
   if (loading) {
     return (
-      <div className="max-w-3xl space-y-6 animate-pulse">
-        <div className="h-6 w-40 bg-slate-200 rounded-lg"></div>
-        <div className="h-80 bg-slate-200 rounded-2xl"></div>
+      <div className="max-w-7xl mx-auto space-y-6 animate-pulse">
+        <div className="h-6 w-40 bg-slate-200 dark:bg-slate-800 rounded-lg"></div>
+        <div className="h-56 bg-slate-200 dark:bg-slate-800 rounded-2xl"></div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+          <div className="h-40 bg-slate-200 dark:bg-slate-800 rounded-2xl"></div>
+          <div className="h-40 bg-slate-200 dark:bg-slate-800 rounded-2xl"></div>
+          <div className="h-40 bg-slate-200 dark:bg-slate-800 rounded-2xl"></div>
+        </div>
       </div>
     );
   }
-  if (!profile) return <div className="p-6 text-red-500">Profile not found.</div>;
+  if (!profile) return <div className="p-6 text-red-500 dark:text-red-400">Profile not found.</div>;
 
   const isClassTeacher = userType === 'teachers' && profile.is_class_teacher;
   const isFlaggedStudent = userType === 'students' && profile.enrollment_state && profile.enrollment_state !== 'Active';
   const hasNoChildrenLinked = userType === 'parents' && !profile.children_rolls;
   const isPendingStaff = userType === 'staff' && profile.status === false;
+  const hasFamilyDetails = userType === 'students' && (profile.father_name || profile.mother_name || profile.guardian_name);
 
   return (
-    <div className="max-w-3xl">
+    <div className="max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-6">
-        <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-blue-600 transition-colors">
+        <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
           <ArrowLeft className="w-4 h-4" /> Back to Directory
         </button>
         {isAdmin && (
           <button
             onClick={() => navigate(`${basePath}/${userType}/edit/${id}`)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 hover:-translate-y-0.5 hover:shadow-md transition-all shadow-sm"
           >
             <Edit className="w-4 h-4" /> Edit Profile
           </button>
         )}
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-
-        {/* COVER BAND + OVERLAPPING AVATAR */}
+      {/* PROFILE SUMMARY CARD — cover band, avatar, name, status badges, and (for
+          teachers) the quick-glance stat strip. Everything else lives in the card
+          grid below so a wide screen tiles detail sections instead of one long scroll. */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm dark:shadow-none border border-slate-100 dark:border-slate-700 overflow-hidden mb-6">
         <div className="relative h-24 bg-gradient-to-r from-blue-600 via-blue-600 to-indigo-600">
           <div
             className="absolute inset-0 opacity-[0.15]"
@@ -147,45 +168,45 @@ useEffect(() => {
                 <img
                   src={profile.profile_pic}
                   alt={profile.name}
-                  className="w-20 h-20 rounded-full object-cover ring-4 ring-white shadow-sm"
+                  className="w-20 h-20 rounded-full object-cover ring-4 ring-white dark:ring-slate-900 shadow-sm"
                 />
               ) : (
-                <div className="w-20 h-20 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center text-2xl font-bold uppercase ring-4 ring-white shadow-sm">
+                <div className="w-20 h-20 bg-indigo-100 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-full flex items-center justify-center text-2xl font-bold uppercase ring-4 ring-white dark:ring-slate-900 shadow-sm">
                   {profile.name.charAt(0)}
                 </div>
               )}
               {isClassTeacher && (
-                <span title="Class Teacher" className="absolute -top-1 -right-1 w-6 h-6 bg-amber-400 border-2 border-white rounded-full flex items-center justify-center">
+                <span title="Class Teacher" className="absolute -top-1 -right-1 w-6 h-6 bg-amber-400 border-2 border-white dark:border-slate-900 rounded-full flex items-center justify-center">
                   <Star className="w-3 h-3 fill-white text-white" />
                 </span>
               )}
             </div>
 
             <div className="pb-1 min-w-0">
-              <h1 className="text-2xl font-extrabold text-slate-800 truncate">{profile.name}</h1>
-              <p className="text-slate-500 capitalize text-sm mt-0.5">{userType.slice(0, -1)} &middot; {profile.username}</p>
+              <h1 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100 truncate">{profile.name}</h1>
+              <p className="text-slate-500 dark:text-slate-400 capitalize text-sm mt-0.5">{userType.slice(0, -1)} &middot; {profile.username}</p>
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2 mb-6">
+          <div className={`flex flex-wrap gap-2 ${userType === 'teachers' ? 'mb-6' : ''}`}>
             {isClassTeacher && (
-              <span className="inline-flex items-center gap-1.5 text-xs font-bold bg-amber-50 text-amber-700 px-2.5 py-1 rounded-full">
+              <span className="inline-flex items-center gap-1.5 text-xs font-bold bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 px-2.5 py-1 rounded-full">
                 <Star className="w-3 h-3 fill-amber-500 text-amber-500" /> Class Teacher &middot; {profile.class_teacher_of}
               </span>
             )}
             {isFlaggedStudent && (
-              <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full ${ENROLLMENT_BADGE[profile.enrollment_state] || 'bg-slate-100 text-slate-600'}`}>
+              <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full ${ENROLLMENT_BADGE[profile.enrollment_state] || 'bg-slate-100 dark:bg-slate-500/10 text-slate-600 dark:text-slate-400'}`}>
                 <ShieldAlert className="w-3 h-3" /> {profile.enrollment_state}
               </span>
             )}
             {userType === 'parents' && (
-              <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full ${hasNoChildrenLinked ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
+              <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full ${hasNoChildrenLinked ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400' : 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'}`}>
                 {hasNoChildrenLinked ? <UserX className="w-3 h-3" /> : <Heart className="w-3 h-3" />}
                 {profile.relationship}{hasNoChildrenLinked ? ' · No children linked' : ''}
               </span>
             )}
             {userType === 'staff' && (
-              <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full ${isPendingStaff ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
+              <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full ${isPendingStaff ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400' : 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'}`}>
                 {isPendingStaff ? <ShieldAlert className="w-3 h-3" /> : <ShieldCheck className="w-3 h-3" />}
                 {isPendingStaff ? 'Pending Approval' : 'Active Account'}
               </span>
@@ -194,271 +215,234 @@ useEffect(() => {
 
           {/* TEACHER STAT SUMMARY — the numbers an admin scans for first */}
           {userType === 'teachers' && (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-8">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               <StatPill
-                icon={<Wallet className="w-5 h-5 text-emerald-600 shrink-0" />}
+                icon={<Wallet className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />}
                 label="Monthly Salary"
                 value={profile.salary ? `Ksh ${Number(profile.salary).toLocaleString()}` : 'Not set'}
-                tint="bg-emerald-50/60 border-emerald-100 text-emerald-800"
+                tint="bg-emerald-50/60 dark:bg-emerald-500/10 border-emerald-100 dark:border-emerald-500/20 text-emerald-800 dark:text-emerald-300"
               />
               <StatPill
-                icon={<BookOpen className="w-5 h-5 text-indigo-600 shrink-0" />}
+                icon={<BookOpen className="w-5 h-5 text-indigo-600 dark:text-indigo-400 shrink-0" />}
                 label="Subjects Qualified"
                 value={profile.qualified_subject_names?.length ?? 0}
-                tint="bg-indigo-50/60 border-indigo-100 text-indigo-800"
+                tint="bg-indigo-50/60 dark:bg-indigo-500/10 border-indigo-100 dark:border-indigo-500/20 text-indigo-800 dark:text-indigo-300"
               />
               <StatPill
-                icon={<Layers className="w-5 h-5 text-blue-600 shrink-0" />}
+                icon={<Layers className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0" />}
                 label="Classes Assigned"
                 value={profile.allocations?.length ?? 0}
-                tint="bg-blue-50/60 border-blue-100 text-blue-800"
+                tint="bg-blue-50/60 dark:bg-blue-500/10 border-blue-100 dark:border-blue-500/20 text-blue-800 dark:text-blue-300"
               />
             </div>
           )}
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <DetailChip icon={<Mail className="w-4 h-4" />} label="Email Address" value={profile.email || "N/A"} />
-          <DetailChip icon={<Phone className="w-4 h-4" />} label="Mobile Number" value={profile.mobile || "N/A"} />
-
-          {profile.address && (
-            <DetailChip icon={<MapPin className="w-4 h-4" />} label="Home Address" value={profile.address} />
-          )}
-
-          <DetailChip
-            icon={<BookOpen className="w-4 h-4" />}
-            label={userType === 'students' ? 'Class Enrolled' : userType === 'teachers' ? 'Subjects Specialized' : userType === 'staff' ? 'Job Title' : 'Linked Children'}
-            value={profile.class || profile.subjects || profile.job_title || profile.children_display || "N/A"}
-          />
-
-          {userType === 'students' && (
-            <>
-              <DetailChip icon={<Hash className="w-4 h-4" />} label="Admission / Roll No." value={profile.roll || "N/A"} />
-              <DetailChip
-                icon={<Wallet className="w-4 h-4" />}
-                label="Fee Balance"
-                value={profile.fee !== null && profile.fee !== undefined ? profile.fee : "N/A"}
-              />
-            </>
-          )}
-
-          {userType === 'teachers' && (
-            <>
-              <DetailChip icon={<Hash className="w-4 h-4" />} label="National ID Number" value={profile.id_number || "N/A"} />
-              <DetailChip
-                icon={<Calendar className="w-4 h-4" />}
-                label="Date Joined"
-                value={profile.joindate
-                  ? new Date(profile.joindate).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
-                  : "N/A"}
-              />
-            </>
-          )}
-
-          {userType === 'staff' && (
-            <>
-              <DetailChip icon={<Hash className="w-4 h-4" />} label="National ID Number" value={profile.id_number || "N/A"} />
-              <DetailChip
-                icon={<Calendar className="w-4 h-4" />}
-                label="Date Joined"
-                value={profile.joindate
-                  ? new Date(profile.joindate).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
-                  : "N/A"}
-              />
-            </>
-          )}
         </div>
+      </div>
+
+      {/* DETAIL CARD GRID — wide screens tile 2-3 cards per row instead of one long
+          scroll; a table (Class Allocations) or multi-block section (Family/Guardian)
+          claims extra columns via `span` where the content genuinely needs the room. */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+
+        <Card icon={<IdCard className="w-5 h-5 text-slate-400 dark:text-slate-500" />} title="Contact & Core Details">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <DetailChip icon={<Mail className="w-4 h-4" />} label="Email Address" value={profile.email || "N/A"} />
+            <DetailChip icon={<Phone className="w-4 h-4" />} label="Mobile Number" value={profile.mobile || "N/A"} />
+
+            {profile.address && (
+              <DetailChip icon={<MapPin className="w-4 h-4" />} label="Home Address" value={profile.address} />
+            )}
+
+            <DetailChip
+              icon={<BookOpen className="w-4 h-4" />}
+              label={userType === 'students' ? 'Class Enrolled' : userType === 'teachers' ? 'Subjects Specialized' : userType === 'staff' ? 'Job Title' : 'Linked Children'}
+              value={profile.class || profile.subjects || profile.job_title || profile.children_display || "N/A"}
+            />
+
+            {userType === 'students' && (
+              <>
+                <DetailChip icon={<Hash className="w-4 h-4" />} label="Admission / Roll No." value={profile.roll || "N/A"} />
+                <DetailChip
+                  icon={<Wallet className="w-4 h-4" />}
+                  label="Fee Balance"
+                  value={profile.fee !== null && profile.fee !== undefined ? profile.fee : "N/A"}
+                />
+              </>
+            )}
+
+            {(userType === 'teachers' || userType === 'staff') && (
+              <>
+                <DetailChip icon={<Hash className="w-4 h-4" />} label="National ID Number" value={profile.id_number || "N/A"} />
+                <DetailChip
+                  icon={<Calendar className="w-4 h-4" />}
+                  label="Date Joined"
+                  value={profile.joindate
+                    ? new Date(profile.joindate).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+                    : "N/A"}
+                />
+              </>
+            )}
+          </div>
+        </Card>
 
         {/* --- ENROLLMENT NOTES (Suspended/Expelled/Transferred students) --- */}
         {isFlaggedStudent && profile.enrollment_notes && (
-          <div className="mt-6 pt-6 border-t border-slate-100">
-            <div className="flex items-center gap-2 mb-2 text-slate-800">
-              <ShieldAlert className="w-4 h-4 text-amber-500" />
-              <h2 className="text-sm font-bold uppercase tracking-wide">Enrollment Notes</h2>
-            </div>
-            <p className="text-sm text-slate-600 bg-amber-50/50 border border-amber-100 rounded-lg p-3">{profile.enrollment_notes}</p>
-          </div>
+          <Card icon={<ShieldAlert className="w-5 h-5 text-amber-500 dark:text-amber-400" />} title="Enrollment Notes">
+            <p className="text-sm text-slate-600 dark:text-slate-300 bg-amber-50/50 dark:bg-amber-500/10 border border-amber-100 dark:border-amber-500/20 rounded-lg p-3">{profile.enrollment_notes}</p>
+          </Card>
         )}
 
         {/* --- FAMILY / GUARDIAN DETAILS (Students) --- */}
-        {userType === 'students' && (profile.father_name || profile.mother_name || profile.guardian_name) && (
-          <div className="mt-8 pt-6 border-t border-slate-100">
-            <div className="flex items-center gap-2 mb-4 text-slate-800">
-              <Heart className="w-5 h-5 text-rose-500" />
-              <h2 className="text-lg font-semibold">Family &amp; Guardian Details</h2>
-            </div>
+        {hasFamilyDetails && (
+          <Card icon={<Heart className="w-5 h-5 text-rose-500 dark:text-rose-400" />} title="Family & Guardian Details" span="xl:col-span-2">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {profile.father_name && (
-                <div className="bg-slate-50 border border-slate-100 rounded-lg p-4">
-                  <p className="text-xs text-slate-400 font-semibold uppercase tracking-wide">Father</p>
-                  <p className="text-slate-800 font-medium">{profile.father_name}</p>
-                  {profile.father_mobile && <p className="text-sm text-slate-500 mt-0.5">{profile.father_mobile}</p>}
+                <div className="bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-lg p-4">
+                  <p className="text-xs text-slate-400 dark:text-slate-500 font-semibold uppercase tracking-wide">Father</p>
+                  <p className="text-slate-800 dark:text-slate-100 font-medium">{profile.father_name}</p>
+                  {profile.father_mobile && <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{profile.father_mobile}</p>}
                 </div>
               )}
               {profile.mother_name && (
-                <div className="bg-slate-50 border border-slate-100 rounded-lg p-4">
-                  <p className="text-xs text-slate-400 font-semibold uppercase tracking-wide">Mother</p>
-                  <p className="text-slate-800 font-medium">{profile.mother_name}</p>
-                  {profile.mother_mobile && <p className="text-sm text-slate-500 mt-0.5">{profile.mother_mobile}</p>}
+                <div className="bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-lg p-4">
+                  <p className="text-xs text-slate-400 dark:text-slate-500 font-semibold uppercase tracking-wide">Mother</p>
+                  <p className="text-slate-800 dark:text-slate-100 font-medium">{profile.mother_name}</p>
+                  {profile.mother_mobile && <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{profile.mother_mobile}</p>}
                 </div>
               )}
               {profile.guardian_name && (
-                <div className="bg-slate-50 border border-slate-100 rounded-lg p-4">
-                  <p className="text-xs text-slate-400 font-semibold uppercase tracking-wide">
+                <div className="bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-lg p-4">
+                  <p className="text-xs text-slate-400 dark:text-slate-500 font-semibold uppercase tracking-wide">
                     Guardian{profile.guardian_relationship ? ` (${profile.guardian_relationship})` : ''}
                   </p>
-                  <p className="text-slate-800 font-medium">{profile.guardian_name}</p>
-                  {profile.guardian_mobile && <p className="text-sm text-slate-500 mt-0.5">{profile.guardian_mobile}</p>}
+                  <p className="text-slate-800 dark:text-slate-100 font-medium">{profile.guardian_name}</p>
+                  {profile.guardian_mobile && <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{profile.guardian_mobile}</p>}
                 </div>
               )}
             </div>
-          </div>
+          </Card>
         )}
 
         {/* --- LINKED PARENT PORTAL ACCOUNTS (Students) --- */}
         {userType === 'students' && profile.linked_parents && profile.linked_parents.length > 0 && (
-          <div className="mt-8 pt-6 border-t border-slate-100">
-            <div className="flex items-center gap-2 mb-4 text-slate-800">
-              <Users className="w-5 h-5 text-emerald-500" />
-              <h2 className="text-lg font-semibold">Linked Parent Portal Accounts</h2>
-            </div>
+          <Card icon={<Users className="w-5 h-5 text-emerald-500 dark:text-emerald-400" />} title="Linked Parent Portal Accounts">
             <div className="space-y-2">
               {profile.linked_parents.map((p: { id: number; name: string; relationship: string; mobile: string }) => (
                 <Link
                   key={p.id}
                   to={`${basePath}/parents/view/${p.id}`}
-                  className="flex items-center justify-between p-3 rounded-lg border border-slate-100 hover:border-emerald-200 hover:bg-emerald-50/50 transition"
+                  className="flex items-center justify-between p-3 rounded-lg border border-slate-100 dark:border-slate-700 hover:border-emerald-200 dark:hover:border-emerald-500/30 hover:bg-emerald-50/50 dark:hover:bg-emerald-500/10 transition"
                 >
                   <div>
-                    <p className="font-medium text-slate-800 text-sm">{p.name}</p>
-                    <p className="text-xs text-slate-500">{p.relationship} &middot; {p.mobile}</p>
+                    <p className="font-medium text-slate-800 dark:text-slate-100 text-sm">{p.name}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{p.relationship} &middot; {p.mobile}</p>
                   </div>
                 </Link>
               ))}
             </div>
-          </div>
+          </Card>
         )}
 
         {/* --- ELECTIVE SUBJECTS (Students) --- */}
         {userType === 'students' && profile.elective_subjects && profile.elective_subjects.length > 0 && (
-          <div className="mt-8 pt-6 border-t border-slate-100">
-            <div className="flex items-center gap-2 mb-4 text-slate-800">
-              <BookOpen className="w-5 h-5 text-indigo-500" />
-              <h2 className="text-lg font-semibold">Elective Subjects</h2>
-            </div>
+          <Card icon={<BookOpen className="w-5 h-5 text-indigo-500 dark:text-indigo-400" />} title="Elective Subjects">
             <div className="flex flex-wrap gap-2">
               {profile.elective_subjects.map((s: { id: number; name: string; code: string }) => (
-                <span key={s.id} className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100">
+                <span key={s.id} className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-500/20">
                   {s.name} {s.code && `(${s.code})`}
                 </span>
               ))}
             </div>
-          </div>
+          </Card>
         )}
 
         {/* --- LINKED CHILDREN DETAIL (Parents) --- */}
         {userType === 'parents' && profile.children_detail && profile.children_detail.length > 0 && (
-          <div className="mt-8 pt-6 border-t border-slate-100">
-            <div className="flex items-center gap-2 mb-4 text-slate-800">
-              <Users className="w-5 h-5 text-emerald-500" />
-              <h2 className="text-lg font-semibold">Linked Children</h2>
-            </div>
+          <Card icon={<Users className="w-5 h-5 text-emerald-500 dark:text-emerald-400" />} title="Linked Children">
             <div className="space-y-2">
               {profile.children_detail.map((c: { id: number; name: string; roll: string; class: string; enrollment_state: string }) => (
                 <Link
                   key={c.id}
                   to={`${basePath}/students/view/${c.id}`}
-                  className="flex items-center justify-between p-3 rounded-lg border border-slate-100 hover:border-emerald-200 hover:bg-emerald-50/50 transition"
+                  className="flex items-center justify-between p-3 rounded-lg border border-slate-100 dark:border-slate-700 hover:border-emerald-200 dark:hover:border-emerald-500/30 hover:bg-emerald-50/50 dark:hover:bg-emerald-500/10 transition"
                 >
                   <div>
-                    <p className="font-medium text-slate-800 text-sm">{c.name} <span className="text-slate-400 font-normal">({c.roll})</span></p>
-                    <p className="text-xs text-slate-500">{c.class}</p>
+                    <p className="font-medium text-slate-800 dark:text-slate-100 text-sm">{c.name} <span className="text-slate-400 dark:text-slate-500 font-normal">({c.roll})</span></p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{c.class}</p>
                   </div>
                   {c.enrollment_state !== 'Active' && (
-                    <span className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700">{c.enrollment_state}</span>
+                    <span className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400">{c.enrollment_state}</span>
                   )}
                 </Link>
               ))}
             </div>
-          </div>
+          </Card>
         )}
 
         {/* --- ASSIGNED RBAC ROLES (Staff) --- */}
         {userType === 'staff' && (
-          <div className="mt-8 pt-6 border-t border-slate-100">
-            <div className="flex items-center gap-2 mb-4 text-slate-800">
-              <ShieldCheck className="w-5 h-5 text-purple-500" />
-              <h2 className="text-lg font-semibold">Roles &amp; Access</h2>
-            </div>
+          <Card icon={<ShieldCheck className="w-5 h-5 text-purple-500 dark:text-purple-400" />} title="Roles &amp; Access">
             {profile.assigned_roles && profile.assigned_roles.length > 0 ? (
               <div className="flex flex-wrap gap-2">
                 {profile.assigned_roles.map((r: string) => (
-                  <span key={r} className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-purple-50 text-purple-700 border border-purple-100">
+                  <span key={r} className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-400 border border-purple-100 dark:border-purple-500/20">
                     {r}
                   </span>
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-slate-500 bg-slate-50 p-4 rounded-lg border border-dashed border-slate-200">
+              <p className="text-sm text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 p-4 rounded-lg border border-dashed border-slate-200 dark:border-slate-700">
                 No roles currently granted. {profile.requested_role && `They applied requesting "${profile.requested_role}".`}
               </p>
             )}
             {isAdmin && (
               <Link
                 to={`${basePath}/roles-permissions`}
-                className="inline-flex items-center gap-1.5 mt-3 text-sm text-blue-600 font-medium hover:underline"
+                className="inline-flex items-center gap-1.5 mt-3 text-sm text-blue-600 dark:text-blue-400 font-medium hover:underline"
               >
                 Manage in Roles &amp; Permissions
               </Link>
             )}
-          </div>
+          </Card>
         )}
 
         {/* --- QUALIFIED SUBJECTS (Teachers) --- */}
         {userType === 'teachers' && profile.qualified_subject_names && profile.qualified_subject_names.length > 0 && (
-          <div className="mt-8 pt-6 border-t border-slate-100">
-            <div className="flex items-center gap-2 mb-4 text-slate-800">
-              <BookOpen className="w-5 h-5 text-indigo-500" />
-              <h2 className="text-lg font-semibold">Qualified to Teach</h2>
-            </div>
+          <Card icon={<BookOpen className="w-5 h-5 text-indigo-500 dark:text-indigo-400" />} title="Qualified to Teach">
             <div className="flex flex-wrap gap-2">
               {profile.qualified_subject_names.map((name: string) => (
-                <span key={name} className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100">
+                <span key={name} className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-500/20">
                   {name}
                 </span>
               ))}
             </div>
-          </div>
+          </Card>
         )}
 
         {/* --- CLASS ALLOCATIONS WORKLOAD SECTION --- */}
         {userType === 'teachers' && profile.allocations && (
-          <div className="mt-8 pt-6 border-t border-slate-100">
-            <div className="flex items-center gap-2 mb-4 text-slate-800">
-              <Layers className="w-5 h-5 text-indigo-500" />
-              <h2 className="text-lg font-semibold">Assigned Classes & Workload</h2>
-            </div>
-
+          <Card icon={<Layers className="w-5 h-5 text-indigo-500 dark:text-indigo-400" />} title="Assigned Classes & Workload" span="xl:col-span-3">
             {profile.allocations.length === 0 ? (
-              <p className="text-sm text-slate-500 bg-slate-50 p-4 rounded-lg border border-dashed border-slate-200">
+              <p className="text-sm text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 p-4 rounded-lg border border-dashed border-slate-200 dark:border-slate-700">
                 This teacher is currently not allocated to teach any classes for the active term.
               </p>
             ) : (
-              <div className="border border-slate-100 rounded-xl overflow-hidden bg-slate-50">
+              <div className="border border-slate-100 dark:border-slate-700 rounded-xl overflow-hidden bg-slate-50 dark:bg-slate-800">
                 <table className="w-full text-left border-collapse text-sm">
                   <thead>
-                    <tr className="bg-slate-100 text-slate-500 uppercase text-[11px] tracking-wider font-semibold">
+                    <tr className="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 uppercase text-[11px] tracking-wider font-semibold">
                       <th className="py-2.5 px-4">Assigned Class</th>
                       <th className="py-2.5 px-4">Subject Taught</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 bg-white">
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-700 bg-white dark:bg-slate-900">
                     {profile.allocations.map((alloc: AllocationItem, index: number) => (
-                      <tr key={index} className="hover:bg-slate-50 transition-colors">
-                        <td className="py-3 px-4 font-medium text-slate-800">
+                      <tr key={index} className="hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors">
+                        <td className="py-3 px-4 font-medium text-slate-800 dark:text-slate-100">
                           {alloc.class_name}
                         </td>
-                        <td className="py-3 px-4 text-slate-600">
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100">
+                        <td className="py-3 px-4 text-slate-600 dark:text-slate-300">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-500/20">
                             {alloc.subject_name} {alloc.subject_code && `(${alloc.subject_code})`}
                           </span>
                         </td>
@@ -468,10 +452,9 @@ useEffect(() => {
                 </table>
               </div>
             )}
-          </div>
+          </Card>
         )}
 
-        </div>
       </div>
     </div>
   );

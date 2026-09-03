@@ -305,11 +305,11 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
 
   return (
     <>
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 bg-white border border-slate-200 rounded-2xl shadow-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-sm dark:shadow-none">
 
         {/* Generate Group */}
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">Generate</span>
+          <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mr-1">Generate</span>
 
           <button
             onClick={handleAutoAllocate}
@@ -333,7 +333,7 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
 
           <button
             onClick={onOpenSplittingModal}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-sm font-medium rounded-lg transition-colors border border-indigo-200 disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 text-indigo-700 dark:text-indigo-400 text-sm font-medium rounded-lg transition-colors border border-indigo-200 dark:border-indigo-500/40 disabled:opacity-50"
             title="Manage elective split groups for this grade"
           >
             <Layers className="w-4 h-4" />
@@ -343,12 +343,12 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
 
         {/* Utilities + Danger Zone + Save */}
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">Utilities</span>
+          <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mr-1">Utilities</span>
 
           <button
             onClick={fetchTermsForRollover}
             disabled={!isContextReady || isBusy}
-            className="flex items-center gap-2 px-4 py-2 border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
             title="Copy assignments from a previous term"
           >
             <Copy className="w-4 h-4" />
@@ -358,26 +358,26 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
           <button
             onClick={() => setShowRevertConfirm(true)}
             disabled={!isContextReady || isBusy}
-            className="flex items-center gap-2 px-4 py-2 border border-amber-200 text-amber-600 hover:bg-amber-50 text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 border border-amber-200 dark:border-amber-500/40 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10 text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
             title="Discard unsaved changes and reload from database"
           >
             <RotateCcw className="w-4 h-4" />
             <span className="hidden sm:inline">Revert</span>
           </button>
 
-          <span className="w-px h-6 bg-slate-200 mx-1 hidden sm:block" />
+          <span className="w-px h-6 bg-slate-200 dark:bg-slate-700 mx-1 hidden sm:block" />
 
           <button
             onClick={() => { setClearScope('class'); setShowClearConfirm(true); }}
             disabled={!isContextReady || isBusy || isPublished}
-            className="flex items-center gap-2 px-4 py-2 border border-red-200 text-red-600 hover:bg-red-50 text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 border border-red-200 dark:border-red-500/40 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
             title={isPublished ? "This class is published — unpublish it first to clear it" : "Permanently delete saved allocations — choose this class or the whole school"}
           >
             {isClearing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eraser className="w-4 h-4" />}
             <span className="hidden sm:inline">Clear Grid</span>
           </button>
 
-          <span className="w-px h-6 bg-slate-200 mx-1 hidden sm:block" />
+          <span className="w-px h-6 bg-slate-200 dark:bg-slate-700 mx-1 hidden sm:block" />
 
           {isPublished ? (
             <button
@@ -410,7 +410,7 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
                 value={saveScope}
                 onChange={(e) => setSaveScope(e.target.value as 'class' | 'grade' | 'all')}
                 disabled={!isContextReady || isBusy}
-                className="text-xs font-medium border border-slate-200 rounded-lg px-2 py-2.5 bg-white text-slate-600 disabled:opacity-50"
+                className="text-xs font-medium border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-2.5 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 disabled:opacity-50"
                 title="Choose what else gets published when you click Save"
               >
                 <option value="class">This class only</option>
@@ -421,7 +421,7 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
           )}
 
           {isPublished && (
-            <span className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold rounded-lg">
+            <span className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/40 text-xs font-bold rounded-lg">
               <Lock className="w-3.5 h-3.5" />
               Published
             </span>
@@ -433,12 +433,12 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
       {/* --- INLINE ROLLOVER MODAL (Remains Unchanged) --- */}
       {isRolloverModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl shadow-xl max-w-md w-full overflow-hidden">
-                <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                    <h3 className="font-bold text-slate-800">Rollover Allocations</h3>
+            <div className="bg-white dark:bg-slate-900 rounded-xl shadow-xl dark:shadow-none max-w-md w-full overflow-hidden">
+                <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-800/40">
+                    <h3 className="font-bold text-slate-800 dark:text-slate-100">Rollover Allocations</h3>
                     <button
                         onClick={() => setIsRolloverModalOpen(false)}
-                        className="text-slate-400 hover:text-slate-600"
+                        className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
                         title="Close rollover modal"
                         aria-label="Close rollover modal"
                     >
@@ -446,9 +446,9 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
                     </button>
                 </div>
                 <div className="p-6">
-                    <label htmlFor="sourceTermSelect" className="block text-sm font-medium text-slate-700 mb-1">Copy From Term:</label>
+                    <label htmlFor="sourceTermSelect" className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">Copy From Term:</label>
                     <select id="sourceTermSelect"
-                        className="w-full border-slate-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 p-2.5 border mb-4"
+                        className="w-full border-slate-300 dark:border-slate-600 rounded-lg shadow-sm focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 p-2.5 border mb-4 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100"
                         value={sourceTermId}
                         onChange={(e) => setSourceTermId(e.target.value)}
                     >
@@ -458,28 +458,28 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
                         ))}
                     </select>
 
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Apply To:</label>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">Apply To:</label>
                     <div className="flex flex-col gap-2 text-left mb-2">
-                        <label className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${rolloverScope === 'class' ? 'border-emerald-300 bg-emerald-50/60' : 'border-slate-200 hover:bg-slate-50'}`}>
+                        <label className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${rolloverScope === 'class' ? 'border-emerald-300 dark:border-emerald-500/40 bg-emerald-50/60 dark:bg-emerald-500/10' : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
                             <input type="radio" name="rollover-scope" className="mt-1" checked={rolloverScope === 'class'} onChange={() => setRolloverScope('class')} />
                             <span>
-                                <span className="block text-sm font-bold text-slate-800">Just {classDisplayName || 'this class'}</span>
-                                <span className="block text-xs text-slate-500">Copies assignments for this class only. Other classes are untouched.</span>
+                                <span className="block text-sm font-bold text-slate-800 dark:text-slate-100">Just {classDisplayName || 'this class'}</span>
+                                <span className="block text-xs text-slate-500 dark:text-slate-400">Copies assignments for this class only. Other classes are untouched.</span>
                             </span>
                         </label>
-                        <label className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${rolloverScope === 'all' ? 'border-emerald-300 bg-emerald-50/60' : 'border-slate-200 hover:bg-slate-50'}`}>
+                        <label className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${rolloverScope === 'all' ? 'border-emerald-300 dark:border-emerald-500/40 bg-emerald-50/60 dark:bg-emerald-500/10' : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
                             <input type="radio" name="rollover-scope" className="mt-1" checked={rolloverScope === 'all'} onChange={() => setRolloverScope('all')} />
                             <span>
-                                <span className="block text-sm font-bold text-slate-800">Every class in the target term</span>
-                                <span className="block text-xs text-slate-500">Overwrites assignments school-wide for the term you're rolling into. Cannot be undone.</span>
+                                <span className="block text-sm font-bold text-slate-800 dark:text-slate-100">Every class in the target term</span>
+                                <span className="block text-xs text-slate-500 dark:text-slate-400">Overwrites assignments school-wide for the term you're rolling into. Cannot be undone.</span>
                             </span>
                         </label>
                     </div>
                 </div>
-                <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
+                <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 flex justify-end gap-3">
                     <button
                         onClick={() => setIsRolloverModalOpen(false)}
-                        className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"
+                        className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors"
                     >
                         Cancel
                     </button>
@@ -499,21 +499,21 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
       {/* --- CLEAR GRID CONFIRMATION MODAL (scoped, like the Timetable's Clear Grid) --- */}
       {showClearConfirm && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-fade-in p-6 text-center space-y-4">
-                <div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl dark:shadow-none w-full max-w-sm overflow-hidden animate-fade-in p-6 text-center space-y-4">
+                <div className="w-12 h-12 bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-400 rounded-full flex items-center justify-center mx-auto">
                     <Eraser className="w-6 h-6" />
                 </div>
-                <h3 className="font-bold text-xl text-slate-800">Clear Allocations?</h3>
-                <p className="text-sm text-slate-500">
+                <h3 className="font-bold text-xl text-slate-800 dark:text-slate-100">Clear Allocations?</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
                     This permanently deletes saved teacher assignments and ejects any matching lessons from the active timetable. It cannot be undone.
                 </p>
 
                 <div className="flex flex-col gap-2 text-left">
-                    <label className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${clearScope === 'class' ? 'border-red-300 bg-red-50/60' : 'border-slate-200 hover:bg-slate-50'}`}>
+                    <label className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${clearScope === 'class' ? 'border-red-300 dark:border-red-500/40 bg-red-50/60 dark:bg-red-500/10' : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
                         <input type="radio" name="clear-scope" className="mt-1" checked={clearScope === 'class'} onChange={() => setClearScope('class')} />
                         <span>
-                            <span className="block text-sm font-bold text-slate-800">Just {classDisplayName || 'this class'}</span>
-                            <span className="block text-xs text-slate-500">
+                            <span className="block text-sm font-bold text-slate-800 dark:text-slate-100">Just {classDisplayName || 'this class'}</span>
+                            <span className="block text-xs text-slate-500 dark:text-slate-400">
                                 Removes allocations for this class only. Other classes are untouched
                                 {/* Elective groups pool students from every stream in the grade, so
                                     clearing one stream deliberately leaves them alone — see the
@@ -523,25 +523,25 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
                         </span>
                     </label>
                     {gradeId && (
-                        <label className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${clearScope === 'grade' ? 'border-red-300 bg-red-50/60' : 'border-slate-200 hover:bg-slate-50'}`}>
+                        <label className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${clearScope === 'grade' ? 'border-red-300 dark:border-red-500/40 bg-red-50/60 dark:bg-red-500/10' : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
                             <input type="radio" name="clear-scope" className="mt-1" checked={clearScope === 'grade'} onChange={() => setClearScope('grade')} />
                             <span>
-                                <span className="block text-sm font-bold text-slate-800">This Grade ({gradeName || 'incl. elective groups'})</span>
-                                <span className="block text-xs text-slate-500">Removes allocations for every stream AND elective group in this grade. Other grades are untouched.</span>
+                                <span className="block text-sm font-bold text-slate-800 dark:text-slate-100">This Grade ({gradeName || 'incl. elective groups'})</span>
+                                <span className="block text-xs text-slate-500 dark:text-slate-400">Removes allocations for every stream AND elective group in this grade. Other grades are untouched.</span>
                             </span>
                         </label>
                     )}
-                    <label className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${clearScope === 'all' ? 'border-red-300 bg-red-50/60' : 'border-slate-200 hover:bg-slate-50'}`}>
+                    <label className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${clearScope === 'all' ? 'border-red-300 dark:border-red-500/40 bg-red-50/60 dark:bg-red-500/10' : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
                         <input type="radio" name="clear-scope" className="mt-1" checked={clearScope === 'all'} onChange={() => setClearScope('all')} />
                         <span>
-                            <span className="block text-sm font-bold text-slate-800">The entire school</span>
-                            <span className="block text-xs text-slate-500">Removes every class's allocations for this term. Cannot be undone.</span>
+                            <span className="block text-sm font-bold text-slate-800 dark:text-slate-100">The entire school</span>
+                            <span className="block text-xs text-slate-500 dark:text-slate-400">Removes every class's allocations for this term. Cannot be undone.</span>
                         </span>
                     </label>
                 </div>
 
                 <div className="flex gap-3 pt-2">
-                    <button onClick={() => setShowClearConfirm(false)} className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-600 rounded-lg font-bold hover:bg-slate-50">Cancel</button>
+                    <button onClick={() => setShowClearConfirm(false)} className="flex-1 px-4 py-2.5 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-lg font-bold hover:bg-slate-50 dark:hover:bg-slate-800">Cancel</button>
                     <button
                         onClick={confirmClearGrid}
                         disabled={isClearing}
@@ -558,43 +558,43 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
       {/* --- UNPUBLISH CONFIRMATION MODAL (scoped, like Clear Grid) --- */}
       {showUnpublishConfirm && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-fade-in p-6 text-center space-y-4">
-                <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl dark:shadow-none w-full max-w-sm overflow-hidden animate-fade-in p-6 text-center space-y-4">
+                <div className="w-12 h-12 bg-amber-100 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-full flex items-center justify-center mx-auto">
                     <Unlock className="w-6 h-6" />
                 </div>
-                <h3 className="font-bold text-xl text-slate-800">Unpublish Allocations?</h3>
-                <p className="text-sm text-slate-500">
+                <h3 className="font-bold text-xl text-slate-800 dark:text-slate-100">Unpublish Allocations?</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
                     Reverts published allocations back to draft so they can be edited or re-generated again.
                 </p>
 
                 <div className="flex flex-col gap-2 text-left">
-                    <label className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${unpublishScope === 'class' ? 'border-amber-300 bg-amber-50/60' : 'border-slate-200 hover:bg-slate-50'}`}>
+                    <label className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${unpublishScope === 'class' ? 'border-amber-300 dark:border-amber-500/40 bg-amber-50/60 dark:bg-amber-500/10' : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
                         <input type="radio" name="unpublish-scope" className="mt-1" checked={unpublishScope === 'class'} onChange={() => setUnpublishScope('class')} />
                         <span>
-                            <span className="block text-sm font-bold text-slate-800">Just {classDisplayName || 'this class'}</span>
-                            <span className="block text-xs text-slate-500">Reverts this class only. Other classes are untouched.</span>
+                            <span className="block text-sm font-bold text-slate-800 dark:text-slate-100">Just {classDisplayName || 'this class'}</span>
+                            <span className="block text-xs text-slate-500 dark:text-slate-400">Reverts this class only. Other classes are untouched.</span>
                         </span>
                     </label>
                     {gradeId && (
-                        <label className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${unpublishScope === 'grade' ? 'border-amber-300 bg-amber-50/60' : 'border-slate-200 hover:bg-slate-50'}`}>
+                        <label className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${unpublishScope === 'grade' ? 'border-amber-300 dark:border-amber-500/40 bg-amber-50/60 dark:bg-amber-500/10' : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
                             <input type="radio" name="unpublish-scope" className="mt-1" checked={unpublishScope === 'grade'} onChange={() => setUnpublishScope('grade')} />
                             <span>
-                                <span className="block text-sm font-bold text-slate-800">This Grade ({gradeName || 'incl. elective groups'})</span>
-                                <span className="block text-xs text-slate-500">Reverts every published stream AND elective group in this grade. Other grades are untouched.</span>
+                                <span className="block text-sm font-bold text-slate-800 dark:text-slate-100">This Grade ({gradeName || 'incl. elective groups'})</span>
+                                <span className="block text-xs text-slate-500 dark:text-slate-400">Reverts every published stream AND elective group in this grade. Other grades are untouched.</span>
                             </span>
                         </label>
                     )}
-                    <label className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${unpublishScope === 'all' ? 'border-amber-300 bg-amber-50/60' : 'border-slate-200 hover:bg-slate-50'}`}>
+                    <label className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${unpublishScope === 'all' ? 'border-amber-300 dark:border-amber-500/40 bg-amber-50/60 dark:bg-amber-500/10' : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
                         <input type="radio" name="unpublish-scope" className="mt-1" checked={unpublishScope === 'all'} onChange={() => setUnpublishScope('all')} />
                         <span>
-                            <span className="block text-sm font-bold text-slate-800">The entire school</span>
-                            <span className="block text-xs text-slate-500">Reverts every published class for this term back to draft.</span>
+                            <span className="block text-sm font-bold text-slate-800 dark:text-slate-100">The entire school</span>
+                            <span className="block text-xs text-slate-500 dark:text-slate-400">Reverts every published class for this term back to draft.</span>
                         </span>
                     </label>
                 </div>
 
                 <div className="flex gap-3 pt-2">
-                    <button onClick={() => setShowUnpublishConfirm(false)} className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-600 rounded-lg font-bold hover:bg-slate-50">Cancel</button>
+                    <button onClick={() => setShowUnpublishConfirm(false)} className="flex-1 px-4 py-2.5 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-lg font-bold hover:bg-slate-50 dark:hover:bg-slate-800">Cancel</button>
                     <button
                         onClick={confirmUnpublish}
                         disabled={isUnpublishing}
@@ -611,12 +611,12 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
       {/* --- SAVE + PUBLISH SCOPE CONFIRMATION MODAL (only shown for grade/school scope) --- */}
       {showSaveConfirm && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-fade-in p-6 text-center space-y-4">
-                <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl dark:shadow-none w-full max-w-sm overflow-hidden animate-fade-in p-6 text-center space-y-4">
+                <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-full flex items-center justify-center mx-auto">
                     <Save className="w-6 h-6" />
                 </div>
-                <h3 className="font-bold text-xl text-slate-800">Save &amp; Publish {saveScope === 'all' ? 'Entire School' : `${gradeName || 'Grade'}`}?</h3>
-                <p className="text-sm text-slate-500">
+                <h3 className="font-bold text-xl text-slate-800 dark:text-slate-100">Save &amp; Publish {saveScope === 'all' ? 'Entire School' : `${gradeName || 'Grade'}`}?</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
                     Saves {classDisplayName || 'this class'} as usual, then also publishes every other class
                     {saveScope === 'grade' ? ` in ${gradeName || 'this grade'}` : ' in the school'} that
                     already has a saved draft but isn't published yet. Classes with nothing saved are left alone.
@@ -624,7 +624,7 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
                 </p>
 
                 <div className="flex gap-3 pt-2">
-                    <button onClick={() => setShowSaveConfirm(false)} className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-600 rounded-lg font-bold hover:bg-slate-50">Cancel</button>
+                    <button onClick={() => setShowSaveConfirm(false)} className="flex-1 px-4 py-2.5 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-lg font-bold hover:bg-slate-50 dark:hover:bg-slate-800">Cancel</button>
                     <button
                         onClick={() => handleSave(saveScope)}
                         disabled={isSaving}
@@ -641,16 +641,16 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
       {/* --- REVERT CONFIRMATION MODAL --- */}
       {showRevertConfirm && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-fade-in p-6 text-center space-y-4">
-                <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl dark:shadow-none w-full max-w-sm overflow-hidden animate-fade-in p-6 text-center space-y-4">
+                <div className="w-12 h-12 bg-amber-100 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-full flex items-center justify-center mx-auto">
                     <RotateCcw className="w-6 h-6" />
                 </div>
-                <h3 className="font-bold text-xl text-slate-800">Discard Unsaved Changes?</h3>
-                <p className="text-sm text-slate-500">
+                <h3 className="font-bold text-xl text-slate-800 dark:text-slate-100">Discard Unsaved Changes?</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
                     This reloads the grid from what's actually saved in the database, discarding any edits made on screen since your last save.
                 </p>
                 <div className="flex gap-3 pt-2">
-                    <button onClick={() => setShowRevertConfirm(false)} className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-600 rounded-lg font-bold hover:bg-slate-50">Cancel</button>
+                    <button onClick={() => setShowRevertConfirm(false)} className="flex-1 px-4 py-2.5 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-lg font-bold hover:bg-slate-50 dark:hover:bg-slate-800">Cancel</button>
                     <button onClick={confirmRevertToSaved} className="flex-1 px-4 py-2.5 bg-amber-600 text-white rounded-lg font-bold hover:bg-amber-700">Discard</button>
                 </div>
             </div>
@@ -660,12 +660,12 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
       {/* --- BULK (WHOLE-GRADE) ALLOCATE CONFIRMATION MODAL --- */}
       {isBulkConfirmOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl shadow-xl max-w-md w-full overflow-hidden">
-                <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                    <h3 className="font-bold text-slate-800">Bulk Allocate Whole Grade</h3>
+            <div className="bg-white dark:bg-slate-900 rounded-xl shadow-xl dark:shadow-none max-w-md w-full overflow-hidden">
+                <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-800/40">
+                    <h3 className="font-bold text-slate-800 dark:text-slate-100">Bulk Allocate Whole Grade</h3>
                     <button
                         onClick={() => setIsBulkConfirmOpen(false)}
-                        className="text-slate-400 hover:text-slate-600"
+                        className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
                         title="Close bulk allocate modal"
                         aria-label="Close bulk allocate modal"
                     >
@@ -673,20 +673,20 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
                     </button>
                 </div>
                 <div className="p-6">
-                    <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 p-4 rounded-xl mb-4">
-                        <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                        <p className="text-sm text-amber-800">
+                    <div className="flex items-start gap-3 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/40 p-4 rounded-xl mb-4">
+                        <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                        <p className="text-sm text-amber-800 dark:text-amber-300">
                             This wipes and re-generates assignments for <span className="font-semibold">every class in {gradeName || 'this grade'}</span> for the currently selected term — not just the class on screen. It commits directly (no draft/review step), running one coordinated pass so no teacher is overloaded and every class teacher's own subject is reserved first.
                         </p>
                     </div>
-                    <p className="text-sm text-slate-600">
+                    <p className="text-sm text-slate-600 dark:text-slate-300">
                         Any subjects the algorithm can't fully resolve (e.g. a class teacher unqualified for anything taught in their own grade, or a subject with too few qualified teachers) will be reported back after it runs, not silently dropped.
                     </p>
                 </div>
-                <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
+                <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 flex justify-end gap-3">
                     <button
                         onClick={() => setIsBulkConfirmOpen(false)}
-                        className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"
+                        className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors"
                     >
                         Cancel
                     </button>
@@ -706,15 +706,15 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
       {/* --- BULK (WHOLE-GRADE) ALLOCATE RESULT MODAL --- */}
       {bulkResult && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden">
-                <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
-                    <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                        <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+            <div className="bg-white dark:bg-slate-900 rounded-xl shadow-xl dark:shadow-none max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden">
+                <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-800/40 shrink-0">
+                    <h3 className="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                        <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
                         Bulk Allocation Results
                     </h3>
                     <button
                         onClick={() => setBulkResult(null)}
-                        className="text-slate-400 hover:text-slate-600"
+                        className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
                         title="Close results"
                         aria-label="Close results"
                     >
@@ -722,19 +722,19 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
                     </button>
                 </div>
                 <div className="p-6 overflow-y-auto space-y-5">
-                    <p className="text-sm text-slate-700">{bulkResult.message}</p>
+                    <p className="text-sm text-slate-700 dark:text-slate-200">{bulkResult.message}</p>
 
                     {bulkResult.ejected_lesson_count > 0 && (
-                        <p className="text-sm text-slate-500">
+                        <p className="text-sm text-slate-500 dark:text-slate-400">
                             {bulkResult.ejected_lesson_count} stale timetable lesson(s) for dropped teacher-subject pairs were cleared.
                         </p>
                     )}
 
                     <div>
-                        <h4 className="text-sm font-bold text-slate-700 mb-2">Per-Class Summary</h4>
-                        <div className="border border-slate-200 rounded-lg overflow-hidden">
+                        <h4 className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-2">Per-Class Summary</h4>
+                        <div className="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
                             <table className="w-full text-sm">
-                                <thead className="bg-slate-50 text-slate-600">
+                                <thead className="bg-slate-50 dark:bg-slate-800/40 text-slate-600 dark:text-slate-300">
                                     <tr>
                                         <th className="text-left px-3 py-2 font-medium">Class</th>
                                         <th className="text-left px-3 py-2 font-medium">Assigned</th>
@@ -744,14 +744,14 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
                                 </thead>
                                 <tbody>
                                     {bulkResult.per_class.map((c) => (
-                                        <tr key={c.class_id} className="border-t border-slate-100">
-                                            <td className="px-3 py-2 text-slate-800">{c.class_name}</td>
-                                            <td className="px-3 py-2 text-slate-600">{c.assigned}</td>
-                                            <td className={`px-3 py-2 ${c.unresolved > 0 ? 'text-red-600 font-semibold' : 'text-slate-600'}`}>{c.unresolved}</td>
+                                        <tr key={c.class_id} className="border-t border-slate-100 dark:border-slate-700">
+                                            <td className="px-3 py-2 text-slate-800 dark:text-slate-100">{c.class_name}</td>
+                                            <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{c.assigned}</td>
+                                            <td className={`px-3 py-2 ${c.unresolved > 0 ? 'text-red-600 dark:text-red-400 font-semibold' : 'text-slate-600 dark:text-slate-300'}`}>{c.unresolved}</td>
                                             <td className="px-3 py-2">
                                                 {c.class_teacher_assigned
-                                                    ? <span className="text-emerald-600 font-medium">Assigned</span>
-                                                    : <span className="text-red-600 font-medium">Missing</span>}
+                                                    ? <span className="text-emerald-600 dark:text-emerald-400 font-medium">Assigned</span>
+                                                    : <span className="text-red-600 dark:text-red-400 font-medium">Missing</span>}
                                             </td>
                                         </tr>
                                     ))}
@@ -761,9 +761,9 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
                     </div>
 
                     {bulkResult.skipped_published && bulkResult.skipped_published.length > 0 && (
-                        <div className="flex items-start gap-3 bg-emerald-50 border border-emerald-200 p-4 rounded-xl">
-                            <Lock className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-                            <div className="text-sm text-emerald-800">
+                        <div className="flex items-start gap-3 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/40 p-4 rounded-xl">
+                            <Lock className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                            <div className="text-sm text-emerald-800 dark:text-emerald-300">
                                 <p className="font-semibold mb-1">
                                     {bulkResult.skipped_published.length} published class(es) were skipped
                                 </p>
@@ -777,9 +777,9 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
                     )}
 
                     {bulkResult.classes_with_gaps.length > 0 && (
-                        <div className="flex items-start gap-3 bg-red-50 border border-red-200 p-4 rounded-xl">
-                            <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
-                            <div className="text-sm text-red-800">
+                        <div className="flex items-start gap-3 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/40 p-4 rounded-xl">
+                            <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+                            <div className="text-sm text-red-800 dark:text-red-300">
                                 <p className="font-semibold mb-1">{bulkResult.classes_with_gaps.length} class(es) have unresolved gaps</p>
                                 <p>
                                     These are genuine staffing gaps the algorithm could not solve (e.g. no qualified teacher available, or a class teacher unqualified for any subject taught in their own grade) — they need a manual fix, either by assigning a teacher directly on the grid or updating qualifications.
@@ -790,10 +790,10 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
 
                     {bulkResult.teachers_near_cap.length > 0 && (
                         <div>
-                            <h4 className="text-sm font-bold text-slate-700 mb-2">Teachers Near Their Weekly Cap</h4>
-                            <div className="border border-slate-200 rounded-lg overflow-hidden">
+                            <h4 className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-2">Teachers Near Their Weekly Cap</h4>
+                            <div className="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
                                 <table className="w-full text-sm">
-                                    <thead className="bg-slate-50 text-slate-600">
+                                    <thead className="bg-slate-50 dark:bg-slate-800/40 text-slate-600 dark:text-slate-300">
                                         <tr>
                                             <th className="text-left px-3 py-2 font-medium">Teacher</th>
                                             <th className="text-left px-3 py-2 font-medium">Weekly Lessons</th>
@@ -802,10 +802,10 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
                                     </thead>
                                     <tbody>
                                         {bulkResult.teachers_near_cap.map((t, i) => (
-                                            <tr key={i} className="border-t border-slate-100">
-                                                <td className="px-3 py-2 text-slate-800">{t.teacher_name}</td>
-                                                <td className={`px-3 py-2 ${t.weekly_lessons >= t.cap ? 'text-red-600 font-semibold' : 'text-amber-600 font-medium'}`}>{t.weekly_lessons}</td>
-                                                <td className="px-3 py-2 text-slate-600">{t.cap}</td>
+                                            <tr key={i} className="border-t border-slate-100 dark:border-slate-700">
+                                                <td className="px-3 py-2 text-slate-800 dark:text-slate-100">{t.teacher_name}</td>
+                                                <td className={`px-3 py-2 ${t.weekly_lessons >= t.cap ? 'text-red-600 dark:text-red-400 font-semibold' : 'text-amber-600 dark:text-amber-400 font-medium'}`}>{t.weekly_lessons}</td>
+                                                <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{t.cap}</td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -814,7 +814,7 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
                         </div>
                     )}
                 </div>
-                <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end shrink-0">
+                <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 flex justify-end shrink-0">
                     <button
                         onClick={() => setBulkResult(null)}
                         className="px-4 py-2 text-sm font-medium bg-slate-800 hover:bg-slate-700 text-white rounded-lg transition-colors"

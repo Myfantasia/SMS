@@ -22,15 +22,15 @@ const BulkTransferModal: React.FC<BulkTransferModalProps> = ({ isOpen, onClose, 
 
     return (
         <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 animate-in fade-in zoom-in duration-200">
+            <div className="bg-white dark:bg-slate-900 rounded-xl shadow-xl dark:shadow-none w-full max-w-sm p-6 animate-in fade-in zoom-in duration-200">
                 <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-lg font-bold text-slate-800">Bulk Transfer</h2>
-                    <button onClick={onClose} className="hover:bg-slate-100 p-1 rounded-full"><X className="w-5 h-5 text-slate-400" /></button>
+                    <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">Bulk Transfer</h2>
+                    <button onClick={onClose} className="hover:bg-slate-100 dark:hover:bg-slate-800 p-1 rounded-full"><X className="w-5 h-5 text-slate-400 dark:text-slate-500" /></button>
                 </div>
-                <p className="text-sm text-slate-500 mb-4">Transfer {count} students to:</p>
-                
-                <select 
-                    className="w-full border border-slate-300 rounded-lg p-2.5 text-sm mb-6 bg-white"
+                <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">Transfer {count} students to:</p>
+
+                <select
+                    className="w-full border border-slate-300 dark:border-slate-600 rounded-lg p-2.5 text-sm mb-6 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100"
                     value={selectedStreamId}
                     onChange={(e) => setSelectedStreamId(e.target.value)}
                 >
@@ -41,9 +41,9 @@ const BulkTransferModal: React.FC<BulkTransferModalProps> = ({ isOpen, onClose, 
                 </select>
 
                 <div className="flex justify-end gap-3">
-                    <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition">Cancel</button>
-                    <button 
-                        onClick={() => onConfirm(selectedStreamId)} 
+                    <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition">Cancel</button>
+                    <button
+                        onClick={() => onConfirm(selectedStreamId)}
                         disabled={!selectedStreamId}
                         className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition"
                     >

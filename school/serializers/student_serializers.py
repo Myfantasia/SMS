@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from school.models.students_model import StudentTask
+from apps.students.models import StudentTask
 
 
 class StudentTaskSerializer(serializers.ModelSerializer):

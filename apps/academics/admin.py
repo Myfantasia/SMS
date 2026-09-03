@@ -12,6 +12,7 @@ from apps.academics.models import (
     GradeLevel, ClassStream, Department, Subject, SubjectCurriculumProfile,
     PresetCombination, TimeSlot, AcademicYear, ExamTerm, Tier,
     SubjectSelectionRule, SubjectExclusionRule, CurriculumPreset,
+    Curriculum, Pathway, Track, SubjectCategoryLimit, SubjectPool,
 )
 
 
@@ -131,14 +132,13 @@ class SubjectExclusionRuleAdmin(ModelAdmin):
 
 
 @admin.register(CurriculumPreset)
-class CurriculumPresetAdmin(admin.ModelAdmin):
+class CurriculumPresetAdmin(ModelAdmin):
     """
     Admin layout for managing global curriculum structures.
     Enables quick modifications to standard base requirements.
     """
     list_display = ('name', 'min_subjects', 'max_subjects', 'display_order')
     list_editable = ('min_subjects', 'max_subjects', 'display_order')
-    #list_filter = ('curriculum_type',)
     search_fields = ('name',)
     fieldsets = (
         ('Template Profile', {
@@ -149,3 +149,37 @@ class CurriculumPresetAdmin(admin.ModelAdmin):
             'description': 'Define standard curriculum baseline and ceiling boundaries.'
         }),
     )
+
+
+@admin.register(Curriculum)
+class CurriculumAdmin(ModelAdmin):
+    list_display = ('code', 'name', 'is_active_for_new_grades', 'is_archived')
+    list_filter = ('is_active_for_new_grades', 'is_archived')
+    search_fields = ('code', 'name')
+
+
+@admin.register(Pathway)
+class PathwayAdmin(ModelAdmin):
+    list_display = ('name', 'curriculum')
+    list_filter = ('curriculum',)
+    search_fields = ('name', 'curriculum__name')
+
+
+@admin.register(Track)
+class TrackAdmin(ModelAdmin):
+    list_display = ('name', 'pathway', 'display_order')
+    list_filter = ('pathway',)
+    search_fields = ('name', 'pathway__name')
+
+
+@admin.register(SubjectCategoryLimit)
+class SubjectCategoryLimitAdmin(ModelAdmin):
+    list_display = ('grade', 'department', 'max_subjects')
+    list_filter = ('grade', 'department')
+
+
+@admin.register(SubjectPool)
+class SubjectPoolAdmin(ModelAdmin):
+    list_display = ('preset', 'pool_type', 'min_subjects', 'max_subjects', 'pathway', 'track')
+    list_filter = ('pool_type', 'preset', 'pathway', 'track')
+    filter_horizontal = ('subjects', 'combinations')

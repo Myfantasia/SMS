@@ -1,11 +1,13 @@
 import random
 from datetime import timedelta
 
-from school.models.classSubjects_models import SubjectAllocation, ClassStream, SubjectBlock, SubjectQuota, Subject
-from school.models.chat_models import ThreadParticipant
-from school.models.models import AttendanceRecord, GradingRule, ExamEvent, ExamResult
-from school.models.timetable_models import TimeSlot, LessonAllocation, Timetable
-from school.models.teachers_model import TeacherStructuralAvailability
+from apps.academics.models import ClassStream, Subject, TimeSlot
+from apps.allocations.models import SubjectAllocation, SubjectBlock, SubjectQuota
+from apps.messaging.models import ThreadParticipant
+from apps.exams.models import GradingRule, ExamEvent, ExamResult
+from apps.attendance.models import AttendanceRecord
+from apps.timetable.models import LessonAllocation, Timetable
+from apps.staff.models import TeacherStructuralAvailability
 from decimal import Decimal, ROUND_HALF_UP
 from django.db.models import Avg, Count, F, Q
 from django.core.cache import cache
@@ -109,7 +111,7 @@ def get_subjects_with_active_virtual_groups(grade_id):
     teacher). Callers should exclude these subject ids from a PHYSICAL stream's required-subject
     list; virtual streams are unaffected (they only ever require their own one subject anyway).
     """
-    from school.models.classSubjects_models import ClassStream, Subject
+    from apps.academics.models import ClassStream, Subject
 
     names = ClassStream.live.filter(grade_id=grade_id, is_virtual=True).values_list('name', flat=True)
     subject_names = {n.split(' - Group')[0].strip() for n in names}
@@ -126,7 +128,7 @@ def get_virtual_stream_subject(stream):
     subject does this class need a teacher for" has to derive it from the naming convention
     instead of a quota lookup. Returns None if the name doesn't match any real Subject.
     """
-    from school.models.classSubjects_models import Subject
+    from apps.academics.models import Subject
 
     subject_name = stream.name.split(' - ')[0].strip()
     return Subject.objects.filter(name__iexact=subject_name).first()
@@ -140,7 +142,7 @@ def get_published_classroom_ids(classroom_ids, term_id, year_id):
     later run. A class with no AllocationPublishState row at all is still in draft (freely
     editable) — that model only ever gets a row once a class has been published at least once.
     """
-    from school.models.classSubjects_models import AllocationPublishState
+    from apps.allocations.models import AllocationPublishState
 
     return set(AllocationPublishState.objects.filter(
         classroom_id__in=classroom_ids, term_id=term_id, academic_year_id=year_id, is_published=True
@@ -154,7 +156,7 @@ def publish_allocation(classroom_id, term_id, year_id, user):
     "it is changed from draft to published when hit saved"). Idempotent: publishing an
     already-published class just refreshes who/when.
     """
-    from school.models.classSubjects_models import AllocationPublishState
+    from apps.allocations.models import AllocationPublishState
 
     AllocationPublishState.objects.update_or_create(
         classroom_id=classroom_id, term_id=term_id, academic_year_id=year_id,
@@ -168,7 +170,7 @@ def publish_allocation(classroom_id, term_id, year_id, user):
 
 def unpublish_allocation(classroom_id, term_id, year_id):
     """Reverts one class's allocation back to draft, re-opening it for edits."""
-    from school.models.classSubjects_models import AllocationPublishState
+    from apps.allocations.models import AllocationPublishState
 
     AllocationPublishState.objects.filter(
         classroom_id=classroom_id, term_id=term_id, academic_year_id=year_id
@@ -709,8 +711,9 @@ def get_applicable_students(subject, classroom, academic_year):
     timetable engine only; for exams and results the school wants "French" treated as a single
     subject, not fragmented per group.
     """
-    from school.models.models import StudentExtra
-    from school.models.classSubjects_models import StudentSubjectEnrollment, get_effective_is_core
+    from apps.identity.models import StudentExtra
+    from apps.academics.models import get_effective_is_core
+    from apps.students.models import StudentSubjectEnrollment
 
     if classroom.is_virtual:
         base_students = StudentExtra.objects.filter(cl__grade=classroom.grade, status=True)
@@ -743,8 +746,8 @@ def resolve_classroom_students(classroom, academic_year=None):
     group of that subject in the grade as one — so it doesn't matter which specific group's
     ClassStream row was passed in, the roster is always the whole grade's real "French" class.
     """
-    from school.models.models import StudentExtra, AcademicYear
-    from school.models.classSubjects_models import Subject
+    from apps.identity.models import StudentExtra
+    from apps.academics.models import Subject, AcademicYear
 
     if not classroom.is_virtual:
         return StudentExtra.objects.filter(cl=classroom, status=True)

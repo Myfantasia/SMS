@@ -117,28 +117,28 @@ export default function AdminGroupModal({ isOpen, onClose, mode }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[85vh]">
-        
+      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl dark:shadow-none w-full max-w-lg overflow-hidden flex flex-col max-h-[85vh]">
+
         {/* Header */}
-        <div className={`p-4 border-b border-slate-100 flex items-center justify-between shrink-0 ${mode === 'Broadcast' ? 'bg-orange-50' : 'bg-slate-50'}`}>
+        <div className={`p-4 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between shrink-0 ${mode === 'Broadcast' ? 'bg-orange-50 dark:bg-orange-500/10' : 'bg-slate-50 dark:bg-slate-800'}`}>
           <div>
-            <h2 className="text-lg font-bold text-slate-800">New {mode}</h2>
-            <p className="text-xs text-slate-500">
+            <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">New {mode}</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               {mode === 'Broadcast' ? 'Members cannot reply to this message.' : 'All members can chat with each other.'}
             </p>
           </div>
-          <button type="button" onClick={onClose} aria-label="Close modal" className="p-1 text-slate-400 hover:text-slate-600 rounded-full">
+          <button type="button" onClick={onClose} aria-label="Close modal" className="p-1 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 rounded-full">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Selected Users "Pills" */}
         {selectedUsers.length > 0 && (
-          <div className="p-3 bg-slate-50 border-b border-slate-200 flex flex-wrap gap-2 max-h-32 overflow-y-auto shrink-0">
+          <div className="p-3 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex flex-wrap gap-2 max-h-32 overflow-y-auto shrink-0">
             {selectedUsers.map(user => (
-              <span key={user.user_id} className="inline-flex items-center gap-1 px-2 py-1 bg-white border border-slate-300 rounded-full text-xs font-medium text-slate-700">
+              <span key={user.user_id} className="inline-flex items-center gap-1 px-2 py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-full text-xs font-medium text-slate-700 dark:text-slate-200">
                 {user.name}
-                <button type="button" onClick={() => toggleUserSelection(user)} className="text-slate-400 hover:text-red-500" aria-label={`Remove ${user.name}`}>
+                <button type="button" onClick={() => toggleUserSelection(user)} className="text-slate-400 dark:text-slate-500 hover:text-red-500 dark:hover:text-red-400" aria-label={`Remove ${user.name}`}>
                   <X className="w-3 h-3" />
                 </button>
               </span>
@@ -148,15 +148,15 @@ export default function AdminGroupModal({ isOpen, onClose, mode }: Props) {
 
         {/* --- NEW: MODE TOGGLE --- */}
         <div className="px-4 pt-4 shrink-0">
-          <div className="flex bg-slate-100 p-1 rounded-lg">
-            <button 
-              className={`flex-1 text-xs font-medium py-1.5 rounded-md transition-all flex items-center justify-center gap-2 ${filterMode === 'name' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
+          <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
+            <button
+              className={`flex-1 text-xs font-medium py-1.5 rounded-md transition-all flex items-center justify-center gap-2 ${filterMode === 'name' ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-800 dark:text-slate-100' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
               onClick={() => { setFilterMode('name'); setResults([]); }}
             >
               <Search className="w-3.5 h-3.5" /> By Name
             </button>
-            <button 
-              className={`flex-1 text-xs font-medium py-1.5 rounded-md transition-all flex items-center justify-center gap-2 ${filterMode === 'class' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
+            <button
+              className={`flex-1 text-xs font-medium py-1.5 rounded-md transition-all flex items-center justify-center gap-2 ${filterMode === 'class' ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-800 dark:text-slate-100' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
               onClick={() => { setFilterMode('class'); setQuery(''); setResults([]); }}
             >
               <Users className="w-3.5 h-3.5" /> By Class Parents
@@ -165,24 +165,24 @@ export default function AdminGroupModal({ isOpen, onClose, mode }: Props) {
         </div>
 
         {/* Search / Select Input */}
-        <div className="p-4 border-b border-slate-100 shrink-0">
+        <div className="p-4 border-b border-slate-100 dark:border-slate-700 shrink-0">
           {filterMode === 'name' ? (
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <input 
-                type="text" 
-                placeholder="Search users to add..." 
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500" />
+              <input
+                type="text"
+                placeholder="Search users to add..."
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                className="w-full pl-9 pr-4 py-2.5 bg-slate-100 border-none rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full pl-9 pr-4 py-2.5 bg-slate-100 dark:bg-slate-800 border-none rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
               />
             </div>
           ) : (
             <div className="relative">
-              <select 
+              <select
                 onChange={handleSelectClass}
                 disabled={isFetchingCohort}
-                className="w-full px-4 py-2.5 bg-slate-100 border-none rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none disabled:opacity-50 font-medium text-slate-700"
+                className="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-800 border-none rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 appearance-none disabled:opacity-50 font-medium text-slate-700 dark:text-slate-200"
                 defaultValue=""
               >
                 <option value="" disabled>Select a class to instantly add all parents...</option>
@@ -196,7 +196,7 @@ export default function AdminGroupModal({ isOpen, onClose, mode }: Props) {
                   </optgroup>
                 ))}
               </select>
-              {isFetchingCohort && <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-600 animate-spin" />}
+              {isFetchingCohort && <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-600 dark:text-blue-400 animate-spin" />}
             </div>
           )}
         </div>
@@ -204,7 +204,7 @@ export default function AdminGroupModal({ isOpen, onClose, mode }: Props) {
         {/* Results Area (Only shows when in 'name' mode and searching) */}
         <div className="flex-1 overflow-y-auto p-2 min-h-50">
           {filterMode === 'class' && selectedUsers.length === 0 && !isFetchingCohort && (
-            <div className="flex items-center justify-center h-full text-sm text-slate-400 text-center px-8">
+            <div className="flex items-center justify-center h-full text-sm text-slate-400 dark:text-slate-500 text-center px-8">
               Select a class above to instantly gather all associated parents.
             </div>
           )}
@@ -212,17 +212,17 @@ export default function AdminGroupModal({ isOpen, onClose, mode }: Props) {
           {results.map((user) => {
             const isSelected = selectedUsers.some(u => u.user_id === user.user_id);
             return (
-              <button 
+              <button
                 key={user.user_id}
                 onClick={() => toggleUserSelection(user)}
-                className="w-full flex items-center justify-between p-3 hover:bg-slate-50 rounded-lg transition-colors text-left"
+                className="w-full flex items-center justify-between p-3 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors text-left"
                 aria-label={`Toggle selection for ${user.name}`}
               >
                 <div>
-                  <p className="font-semibold text-slate-700 text-sm">{user.name}</p>
-                  <p className="text-xs text-slate-500 capitalize">{user.role}</p>
+                  <p className="font-semibold text-slate-700 dark:text-slate-200 text-sm">{user.name}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 capitalize">{user.role}</p>
                 </div>
-                <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors ${isSelected ? 'bg-blue-600 border-blue-600' : 'border-slate-300'}`}>
+                <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors ${isSelected ? 'bg-blue-600 border-blue-600' : 'border-slate-300 dark:border-slate-600'}`}>
                   {isSelected && <Check className="w-3 h-3 text-white" />}
                 </div>
               </button>
@@ -231,12 +231,12 @@ export default function AdminGroupModal({ isOpen, onClose, mode }: Props) {
         </div>
 
         {/* Footer Action Button */}
-        <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end shrink-0">
+        <div className="p-4 border-t border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 flex justify-end shrink-0">
           <button
             disabled={selectedUsers.length === 0 || isCreating}
             onClick={handleCreateMultiUserThread}
             className={`px-6 py-2 rounded-lg font-bold text-white transition-all shadow-sm flex items-center gap-2 active:scale-95
-              ${selectedUsers.length === 0 ? 'bg-slate-300 cursor-not-allowed' : mode === 'Broadcast' ? 'bg-orange-600 hover:bg-orange-700' : 'bg-blue-600 hover:bg-blue-700'}
+              ${selectedUsers.length === 0 ? 'bg-slate-300 dark:bg-slate-700 cursor-not-allowed' : mode === 'Broadcast' ? 'bg-orange-600 hover:bg-orange-700' : 'bg-blue-600 hover:bg-blue-700'}
             `}
           >
             {isCreating ? <Loader2 className="w-4 h-4 animate-spin" /> : null}

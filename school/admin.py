@@ -1,19 +1,15 @@
 from django.contrib import admin
-from school.models.models import (
-    Notice, AttendanceSession, AttendanceRecord,
-    Event, Notification, AcademicYear, ExamTerm, ExamEvent,
-    GradingRule, ExamResult, StudentReportSummary, ClassExamStatus
-)
-from unfold.admin import ModelAdmin, StackedInline, TabularInline
-from school.models.timetable_models import TimeSlot, Timetable, LessonAllocation
-# UPDATED: Appended StudentSubjectEnrollment to the end of your exact imports group
-from school.models.classSubjects_models import ( ClassStream, Subject, SubjectQuota, Department,
-                                SubjectAllocation, SubjectSelectionRule, SubjectBlock, GradeLevel, SubjectExclusionRule, CurriculumPreset, StudentSubjectEnrollment, SubjectCurriculumProfile, QuotaDefaultRule, PresetCombination )
+from unfold.admin import ModelAdmin, TabularInline, StackedInline
+from apps.timetable.models import Timetable, LessonAllocation
+from apps.messaging.models import Notice, Event, Notification
+from apps.attendance.models import AttendanceSession, AttendanceRecord
+from apps.allocations.models import SubjectQuota, SubjectAllocation, SubjectBlock, QuotaDefaultRule
+from apps.students.models import StudentSubjectEnrollment, StudentPathwaySelection
 
-from school.models.assignments_models import (
+from apps.assignments.models import (
     Assignment, Question, QuestionOption, StudentSubmission, StudentAnswer
 )
-from school.models.teachers_model import TeacherLeave, LongTermReliefAssignment
+from apps.staff.models import TeacherLeave, LongTermReliefAssignment
 
 # ==========================================
 # UPGRADED ATTENDANCE, NOTICE & EVENT ADMINS
@@ -77,55 +73,6 @@ class LongTermReliefAssignmentAdmin(ModelAdmin):
 # REMAINING MODELS REGISTRATION
 # ==========================================
 
-
-@admin.register(GradeLevel)
-class GradeLevelAdmin(ModelAdmin):
-    """
-    Manages the overarching grades (e.g., Grade 6, Grade 7).
-    We use list_display to easily see the numeric order used for sorting.
-    """
-    list_display = ('name', 'curriculum_type', 'numeric_order') # Added curriculum_type here for easy viewing
-    list_filter = ('curriculum_type',)
-    ordering = ('numeric_order',)
-    search_fields = ('name',)
-
-@admin.register(ClassStream)
-class ClassStreamAdmin(ModelAdmin):
-    """
-    Manages the physical classrooms (e.g., 6A, 6B).
-    We include a list_filter so you can easily filter streams by their parent Grade.
-    """
-    list_display = ('name', 'grade', 'capacity')
-    list_filter = ('grade',)
-    search_fields = ('name', 'grade__name')
-
-@admin.register(Department)
-class DepartmentAdmin(ModelAdmin):
-    """Admin-managed subject departments — see Department model docstring for how these
-    interact with the Auto-Fill Subject Quotas ladder."""
-    list_display = ('name', 'code', 'is_active')
-    list_filter = ('is_active',)
-    search_fields = ('name', 'code')
-
-
-@admin.register(Subject)
-class SubjectAdmin(ModelAdmin):
-    """
-    Manages the curriculum.
-    The list_filter is incredibly useful here for sorting by department.
-    """
-    list_display = ('code', 'name', 'department', 'is_core')
-    list_filter = ('department', 'is_core')
-    search_fields = ('code', 'name')
-
-
-@admin.register(SubjectCurriculumProfile)
-class SubjectCurriculumProfileAdmin(ModelAdmin):
-    list_display = ('subject', 'curriculum', 'tier', 'is_core', 'total_lessons', 'double_lessons_required', 'remedial_lessons_required')
-    list_filter = ('curriculum', 'tier')
-    search_fields = ('subject__code', 'subject__name')
-
-
 @admin.register(QuotaDefaultRule)
 class QuotaDefaultRuleAdmin(ModelAdmin):
     """Config-driven fallback 'Auto-Fill Subject Quotas' uses for a subject with no
@@ -134,32 +81,10 @@ class QuotaDefaultRuleAdmin(ModelAdmin):
     list_filter = ('department', 'grade_band', 'applies_when_blocked')
 
 
-@admin.register(PresetCombination)
-class PresetCombinationAdmin(ModelAdmin):
-    """The official KNEC 3-subject combination catalog — see model docstring for why this
-    is deliberately independent of CurriculumPreset/SubjectPool."""
-    list_display = ('display_name', 'track', 'pathway_name', 'code', 'is_active')
-    list_filter = ('track__pathway', 'track', 'is_active')
-    search_fields = ('name', 'code', 'subjects__name')
-    filter_horizontal = ('subjects',)
-
-    @admin.display(description='Pathway')
-    def pathway_name(self, obj):
-        return obj.track.pathway.name
-
 
 # ==========================================
 # TIMETABLE & SCHEDULING ENGINE ADMIN
 # ==========================================
-
-@admin.register(TimeSlot)
-class TimeSlotAdmin(ModelAdmin):
-    """
-    Manages the Global Grid (e.g., periods, breaks, preps).
-    """
-    list_display = ('day', 'start_time', 'end_time', 'is_global', 'global_label')
-    list_filter = ('day', 'is_global')
-    ordering = ('day', 'start_time')
 
 
 @admin.register(SubjectQuota)
@@ -199,51 +124,6 @@ class LessonAllocationAdmin(ModelAdmin):
 # ==========================================
 # EXAMINATIONS & RESULTS ENGINE ADMIN (NEW)
 # ==========================================
-
-@admin.register(AcademicYear)
-class AcademicYearAdmin(ModelAdmin):
-    list_display = ('year', 'is_active', 'is_archived')
-    list_filter = ('is_active', 'is_archived')
-    search_fields = ('year',)
-
-@admin.register(ExamTerm)
-class ExamTermAdmin(ModelAdmin):
-    list_display = ('name', 'academic_year', 'start_date', 'end_date')
-    list_filter = ('academic_year',)
-    search_fields = ('name',)
-
-@admin.register(ExamEvent)
-class ExamEventAdmin(ModelAdmin):
-    list_display = ('name', 'term', 'exam_type', 'total_marks', 'status')
-    list_filter = ('exam_type', 'status', 'term__academic_year')
-    search_fields = ('name', 'term__name')
-
-@admin.register(GradingRule)
-class GradingRuleAdmin(ModelAdmin):
-    list_display = ('grade_label', 'curriculum', 'min_score', 'max_score', 'remarks')
-    list_filter = ('curriculum',)
-    ordering = ('curriculum', '-min_score')
-
-@admin.register(ExamResult)
-class ExamResultAdmin(ModelAdmin):
-    list_display = ('student', 'exam', 'subject', 'marks_obtained')
-    # Extremely helpful filters for the admin to audit specific class performance
-    list_filter = ('exam', 'subject', 'student__cl__grade')
-    search_fields = ('student__user__first_name', 'student__user__last_name', 'student__roll')
-
-@admin.register(StudentReportSummary)
-class StudentReportSummaryAdmin(ModelAdmin):
-    list_display = ('student', 'exam')
-    search_fields = ('student__user__first_name', 'student__user__last_name')
-    list_filter = ('exam',)
-
-
-@admin.register(ClassExamStatus)
-class ClassExamStatusAdmin(ModelAdmin):
-    list_display = ('class_stream', 'exam', 'status', 'published_at', 'published_by')
-    list_filter = ('status', 'exam')
-    search_fields = ('class_stream__name', 'exam__name')
-
 
 @admin.register(SubjectBlock)
 class SubjectBlockAdmin(ModelAdmin):
@@ -349,39 +229,6 @@ class StudentAnswerAdmin(ModelAdmin):
     search_fields = ('submission__student__user__first_name',)
 
 
-@admin.register(SubjectSelectionRule)
-class SubjectSelectionRuleAdmin(ModelAdmin):
-    list_display = ('grade', 'min_subjects', 'max_subjects')
-    list_editable = ('min_subjects', 'max_subjects')
-
-
-@admin.register(SubjectExclusionRule)
-class SubjectExclusionRuleAdmin(ModelAdmin):
-    list_display = ('grade', 'subject_a', 'subject_b')
-    list_filter = ('grade',)
-
-
-@admin.register(CurriculumPreset)
-class CurriculumPresetAdmin(admin.ModelAdmin):
-    """
-    Admin layout for managing global curriculum structures.
-    Enables quick modifications to standard base requirements.
-    """
-    list_display = ('name', 'min_subjects', 'max_subjects', 'display_order')
-    list_editable = ('min_subjects', 'max_subjects', 'display_order')
-    #list_filter = ('curriculum_type',)
-    search_fields = ('name',)
-    fieldsets = (
-        ('Template Profile', {
-            'fields': ('name', 'display_order')
-        }),
-        ('Academic Constraints', {
-            'fields': ('min_subjects', 'max_subjects'),
-            'description': 'Define standard curriculum baseline and ceiling boundaries.'
-        }),
-    )
-
-
 # ========================================================
 # NEW: MASTER STUDENT SUBJECT SELECTION ENROLLMENT LEDGER
 # ========================================================
@@ -400,3 +247,19 @@ class StudentSubjectEnrollmentAdmin(ModelAdmin):
     )
     list_editable = ('status',)
     ordering = ('academic_year', 'student', 'subject')
+
+
+@admin.register(StudentPathwaySelection)
+class StudentPathwaySelectionAdmin(ModelAdmin):
+    """
+    Mirrors StudentSubjectEnrollmentAdmin's lookup-ledger convention, but for the
+    Senior Secondary pathway choice (one row per student per year, not per subject).
+    """
+    list_display = ('student', 'pathway', 'track', 'academic_year', 'status')
+    list_filter = ('status', 'academic_year', 'pathway', 'track')
+    search_fields = (
+        'student__user__first_name', 'student__user__last_name',
+        'student__roll', 'pathway__name'
+    )
+    list_editable = ('status',)
+    ordering = ('academic_year', 'student')

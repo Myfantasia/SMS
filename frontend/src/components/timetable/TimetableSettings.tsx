@@ -55,28 +55,28 @@ export default function TimetableSettings({ onClose, onRefreshTrigger }: Timetab
 
   return (
     <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl flex flex-col max-h-[90vh] overflow-hidden animate-fade-in relative">
-        
-        <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl dark:shadow-none w-full max-w-5xl flex flex-col max-h-[90vh] overflow-hidden animate-fade-in relative">
+
+        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-800 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-blue-50 text-blue-600"><Settings2 className="w-5 h-5" /></div>
-            <h2 className="text-xl font-black text-slate-800">Timetable Configuration</h2>
+            <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400"><Settings2 className="w-5 h-5" /></div>
+            <h2 className="text-xl font-black text-slate-800 dark:text-slate-100">Timetable Configuration</h2>
           </div>
-          <button onClick={onClose} title="Close" aria-label="Close" className="text-slate-400 p-2 bg-white rounded-full border border-slate-200 hover:text-slate-600 transition-colors"><X className="w-5 h-5" /></button>
+          <button onClick={onClose} title="Close" aria-label="Close" className="text-slate-400 dark:text-slate-500 p-2 bg-white dark:bg-slate-900 rounded-full border border-slate-200 dark:border-slate-700 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"><X className="w-5 h-5" /></button>
         </div>
 
         {/* Tab Selection Row */}
-        <div className="flex border-b border-slate-200 px-6 pt-4 gap-6 bg-slate-50 shrink-0 overflow-x-auto custom-scrollbar">
-          <button onClick={() => setActiveTab('terms')} className={`pb-3 font-bold text-sm border-b-2 transition-all flex items-center whitespace-nowrap ${activeTab === 'terms' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}><CalendarPlus className="w-4 h-4 mr-2" /> Terms & Containers</button>
-          <button onClick={() => setActiveTab('bells')} className={`pb-3 font-bold text-sm border-b-2 transition-all flex items-center whitespace-nowrap ${activeTab === 'bells' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}><Clock className="w-4 h-4 mr-2" /> Bell Schedule</button>
-          <button onClick={() => setActiveTab('quotas')} className={`pb-3 font-bold text-sm border-b-2 transition-all flex items-center whitespace-nowrap ${activeTab === 'quotas' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}><BookOpen className="w-4 h-4 mr-2" /> Quotas (Rules)</button>
-          <button onClick={() => setActiveTab('policies')} className={`pb-3 font-bold text-sm border-b-2 transition-all flex items-center whitespace-nowrap ${activeTab === 'policies' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}><Sliders className="w-4 h-4 mr-2" /> Institutional Policies</button>
-          <button onClick={() => setActiveTab('logs')} className={`pb-3 font-bold text-sm border-b-2 transition-all flex items-center whitespace-nowrap ${activeTab === 'logs' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}><History className="w-4 h-4 mr-2" /> Audit Logs</button>
-          <button onClick={() => setActiveTab('blocks')} className={`pb-3 font-bold text-sm border-b-2 transition-all flex items-center whitespace-nowrap ${activeTab === 'blocks' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}><Layers className="w-4 h-4 mr-2" /> Subject Block Builder</button>
+        <div className="flex border-b border-slate-200 dark:border-slate-700 px-6 pt-4 gap-6 bg-slate-50 dark:bg-slate-800 shrink-0 overflow-x-auto custom-scrollbar">
+          <button onClick={() => setActiveTab('terms')} className={`pb-3 font-bold text-sm border-b-2 transition-all flex items-center whitespace-nowrap ${activeTab === 'terms' ? 'border-blue-600 dark:border-blue-400 text-blue-600 dark:text-blue-400' : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}`}><CalendarPlus className="w-4 h-4 mr-2" /> Terms & Containers</button>
+          <button onClick={() => setActiveTab('bells')} className={`pb-3 font-bold text-sm border-b-2 transition-all flex items-center whitespace-nowrap ${activeTab === 'bells' ? 'border-blue-600 dark:border-blue-400 text-blue-600 dark:text-blue-400' : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}`}><Clock className="w-4 h-4 mr-2" /> Bell Schedule</button>
+          <button onClick={() => setActiveTab('quotas')} className={`pb-3 font-bold text-sm border-b-2 transition-all flex items-center whitespace-nowrap ${activeTab === 'quotas' ? 'border-blue-600 dark:border-blue-400 text-blue-600 dark:text-blue-400' : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}`}><BookOpen className="w-4 h-4 mr-2" /> Quotas (Rules)</button>
+          <button onClick={() => setActiveTab('policies')} className={`pb-3 font-bold text-sm border-b-2 transition-all flex items-center whitespace-nowrap ${activeTab === 'policies' ? 'border-blue-600 dark:border-blue-400 text-blue-600 dark:text-blue-400' : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}`}><Sliders className="w-4 h-4 mr-2" /> Institutional Policies</button>
+          <button onClick={() => setActiveTab('logs')} className={`pb-3 font-bold text-sm border-b-2 transition-all flex items-center whitespace-nowrap ${activeTab === 'logs' ? 'border-blue-600 dark:border-blue-400 text-blue-600 dark:text-blue-400' : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}`}><History className="w-4 h-4 mr-2" /> Audit Logs</button>
+          <button onClick={() => setActiveTab('blocks')} className={`pb-3 font-bold text-sm border-b-2 transition-all flex items-center whitespace-nowrap ${activeTab === 'blocks' ? 'border-blue-600 dark:border-blue-400 text-blue-600 dark:text-blue-400' : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}`}><Layers className="w-4 h-4 mr-2" /> Subject Block Builder</button>
         </div>
 
         {/* Tab Subpanels Display Track */}
-        <div className="flex-1 overflow-y-auto p-6 bg-white custom-scrollbar">
+        <div className="flex-1 overflow-y-auto p-6 bg-white dark:bg-slate-900 custom-scrollbar">
           {activeTab === 'terms' && <SettingsTerms timetables={timetables} onRefreshTrigger={onRefreshTrigger} fetchSettingsData={fetchSettingsData} confirmAction={triggerConfirm} />}
           {activeTab === 'bells' && <SettingsBells slots={slots} onRefreshTrigger={onRefreshTrigger} fetchSettingsData={fetchSettingsData} confirmAction={triggerConfirm} />}
           {activeTab === 'quotas' && <SettingsQuotas grades={grades} subjects={subjects} quotas={quotas} daytimeCapacity={daytimeCapacity} onRefreshTrigger={onRefreshTrigger} fetchSettingsData={fetchSettingsData} confirmAction={triggerConfirm} />}
@@ -88,12 +88,12 @@ export default function TimetableSettings({ onClose, onRefreshTrigger }: Timetab
         {/* Global Dialog Modal */}
         {confirmDialog.isOpen && (
           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-60 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden p-6 text-center">
-              <AlertCircle className="w-12 h-12 text-red-600 mx-auto mb-4" />
-              <h3 className="text-xl font-black mb-2 text-slate-800">{confirmDialog.title}</h3>
-              <p className="text-sm text-slate-500 mb-6 leading-relaxed">{confirmDialog.message}</p>
+            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl dark:shadow-none w-full max-w-sm overflow-hidden p-6 text-center">
+              <AlertCircle className="w-12 h-12 text-red-600 dark:text-red-400 mx-auto mb-4" />
+              <h3 className="text-xl font-black mb-2 text-slate-800 dark:text-slate-100">{confirmDialog.title}</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">{confirmDialog.message}</p>
               <div className="flex gap-3">
-                <button onClick={() => setConfirmDialog(p => ({ ...p, isOpen: false }))} className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-600 rounded-lg font-bold hover:bg-slate-50">Cancel</button>
+                <button onClick={() => setConfirmDialog(p => ({ ...p, isOpen: false }))} className="flex-1 px-4 py-2.5 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-lg font-bold hover:bg-slate-50 dark:hover:bg-slate-800">Cancel</button>
                 <button onClick={confirmDialog.onConfirm} className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700">Confirm</button>
               </div>
             </div>

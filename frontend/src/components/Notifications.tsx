@@ -165,26 +165,26 @@ export default function NotificationBell({ role }: NotificationBellProps) {
       <button
         type="button"
         onClick={() => setIsOpen(prev => !prev)}
-        className="bg-slate-100 hover:bg-slate-200 transition-colors rounded-full w-9 h-9 flex items-center justify-center cursor-pointer relative z-10"
+        className="bg-amber-50 dark:bg-amber-500/10 text-amber-500 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-500/20 hover:text-amber-600 dark:hover:text-amber-300 transition-colors rounded-full w-9 h-9 flex items-center justify-center cursor-pointer relative z-10"
         title="Notifications"
         aria-label="Notifications"
       >
-        <Bell className="w-4 h-4 text-slate-600" />
+        <Bell className="w-4 h-4" />
 
         {/* Notification Badge */}
         {totalNotifications > 0 && (
-          <div className={`absolute -top-1 -right-1 w-5 h-5 flex items-center justify-center text-white rounded-full text-[11px] font-bold border-2 border-white shadow-sm ${hasUrgent ? 'bg-red-500 animate-pulse' : 'bg-amber-500'}`}>
+          <div className={`absolute -top-1 -right-1 w-5 h-5 flex items-center justify-center text-white rounded-full text-[11px] font-bold border-2 border-white dark:border-slate-900 shadow-sm ${hasUrgent ? 'bg-red-500 animate-pulse' : 'bg-amber-500'}`}>
             {totalNotifications}
           </div>
         )}
       </button>
 
       {isOpen && (
-      <div className="absolute top-12 right-0 w-72 bg-white border border-slate-200 shadow-xl rounded-xl flex flex-col z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150 origin-top-right">
-        <div className="bg-slate-50 px-4 py-3 border-b border-slate-100 flex justify-between items-center">
-          <span className="font-bold text-slate-700 text-sm">Action Required</span>
+      <div className="absolute top-12 right-0 w-72 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl dark:shadow-none rounded-xl flex flex-col z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150 origin-top-right">
+        <div className="bg-slate-50 dark:bg-slate-800/60 px-4 py-3 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
+          <span className="font-bold text-slate-700 dark:text-slate-100 text-sm">Action Required</span>
           {(role === 'admin' || role === 'student' || role === 'parent') && unreadRealNotifications.length > 0 && (
-            <button type="button" onClick={markAllRead} className="text-xs font-medium text-blue-600 hover:text-blue-700">
+            <button type="button" onClick={markAllRead} className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300">
               Mark all read
             </button>
           )}
@@ -199,59 +199,59 @@ export default function NotificationBell({ role }: NotificationBellProps) {
             <>
               {/* ✅ NEW: Timetable Warning Alert Card Dropdown */}
               {pendingData.timetable_warnings > 0 && (
-                <Link to="/admin-dashboard/timetable" className="px-4 py-3 border-b border-rose-100 bg-rose-50/30 hover:bg-rose-50 transition-colors flex items-start gap-3">
-                  <div className="bg-rose-100 p-2 rounded-full mt-1">
-                    <FileEdit className="w-4 h-4 text-rose-600" />
+                <Link to="/admin-dashboard/timetable" className="px-4 py-3 border-b border-rose-100 dark:border-rose-500/20 bg-rose-50/30 dark:bg-rose-500/10 hover:bg-rose-50 dark:hover:bg-rose-500/15 transition-colors flex items-start gap-3">
+                  <div className="bg-rose-100 dark:bg-rose-500/20 p-2 rounded-full mt-1">
+                    <FileEdit className="w-4 h-4 text-rose-600 dark:text-rose-400" />
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-rose-900">Timetable Clashes</p>
-                    <p className="text-xs text-rose-600">{pendingData.timetable_warnings} lessons sitting in Unscheduled Basket.</p>
+                    <p className="text-sm font-semibold text-rose-900 dark:text-rose-300">Timetable Clashes</p>
+                    <p className="text-xs text-rose-600 dark:text-rose-400">{pendingData.timetable_warnings} lessons sitting in Unscheduled Basket.</p>
                   </div>
                 </Link>
               )}
 
               {pendingData.pending_teachers > 0 && (
-                <Link to="/admin-dashboard/approvals/teachers" className="px-4 py-3 border-b border-slate-50 hover:bg-slate-50 transition-colors flex items-start gap-3">
-                  <div className="bg-blue-100 p-2 rounded-full mt-1"><UserPlus className="w-4 h-4 text-blue-600" /></div>
+                <Link to="/admin-dashboard/approvals/teachers" className="px-4 py-3 border-b border-slate-50 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors flex items-start gap-3">
+                  <div className="bg-blue-100 dark:bg-blue-500/20 p-2 rounded-full mt-1"><UserPlus className="w-4 h-4 text-blue-600 dark:text-blue-400" /></div>
                   <div>
-                    <p className="text-sm font-semibold text-slate-700">Teacher Approvals</p>
-                    <p className="text-xs text-slate-500">{pendingData.pending_teachers} new teachers waiting.</p>
+                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Teacher Approvals</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{pendingData.pending_teachers} new teachers waiting.</p>
                   </div>
                 </Link>
               )}
               {pendingData.pending_students > 0 && (
-                <Link to="/admin-dashboard/approvals/students" className="px-4 py-3 border-b border-slate-50 hover:bg-slate-50 transition-colors flex items-start gap-3">
-                  <div className="bg-emerald-100 p-2 rounded-full mt-1"><UserPlus className="w-4 h-4 text-emerald-600" /></div>
+                <Link to="/admin-dashboard/approvals/students" className="px-4 py-3 border-b border-slate-50 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors flex items-start gap-3">
+                  <div className="bg-emerald-100 dark:bg-emerald-500/20 p-2 rounded-full mt-1"><UserPlus className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /></div>
                   <div>
-                    <p className="text-sm font-semibold text-slate-700">Student Approvals</p>
-                    <p className="text-xs text-slate-500">{pendingData.pending_students} new students waiting.</p>
+                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Student Approvals</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{pendingData.pending_students} new students waiting.</p>
                   </div>
                 </Link>
               )}
               {pendingData.pending_parents > 0 && (
-                <Link to="/admin-dashboard/approvals/parents" className="px-4 py-3 border-b border-slate-50 hover:bg-slate-50 transition-colors flex items-start gap-3">
-                  <div className="bg-purple-100 p-2 rounded-full mt-1"><Users className="w-4 h-4 text-purple-600" /></div>
+                <Link to="/admin-dashboard/approvals/parents" className="px-4 py-3 border-b border-slate-50 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors flex items-start gap-3">
+                  <div className="bg-purple-100 dark:bg-purple-500/20 p-2 rounded-full mt-1"><Users className="w-4 h-4 text-purple-600 dark:text-purple-400" /></div>
                   <div>
-                    <p className="text-sm font-semibold text-slate-700">Parent Approvals</p>
-                    <p className="text-xs text-slate-500">{pendingData.pending_parents} accounts waiting.</p>
+                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Parent Approvals</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{pendingData.pending_parents} accounts waiting.</p>
                   </div>
                 </Link>
               )}
               {pendingData.pending_admins > 0 && (
-                <Link to="/admin-dashboard/approvals/admins" className="px-4 py-3 border-b border-slate-50 hover:bg-slate-50 transition-colors flex items-start gap-3">
-                  <div className="bg-rose-100 p-2 rounded-full mt-1"><ShieldAlert className="w-4 h-4 text-rose-600" /></div>
+                <Link to="/admin-dashboard/approvals/admins" className="px-4 py-3 border-b border-slate-50 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors flex items-start gap-3">
+                  <div className="bg-rose-100 dark:bg-rose-500/20 p-2 rounded-full mt-1"><ShieldAlert className="w-4 h-4 text-rose-600 dark:text-rose-400" /></div>
                   <div>
-                    <p className="text-sm font-semibold text-slate-700">Admin Approvals</p>
-                    <p className="text-xs text-slate-500">{pendingData.pending_admins} new admins waiting for review.</p>
+                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Admin Approvals</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{pendingData.pending_admins} new admins waiting for review.</p>
                   </div>
                 </Link>
               )}
               {pendingData.pending_leaves > 0 && (
-                <Link to="/admin-dashboard/approvals/leave" className="px-4 py-3 hover:bg-slate-50 transition-colors flex items-start gap-3">
-                  <div className="bg-amber-100 p-2 rounded-full mt-1"><CalendarClock className="w-4 h-4 text-amber-600" /></div>
+                <Link to="/admin-dashboard/approvals/leave" className="px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors flex items-start gap-3">
+                  <div className="bg-amber-100 dark:bg-amber-500/20 p-2 rounded-full mt-1"><CalendarClock className="w-4 h-4 text-amber-600 dark:text-amber-400" /></div>
                   <div>
-                    <p className="text-sm font-semibold text-slate-700">Leave Approvals</p>
-                    <p className="text-xs text-slate-500">{pendingData.pending_leaves} requests awaiting your decision.</p>
+                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Leave Approvals</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{pendingData.pending_leaves} requests awaiting your decision.</p>
                   </div>
                 </Link>
               )}
@@ -263,16 +263,16 @@ export default function NotificationBell({ role }: NotificationBellProps) {
                 const isFailure = n.title.toLowerCase().includes('failed');
                 const content = (
                   <>
-                    <div className={`p-2 rounded-full mt-1 ${isFailure ? 'bg-rose-100' : 'bg-emerald-100'}`}>
-                      <Cog className={`w-4 h-4 ${isFailure ? 'text-rose-600' : 'text-emerald-600'}`} />
+                    <div className={`p-2 rounded-full mt-1 ${isFailure ? 'bg-rose-100 dark:bg-rose-500/20' : 'bg-emerald-100 dark:bg-emerald-500/20'}`}>
+                      <Cog className={`w-4 h-4 ${isFailure ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`} />
                     </div>
                     <div>
-                      <p className="text-sm font-semibold text-slate-700">{n.title}</p>
-                      <p className="text-xs text-slate-500">{n.message}</p>
+                      <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{n.title}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">{n.message}</p>
                     </div>
                   </>
                 );
-                const rowClass = `px-4 py-3 border-b border-slate-50 hover:bg-slate-50 transition-colors flex items-start gap-3 cursor-pointer ${!n.is_read ? (isFailure ? 'bg-rose-50/40' : 'bg-emerald-50/40') : ''}`;
+                const rowClass = `px-4 py-3 border-b border-slate-50 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors flex items-start gap-3 cursor-pointer ${!n.is_read ? (isFailure ? 'bg-rose-50/40 dark:bg-rose-500/10' : 'bg-emerald-50/40 dark:bg-emerald-500/10') : ''}`;
                 return n.action_url ? (
                   <Link key={n.id} to={n.action_url} className={rowClass} onClick={() => !n.is_read && markNotificationRead(n.id)}>
                     {content}
@@ -292,29 +292,29 @@ export default function NotificationBell({ role }: NotificationBellProps) {
           {role === 'teacher' && (
             <>
               {teacherActions.pending_assignments > 0 && (
-                <Link to="/teacher-dashboard/assignments" className="px-4 py-3 border-b border-slate-50 hover:bg-slate-50 transition-colors flex items-start gap-3">
-                  <div className="bg-amber-100 p-2 rounded-full mt-1"><FileEdit className="w-4 h-4 text-amber-600" /></div>
+                <Link to="/teacher-dashboard/assignments" className="px-4 py-3 border-b border-slate-50 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors flex items-start gap-3">
+                  <div className="bg-amber-100 dark:bg-amber-500/20 p-2 rounded-full mt-1"><FileEdit className="w-4 h-4 text-amber-600 dark:text-amber-400" /></div>
                   <div>
-                    <p className="text-sm font-semibold text-slate-700">Ungraded Assignments</p>
-                    <p className="text-xs text-slate-500">{teacherActions.pending_assignments} submissions need marking.</p>
+                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Ungraded Assignments</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{teacherActions.pending_assignments} submissions need marking.</p>
                   </div>
                 </Link>
               )}
               {teacherActions.pending_exams > 0 && (
-                <Link to="/teacher-dashboard/exams" className="px-4 py-3 border-b border-slate-50 hover:bg-slate-50 transition-colors flex items-start gap-3">
-                  <div className="bg-rose-100 p-2 rounded-full mt-1"><ClipboardCheck className="w-4 h-4 text-rose-600" /></div>
+                <Link to="/teacher-dashboard/exams" className="px-4 py-3 border-b border-slate-50 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors flex items-start gap-3">
+                  <div className="bg-rose-100 dark:bg-rose-500/20 p-2 rounded-full mt-1"><ClipboardCheck className="w-4 h-4 text-rose-600 dark:text-rose-400" /></div>
                   <div>
-                    <p className="text-sm font-semibold text-slate-700">Draft Exams</p>
-                    <p className="text-xs text-slate-500">{teacherActions.pending_exams} exams awaiting finalization.</p>
+                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Draft Exams</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{teacherActions.pending_exams} exams awaiting finalization.</p>
                   </div>
                 </Link>
               )}
               {teacherActions.pending_leaves > 0 && (
-                <Link to="/teacher-dashboard/leave-requests" className="px-4 py-3 hover:bg-slate-50 transition-colors flex items-start gap-3">
-                  <div className="bg-amber-100 p-2 rounded-full mt-1"><CalendarClock className="w-4 h-4 text-amber-600" /></div>
+                <Link to="/teacher-dashboard/leave-requests" className="px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors flex items-start gap-3">
+                  <div className="bg-amber-100 dark:bg-amber-500/20 p-2 rounded-full mt-1"><CalendarClock className="w-4 h-4 text-amber-600 dark:text-amber-400" /></div>
                   <div>
-                    <p className="text-sm font-semibold text-slate-700">Leave Status</p>
-                    <p className="text-xs text-slate-500">{teacherActions.pending_leaves} application(s) awaiting admin decision.</p>
+                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Leave Status</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{teacherActions.pending_leaves} application(s) awaiting admin decision.</p>
                   </div>
                 </Link>
               )}
@@ -327,11 +327,11 @@ export default function NotificationBell({ role }: NotificationBellProps) {
           {role === 'student' && (
             <>
               {studentActions.due_assignments > 0 && (
-                <div className="px-4 py-3 border-b border-slate-50 hover:bg-slate-50 transition-colors flex items-start gap-3 cursor-pointer">
-                  <div className="bg-blue-100 p-2 rounded-full mt-1"><BookOpen className="w-4 h-4 text-blue-600" /></div>
+                <div className="px-4 py-3 border-b border-slate-50 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors flex items-start gap-3 cursor-pointer">
+                  <div className="bg-blue-100 dark:bg-blue-500/20 p-2 rounded-full mt-1"><BookOpen className="w-4 h-4 text-blue-600 dark:text-blue-400" /></div>
                   <div>
-                    <p className="text-sm font-semibold text-slate-700">Homework Due</p>
-                    <p className="text-xs text-slate-500">You have {studentActions.due_assignments} pending assignments.</p>
+                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Homework Due</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">You have {studentActions.due_assignments} pending assignments.</p>
                   </div>
                 </div>
               )}
@@ -339,12 +339,12 @@ export default function NotificationBell({ role }: NotificationBellProps) {
                 <div
                   key={n.id}
                   onClick={() => !n.is_read && markNotificationRead(n.id)}
-                  className={`px-4 py-3 border-b border-slate-50 hover:bg-slate-50 transition-colors flex items-start gap-3 cursor-pointer ${!n.is_read ? 'bg-emerald-50/40' : ''}`}
+                  className={`px-4 py-3 border-b border-slate-50 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors flex items-start gap-3 cursor-pointer ${!n.is_read ? 'bg-emerald-50/40 dark:bg-emerald-500/10' : ''}`}
                 >
-                  <div className="bg-emerald-100 p-2 rounded-full mt-1"><GraduationCap className="w-4 h-4 text-emerald-600" /></div>
+                  <div className="bg-emerald-100 dark:bg-emerald-500/20 p-2 rounded-full mt-1"><GraduationCap className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /></div>
                   <div>
-                    <p className="text-sm font-semibold text-slate-700">{n.title}</p>
-                    <p className="text-xs text-slate-500">{n.message}</p>
+                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{n.title}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{n.message}</p>
                   </div>
                 </div>
               ))}
@@ -357,11 +357,11 @@ export default function NotificationBell({ role }: NotificationBellProps) {
           {role === 'parent' && (
             <>
               {parentActions.fee_reminders > 0 && (
-                <div className="px-4 py-3 border-b border-slate-50 hover:bg-slate-50 transition-colors flex items-start gap-3 cursor-pointer">
-                  <div className="bg-red-100 p-2 rounded-full mt-1"><CreditCard className="w-4 h-4 text-red-600" /></div>
+                <div className="px-4 py-3 border-b border-slate-50 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors flex items-start gap-3 cursor-pointer">
+                  <div className="bg-red-100 dark:bg-red-500/20 p-2 rounded-full mt-1"><CreditCard className="w-4 h-4 text-red-600 dark:text-red-400" /></div>
                   <div>
-                    <p className="text-sm font-semibold text-slate-700">Fee Reminder</p>
-                    <p className="text-xs text-slate-500">You have a pending fee balance.</p>
+                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Fee Reminder</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">You have a pending fee balance.</p>
                   </div>
                 </div>
               )}
@@ -369,12 +369,12 @@ export default function NotificationBell({ role }: NotificationBellProps) {
                 <div
                   key={n.id}
                   onClick={() => !n.is_read && markNotificationRead(n.id)}
-                  className={`px-4 py-3 border-b border-slate-50 hover:bg-slate-50 transition-colors flex items-start gap-3 cursor-pointer ${!n.is_read ? 'bg-emerald-50/40' : ''}`}
+                  className={`px-4 py-3 border-b border-slate-50 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors flex items-start gap-3 cursor-pointer ${!n.is_read ? 'bg-emerald-50/40 dark:bg-emerald-500/10' : ''}`}
                 >
-                  <div className="bg-emerald-100 p-2 rounded-full mt-1"><GraduationCap className="w-4 h-4 text-emerald-600" /></div>
+                  <div className="bg-emerald-100 dark:bg-emerald-500/20 p-2 rounded-full mt-1"><GraduationCap className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /></div>
                   <div>
-                    <p className="text-sm font-semibold text-slate-700">{n.title}</p>
-                    <p className="text-xs text-slate-500">{n.message}</p>
+                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{n.title}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{n.message}</p>
                   </div>
                 </div>
               ))}
@@ -382,7 +382,7 @@ export default function NotificationBell({ role }: NotificationBellProps) {
           )}
 
           {totalNotifications === 0 && (
-            <div className="px-4 py-6 text-center text-sm text-slate-500">
+            <div className="px-4 py-6 text-center text-sm text-slate-500 dark:text-slate-400">
               You are all caught up! No pending tasks.
             </div>
           )}

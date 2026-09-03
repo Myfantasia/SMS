@@ -58,44 +58,44 @@ const ExamModal: React.FC<ExamModalProps> = ({ isOpen, onClose, onSuccess, terms
 
   return (
     <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-          <h2 className="font-semibold text-slate-800">{editData ? 'Edit Assessment' : 'Create Assessment / Exam'}</h2>
-          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600">
+      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-xl dark:shadow-none w-full max-w-md overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-800/40">
+          <h2 className="font-semibold text-slate-800 dark:text-slate-100">{editData ? 'Edit Assessment' : 'Create Assessment / Exam'}</h2>
+          <button type="button" onClick={onClose} className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300">
             <X className="w-5 h-5" />
           </button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4 text-sm">
           <div>
-            <label htmlFor="term-select" className="block text-slate-600 font-medium mb-1">Select Term</label>
-            <select id="term-select" required className="w-full border border-slate-200 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+            <label htmlFor="term-select" className="block text-slate-600 dark:text-slate-300 font-medium mb-1">Select Term</label>
+            <select id="term-select" required className="w-full border border-slate-200 dark:border-slate-600 rounded-md p-2 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 outline-none bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100"
               value={examForm.term_id} onChange={(e) => setExamForm({...examForm, term_id: e.target.value})}>
               <option value="">-- Choose Term --</option>
               {terms.map(t => <option key={t.id} value={String(t.id)}>{t.name}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-slate-600 font-medium mb-1">Exam Name</label>
-            <input required type="text" placeholder="e.g. End of Term, CAT 1" className="w-full border border-slate-200 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none" 
+            <label className="block text-slate-600 dark:text-slate-300 font-medium mb-1">Exam Name</label>
+            <input required type="text" placeholder="e.g. End of Term, CAT 1" className="w-full border border-slate-200 dark:border-slate-600 rounded-md p-2 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 outline-none bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
               value={examForm.name} onChange={(e) => setExamForm({...examForm, name: e.target.value})} />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label htmlFor="exam-type-select" className="block text-slate-600 font-medium mb-1">Exam Type</label>
-              <select id="exam-type-select" required className="w-full border border-slate-200 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+              <label htmlFor="exam-type-select" className="block text-slate-600 dark:text-slate-300 font-medium mb-1">Exam Type</label>
+              <select id="exam-type-select" required className="w-full border border-slate-200 dark:border-slate-600 rounded-md p-2 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 outline-none bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100"
                 value={examForm.exam_type} onChange={(e) => setExamForm({...examForm, exam_type: e.target.value})}>
                 <option value="MAIN">Main Exam</option>
                 <option value="CAT">Continuous Assessment</option>
               </select>
             </div>
             <div>
-              <label className="block text-slate-600 font-medium mb-1">Total Marks</label>
-              <input required type="number" min="1" max="100" className="w-full border border-slate-200 rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none" 
+              <label className="block text-slate-600 dark:text-slate-300 font-medium mb-1">Total Marks</label>
+              <input required type="number" min="1" max="100" className="w-full border border-slate-200 dark:border-slate-600 rounded-md p-2 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 outline-none bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100"
                 value={examForm.marks} onChange={(e) => setExamForm({...examForm, marks: Number(e.target.value)})} />
             </div>
           </div>
-          <div className="pt-4 flex justify-end gap-3 border-t border-slate-100 mt-6">
-            <button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-md font-medium">Cancel</button>
+          <div className="pt-4 flex justify-end gap-3 border-t border-slate-100 dark:border-slate-700 mt-6">
+            <button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md font-medium">Cancel</button>
             <button type="submit" disabled={isSubmitting} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium disabled:opacity-50">
               {isSubmitting ? 'Saving...' : (editData ? 'Update Exam' : 'Create Exam')}
             </button>

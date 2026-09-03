@@ -8,6 +8,7 @@ from apps.academics.models import (
     tier_requires_pathway_choice, grade_requires_pathway_choice,
 )
 from apps.identity.models import Permission, Role, UserRole, StudentExtra
+from apps.messaging.models import Notification
 from apps.students.models import StudentPathwaySelection, StudentSubjectEnrollment
 from school.tests.base import ExamTestDataMixin
 from school.views.subject_views import (
@@ -255,6 +256,36 @@ class StudentSelfServicePathwayGateTests(PathwayAssignmentTestMixin, TestCase):
         response = api_student_pathway_request(request)
         self.assertEqual(response.status_code, 403)
         self.assertFalse(StudentPathwaySelection.objects.filter(student=self.grade11_student).exists())
+
+
+class PathwayRequestNotificationTests(PathwayAssignmentTestMixin, TestCase):
+    """Submitting a pathway request must notify admins and the concerned student's class
+    teacher (stream_sss.class_teacher == cls.teacher) so they know to review it -- but not
+    every teacher who happens to hold pathway.edit, like unrelated_teacher_user."""
+
+    def test_admin_and_class_teacher_are_notified(self):
+        result, status = self._post(
+            api_student_pathway_request, '/api/subjects/my-pathway/request/',
+            self.sss_student_user, {'pathway_id': self.pathway.id, 'track_id': self.track.id,
+                                     'preset_combination_id': self.combo.id},
+        )
+        self.assertEqual(status, 200)
+
+        admin_notification = Notification.objects.filter(recipient=self.admin_user).first()
+        self.assertIsNotNone(admin_notification)
+        self.assertIn('STEM', admin_notification.message)
+        self.assertTrue(admin_notification.action_url)
+
+        teacher_notification = Notification.objects.filter(recipient=self.teacher_user).first()
+        self.assertIsNotNone(teacher_notification)
+
+    def test_unrelated_teacher_is_not_notified(self):
+        self._post(
+            api_student_pathway_request, '/api/subjects/my-pathway/request/',
+            self.sss_student_user, {'pathway_id': self.pathway.id, 'track_id': self.track.id,
+                                     'preset_combination_id': self.combo.id},
+        )
+        self.assertFalse(Notification.objects.filter(recipient=self.unrelated_teacher_user).exists())
 
 
 class UnlockEndpointsTests(PathwayAssignmentTestMixin, TestCase):

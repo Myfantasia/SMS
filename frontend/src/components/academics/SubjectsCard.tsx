@@ -57,10 +57,11 @@ interface SubjectsCardProps {
   tiers: Tier[];
   subjectProfiles: SubjectCurriculumProfile[];
   departments: Department[];
+  selectedTierId?: number | null;
   onRefresh: () => void;
 }
 
-export default function SubjectsCard({ subjects, curricula, tiers, subjectProfiles, departments, onRefresh }: SubjectsCardProps) {
+export default function SubjectsCard({ subjects, curricula, tiers, subjectProfiles, departments, selectedTierId, onRefresh }: SubjectsCardProps) {
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
   const [modalType, setModalType] = useState<'view' | 'edit' | 'delete' | null>(null);
 
@@ -85,7 +86,7 @@ export default function SubjectsCard({ subjects, curricula, tiers, subjectProfil
   // flat default), since a subject can be core under one curriculum and elective under another.
   const curriculumBadges = (subject: Subject) =>
     subjectProfiles
-      .filter((p) => p.subject === subject.id)
+      .filter((p) => p.subject === subject.id && (!selectedTierId || p.tier === selectedTierId))
       .map((p) => {
         const curriculum = curricula.find((c) => c.id === p.curriculum);
         const tier = p.tier ? tiers.find((t) => t.id === p.tier) : undefined;
@@ -102,25 +103,25 @@ export default function SubjectsCard({ subjects, curricula, tiers, subjectProfil
   // Departments are now admin-defined (not a fixed 6-name list), so colors are hashed from the
   // name instead of switch-cased — every department still gets a stable, distinct color.
   const DEPT_PALETTE = [
-    'bg-cyan-100 text-cyan-700 border-cyan-200',
-    'bg-indigo-100 text-indigo-700 border-indigo-200',
-    'bg-rose-100 text-rose-700 border-rose-200',
-    'bg-amber-100 text-amber-700 border-amber-200',
-    'bg-emerald-100 text-emerald-700 border-emerald-200',
-    'bg-purple-100 text-purple-700 border-purple-200',
-    'bg-orange-100 text-orange-700 border-orange-200',
-    'bg-teal-100 text-teal-700 border-teal-200',
-    'bg-pink-100 text-pink-700 border-pink-200',
+    'bg-cyan-100 dark:bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 border-cyan-200 dark:border-cyan-500/40',
+    'bg-indigo-100 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border-indigo-200 dark:border-indigo-500/40',
+    'bg-rose-100 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-500/40',
+    'bg-amber-100 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-500/40',
+    'bg-emerald-100 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/40',
+    'bg-purple-100 dark:bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-500/40',
+    'bg-orange-100 dark:bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-500/40',
+    'bg-teal-100 dark:bg-teal-500/10 text-teal-700 dark:text-teal-400 border-teal-200 dark:border-teal-500/40',
+    'bg-pink-100 dark:bg-pink-500/10 text-pink-700 dark:text-pink-400 border-pink-200 dark:border-pink-500/40',
   ];
   const getDeptColor = (deptName: string | null) => {
-    if (!deptName) return 'bg-slate-100 text-slate-600 border-slate-300';
+    if (!deptName) return 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600';
     let hash = 0;
     for (let i = 0; i < deptName.length; i++) hash = (hash * 31 + deptName.charCodeAt(i)) >>> 0;
     return DEPT_PALETTE[hash % DEPT_PALETTE.length];
   };
 
   if (subjects.length === 0) {
-    return <div className="p-8 text-center text-slate-400">No subjects configured yet.</div>;
+    return <div className="p-8 text-center text-slate-400 dark:text-slate-500">No subjects configured yet.</div>;
   }
 
   // Lazily loads the full teacher directory the first time the edit modal needs it,
@@ -232,7 +233,7 @@ const handleDeleteConfirm = async () => {
   return (
     <div className="w-full relative">
       <table className="w-full text-sm text-left">
-        <thead className="text-xs text-slate-400 uppercase bg-white sticky top-0 shadow-sm border-b border-slate-100">
+        <thead className="text-xs text-slate-400 dark:text-slate-500 uppercase bg-white dark:bg-slate-900 sticky top-0 shadow-sm dark:shadow-none border-b border-slate-100 dark:border-slate-700">
           <tr>
             <th className="px-4 py-4 font-medium w-1/6">Code</th>
             <th className="px-4 py-4 font-medium w-1/4">Subject Name</th>
@@ -242,15 +243,15 @@ const handleDeleteConfirm = async () => {
             <th className="px-4 py-4 font-medium text-right w-1/6">Actions</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-100">
+        <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
           {subjects.map((sub) => {
             const teacherCount = sub.assigned_teachers?.length ?? 0;
             return (
-            <tr key={sub.id} className="hover:bg-slate-50 transition-colors group">
-              <td className="px-4 py-4 font-mono text-xs font-semibold text-slate-500">
+            <tr key={sub.id} className="hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors group">
+              <td className="px-4 py-4 font-mono text-xs font-semibold text-slate-500 dark:text-slate-400">
                 {sub.code}
               </td>
-              <td className="px-4 py-4 font-medium text-slate-800">
+              <td className="px-4 py-4 font-medium text-slate-800 dark:text-slate-100">
                 {(() => {
                   const badges = curriculumBadges(sub);
                   // Zero profiles = shared/global subject with one flat truth (Subject.is_core).
@@ -261,9 +262,9 @@ const handleDeleteConfirm = async () => {
                       <>
                         <div className="flex items-center gap-2">
                           {sub.name}
-                          {sub.is_core && <span className="text-[10px] uppercase bg-slate-800 text-white px-1.5 py-0.5 rounded">Core</span>}
+                          {sub.is_core && <span className="text-[10px] uppercase bg-slate-800 dark:bg-slate-700 text-white px-1.5 py-0.5 rounded">Core</span>}
                         </div>
-                        <span className="text-[10px] text-slate-300 italic">Not categorized — assign in Curriculum Hub</span>
+                        <span className="text-[10px] text-slate-300 dark:text-slate-600 italic">Not categorized — assign in Curriculum Hub</span>
                       </>
                     );
                   }
@@ -277,8 +278,8 @@ const handleDeleteConfirm = async () => {
                             title={isCore ? 'Core in this curriculum/tier' : 'Elective in this curriculum/tier'}
                             className={`text-[10px] font-semibold border px-1.5 py-0.5 rounded-full ${
                               isCore
-                                ? 'bg-slate-800 text-white border-slate-800'
-                                : 'bg-amber-50 text-amber-700 border-amber-200'
+                                ? 'bg-slate-800 dark:bg-slate-700 text-white border-slate-800 dark:border-slate-700'
+                                : 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-500/40'
                             }`}
                           >
                             {label} &middot; {isCore ? 'Core' : 'Elective'}{deptName ? ` · ${deptName}` : ''}
@@ -297,30 +298,30 @@ const handleDeleteConfirm = async () => {
               <td className="px-4 py-4">
                 {teacherCount > 0 ? (
                   <span
-                    className="inline-flex items-center gap-1.5 text-xs font-semibold bg-indigo-50 text-indigo-700 px-2 py-1 rounded-full"
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 px-2 py-1 rounded-full"
                     title={sub.assigned_teachers?.join(', ')}
                   >
                     <Users className="w-3 h-3" /> {teacherCount} teacher{teacherCount === 1 ? '' : 's'}
                   </span>
                 ) : (
-                  <span className="text-xs text-slate-300 italic">Unassigned</span>
+                  <span className="text-xs text-slate-300 dark:text-slate-600 italic">Unassigned</span>
                 )}
               </td>
-              <td className="px-4 py-4 text-slate-500">
+              <td className="px-4 py-4 text-slate-500 dark:text-slate-400">
                 <div className="flex items-center gap-1.5" title="Students enrolled this academic year">
-                  <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
-                  <span className="font-semibold text-slate-700">{sub.live_enrollment ?? 0}</span> students
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
+                  <span className="font-semibold text-slate-700 dark:text-slate-200">{sub.live_enrollment ?? 0}</span> students
                 </div>
               </td>
               <td className="px-4 py-4 text-right">
                 <div className="flex items-center justify-end gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                   <button type="button" onClick={() => openAction(sub, 'view')} className="text-slate-400 hover:text-emerald-600 transition-colors p-1" title="Subject Insights">
+                   <button type="button" onClick={() => openAction(sub, 'view')} className="text-slate-400 dark:text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors p-1" title="Subject Insights">
                      <Eye className="w-4 h-4" />
                    </button>
-                   <button type="button" onClick={() => openAction(sub, 'edit')} className="text-slate-400 hover:text-amber-600 transition-colors p-1" title="Edit Subject">
+                   <button type="button" onClick={() => openAction(sub, 'edit')} className="text-slate-400 dark:text-slate-500 hover:text-amber-600 dark:hover:text-amber-400 transition-colors p-1" title="Edit Subject">
                      <Edit className="w-4 h-4" />
                    </button>
-                   <button type="button" onClick={() => openAction(sub, 'delete')} className="text-slate-400 hover:text-red-600 transition-colors p-1" title="Delete Subject">
+                   <button type="button" onClick={() => openAction(sub, 'delete')} className="text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400 transition-colors p-1" title="Delete Subject">
                      <Trash2 className="w-4 h-4" />
                    </button>
                 </div>
@@ -334,59 +335,59 @@ const handleDeleteConfirm = async () => {
       {/* MODALS OVERLAY */}
       {modalType && selectedSubject && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
-            
-            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-              <h3 className="text-lg font-bold text-slate-800 capitalize">
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl dark:shadow-none w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+
+            <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-800/40">
+              <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 capitalize">
                 {modalType === 'view' ? 'Subject Intelligence' : modalType === 'edit' ? 'Edit Subject Configuration' : 'Confirm Deletion'}
               </h3>
-              <button type="button" onClick={closeModal} className="text-slate-400 hover:text-slate-600 transition" title="Close">
+              <button type="button" onClick={closeModal} className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition" title="Close">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {/* Modal Body - VIEW */}
             {modalType === 'view' && (
-              <div className="p-6 overflow-y-auto space-y-6 bg-slate-50/50">
+              <div className="p-6 overflow-y-auto space-y-6 bg-slate-50/50 dark:bg-slate-800/40">
                 <div>
-                  <h2 className="text-2xl font-black text-slate-800">{selectedSubject.code} - {selectedSubject.name}</h2>
-                  <p className="text-sm font-medium text-slate-500 mt-1 flex items-center gap-2">
+                  <h2 className="text-2xl font-black text-slate-800 dark:text-slate-100">{selectedSubject.code} - {selectedSubject.name}</h2>
+                  <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-2">
                     <span className={`px-2 py-0.5 rounded border ${getDeptColor(selectedSubject.department_name)}`}>{selectedSubject.department_name ?? 'Uncategorized'}</span>
                     {selectedSubject.is_core ? 'Core Requirement' : 'Elective'}
                   </p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                    <div className="flex items-center gap-2 text-indigo-600 mb-2 font-semibold">
+                  <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm dark:shadow-none">
+                    <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 mb-2 font-semibold">
                       <Users className="w-4 h-4" /> Active Teachers
                     </div>
                     {selectedSubject.assigned_teachers && selectedSubject.assigned_teachers.length > 0 ? (
-                      <ul className="text-sm text-slate-600 space-y-1">
+                      <ul className="text-sm text-slate-600 dark:text-slate-300 space-y-1">
                         {selectedSubject.assigned_teachers.map((name) => (
-                          <li key={name} className="font-medium text-slate-800">{name}</li>
+                          <li key={name} className="font-medium text-slate-800 dark:text-slate-100">{name}</li>
                         ))}
                       </ul>
                     ) : (
-                      <p className="text-sm text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                      <p className="text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border border-amber-100 dark:border-amber-500/20 rounded-lg px-3 py-2">
                         No teachers currently assigned to this subject.
                       </p>
                     )}
                   </div>
-                  <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                    <div className="flex items-center gap-2 text-emerald-600 mb-2 font-semibold">
+                  <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm dark:shadow-none">
+                    <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 mb-2 font-semibold">
                       <Sparkles className="w-4 h-4" /> Live Enrollment
                     </div>
-                    <p className="text-sm text-slate-600">
-                      <span className="font-bold text-2xl text-slate-800">{selectedSubject.live_enrollment ?? 0}</span> students enrolled this academic year
+                    <p className="text-sm text-slate-600 dark:text-slate-300">
+                      <span className="font-bold text-2xl text-slate-800 dark:text-slate-100">{selectedSubject.live_enrollment ?? 0}</span> students enrolled this academic year
                     </p>
                   </div>
                 </div>
 
-                <div className="flex flex-col items-center justify-center text-center p-8 bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
-                  <Clock className="w-8 h-8 text-slate-300 mb-3" />
-                  <p className="text-sm font-semibold text-slate-500">Class performance breakdown coming soon</p>
-                  <p className="text-xs text-slate-400 mt-1">Per-class mean scores for this subject will appear here once wired up.</p>
+                <div className="flex flex-col items-center justify-center text-center p-8 bg-slate-50/50 dark:bg-slate-800/40 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
+                  <Clock className="w-8 h-8 text-slate-300 dark:text-slate-600 mb-3" />
+                  <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">Class performance breakdown coming soon</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Per-class mean scores for this subject will appear here once wired up.</p>
                 </div>
               </div>
             )}
@@ -396,44 +397,44 @@ const handleDeleteConfirm = async () => {
               <div className="p-6 space-y-4 overflow-y-auto">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-slate-700">Subject Code</label>
-                    <input type="text" value={editCode} onChange={(e) => setEditCode(e.target.value)} placeholder="Enter subject code" className="w-full border border-slate-300 rounded-md p-2 uppercase focus:ring-2 focus:ring-emerald-500 outline-none" />
+                    <label className="text-sm font-medium text-slate-700 dark:text-slate-200">Subject Code</label>
+                    <input type="text" value={editCode} onChange={(e) => setEditCode(e.target.value)} placeholder="Enter subject code" className="w-full border border-slate-300 dark:border-slate-600 rounded-md p-2 uppercase bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400 outline-none" />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-slate-700">Subject Name</label>
-                    <input type="text" value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Enter subject name" className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-emerald-500 outline-none" />
+                    <label className="text-sm font-medium text-slate-700 dark:text-slate-200">Subject Name</label>
+                    <input type="text" value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Enter subject name" className="w-full border border-slate-300 dark:border-slate-600 rounded-md p-2 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400 outline-none" />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4 items-end">
                   <div className="space-y-2">
-                    <label htmlFor="department-select" className="text-sm font-medium text-slate-700">Department</label>
-                    <select id="department-select" value={editDepartmentId} onChange={(e) => setEditDepartmentId(e.target.value ? Number(e.target.value) : '')} className="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-emerald-500 outline-none">
+                    <label htmlFor="department-select" className="text-sm font-medium text-slate-700 dark:text-slate-200">Department</label>
+                    <select id="department-select" value={editDepartmentId} onChange={(e) => setEditDepartmentId(e.target.value ? Number(e.target.value) : '')} className="w-full border border-slate-300 dark:border-slate-600 rounded-md p-2 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400 outline-none">
                       <option value="">Uncategorized</option>
                       {departments.filter((d) => d.is_active || d.id === editDepartmentId).map((d) => (
                         <option key={d.id} value={d.id}>{d.name}</option>
                       ))}
                     </select>
                   </div>
-                  <label className="flex items-center gap-2 text-sm font-medium text-slate-700 pb-2.5 cursor-pointer">
-                    <input type="checkbox" checked={editIsCore} onChange={(e) => setEditIsCore(e.target.checked)} className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
+                  <label className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200 pb-2.5 cursor-pointer">
+                    <input type="checkbox" checked={editIsCore} onChange={(e) => setEditIsCore(e.target.checked)} className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-emerald-600 dark:text-emerald-400 focus:ring-emerald-500 dark:focus:ring-emerald-400" />
                     Core Requirement (not an elective)
                   </label>
                 </div>
 
-                <div className="space-y-2 bg-slate-50 border border-slate-100 rounded-md p-3">
-                  <label className="flex items-center gap-2 text-sm font-medium text-slate-700 cursor-pointer">
-                    <input type="checkbox" checked={editSyncBlocking} onChange={(e) => setEditSyncBlocking(e.target.checked)} className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
+                <div className="space-y-2 bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-700 rounded-md p-3">
+                  <label className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200 cursor-pointer">
+                    <input type="checkbox" checked={editSyncBlocking} onChange={(e) => setEditSyncBlocking(e.target.checked)} className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-emerald-600 dark:text-emerald-400 focus:ring-emerald-500 dark:focus:ring-emerald-400" />
                     Shared/synchronized block subject (e.g. Technical, Agriculture)
                   </label>
-                  <p className="text-xs text-slate-400">Routes this subject through the shared lecture-hall / elective-splitting engine instead of ordinary standalone scheduling.</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500">Routes this subject through the shared lecture-hall / elective-splitting engine instead of ordinary standalone scheduling.</p>
                   {editSyncBlocking && (
                     <div className="pt-1">
-                      <label htmlFor="sync-min-grade" className="text-xs font-medium text-slate-500 block mb-1">Only from this grade level upward (optional)</label>
+                      <label htmlFor="sync-min-grade" className="text-xs font-medium text-slate-500 dark:text-slate-400 block mb-1">Only from this grade level upward (optional)</label>
                       <input
                         id="sync-min-grade" type="number" min={1} value={editSyncMinGrade}
                         placeholder="e.g. 10"
                         onChange={(e) => setEditSyncMinGrade(e.target.value)}
-                        className="w-32 border border-slate-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                        className="w-32 border border-slate-300 dark:border-slate-600 rounded-md p-2 text-sm bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400 outline-none"
                       />
                     </div>
                   )}
@@ -441,37 +442,37 @@ const handleDeleteConfirm = async () => {
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium text-slate-700">Qualified Teachers</label>
-                    <span className="text-xs text-slate-400">{selectedTeacherIds.size} selected</span>
+                    <label className="text-sm font-medium text-slate-700 dark:text-slate-200">Qualified Teachers</label>
+                    <span className="text-xs text-slate-400 dark:text-slate-500">{selectedTeacherIds.size} selected</span>
                   </div>
                   <div className="relative">
-                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                    <Search className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
                     <input
                       type="text"
                       value={teacherFilter}
                       onChange={(e) => setTeacherFilter(e.target.value)}
                       placeholder="Filter teachers…"
-                      className="w-full border border-slate-300 rounded-md p-2 pl-8 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                      className="w-full border border-slate-300 dark:border-slate-600 rounded-md p-2 pl-8 text-sm bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400 outline-none"
                     />
                   </div>
-                  <div className="border border-slate-200 rounded-md max-h-40 overflow-y-auto divide-y divide-slate-50">
+                  <div className="border border-slate-200 dark:border-slate-700 rounded-md max-h-40 overflow-y-auto divide-y divide-slate-50 dark:divide-slate-800">
                     {loadingTeachers ? (
-                      <p className="text-xs text-slate-400 italic p-3">Loading teachers…</p>
+                      <p className="text-xs text-slate-400 dark:text-slate-500 italic p-3">Loading teachers…</p>
                     ) : allTeachers.filter(t => t.name.toLowerCase().includes(teacherFilter.toLowerCase())).length === 0 ? (
-                      <p className="text-xs text-slate-400 italic p-3">No teachers match.</p>
+                      <p className="text-xs text-slate-400 dark:text-slate-500 italic p-3">No teachers match.</p>
                     ) : (
                       allTeachers
                         .filter(t => t.name.toLowerCase().includes(teacherFilter.toLowerCase()))
                         .map(t => (
-                          <label key={t.id} className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer">
+                          <label key={t.id} className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
                             <input
                               type="checkbox"
                               checked={selectedTeacherIds.has(t.id)}
                               onChange={() => toggleTeacher(t.id)}
-                              className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                              className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-emerald-600 dark:text-emerald-400 focus:ring-emerald-500 dark:focus:ring-emerald-400"
                             />
-                            <span className="text-slate-700 font-medium">{t.name}</span>
-                            <span className="text-xs text-slate-400">{t.username}</span>
+                            <span className="text-slate-700 dark:text-slate-200 font-medium">{t.name}</span>
+                            <span className="text-xs text-slate-400 dark:text-slate-500">{t.username}</span>
                           </label>
                         ))
                     )}
@@ -487,13 +488,13 @@ const handleDeleteConfirm = async () => {
             {/* Modal Body - DELETE */}
             {modalType === 'delete' && (
               <div className="p-6 text-center space-y-4">
-                <div className="mx-auto w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-4">
-                  <Trash2 className="w-6 h-6 text-red-600" />
+                <div className="mx-auto w-12 h-12 bg-red-100 dark:bg-red-500/10 rounded-full flex items-center justify-center mb-4">
+                  <Trash2 className="w-6 h-6 text-red-600 dark:text-red-400" />
                 </div>
-                <h3 className="text-xl font-bold text-slate-800">Delete {selectedSubject.name}?</h3>
-                <p className="text-slate-500 text-sm">This will permanently remove the curriculum listing. All grades, lesson plans, and assignments tied directly to this subject code will be orphaned.</p>
+                <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">Delete {selectedSubject.name}?</h3>
+                <p className="text-slate-500 dark:text-slate-400 text-sm">This will permanently remove the curriculum listing. All grades, lesson plans, and assignments tied directly to this subject code will be orphaned.</p>
                 <div className="flex gap-4 mt-6">
-                  <button type="button" onClick={closeModal} disabled={isSubmitting} className="flex-1 bg-slate-100 text-slate-700 py-2 rounded-md font-medium hover:bg-slate-200">Cancel</button>
+                  <button type="button" onClick={closeModal} disabled={isSubmitting} className="flex-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 py-2 rounded-md font-medium hover:bg-slate-200 dark:hover:bg-slate-700">Cancel</button>
                   <button type="button" onClick={handleDeleteConfirm} disabled={isSubmitting} className="flex-1 bg-red-600 text-white py-2 rounded-md font-medium hover:bg-red-700 disabled:bg-red-400">
                      {isSubmitting ? 'Deleting...' : 'Permanently Delete'}
                   </button>

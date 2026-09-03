@@ -3,7 +3,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from school.models.models import Notice, ParentExtra
+from apps.identity.models import ParentExtra
+from apps.messaging.models import Notice
 from school.serializers.teacher_serializers import NoticeSerializer
 from school.utils import get_attendance_summary, get_class_stream_name, get_unread_message_count
 

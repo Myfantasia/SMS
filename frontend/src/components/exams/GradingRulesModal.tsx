@@ -20,7 +20,7 @@ interface GradingRule {
 const GradingRulesModal: React.FC<GradingRulesModalProps> = ({ isOpen, onClose }) => {
   // Toggle between curriculums
   const [activeCurriculum, setActiveCurriculum] = useState<'8-4-4' | 'CBC'>('8-4-4');
-  
+
   // Live Data States
   const [rules, setRules] = useState<GradingRule[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -67,7 +67,7 @@ const GradingRulesModal: React.FC<GradingRulesModalProps> = ({ isOpen, onClose }
   };
 
   const handleInputChange = (id: string | number, field: keyof GradingRule, value: string | number) => {
-    setRules(rules.map(rule => 
+    setRules(rules.map(rule =>
       rule.id === id ? { ...rule, [field]: value } : rule
     ));
   };
@@ -104,33 +104,33 @@ const GradingRulesModal: React.FC<GradingRulesModalProps> = ({ isOpen, onClose }
 
   return (
     <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
-        
+      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-xl dark:shadow-none w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-800/40">
           <div className="flex items-center gap-3">
-            <div className="bg-blue-100 p-2 rounded-lg">
-              <Settings className="w-5 h-5 text-blue-700" />
+            <div className="bg-blue-100 dark:bg-blue-500/10 p-2 rounded-lg">
+              <Settings className="w-5 h-5 text-blue-700 dark:text-blue-400" />
             </div>
             <div>
-              <h2 className="font-bold text-slate-800 text-lg">Grading Rules Configuration</h2>
-              <p className="text-xs text-slate-500">Define the score ranges for your calculation engine.</p>
+              <h2 className="font-bold text-slate-800 dark:text-slate-100 text-lg">Grading Rules Configuration</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Define the score ranges for your calculation engine.</p>
             </div>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition p-1">
+          <button onClick={onClose} className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition p-1">
             <X className="w-6 h-6" />
           </button>
         </div>
 
         {/* Body */}
-        <div className="p-6 overflow-y-auto bg-slate-50/50 flex-1">
-          
+        <div className="p-6 overflow-y-auto bg-slate-50/50 dark:bg-slate-800/40 flex-1">
+
           {/* Curriculum Toggle */}
-          <div className="flex bg-slate-200 p-1 rounded-lg w-fit mb-6">
+          <div className="flex bg-slate-200 dark:bg-slate-800 p-1 rounded-lg w-fit mb-6">
             <button
               onClick={() => setActiveCurriculum('8-4-4')}
               className={`px-6 py-2 rounded-md text-sm font-bold transition-all ${
-                activeCurriculum === '8-4-4' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                activeCurriculum === '8-4-4' ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 shadow-sm dark:shadow-none' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
               }`}
             >
               8-4-4 System
@@ -138,35 +138,35 @@ const GradingRulesModal: React.FC<GradingRulesModalProps> = ({ isOpen, onClose }
             <button
               onClick={() => setActiveCurriculum('CBC')}
               className={`px-6 py-2 rounded-md text-sm font-bold transition-all ${
-                activeCurriculum === 'CBC' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                activeCurriculum === 'CBC' ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 shadow-sm dark:shadow-none' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
               }`}
             >
               CBC System
             </button>
           </div>
 
-          <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg flex items-start gap-3 mb-6">
-            <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-            <p className="text-sm text-amber-800">
+          <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/40 p-3 rounded-lg flex items-start gap-3 mb-6">
+            <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <p className="text-sm text-amber-800 dark:text-amber-400">
               Ensure there are no gaps between the minimum and maximum scores. The calculation engine will assign a grade of "-" if a student's score falls into an undefined gap.
             </p>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-lg overflow-hidden shadow-sm">
-            <div className="p-4 border-b border-slate-100 flex justify-between items-center">
-              <h3 className="font-semibold text-slate-700">Active {activeCurriculum} Boundaries</h3>
-              <button 
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden shadow-sm dark:shadow-none">
+            <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
+              <h3 className="font-semibold text-slate-700 dark:text-slate-200">Active {activeCurriculum} Boundaries</h3>
+              <button
                 onClick={handleAddRule}
-                className="text-sm bg-slate-100 text-slate-700 px-3 py-1.5 rounded-md hover:bg-slate-200 flex items-center gap-1 transition font-medium"
+                className="text-sm bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 px-3 py-1.5 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 flex items-center gap-1 transition font-medium"
               >
                 <Plus className="w-4 h-4" /> Add Rule
               </button>
             </div>
-            
+
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm whitespace-nowrap">
                 <thead>
-                  <tr className="bg-slate-50 text-slate-500 border-b border-slate-100">
+                  <tr className="bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-700">
                     <th className="px-4 py-3 font-semibold w-1/4">Grade / Expectation</th>
                     <th className="px-4 py-3 font-semibold w-1/6">Min Score</th>
                     <th className="px-4 py-3 font-semibold w-1/6">Max Score</th>
@@ -177,57 +177,57 @@ const GradingRulesModal: React.FC<GradingRulesModalProps> = ({ isOpen, onClose }
                 <tbody>
                   {isLoading ? (
                     <tr>
-                      <td colSpan={5} className="py-8 text-center text-slate-400">Loading rules...</td>
+                      <td colSpan={5} className="py-8 text-center text-slate-400 dark:text-slate-500">Loading rules...</td>
                     </tr>
                   ) : rules.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="py-8 text-center text-slate-400">No grading rules configured. Click "Add Rule" to start.</td>
+                      <td colSpan={5} className="py-8 text-center text-slate-400 dark:text-slate-500">No grading rules configured. Click "Add Rule" to start.</td>
                     </tr>
                   ) : (
                     rules.map((rule) => (
-                      <tr key={rule.id} className="border-b last:border-0 border-slate-50 hover:bg-slate-50 transition-colors group">
+                      <tr key={rule.id} className="border-b last:border-0 border-slate-50 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors group">
                         <td className="p-2">
-                          <input 
-                            type="text" 
-                            className="w-full p-2 border border-slate-200 rounded-md focus:ring-2 focus:ring-blue-500 outline-none transition"
+                          <input
+                            type="text"
+                            className="w-full p-2 border border-slate-200 dark:border-slate-600 rounded-md focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 outline-none transition bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
                             placeholder="e.g. A, EE"
-                            value={rule.grade_label} 
+                            value={rule.grade_label}
                             onChange={(e) => handleInputChange(rule.id, 'grade_label', e.target.value)}
                           />
                         </td>
                         <td className="p-2">
-                          <input 
-                            type="number" 
+                          <input
+                            type="number"
                             step="0.01"
-                            className="w-full p-2 border border-slate-200 rounded-md focus:ring-2 focus:ring-blue-500 outline-none transition"
+                            className="w-full p-2 border border-slate-200 dark:border-slate-600 rounded-md focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 outline-none transition bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
                             placeholder="0"
-                            value={rule.min_score} 
+                            value={rule.min_score}
                             onChange={(e) => handleInputChange(rule.id, 'min_score', e.target.value)}
                           />
                         </td>
                         <td className="p-2">
-                          <input 
-                            type="number" 
+                          <input
+                            type="number"
                             step="0.01"
-                            className="w-full p-2 border border-slate-200 rounded-md focus:ring-2 focus:ring-blue-500 outline-none transition"
+                            className="w-full p-2 border border-slate-200 dark:border-slate-600 rounded-md focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 outline-none transition bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
                             placeholder="100"
-                            value={rule.max_score} 
+                            value={rule.max_score}
                             onChange={(e) => handleInputChange(rule.id, 'max_score', e.target.value)}
                           />
                         </td>
                         <td className="p-2">
-                          <input 
-                            type="text" 
-                            className="w-full p-2 border border-slate-200 rounded-md focus:ring-2 focus:ring-blue-500 outline-none transition"
+                          <input
+                            type="text"
+                            className="w-full p-2 border border-slate-200 dark:border-slate-600 rounded-md focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 outline-none transition bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
                             placeholder="e.g. Excellent"
-                            value={rule.remarks} 
+                            value={rule.remarks}
                             onChange={(e) => handleInputChange(rule.id, 'remarks', e.target.value)}
                           />
                         </td>
                         <td className="p-2 text-center">
-                          <button 
+                          <button
                             onClick={() => handleDeleteRule(rule.id)}
-                            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition"
+                            className="p-2 text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-md transition"
                             title="Delete Rule"
                           >
                             <Trash2 className="w-4 h-4 mx-auto" />
@@ -244,12 +244,12 @@ const GradingRulesModal: React.FC<GradingRulesModalProps> = ({ isOpen, onClose }
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-slate-100 bg-white flex justify-end gap-3">
-          <button onClick={onClose} disabled={isSubmitting} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-md font-medium transition disabled:opacity-50">
+        <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-900 flex justify-end gap-3">
+          <button onClick={onClose} disabled={isSubmitting} className="px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md font-medium transition disabled:opacity-50">
             Cancel
           </button>
-          <button 
-            onClick={handleSave} 
+          <button
+            onClick={handleSave}
             disabled={isSubmitting || isLoading}
             className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium flex items-center gap-2 disabled:opacity-70 transition"
           >

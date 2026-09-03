@@ -52,13 +52,13 @@ export default function QuestionBuilder({ questions, setQuestions }: QuestionBui
     // pattern already used for deleting assignments in AssignmentsHub.
     toast((t) => (
       <div className="flex flex-col gap-3 max-w-sm">
-        <p className="text-sm font-medium text-slate-800 leading-relaxed">
+        <p className="text-sm font-medium text-slate-800 dark:text-slate-100 leading-relaxed">
           Remove Question {indexToRemove + 1}? All its text and options will be discarded.
         </p>
         <div className="flex justify-end gap-2 mt-2">
           <button
             onClick={() => toast.dismiss(t.id)}
-            className="px-3 py-1.5 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-md transition-colors"
+            className="px-3 py-1.5 text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-md transition-colors"
           >
             Cancel
           </button>
@@ -196,10 +196,10 @@ export default function QuestionBuilder({ questions, setQuestions }: QuestionBui
     <div className="space-y-6">
 
       {questions.map((q, qIndex) => (
-        <div key={qIndex} className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300">
+        <div key={qIndex} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-sm dark:shadow-none overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300">
 
           {/* Question Header */}
-          <div className="bg-slate-50 border-b border-slate-200 p-4 flex items-center justify-between">
+          <div className="bg-slate-50 dark:bg-slate-800/40 border-b border-slate-200 dark:border-slate-700 p-4 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="flex flex-col -my-1">
                 <button
@@ -208,7 +208,7 @@ export default function QuestionBuilder({ questions, setQuestions }: QuestionBui
                   disabled={qIndex === 0}
                   title="Move question up"
                   aria-label="Move question up"
-                  className="text-slate-400 hover:text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                  className="text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 disabled:opacity-30 disabled:cursor-not-allowed"
                 >
                   <ChevronUp className="w-3.5 h-3.5" />
                 </button>
@@ -218,17 +218,17 @@ export default function QuestionBuilder({ questions, setQuestions }: QuestionBui
                   disabled={qIndex === questions.length - 1}
                   title="Move question down"
                   aria-label="Move question down"
-                  className="text-slate-400 hover:text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                  className="text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 disabled:opacity-30 disabled:cursor-not-allowed"
                 >
                   <ChevronDown className="w-3.5 h-3.5" />
                 </button>
               </div>
-              <h4 className="font-semibold text-slate-700">Question {qIndex + 1}</h4>
+              <h4 className="font-semibold text-slate-700 dark:text-slate-200">Question {qIndex + 1}</h4>
             </div>
             <button
               type="button"
               onClick={() => removeQuestion(qIndex)}
-              className="text-slate-400 hover:text-red-600 transition-colors p-1"
+              className="text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400 transition-colors p-1"
               title="Remove question"
               aria-label={`Remove question ${qIndex + 1}`}
             >
@@ -240,24 +240,24 @@ export default function QuestionBuilder({ questions, setQuestions }: QuestionBui
             {/* Question Text & Core Settings */}
             <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
               <div className="md:col-span-8">
-                <label htmlFor={`question_text_${qIndex}`} className="block text-sm font-medium text-slate-700 mb-1">Question Prompt</label>
+                <label htmlFor={`question_text_${qIndex}`} className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">Question Prompt</label>
                 <textarea
                   id={`question_text_${qIndex}`}
                   rows={2}
                   value={q.question_text}
                   onChange={(e) => updateQuestion(qIndex, 'question_text', e.target.value)}
                   placeholder="Type your question here..."
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all resize-y"
+                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-400 outline-none transition-all resize-y"
                 />
               </div>
 
               <div className="md:col-span-3">
-                <label htmlFor={`question_type_${qIndex}`} className="block text-sm font-medium text-slate-700 mb-1">Type</label>
+                <label htmlFor={`question_type_${qIndex}`} className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">Type</label>
                 <select
                   id={`question_type_${qIndex}`}
                   value={q.question_type}
                   onChange={(e) => updateQuestion(qIndex, 'question_type', e.target.value)}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-400 outline-none"
                 >
                   <option value="MCQ">Multiple Choice</option>
                   <option value="CHECKBOX">Multiple Response (Checkboxes)</option> {/* <-- NEW */}
@@ -268,7 +268,7 @@ export default function QuestionBuilder({ questions, setQuestions }: QuestionBui
               </div>
 
               <div className="md:col-span-1">
-                <label htmlFor={`max_score_${qIndex}`} className="block text-sm font-medium text-slate-700 mb-1">Points</label>
+                <label htmlFor={`max_score_${qIndex}`} className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">Points</label>
                 <input
                   id={`max_score_${qIndex}`}
                   type="number"
@@ -278,19 +278,19 @@ export default function QuestionBuilder({ questions, setQuestions }: QuestionBui
                   disabled={(q.rubric_criteria?.length || 0) > 0}
                   title={(q.rubric_criteria?.length || 0) > 0 ? "Derived from rubric criteria below" : undefined}
                   onChange={(e) => updateQuestion(qIndex, 'max_score', parseFloat(e.target.value) || 0)}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white outline-none text-center disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:bg-white dark:focus:bg-slate-800 outline-none text-center disabled:opacity-60 disabled:cursor-not-allowed"
                 />
               </div>
             </div>
 
             {/* Optional Grading Rubric — mainly useful for manually-graded question types */}
             {(q.question_type === 'ESSAY' || q.question_type === 'FILE_UPLOAD') && (
-              <div className="pl-4 border-l-2 border-purple-200 mt-4 bg-purple-50/40 p-4 rounded-r-lg space-y-2">
+              <div className="pl-4 border-l-2 border-purple-200 dark:border-purple-500/40 mt-4 bg-purple-50/40 dark:bg-purple-500/10 p-4 rounded-r-lg space-y-2">
                 <div className="flex items-center gap-2 mb-1">
-                  <ClipboardList className="w-4 h-4 text-purple-600" />
-                  <label className="block text-xs font-bold text-purple-700 uppercase tracking-wider">Grading Rubric (Optional)</label>
+                  <ClipboardList className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                  <label className="block text-xs font-bold text-purple-700 dark:text-purple-400 uppercase tracking-wider">Grading Rubric (Optional)</label>
                 </div>
-                <p className="text-xs text-purple-600/80 mb-2">
+                <p className="text-xs text-purple-600/80 dark:text-purple-400/80 mb-2">
                   Break this question into scored criteria. When used, the Points field above is auto-summed from these.
                 </p>
                 {(q.rubric_criteria || []).map((c, cIndex) => (
@@ -300,7 +300,7 @@ export default function QuestionBuilder({ questions, setQuestions }: QuestionBui
                       value={c.criterion_text}
                       onChange={(e) => updateCriterion(qIndex, cIndex, 'criterion_text', e.target.value)}
                       placeholder={`Criterion ${cIndex + 1}, e.g. "Clarity of argument"`}
-                      className="flex-1 p-2 bg-white border border-purple-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+                      className="flex-1 p-2 bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-500/40 rounded-lg text-sm outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 dark:focus:border-purple-400"
                     />
                     <input
                       type="number"
@@ -308,13 +308,13 @@ export default function QuestionBuilder({ questions, setQuestions }: QuestionBui
                       step="0.5"
                       value={c.max_points}
                       onChange={(e) => updateCriterion(qIndex, cIndex, 'max_points', parseFloat(e.target.value) || 0)}
-                      className="w-20 p-2 bg-white border border-purple-200 rounded-lg text-sm outline-none text-center"
+                      className="w-20 p-2 bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-500/40 rounded-lg text-sm outline-none text-center"
                       aria-label={`Points for criterion ${cIndex + 1}`}
                     />
                     <button
                       type="button"
                       onClick={() => removeCriterion(qIndex, cIndex)}
-                      className="text-purple-400 hover:text-red-500 p-1.5"
+                      className="text-purple-400 dark:text-purple-500 hover:text-red-500 dark:hover:text-red-400 p-1.5"
                       aria-label={`Remove criterion ${cIndex + 1}`}
                     >
                       <Trash2 className="w-4 h-4" />
@@ -324,7 +324,7 @@ export default function QuestionBuilder({ questions, setQuestions }: QuestionBui
                 <button
                   type="button"
                   onClick={() => addCriterion(qIndex)}
-                  className="mt-1 text-sm font-medium text-purple-700 hover:text-purple-900 flex items-center gap-1 p-1 rounded transition-colors"
+                  className="mt-1 text-sm font-medium text-purple-700 dark:text-purple-400 hover:text-purple-900 dark:hover:text-purple-300 flex items-center gap-1 p-1 rounded transition-colors"
                 >
                   <Plus className="w-4 h-4" /> Add Criterion
                 </button>
@@ -335,18 +335,18 @@ export default function QuestionBuilder({ questions, setQuestions }: QuestionBui
 
             {/* 1. Multiple Choice & Multiple Response (Checkboxes) Logic */}
             {(q.question_type === 'MCQ' || q.question_type === 'CHECKBOX') && (
-              <div className="pl-4 border-l-2 border-blue-200 space-y-3 mt-4">
+              <div className="pl-4 border-l-2 border-blue-200 dark:border-blue-500/40 space-y-3 mt-4">
 
                 {/* Header for Options */}
                 <div className="flex items-center justify-between mb-2">
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                     {q.question_type === 'MCQ' ? 'Answer Choices (Pick 1)' : 'Answer Choices (Pick up to 3)'}
                   </label>
 
                   {/* Limit Setter for Checkboxes */}
                   {q.question_type === 'CHECKBOX' && (
                     <div className="flex items-center gap-2 text-xs">
-                      <label htmlFor={`required_answers_${qIndex}`} className="text-slate-600 font-medium">Required Answers:</label>
+                      <label htmlFor={`required_answers_${qIndex}`} className="text-slate-600 dark:text-slate-300 font-medium">Required Answers:</label>
                       <input
                         id={`required_answers_${qIndex}`}
                         type="number"
@@ -359,7 +359,7 @@ export default function QuestionBuilder({ questions, setQuestions }: QuestionBui
                           if (val < 1) val = 1;
                           updateQuestion(qIndex, 'required_answers', val);
                         }}
-                        className="w-12 p-1 border border-slate-200 rounded text-center focus:outline-none focus:border-blue-500"
+                        className="w-12 p-1 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 rounded text-center focus:outline-none focus:border-blue-500 dark:focus:border-blue-400"
                       />
                     </div>
                   )}
@@ -377,9 +377,9 @@ export default function QuestionBuilder({ questions, setQuestions }: QuestionBui
                     >
                       {/* Render Circle for MCQ, Square for CHECKBOX */}
                       {q.question_type === 'MCQ' ? (
-                        opt.is_correct ? <CheckCircle2 className="w-6 h-6 text-emerald-500" /> : <Circle className="w-6 h-6 text-slate-300 hover:text-emerald-400" />
+                        opt.is_correct ? <CheckCircle2 className="w-6 h-6 text-emerald-500" /> : <Circle className="w-6 h-6 text-slate-300 dark:text-slate-600 hover:text-emerald-400" />
                       ) : (
-                        opt.is_correct ? <CheckSquare className="w-6 h-6 text-blue-600" /> : <Square className="w-6 h-6 text-slate-300 hover:text-blue-400" />
+                        opt.is_correct ? <CheckSquare className="w-6 h-6 text-blue-600" /> : <Square className="w-6 h-6 text-slate-300 dark:text-slate-600 hover:text-blue-400" />
                       )}
                     </button>
 
@@ -388,13 +388,13 @@ export default function QuestionBuilder({ questions, setQuestions }: QuestionBui
                       value={opt.option_text}
                       onChange={(e) => updateOptionText(qIndex, optIndex, e.target.value)}
                       placeholder={`Option ${optIndex + 1}`}
-                      className={`flex-1 p-2 bg-slate-50 border rounded-lg text-sm outline-none transition-all ${opt.is_correct ? (q.question_type === 'MCQ' ? 'border-emerald-300 bg-emerald-50/30' : 'border-blue-300 bg-blue-50/30') : 'border-slate-200 focus:bg-white focus:border-blue-500'}`}
+                      className={`flex-1 p-2 bg-slate-50 dark:bg-slate-800 border rounded-lg text-sm outline-none transition-all ${opt.is_correct ? (q.question_type === 'MCQ' ? 'border-emerald-300 dark:border-emerald-500/40 bg-emerald-50/30 dark:bg-emerald-500/10' : 'border-blue-300 dark:border-blue-500/40 bg-blue-50/30 dark:bg-blue-500/10') : 'border-slate-200 dark:border-slate-700 focus:bg-white dark:focus:bg-slate-800 focus:border-blue-500 dark:focus:border-blue-400'}`}
                     />
 
                     <button
                       type="button"
                       onClick={() => removeOption(qIndex, optIndex)}
-                      className="text-slate-400 hover:text-red-500 p-2"
+                      className="text-slate-400 dark:text-slate-500 hover:text-red-500 dark:hover:text-red-400 p-2"
                       title="Remove option"
                       aria-label="Remove option"
                       disabled={(q.options?.length || 0) <= 2}
@@ -407,7 +407,7 @@ export default function QuestionBuilder({ questions, setQuestions }: QuestionBui
                 <button
                   type="button"
                   onClick={() => addOption(qIndex)}
-                  className="mt-2 text-sm font-medium text-blue-600 hover:text-blue-800 flex items-center gap-1 p-1 rounded transition-colors"
+                  className="mt-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 flex items-center gap-1 p-1 rounded transition-colors"
                 >
                   <Plus className="w-4 h-4" /> Add Option
                 </button>
@@ -416,19 +416,19 @@ export default function QuestionBuilder({ questions, setQuestions }: QuestionBui
 
             {/* 2. Short Answer Logic */}
             {q.question_type === 'SHORT_ANSWER' && (
-              <div className="pl-4 border-l-2 border-emerald-200 mt-4 bg-emerald-50/50 p-4 rounded-r-lg">
+              <div className="pl-4 border-l-2 border-emerald-200 dark:border-emerald-500/40 mt-4 bg-emerald-50/50 dark:bg-emerald-500/10 p-4 rounded-r-lg">
                 <div className="flex items-start gap-2">
-                  <AlertCircle className="w-5 h-5 text-emerald-600 mt-0.5" />
+                  <AlertCircle className="w-5 h-5 text-emerald-600 dark:text-emerald-400 mt-0.5" />
                   <div className="flex-1">
-                    <label htmlFor={`exact_match_${qIndex}`} className="block text-sm font-medium text-emerald-800 mb-1">Exact Match Answer Key</label>
-                    <p className="text-xs text-emerald-600 mb-3">The system will auto-grade the student's answer against this exact text (ignoring capitalization).</p>
+                    <label htmlFor={`exact_match_${qIndex}`} className="block text-sm font-medium text-emerald-800 dark:text-emerald-300 mb-1">Exact Match Answer Key</label>
+                    <p className="text-xs text-emerald-600 dark:text-emerald-400 mb-3">The system will auto-grade the student's answer against this exact text (ignoring capitalization).</p>
                     <input
                       id={`exact_match_${qIndex}`}
                       type="text"
                       value={q.exact_match_answer || ''}
                       onChange={(e) => updateQuestion(qIndex, 'exact_match_answer', e.target.value)}
                       placeholder="e.g., 42, Paris, Mitochondria"
-                      className="w-full p-2.5 bg-white border border-emerald-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                      className="w-full p-2.5 bg-white dark:bg-slate-900 border border-emerald-200 dark:border-emerald-500/40 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 dark:focus:border-emerald-400"
                     />
                   </div>
                 </div>
@@ -437,18 +437,18 @@ export default function QuestionBuilder({ questions, setQuestions }: QuestionBui
 
             {/* 3. File Upload Visual Zone */}
             {q.question_type === 'FILE_UPLOAD' && (
-              <div className="pl-4 border-l-2 border-slate-200 mt-4 p-4 bg-slate-50 rounded-r-lg border border-dashed flex flex-col items-center justify-center">
-                <UploadCloud className="w-8 h-8 text-slate-400 mb-2" />
-                <p className="text-sm font-medium text-slate-700">Student File Upload Zone</p>
-                <p className="text-xs text-slate-500 mt-1">Students will see a button here to upload their PDF, Document, or Image.</p>
+              <div className="pl-4 border-l-2 border-slate-200 dark:border-slate-700 mt-4 p-4 bg-slate-50 dark:bg-slate-800 rounded-r-lg border border-dashed flex flex-col items-center justify-center">
+                <UploadCloud className="w-8 h-8 text-slate-400 dark:text-slate-500 mb-2" />
+                <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Student File Upload Zone</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Students will see a button here to upload their PDF, Document, or Image.</p>
               </div>
             )}
 
             {/* 4. Essay & File Upload Warning */}
             {(q.question_type === 'ESSAY' || q.question_type === 'FILE_UPLOAD') && (
-              <div className="pl-4 border-l-2 border-amber-200 mt-4 bg-amber-50/50 p-3 rounded-r-lg flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-amber-600" />
-                <p className="text-sm text-amber-800">
+              <div className="pl-4 border-l-2 border-amber-200 dark:border-amber-500/40 mt-4 bg-amber-50/50 dark:bg-amber-500/10 p-3 rounded-r-lg flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                <p className="text-sm text-amber-800 dark:text-amber-300">
                   This question cannot be auto-graded. It will be flagged for manual review after submission.
                 </p>
               </div>
@@ -462,7 +462,7 @@ export default function QuestionBuilder({ questions, setQuestions }: QuestionBui
       <button
         type="button"
         onClick={addQuestion}
-        className="w-full py-4 border-2 border-dashed border-slate-300 rounded-xl text-slate-500 hover:bg-slate-50 hover:text-slate-800 hover:border-slate-400 transition-all flex flex-col items-center justify-center gap-2"
+        className="w-full py-4 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-100 hover:border-slate-400 dark:hover:border-slate-500 transition-all flex flex-col items-center justify-center gap-2"
       >
         <Plus className="w-6 h-6" />
         <span className="font-semibold">Add New Question</span>

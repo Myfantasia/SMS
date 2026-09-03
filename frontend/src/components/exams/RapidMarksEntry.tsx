@@ -13,7 +13,7 @@ interface StudentInfo {
 }
 
 interface MarkEntry {
-  marks: string; 
+  marks: string;
   remarks: string;
 }
 
@@ -116,13 +116,13 @@ const RapidMarksEntry: React.FC = () => {
           fetchedStudents.forEach(student => {
             // Check if this student already has a mark saved in the database
             const existing = existingMarks.find((em: any) => em.student === student.id);
-            
-            initialMarks[student.id] = { 
-              marks: existing ? existing.marks_obtained : '', 
-              remarks: existing ? (existing.teacher_remarks || '') : '' 
+
+            initialMarks[student.id] = {
+              marks: existing ? existing.marks_obtained : '',
+              remarks: existing ? (existing.teacher_remarks || '') : ''
             };
           });
-          
+
           setMarksData(initialMarks);
 
         } catch (error: any) {
@@ -197,11 +197,11 @@ const RapidMarksEntry: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      
+
       {/* Configuration Bar */}
-      <div className="bg-slate-50 border border-slate-200 p-5 rounded-lg grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 p-5 rounded-lg grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
-          <label htmlFor="select-class" className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Class Stream</label>
+          <label htmlFor="select-class" className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Class Stream</label>
           <SearchableSelect
             id="select-class"
             aria-label="Class Stream"
@@ -214,7 +214,7 @@ const RapidMarksEntry: React.FC = () => {
         </div>
 
         <div>
-          <label htmlFor="select-subject" className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Subject</label>
+          <label htmlFor="select-subject" className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Subject</label>
           <SearchableSelect
             id="select-subject"
             aria-label="Subject"
@@ -227,10 +227,10 @@ const RapidMarksEntry: React.FC = () => {
         </div>
 
         <div>
-          <label htmlFor="select-exam" className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Assessment</label>
+          <label htmlFor="select-exam" className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Assessment</label>
           <select
             id="select-exam"
-            className="w-full p-2.5 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+            className="w-full p-2.5 border border-slate-300 dark:border-slate-600 rounded-md focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100"
             value={selectedExam}
             onChange={(e) => handleDropdownChange(setSelectedExam, e.target.value)}
             aria-label="Assessment"
@@ -245,19 +245,19 @@ const RapidMarksEntry: React.FC = () => {
 
       {/* Spreadsheet Grid */}
       {students.length > 0 ? (
-        <form onSubmit={handleSubmit} className="border border-slate-200 rounded-lg shadow-sm bg-white overflow-hidden">
-          <div className="bg-slate-50 border-b border-slate-200 p-4 flex justify-between items-center flex-wrap gap-2">
-            <h3 className="font-semibold text-slate-800">
+        <form onSubmit={handleSubmit} className="border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm dark:shadow-none bg-white dark:bg-slate-900 overflow-hidden">
+          <div className="bg-slate-50 dark:bg-slate-800/40 border-b border-slate-200 dark:border-slate-700 p-4 flex justify-between items-center flex-wrap gap-2">
+            <h3 className="font-semibold text-slate-800 dark:text-slate-100">
               Entering marks for {students.length} student{students.length === 1 ? '' : 's'}
-              {!isCoreSubject && <span className="text-slate-500 font-normal"> (enrolled in this elective)</span>}
+              {!isCoreSubject && <span className="text-slate-500 dark:text-slate-400 font-normal"> (enrolled in this elective)</span>}
             </h3>
             <div className="flex items-center gap-2">
               {!isCoreSubject && (
-                <span className="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full font-medium">
+                <span className="text-xs bg-indigo-100 dark:bg-indigo-500/10 text-indigo-800 dark:text-indigo-400 px-2 py-1 rounded-full font-medium">
                   Elective
                 </span>
               )}
-              <span className="text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded-full font-medium flex items-center gap-1">
+              <span className="text-xs bg-amber-100 dark:bg-amber-500/10 text-amber-800 dark:text-amber-400 px-2 py-1 rounded-full font-medium flex items-center gap-1">
                 <AlertCircle className="w-3 h-3" /> Draft Mode
               </span>
             </div>
@@ -266,7 +266,7 @@ const RapidMarksEntry: React.FC = () => {
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm whitespace-nowrap">
               <thead>
-                <tr className="bg-white border-b border-slate-200 text-slate-600">
+                <tr className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300">
                   <th className="py-3 px-4 font-semibold w-32">Adm Number</th>
                   <th className="py-3 px-4 font-semibold">Student Name</th>
                   <th className="py-3 px-4 font-semibold w-40">Score (out of {totalMarks})</th>
@@ -275,15 +275,15 @@ const RapidMarksEntry: React.FC = () => {
               </thead>
               <tbody>
                 {students.map((student) => (
-                  <tr key={student.id} className="border-b last:border-0 border-slate-100 hover:bg-slate-50 transition-colors">
-                    <td className="py-2 px-4 text-slate-500 font-mono text-xs">{student.roll}</td>
-                    <td className="py-2 px-4 font-medium text-slate-800">{student.student_name}</td>
+                  <tr key={student.id} className="border-b last:border-0 border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                    <td className="py-2 px-4 text-slate-500 dark:text-slate-400 font-mono text-xs">{student.roll}</td>
+                    <td className="py-2 px-4 font-medium text-slate-800 dark:text-slate-100">{student.student_name}</td>
                     <td className="py-2 px-4">
                       <input
                         type="number"
                         min="0"
                         max={totalMarks}
-                        className="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                        className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 outline-none transition-all bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
                         placeholder={`0-${totalMarks}`}
                         value={marksData[student.id]?.marks || ''}
                         onChange={(e) => handleMarkChange(student.id, e.target.value)}
@@ -292,7 +292,7 @@ const RapidMarksEntry: React.FC = () => {
                     <td className="py-2 px-4">
                       <input
                         type="text"
-                        className="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                        className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 outline-none transition-all bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
                         placeholder="e.g., Excellent progress"
                         value={marksData[student.id]?.remarks || ''}
                         onChange={(e) => handleRemarkChange(student.id, e.target.value)}
@@ -303,8 +303,8 @@ const RapidMarksEntry: React.FC = () => {
               </tbody>
             </table>
           </div>
-          
-          <div className="bg-slate-50 p-4 border-t border-slate-200 flex justify-end">
+
+          <div className="bg-slate-50 dark:bg-slate-800/40 p-4 border-t border-slate-200 dark:border-slate-700 flex justify-end">
             <button
               type="submit"
               disabled={isSaving}
@@ -321,9 +321,9 @@ const RapidMarksEntry: React.FC = () => {
           </div>
         </form>
       ) : (
-        <div className="border-2 border-dashed border-slate-200 rounded-lg p-12 flex flex-col items-center justify-center text-slate-500 bg-slate-50">
-          <CheckCircle2 className="w-12 h-12 text-slate-300 mb-3" />
-          <p className="text-lg font-medium text-slate-600">No Roster Selected</p>
+        <div className="border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-lg p-12 flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/40">
+          <CheckCircle2 className="w-12 h-12 text-slate-300 dark:text-slate-600 mb-3" />
+          <p className="text-lg font-medium text-slate-600 dark:text-slate-300">No Roster Selected</p>
           <p className="text-sm">Please select a class, subject, and assessment above to begin entering marks.</p>
         </div>
       )}

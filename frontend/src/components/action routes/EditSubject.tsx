@@ -117,42 +117,42 @@ const handleSubmit = async (e: React.FormEvent) => {
   }
 };
 
-  if (loading) return <div className="p-6 text-slate-500">Loading Master Curriculum...</div>;
+  if (loading) return <div className="p-6 text-slate-500 dark:text-slate-400">Loading Master Curriculum...</div>;
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6 animate-fade-in">
-      
-      <button onClick={() => navigate('/admin-dashboard/subjects')} className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-emerald-600 transition-colors w-max">
+
+      <button onClick={() => navigate('/admin-dashboard/subjects')} className="flex items-center gap-2 text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors w-max">
         <ArrowLeft className="w-4 h-4" /> Back to Subjects
       </button>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="bg-slate-50 border-b border-slate-100 p-6 flex items-center gap-3">
-           <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm dark:shadow-none border border-slate-200 dark:border-slate-700 overflow-hidden">
+        <div className="bg-slate-50 dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700 p-6 flex items-center gap-3">
+           <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-xl flex items-center justify-center">
              <BookOpen className="w-6 h-6" />
            </div>
            <div>
-             <h1 className="text-2xl font-black text-slate-800">Edit Subject Profile</h1>
-             <p className="text-sm text-slate-500">Manage syllabus metadata and allocate the teaching staff pool.</p>
+             <h1 className="text-2xl font-black text-slate-800 dark:text-slate-100">Edit Subject Profile</h1>
+             <p className="text-sm text-slate-500 dark:text-slate-400">Manage syllabus metadata and allocate the teaching staff pool.</p>
            </div>
         </div>
 
         <form onSubmit={handleSubmit} className="p-8 space-y-8">
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <label className="text-sm font-bold text-slate-700">Subject Code</label>
-              <input type="text" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="e.g., CS101" className="w-full border border-slate-300 rounded-lg p-3 focus:ring-2 focus:ring-emerald-500 outline-none transition-shadow font-mono" required />
-            </div>
-            
-            <div className="space-y-2">
-              <label className="text-sm font-bold text-slate-700">Subject Name</label>
-              <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Enter subject name" className="w-full border border-slate-300 rounded-lg p-3 focus:ring-2 focus:ring-emerald-500 outline-none transition-shadow" required />
+              <label className="text-sm font-bold text-slate-700 dark:text-slate-200">Subject Code</label>
+              <input type="text" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="e.g., CS101" className="w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-lg p-3 focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400 outline-none transition-shadow font-mono" required />
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-bold text-slate-700">Department</label>
-              <select value={departmentId} onChange={(e) => setDepartmentId(e.target.value ? Number(e.target.value) : '')} className="w-full border border-slate-300 rounded-lg p-3 focus:ring-2 focus:ring-emerald-500 outline-none transition-shadow bg-white">
+              <label className="text-sm font-bold text-slate-700 dark:text-slate-200">Subject Name</label>
+              <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Enter subject name" className="w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-lg p-3 focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400 outline-none transition-shadow" required />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-700 dark:text-slate-200">Department</label>
+              <select value={departmentId} onChange={(e) => setDepartmentId(e.target.value ? Number(e.target.value) : '')} className="w-full border border-slate-300 dark:border-slate-600 rounded-lg p-3 focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400 outline-none transition-shadow bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100">
                 <option value="">Uncategorized</option>
                 {departments.filter((d) => d.is_active || d.id === departmentId).map((d) => (
                   <option key={d.id} value={d.id}>{d.name}</option>
@@ -161,48 +161,48 @@ const handleSubmit = async (e: React.FormEvent) => {
             </div>
 
             <div className="space-y-2 flex flex-col justify-center">
-              <label className="flex items-center gap-3 cursor-pointer p-3 border border-slate-200 rounded-lg hover:bg-slate-50 transition mt-6">
-                <input type="checkbox" checked={isCore} onChange={(e) => setIsCore(e.target.checked)} className="w-5 h-5 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500" />
-                <span className="font-bold text-slate-700">Mandatory Core Subject</span>
+              <label className="flex items-center gap-3 cursor-pointer p-3 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition mt-6">
+                <input type="checkbox" checked={isCore} onChange={(e) => setIsCore(e.target.checked)} className="w-5 h-5 text-emerald-600 dark:text-emerald-400 rounded border-slate-300 dark:border-slate-600 focus:ring-emerald-500 dark:focus:ring-emerald-400" />
+                <span className="font-bold text-slate-700 dark:text-slate-200">Mandatory Core Subject</span>
               </label>
             </div>
 
             <div className="space-y-2 flex flex-col justify-center">
-              <label className="flex items-center gap-3 cursor-pointer p-3 border border-slate-200 rounded-lg hover:bg-slate-50 transition">
-                <input type="checkbox" checked={allowDoublePeriods} onChange={(e) => setAllowDoublePeriods(e.target.checked)} className="w-5 h-5 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500" />
-                <span className="font-bold text-slate-700">Allow Double Periods</span>
+              <label className="flex items-center gap-3 cursor-pointer p-3 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition">
+                <input type="checkbox" checked={allowDoublePeriods} onChange={(e) => setAllowDoublePeriods(e.target.checked)} className="w-5 h-5 text-emerald-600 dark:text-emerald-400 rounded border-slate-300 dark:border-slate-600 focus:ring-emerald-500 dark:focus:ring-emerald-400" />
+                <span className="font-bold text-slate-700 dark:text-slate-200">Allow Double Periods</span>
               </label>
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-bold text-slate-700">Earliest Allowed Time (optional)</label>
-              <input type="time" value={earliestAllowedTime} onChange={(e) => setEarliestAllowedTime(e.target.value)} className="w-full border border-slate-300 rounded-lg p-3 focus:ring-2 focus:ring-emerald-500 outline-none transition-shadow" />
-              <p className="text-xs text-slate-400">e.g. 09:30 for P.E., to prevent scheduling during cold early morning slots.</p>
+              <label className="text-sm font-bold text-slate-700 dark:text-slate-200">Earliest Allowed Time (optional)</label>
+              <input type="time" value={earliestAllowedTime} onChange={(e) => setEarliestAllowedTime(e.target.value)} className="w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-lg p-3 focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400 outline-none transition-shadow" />
+              <p className="text-xs text-slate-400 dark:text-slate-500">e.g. 09:30 for P.E., to prevent scheduling during cold early morning slots.</p>
             </div>
           </div>
 
-          <hr className="border-slate-100" />
+          <hr className="border-slate-100 dark:border-slate-700" />
 
           {/* Department Staff Pool Assignment */}
-          <div className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-6">
-            <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-2">
-              <Users className="w-5 h-5 text-emerald-600" /> Allocate Teaching Pool
+          <div className="bg-emerald-50/50 dark:bg-emerald-500/10 border border-emerald-100 dark:border-emerald-500/20 rounded-xl p-6">
+            <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2 mb-2">
+              <Users className="w-5 h-5 text-emerald-600 dark:text-emerald-400" /> Allocate Teaching Pool
             </h3>
-            <p className="text-sm text-slate-500 mb-4">Select all teachers authorized to teach {name || 'this subject'} across the entire school.</p>
-            
-            <div className="bg-white border border-slate-200 rounded-lg p-4 max-h-64 overflow-y-auto space-y-1 shadow-inner">
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">Select all teachers authorized to teach {name || 'this subject'} across the entire school.</p>
+
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-4 max-h-64 overflow-y-auto space-y-1 shadow-inner">
               {allTeachers.length === 0 ? (
-                <p className="text-sm text-slate-400 p-2">No approved teachers found in the system.</p>
+                <p className="text-sm text-slate-400 dark:text-slate-500 p-2">No approved teachers found in the system.</p>
               ) : (
                 allTeachers.map(teacher => (
-                  <label key={teacher.id} className={`flex items-center gap-3 p-3 rounded-md cursor-pointer transition ${selectedTeacherIds.includes(teacher.id) ? 'bg-emerald-50 border border-emerald-200' : 'hover:bg-slate-50 border border-transparent'}`}>
-                    <input 
-                      type="checkbox" 
+                  <label key={teacher.id} className={`flex items-center gap-3 p-3 rounded-md cursor-pointer transition ${selectedTeacherIds.includes(teacher.id) ? 'bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/40' : 'hover:bg-slate-50 dark:hover:bg-slate-700 border border-transparent'}`}>
+                    <input
+                      type="checkbox"
                       checked={selectedTeacherIds.includes(teacher.id)}
                       onChange={() => handleCheckboxChange(teacher.id)}
-                      className="w-5 h-5 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500" 
+                      className="w-5 h-5 text-emerald-600 dark:text-emerald-400 rounded border-slate-300 dark:border-slate-600 focus:ring-emerald-500 dark:focus:ring-emerald-400"
                     />
-                    <span className={`text-sm font-bold ${selectedTeacherIds.includes(teacher.id) ? 'text-emerald-800' : 'text-slate-700'}`}>{teacher.name}</span>
+                    <span className={`text-sm font-bold ${selectedTeacherIds.includes(teacher.id) ? 'text-emerald-800 dark:text-emerald-300' : 'text-slate-700 dark:text-slate-200'}`}>{teacher.name}</span>
                   </label>
                 ))
               )}
@@ -210,7 +210,7 @@ const handleSubmit = async (e: React.FormEvent) => {
           </div>
 
           <div className="flex justify-end gap-4 pt-4">
-            <button type="button" onClick={() => navigate('/admin-dashboard/subjects')} className="px-6 py-2.5 border border-slate-200 text-slate-600 rounded-lg font-bold hover:bg-slate-50 transition">Cancel</button>
+            <button type="button" onClick={() => navigate('/admin-dashboard/subjects')} className="px-6 py-2.5 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-lg font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition">Cancel</button>
             <button type="submit" disabled={isSubmitting} className="px-6 py-2.5 bg-emerald-600 text-white rounded-lg font-bold hover:bg-emerald-700 transition flex items-center gap-2 disabled:bg-emerald-400 shadow-sm shadow-emerald-600/20">
               <Save className="w-4 h-4" /> {isSubmitting ? 'Saving Configuration...' : 'Save Configuration'}
             </button>

@@ -89,63 +89,63 @@ const handleSubmit = async (e: React.FormEvent) => {
   }
 };
 
-  if (loading) return <div className="p-6 text-slate-500">Loading Configuration Engine...</div>;
+  if (loading) return <div className="p-6 text-slate-500 dark:text-slate-400">Loading Configuration Engine...</div>;
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6 animate-fade-in">
-      
-      <button onClick={() => navigate('/admin-dashboard/classes')} className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-blue-600 transition-colors w-max">
+
+      <button onClick={() => navigate('/admin-dashboard/classes')} className="flex items-center gap-2 text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors w-max">
         <ArrowLeft className="w-4 h-4" /> Back to Classes
       </button>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="bg-slate-50 border-b border-slate-100 p-6 flex items-center gap-3">
-           <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm dark:shadow-none border border-slate-200 dark:border-slate-700 overflow-hidden">
+        <div className="bg-slate-50 dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700 p-6 flex items-center gap-3">
+           <div className="w-12 h-12 bg-blue-100 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-xl flex items-center justify-center">
              <LayoutDashboard className="w-6 h-6" />
            </div>
            <div>
-             <h1 className="text-2xl font-black text-slate-800">Edit {gradeName} {name}</h1>
-             <p className="text-sm text-slate-500">Update physical parameters and assign a homeroom teacher.</p>
+             <h1 className="text-2xl font-black text-slate-800 dark:text-slate-100">Edit {gradeName} {name}</h1>
+             <p className="text-sm text-slate-500 dark:text-slate-400">Update physical parameters and assign a homeroom teacher.</p>
            </div>
         </div>
 
         <form onSubmit={handleSubmit} className="p-8 space-y-8">
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <label className="text-sm font-bold text-slate-700">Stream Name (e.g., East, Blue, A)</label>
-              <input 
-                type="text" 
-                value={name} 
-                onChange={(e) => setName(e.target.value)} 
+              <label className="text-sm font-bold text-slate-700 dark:text-slate-200">Stream Name (e.g., East, Blue, A)</label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
                 placeholder="e.g., East, Blue, A"
-                className="w-full border border-slate-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 outline-none transition-shadow"
-                required 
+                className="w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 outline-none transition-shadow"
+                required
               />
             </div>
-            
+
             <div className="space-y-2">
-              <label className="text-sm font-bold text-slate-700">Maximum Capacity</label>
-              <input 
-                type="number" 
-                value={capacity} 
-                onChange={(e) => setCapacity(e.target.value)} 
+              <label className="text-sm font-bold text-slate-700 dark:text-slate-200">Maximum Capacity</label>
+              <input
+                type="number"
+                value={capacity}
+                onChange={(e) => setCapacity(e.target.value)}
                 placeholder="Enter maximum capacity"
-                className="w-full border border-slate-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 outline-none transition-shadow"
-                required 
+                className="w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 outline-none transition-shadow"
+                required
               />
             </div>
           </div>
 
-          <hr className="border-slate-100" />
+          <hr className="border-slate-100 dark:border-slate-700" />
 
           {/* Teacher Assignment Section */}
-          <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-6">
-            <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-2">
-              <UserCheck className="w-5 h-5 text-blue-600" /> Assign Homeroom Teacher
+          <div className="bg-blue-50/50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 rounded-xl p-6">
+            <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2 mb-2">
+              <UserCheck className="w-5 h-5 text-blue-600 dark:text-blue-400" /> Assign Homeroom Teacher
             </h3>
-            <p className="text-sm text-slate-500 mb-4">The selected teacher will be responsible for attendance, pastoral care, and report card compilation for this specific class.</p>
-            
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">The selected teacher will be responsible for attendance, pastoral care, and report card compilation for this specific class.</p>
+
             <SearchableSelect
               value={classTeacherId}
               onChange={setClassTeacherId}
@@ -157,7 +157,7 @@ const handleSubmit = async (e: React.FormEvent) => {
           </div>
 
           <div className="flex justify-end gap-4 pt-4">
-            <button type="button" onClick={() => navigate('/admin-dashboard/classes')} className="px-6 py-2.5 border border-slate-200 text-slate-600 rounded-lg font-bold hover:bg-slate-50 transition">Cancel</button>
+            <button type="button" onClick={() => navigate('/admin-dashboard/classes')} className="px-6 py-2.5 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-lg font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition">Cancel</button>
             <button type="submit" disabled={isSubmitting} className="px-6 py-2.5 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition flex items-center gap-2 disabled:bg-blue-400 shadow-sm shadow-blue-600/20">
               <Save className="w-4 h-4" /> {isSubmitting ? 'Saving Configuration...' : 'Save Configuration'}
             </button>

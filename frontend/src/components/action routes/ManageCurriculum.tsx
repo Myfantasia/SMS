@@ -205,35 +205,35 @@ const handleBulkApprove = async () => {
         setSelectedStudents(prev => prev.includes(id) ? prev.filter(sId => sId !== id) : [...prev, id]);
     };
 
-    if (loading) return <div className="p-6 text-center text-slate-500">Loading Curriculum Data...</div>;
+    if (loading) return <div className="p-6 text-center text-slate-500 dark:text-slate-400">Loading Curriculum Data...</div>;
 
     const totalPendingInClass = pendingStudents.reduce((acc, curr) => acc + curr.pending_count, 0);
 
     return (
         <div className="p-6 max-w-7xl mx-auto space-y-6">
-            
+
             {/* HEADER */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end bg-white p-6 rounded-xl shadow-sm border border-slate-100 gap-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm dark:shadow-none border border-slate-100 dark:border-slate-700 gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                    <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                         Manage Curriculum
                         {!canEdit && (
-                            <span className="flex items-center gap-1 text-xs font-semibold text-slate-500 bg-slate-100 border border-slate-200 px-2 py-1 rounded-full">
+                            <span className="flex items-center gap-1 text-xs font-semibold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2 py-1 rounded-full">
                                 <Eye className="w-3 h-3" /> View only
                             </span>
                         )}
                     </h1>
-                    <p className="text-slate-500 mt-1">{classNameTitle}</p>
+                    <p className="text-slate-500 dark:text-slate-400 mt-1">{classNameTitle}</p>
                 </div>
-                
+
                 {/* Dynamic Academic Year Dropdown */}
                 <div className="flex flex-col items-end">
-                    <label htmlFor="academic-year-select" className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Academic Year</label>
+                    <label htmlFor="academic-year-select" className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Academic Year</label>
                     <div className="relative">
-                        <select 
+                        <select
                             id="academic-year-select"
                             aria-label="Academic Year"
-                            className="appearance-none bg-slate-50 border border-slate-200 text-slate-700 py-2 pl-4 pr-10 rounded-lg font-medium outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 cursor-pointer"
+                            className="appearance-none bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 py-2 pl-4 pr-10 rounded-lg font-medium outline-none focus:border-emerald-500 dark:focus:border-emerald-400 focus:ring-1 focus:ring-emerald-500 dark:focus:ring-emerald-400 cursor-pointer"
                             value={selectedYearId}
                             onChange={(e) => setSelectedYearId(e.target.value)}
                         >
@@ -243,26 +243,26 @@ const handleBulkApprove = async () => {
                                 </option>
                             ))}
                         </select>
-                        <ChevronDown className="w-4 h-4 text-slate-500 absolute right-3 top-3 pointer-events-none" />
+                        <ChevronDown className="w-4 h-4 text-slate-500 dark:text-slate-400 absolute right-3 top-3 pointer-events-none" />
                     </div>
                 </div>
             </div>
 
             {/* TAB NAVIGATION */}
-            <div className="flex bg-white rounded-lg p-1 shadow-sm border border-slate-100 w-max">
-                <button 
+            <div className="flex bg-white dark:bg-slate-900 rounded-lg p-1 shadow-sm dark:shadow-none border border-slate-100 dark:border-slate-700 w-max">
+                <button
                     onClick={() => setActiveTab('rules')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition ${activeTab === 'rules' ? 'bg-slate-100 text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition ${activeTab === 'rules' ? 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
                 >
                     <Settings className="w-4 h-4" /> Global Rules
                 </button>
-                <button 
+                <button
                     onClick={() => setActiveTab('approvals')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition ${activeTab === 'approvals' ? 'bg-slate-100 text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition ${activeTab === 'approvals' ? 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
                 >
                     <CheckSquare className="w-4 h-4" /> Batch Approvals
                     {totalPendingInClass > 0 && (
-                        <span className="bg-emerald-100 text-emerald-700 py-0.5 px-2 rounded-full text-xs">{totalPendingInClass} Pending</span>
+                        <span className="bg-emerald-100 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 py-0.5 px-2 rounded-full text-xs">{totalPendingInClass} Pending</span>
                     )}
                 </button>
             </div>
@@ -272,42 +272,42 @@ const handleBulkApprove = async () => {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
                     
                     {/* Controls Column */}
-                    <div className="md:col-span-2 bg-white rounded-xl shadow-sm border border-slate-100 p-6">
+                    <div className="md:col-span-2 bg-white dark:bg-slate-900 rounded-xl shadow-sm dark:shadow-none border border-slate-100 dark:border-slate-700 p-6">
                         <div className="mb-6">
-                            <h2 className="text-lg font-bold text-slate-800">Subject Limits</h2>
-                            <p className="text-sm text-slate-500 mt-1">Define boundaries for {classNameTitle}. This automatically guides students during selection.</p>
+                            <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">Subject Limits</h2>
+                            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Define boundaries for {classNameTitle}. This automatically guides students during selection.</p>
                         </div>
 
                         <div className="flex flex-col sm:flex-row gap-6 mb-8">
                             {/* Min Subjects Stepper */}
-                            <div className="flex-1 bg-slate-50 p-4 rounded-xl border border-slate-100">
-                                <label className="block text-sm font-bold text-slate-700 mb-4 text-center uppercase tracking-wider">Minimum Subjects</label>
+                            <div className="flex-1 bg-slate-50 dark:bg-slate-800 p-4 rounded-xl border border-slate-100 dark:border-slate-700">
+                                <label className="block text-sm font-bold text-slate-700 dark:text-slate-200 mb-4 text-center uppercase tracking-wider">Minimum Subjects</label>
                                 <div className="flex items-center justify-center gap-4">
-                                    <button aria-label="Decrease minimum subjects" disabled={!canEdit} onClick={() => updateRule('min', -1)} className="p-2 bg-white rounded-full shadow-sm border border-slate-200 hover:bg-slate-100 transition disabled:opacity-40 disabled:cursor-not-allowed"><Minus className="w-5 h-5 text-slate-600" /></button>
-                                    <span className="text-4xl font-black text-slate-800 w-16 text-center">{rules.min_subjects}</span>
-                                    <button aria-label="Increase minimum subjects" disabled={!canEdit} onClick={() => updateRule('min', 1)} className="p-2 bg-white rounded-full shadow-sm border border-slate-200 hover:bg-slate-100 transition disabled:opacity-40 disabled:cursor-not-allowed"><Plus className="w-5 h-5 text-slate-600" /></button>
+                                    <button aria-label="Decrease minimum subjects" disabled={!canEdit} onClick={() => updateRule('min', -1)} className="p-2 bg-white dark:bg-slate-900 rounded-full shadow-sm dark:shadow-none border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition disabled:opacity-40 disabled:cursor-not-allowed"><Minus className="w-5 h-5 text-slate-600 dark:text-slate-300" /></button>
+                                    <span className="text-4xl font-black text-slate-800 dark:text-slate-100 w-16 text-center">{rules.min_subjects}</span>
+                                    <button aria-label="Increase minimum subjects" disabled={!canEdit} onClick={() => updateRule('min', 1)} className="p-2 bg-white dark:bg-slate-900 rounded-full shadow-sm dark:shadow-none border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition disabled:opacity-40 disabled:cursor-not-allowed"><Plus className="w-5 h-5 text-slate-600 dark:text-slate-300" /></button>
                                 </div>
                             </div>
-                            
+
                             {/* Max Subjects Stepper */}
-                            <div className={`flex-1 p-4 rounded-xl border ${rules.max_subjects < rules.min_subjects ? 'bg-red-50 border-red-200' : 'bg-slate-50 border-slate-100'}`}>
-                                <label className={`block text-sm font-bold mb-4 text-center uppercase tracking-wider ${rules.max_subjects < rules.min_subjects ? 'text-red-700' : 'text-slate-700'}`}>Maximum Subjects</label>
+                            <div className={`flex-1 p-4 rounded-xl border ${rules.max_subjects < rules.min_subjects ? 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/40' : 'bg-slate-50 dark:bg-slate-800 border-slate-100 dark:border-slate-700'}`}>
+                                <label className={`block text-sm font-bold mb-4 text-center uppercase tracking-wider ${rules.max_subjects < rules.min_subjects ? 'text-red-700 dark:text-red-400' : 'text-slate-700 dark:text-slate-200'}`}>Maximum Subjects</label>
                                 <div className="flex items-center justify-center gap-4">
-                                    <button aria-label="Decrease maximum subjects" disabled={!canEdit} onClick={() => updateRule('max', -1)} className="p-2 bg-white rounded-full shadow-sm border border-slate-200 hover:bg-slate-100 transition disabled:opacity-40 disabled:cursor-not-allowed"><Minus className="w-5 h-5 text-slate-600" /></button>
-                                    <span className={`text-4xl font-black w-16 text-center ${rules.max_subjects < rules.min_subjects ? 'text-red-700' : 'text-slate-800'}`}>{rules.max_subjects}</span>
-                                    <button aria-label="Increase maximum subjects" disabled={!canEdit} onClick={() => updateRule('max', 1)} className="p-2 bg-white rounded-full shadow-sm border border-slate-200 hover:bg-slate-100 transition disabled:opacity-40 disabled:cursor-not-allowed"><Plus className="w-5 h-5 text-slate-600" /></button>
+                                    <button aria-label="Decrease maximum subjects" disabled={!canEdit} onClick={() => updateRule('max', -1)} className="p-2 bg-white dark:bg-slate-900 rounded-full shadow-sm dark:shadow-none border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition disabled:opacity-40 disabled:cursor-not-allowed"><Minus className="w-5 h-5 text-slate-600 dark:text-slate-300" /></button>
+                                    <span className={`text-4xl font-black w-16 text-center ${rules.max_subjects < rules.min_subjects ? 'text-red-700 dark:text-red-400' : 'text-slate-800 dark:text-slate-100'}`}>{rules.max_subjects}</span>
+                                    <button aria-label="Increase maximum subjects" disabled={!canEdit} onClick={() => updateRule('max', 1)} className="p-2 bg-white dark:bg-slate-900 rounded-full shadow-sm dark:shadow-none border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition disabled:opacity-40 disabled:cursor-not-allowed"><Plus className="w-5 h-5 text-slate-600 dark:text-slate-300" /></button>
                                 </div>
                             </div>
                         </div>
 
                         {ruleMessage && (
-                            <div className={`p-4 rounded-lg mb-6 flex items-start gap-3 text-sm font-medium ${ruleMessage.type === 'error' ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-emerald-50 text-emerald-700 border border-emerald-100'}`}>
+                            <div className={`p-4 rounded-lg mb-6 flex items-start gap-3 text-sm font-medium ${ruleMessage.type === 'error' ? 'bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 border border-red-100 dark:border-red-500/20' : 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-500/20'}`}>
                                 {ruleMessage.type === 'error' ? <AlertCircle className="w-5 h-5 shrink-0" /> : <ShieldCheck className="w-5 h-5 shrink-0" />}
                                 {ruleMessage.text}
                             </div>
                         )}
 
-                        <div className="border-t border-slate-100 pt-6 flex justify-end">
+                        <div className="border-t border-slate-100 dark:border-slate-700 pt-6 flex justify-end">
                             <button
                                 onClick={handleSaveRules}
                                 disabled={!canEdit || saving || rules.min_subjects > rules.max_subjects}
@@ -320,12 +320,12 @@ const handleBulkApprove = async () => {
                     </div>
 
                     {/* Quick Presets Sidebar (NOW DYNAMIC) */}
-                    <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6 h-max">
-                        <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2 mb-4">
-                            <Zap className="w-4 h-4 text-amber-500" /> Quick Presets
+                    <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm dark:shadow-none border border-slate-100 dark:border-slate-700 p-6 h-max">
+                        <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider flex items-center gap-2 mb-4">
+                            <Zap className="w-4 h-4 text-amber-500 dark:text-amber-400" /> Quick Presets
                         </h3>
-                        <p className="text-xs text-slate-500 mb-4">Instantly apply common curriculum structures.</p>
-                        
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">Instantly apply common curriculum structures.</p>
+
                         <div className="space-y-3">
                             {presets.length > 0 ? (
                                 presets.map(preset => (
@@ -333,14 +333,14 @@ const handleBulkApprove = async () => {
                                         key={preset.id}
                                         disabled={!canEdit}
                                         onClick={() => setRules({ min_subjects: preset.min_subjects, max_subjects: preset.max_subjects })}
-                                        className="w-full flex justify-between items-center p-3 rounded-lg border border-slate-200 hover:border-emerald-400 hover:bg-emerald-50 transition text-left disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-slate-200 disabled:hover:bg-transparent"
+                                        className="w-full flex justify-between items-center p-3 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-emerald-400 dark:hover:border-emerald-500/50 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition text-left disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-slate-200 dark:disabled:hover:border-slate-700 disabled:hover:bg-transparent"
                                     >
-                                        <span className="font-bold text-slate-700 text-sm">{preset.name}</span>
-                                        <span className="text-xs text-slate-500">{preset.min_subjects} - {preset.max_subjects}</span>
+                                        <span className="font-bold text-slate-700 dark:text-slate-200 text-sm">{preset.name}</span>
+                                        <span className="text-xs text-slate-500 dark:text-slate-400">{preset.min_subjects} - {preset.max_subjects}</span>
                                     </button>
                                 ))
                             ) : (
-                                <div className="text-center py-4 text-xs text-slate-400 italic">
+                                <div className="text-center py-4 text-xs text-slate-400 dark:text-slate-500 italic">
                                     No presets found in the database.
                                 </div>
                             )}
@@ -351,11 +351,11 @@ const handleBulkApprove = async () => {
 
             {/* --- TAB CONTENT: BATCH APPROVALS --- */}
             {activeTab === 'approvals' && (
-                <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
-                    
+                <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm dark:shadow-none border border-slate-100 dark:border-slate-700 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
+
                     {selectedStudents.length > 0 && canEdit && (
-                        <div className="bg-emerald-50 border-b border-emerald-100 p-4 flex justify-between items-center">
-                            <span className="text-emerald-800 font-medium text-sm">
+                        <div className="bg-emerald-50 dark:bg-emerald-500/10 border-b border-emerald-100 dark:border-emerald-500/20 p-4 flex justify-between items-center">
+                            <span className="text-emerald-800 dark:text-emerald-300 font-medium text-sm">
                                 {selectedStudents.length} students selected
                             </span>
                             <button
@@ -367,8 +367,8 @@ const handleBulkApprove = async () => {
                         </div>
                     )}
 
-                    <table className="w-full text-left text-sm text-slate-600">
-                        <thead className="bg-slate-50 border-b border-slate-100 text-slate-500">
+                    <table className="w-full text-left text-sm text-slate-600 dark:text-slate-300">
+                        <thead className="bg-slate-50 dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700 text-slate-500 dark:text-slate-400">
                             <tr>
                                 <th className="p-4 w-12 text-center">
                                     <input
@@ -376,7 +376,7 @@ const handleBulkApprove = async () => {
                                         title="Select all pending students"
                                         aria-label="Select all pending students"
                                         disabled={!canEdit}
-                                        className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+                                        className="rounded border-slate-300 dark:border-slate-600 text-emerald-600 dark:text-emerald-400 focus:ring-emerald-500 dark:focus:ring-emerald-400 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
                                         onChange={handleSelectAll}
                                         checked={selectedStudents.length === pendingStudents.length && pendingStudents.length > 0}
                                     />
@@ -387,50 +387,50 @@ const handleBulkApprove = async () => {
                                 <th className="p-4 font-medium text-right">Action</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100">
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                             {pendingStudents.map((student) => {
                                 const isRuleViolation = student.total_selected < rules.min_subjects || student.total_selected > rules.max_subjects;
                                 return (
-                                    <tr key={student.id} className={`hover:bg-slate-50 transition ${selectedStudents.includes(student.id) ? 'bg-slate-50' : ''}`}>
+                                    <tr key={student.id} className={`hover:bg-slate-50 dark:hover:bg-slate-800 transition ${selectedStudents.includes(student.id) ? 'bg-slate-50 dark:bg-slate-800' : ''}`}>
                                         <td className="p-4 text-center">
                                             <input
                                                 type="checkbox"
                                                 title={`Select ${student.name}`}
                                                 aria-label={`Select ${student.name}`}
                                                 disabled={!canEdit}
-                                                className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+                                                className="rounded border-slate-300 dark:border-slate-600 text-emerald-600 dark:text-emerald-400 focus:ring-emerald-500 dark:focus:ring-emerald-400 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
                                                 checked={selectedStudents.includes(student.id)}
                                                 onChange={() => handleSelectStudent(student.id)}
                                             />
                                         </td>
                                         <td className="p-4">
-                                            <p className="font-bold text-slate-800">{student.name}</p>
-                                            <p className="text-xs text-slate-500">{student.roll}</p>
+                                            <p className="font-bold text-slate-800 dark:text-slate-100">{student.name}</p>
+                                            <p className="text-xs text-slate-500 dark:text-slate-400">{student.roll}</p>
                                         </td>
                                         <td className="p-4 text-center">
-                                            <span className={`font-bold px-2.5 py-1 rounded-md ${isRuleViolation ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-700'}`}>
+                                            <span className={`font-bold px-2.5 py-1 rounded-md ${isRuleViolation ? 'bg-red-100 dark:bg-red-500/10 text-red-700 dark:text-red-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200'}`}>
                                                 {student.total_selected}
                                             </span>
                                         </td>
                                         <td className="p-4">
                                             <div className="flex flex-col gap-1">
                                                 {student.pending_count > 0 && (
-                                                    <span className="flex items-center gap-1.5 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full w-max">
+                                                    <span className="flex items-center gap-1.5 text-xs font-medium text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/40 px-2 py-0.5 rounded-full w-max">
                                                         <Clock className="w-3 h-3" /> {student.pending_count} Pending Review
                                                     </span>
                                                 )}
                                                 {student.approved_count > 0 && (
-                                                    <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full w-max">
+                                                    <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/40 px-2 py-0.5 rounded-full w-max">
                                                         <ShieldCheck className="w-3 h-3" /> {student.approved_count} Approved
                                                     </span>
                                                 )}
                                             </div>
                                         </td>
                                         <td className="p-4 text-right">
-                                            <button 
+                                            <button
                                                 // UPDATED: Navigates properly
-                                                onClick={() => navigate(`/admin-dashboard/classes/assign-subjects/${gradeId}/${student.id}`, { state: { studentName: student.name, academicYearId: selectedYearId } })} 
-                                                className="text-blue-600 hover:text-blue-800 font-medium text-sm"
+                                                onClick={() => navigate(`/admin-dashboard/classes/assign-subjects/${gradeId}/${student.id}`, { state: { studentName: student.name, academicYearId: selectedYearId } })}
+                                                className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium text-sm"
                                             >
                                                 View & Assign
                                             </button>
@@ -440,7 +440,7 @@ const handleBulkApprove = async () => {
                             })}
                             {pendingStudents.length === 0 && (
                                 <tr>
-                                    <td colSpan={5} className="p-8 text-center text-slate-400">
+                                    <td colSpan={5} className="p-8 text-center text-slate-400 dark:text-slate-500">
                                         No pending subject approvals for this class in the selected academic year.
                                     </td>
                                 </tr>

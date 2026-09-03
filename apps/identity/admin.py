@@ -10,7 +10,7 @@ from django.contrib.auth.models import User, Group
 from unfold.admin import ModelAdmin, StackedInline, TabularInline
 from unfold.forms import AdminPasswordChangeForm, UserChangeForm, UserCreationForm
 
-from apps.identity.models import AdminExtra, StudentExtra, TeacherExtra, StaffExtra, ParentExtra, Permission, Role, UserRole
+from apps.identity.models import AdminExtra, StudentExtra, TeacherExtra, StaffExtra, ParentExtra, Permission, Role, UserRole, School, ForcedPasswordChange, AdminInviteCode
 from apps.students.models import StudentSubjectEnrollment
 from apps.core.services import write_audit_log
 from apps.core.trash import soft_delete
@@ -256,3 +256,26 @@ class UserRoleAdmin(ModelAdmin):
     def delete_queryset(self, request, queryset):
         for obj in queryset:
             self.delete_model(request, obj)
+
+
+# --- 4. PLATFORM MODELS ---
+
+@admin.register(School)
+class SchoolAdmin(ModelAdmin):
+    list_display = ('name', 'level', 'shares_compound_with', 'created_at')
+    list_filter = ('level', 'shares_compound_with')
+    search_fields = ('name',)
+
+
+@admin.register(ForcedPasswordChange)
+class ForcedPasswordChangeAdmin(ModelAdmin):
+    list_display = ('user', 'created_at')
+    list_filter = ('created_at',)
+    search_fields = ('user__username',)
+
+
+@admin.register(AdminInviteCode)
+class AdminInviteCodeAdmin(ModelAdmin):
+    list_display = ('code_preview', 'created_by', 'created_at', 'expires_at', 'used_by', 'revoked_at')
+    list_filter = ('created_at', 'expires_at')
+    search_fields = ('code_preview', 'created_by__username', 'used_by__username')

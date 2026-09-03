@@ -117,22 +117,22 @@ export default function EditGradeModal({ isOpen, grade, onClose, onSuccess }: Ed
 
   return (
     <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl dark:shadow-none w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh]">
 
-        <div className="px-6 py-5 border-b border-slate-100 bg-slate-50 flex items-center justify-between relative overflow-hidden shrink-0">
-          <div className="absolute top-0 right-0 -mr-4 -mt-4 w-24 h-24 bg-amber-100 rounded-full opacity-50 pointer-events-none blur-xl"></div>
+        <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 flex items-center justify-between relative overflow-hidden shrink-0">
+          <div className="absolute top-0 right-0 -mr-4 -mt-4 w-24 h-24 bg-amber-100 dark:bg-amber-500/10 rounded-full opacity-50 pointer-events-none blur-xl"></div>
 
           <div className="flex items-center gap-3 relative z-10">
-            <div className="w-10 h-10 bg-white shadow-sm border border-slate-200 rounded-full flex items-center justify-center text-amber-600">
+            <div className="w-10 h-10 bg-white dark:bg-slate-900 shadow-sm dark:shadow-none border border-slate-200 dark:border-slate-700 rounded-full flex items-center justify-center text-amber-600 dark:text-amber-400">
               <Layers className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-slate-800 text-lg leading-tight">Edit Grade</h3>
-              <p className="text-xs text-slate-500 font-medium tracking-wide">Update name, sort order, and curriculum placement</p>
+              <h3 className="font-bold text-slate-800 dark:text-slate-100 text-lg leading-tight">Edit Grade</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium tracking-wide">Update name, sort order, and curriculum placement</p>
             </div>
           </div>
 
-          <button onClick={onClose} title="Close" className="text-slate-400 hover:text-slate-700 bg-white hover:bg-slate-100 p-1.5 rounded-full transition-colors relative z-10 border border-transparent hover:border-slate-200">
+          <button onClick={onClose} title="Close" className="text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 p-1.5 rounded-full transition-colors relative z-10 border border-transparent hover:border-slate-200 dark:hover:border-slate-600">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -140,31 +140,31 @@ export default function EditGradeModal({ isOpen, grade, onClose, onSuccess }: Ed
         <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto">
           <div className="grid grid-cols-3 gap-5">
             <div className="col-span-2 space-y-1.5">
-              <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block">
+              <label className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider block">
                 Grade Name <span className="text-red-500">*</span>
               </label>
               <input required type="text" aria-label="Grade Name" value={name}
-                className="w-full border border-slate-300 rounded-xl p-3 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100 bg-white text-slate-800 transition-all shadow-sm"
+                className="w-full border border-slate-300 dark:border-slate-600 rounded-xl p-3 outline-none focus:border-amber-500 dark:focus:border-amber-400 focus:ring-2 focus:ring-amber-100 dark:focus:ring-amber-400/20 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 transition-all shadow-sm dark:shadow-none"
                 onChange={(e) => setName(e.target.value)} />
             </div>
             <div className="col-span-1 space-y-1.5">
-              <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block">
+              <label className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider block">
                 Sort Order <span className="text-red-500">*</span>
               </label>
               <input required type="number" aria-label="Sort Order" value={numericOrder}
-                className="w-full border border-slate-300 rounded-xl p-3 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100 bg-white text-slate-800 transition-all shadow-sm"
+                className="w-full border border-slate-300 dark:border-slate-600 rounded-xl p-3 outline-none focus:border-amber-500 dark:focus:border-amber-400 focus:ring-2 focus:ring-amber-100 dark:focus:ring-amber-400/20 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 transition-all shadow-sm dark:shadow-none"
                 onChange={(e) => setNumericOrder(e.target.value)} />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-5">
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block">
+              <label className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider block">
                 Curriculum <span className="text-red-500">*</span>
               </label>
               <select required aria-label="Curriculum" value={curriculumId}
                 onChange={(e) => { setCurriculumId(e.target.value); setTierId(''); }}
-                className="w-full border border-slate-300 rounded-xl p-3 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100 bg-white text-slate-800 transition-all shadow-sm">
+                className="w-full border border-slate-300 dark:border-slate-600 rounded-xl p-3 outline-none focus:border-amber-500 dark:focus:border-amber-400 focus:ring-2 focus:ring-amber-100 dark:focus:ring-amber-400/20 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 transition-all shadow-sm dark:shadow-none">
                 <option value="">Select curriculum...</option>
                 {curricula.map(c => (
                   <option key={c.id} value={c.id}>{c.name}</option>
@@ -173,12 +173,12 @@ export default function EditGradeModal({ isOpen, grade, onClose, onSuccess }: Ed
             </div>
             {hasTiers && (
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block">
+                <label className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider block">
                   Tier <span className="text-red-500">*</span>
                 </label>
                 <select required aria-label="Tier" value={tierId}
                   onChange={(e) => setTierId(e.target.value)}
-                  className="w-full border border-slate-300 rounded-xl p-3 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100 bg-white text-slate-800 transition-all shadow-sm">
+                  className="w-full border border-slate-300 dark:border-slate-600 rounded-xl p-3 outline-none focus:border-amber-500 dark:focus:border-amber-400 focus:ring-2 focus:ring-amber-100 dark:focus:ring-amber-400/20 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 transition-all shadow-sm dark:shadow-none">
                   <option value="">Select tier...</option>
                   {tiers.map(t => (
                     <option key={t.id} value={t.id}>{t.name}</option>
@@ -188,12 +188,12 @@ export default function EditGradeModal({ isOpen, grade, onClose, onSuccess }: Ed
             )}
           </div>
 
-          <p className="text-xs text-slate-400 -mt-3">
+          <p className="text-xs text-slate-400 dark:text-slate-500 -mt-3">
             Changing curriculum or tier is blocked if students in this grade already have approved subject or pathway selections tied to the current one.
           </p>
 
           <div className="pt-3 flex gap-3">
-            <button type="button" onClick={onClose} disabled={loading} className="flex-1 px-4 py-3 border border-slate-200 text-slate-600 rounded-xl font-bold hover:bg-slate-50 transition-colors">
+            <button type="button" onClick={onClose} disabled={loading} className="flex-1 px-4 py-3 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-xl font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
               Cancel
             </button>
             <button type="submit" disabled={loading} className="flex-1 px-4 py-3 bg-amber-600 text-white rounded-xl font-bold hover:bg-amber-700 transition-all flex items-center justify-center gap-2 disabled:opacity-70 shadow-md shadow-amber-600/20">

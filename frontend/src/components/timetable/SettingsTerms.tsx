@@ -100,21 +100,21 @@ export default function SettingsTerms({ timetables, onRefreshTrigger, fetchSetti
     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
       
       {/* Creation/Adjustment Interface Panel */}
-      <form onSubmit={handleSaveTerm} className="space-y-4 bg-slate-50 p-5 rounded-xl border border-slate-200 h-fit">
-        <div className="flex justify-between items-center border-b border-slate-200 pb-2">
-          <h3 className="font-bold text-slate-800">{selectedTermId ? "Modify Container Core" : "Create Term Container"}</h3>
+      <form onSubmit={handleSaveTerm} className="space-y-4 bg-slate-50 dark:bg-slate-800/40 p-5 rounded-xl border border-slate-200 dark:border-slate-700 h-fit">
+        <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-700 pb-2">
+          <h3 className="font-bold text-slate-800 dark:text-slate-100">{selectedTermId ? "Modify Container Core" : "Create Term Container"}</h3>
           {selectedTermId && (
-            <button type="button" onClick={() => { setSelectedTermId(null); setTermName(''); setTermStatus('Draft'); setTermIsActive(false); }} className="text-xs font-bold text-blue-600 hover:underline">Clear Fields</button>
+            <button type="button" onClick={() => { setSelectedTermId(null); setTermName(''); setTermStatus('Draft'); setTermIsActive(false); }} className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline">Clear Fields</button>
           )}
         </div>
         <div>
-          <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Term Name</label>
-          <input type="text" required value={termName} onChange={(e) => setTermName(e.target.value)} className="w-full mt-1 border border-slate-300 rounded-lg p-2.5 outline-none focus:border-blue-500 bg-white font-medium" placeholder="e.g., 2026 Term 2" />
+          <label className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">Term Name</label>
+          <input type="text" required value={termName} onChange={(e) => setTermName(e.target.value)} className="w-full mt-1 border border-slate-300 dark:border-slate-600 rounded-lg p-2.5 outline-none focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-slate-800 font-medium text-slate-800 dark:text-slate-100" placeholder="e.g., 2026 Term 2" />
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Default Status</label>
-            <select value={termStatus} onChange={(e) => setTermStatus(e.target.value)} className="w-full mt-1 border border-slate-300 rounded-lg p-2.5 outline-none bg-white font-bold text-slate-700">
+            <label className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">Default Status</label>
+            <select value={termStatus} onChange={(e) => setTermStatus(e.target.value)} className="w-full mt-1 border border-slate-300 dark:border-slate-600 rounded-lg p-2.5 outline-none bg-white dark:bg-slate-800 font-bold text-slate-700 dark:text-slate-200">
               <option value="Draft">Draft (Hidden)</option>
               <option value="Published">Published (Live)</option>
             </select>
@@ -122,7 +122,7 @@ export default function SettingsTerms({ timetables, onRefreshTrigger, fetchSetti
           <div className="flex flex-col justify-end pb-2">
             <label className="flex items-center gap-2 cursor-pointer select-none">
               <input type="checkbox" checked={termIsActive} onChange={(e) => setTermIsActive(e.target.checked)} className="w-4 h-4 text-blue-600 rounded focus:ring-0" />
-              <span className="text-sm font-bold text-slate-700">Set as Active</span>
+              <span className="text-sm font-bold text-slate-700 dark:text-slate-200">Set as Active</span>
             </label>
           </div>
         </div>
@@ -133,33 +133,33 @@ export default function SettingsTerms({ timetables, onRefreshTrigger, fetchSetti
 
       {/* Roster View Feed Ledger */}
       <div>
-        <h3 className="font-bold text-slate-800 mb-4">Existing Terms</h3>
+        <h3 className="font-bold text-slate-800 dark:text-slate-100 mb-4">Existing Terms</h3>
         <div className="space-y-3">
           {timetables.length === 0 && (
-            <div className="text-center py-10 text-slate-400 text-sm bg-slate-50 rounded-xl border border-dashed border-slate-200">
+            <div className="text-center py-10 text-slate-400 dark:text-slate-500 text-sm bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
               No term containers yet. Create one with the form on the left.
             </div>
           )}
           {timetables.map(t => (
-            <div 
-              key={t.id} 
-              onClick={() => { setSelectedTermId(t.id); setTermName(t.name); setTermStatus(t.status || 'Draft'); setTermIsActive(t.is_active); }} 
-              className={`p-4 rounded-xl border flex flex-col gap-3 cursor-pointer transition ${selectedTermId === t.id ? 'border-blue-500 bg-blue-50/40' : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'}`}
+            <div
+              key={t.id}
+              onClick={() => { setSelectedTermId(t.id); setTermName(t.name); setTermStatus(t.status || 'Draft'); setTermIsActive(t.is_active); }}
+              className={`p-4 rounded-xl border flex flex-col gap-3 cursor-pointer transition ${selectedTermId === t.id ? 'border-blue-500 dark:border-blue-400 bg-blue-50/40 dark:bg-blue-500/10' : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800/40'}`}
             >
               <div className="flex justify-between items-start">
                 <div>
-                  <p className="font-black text-slate-800 tracking-tight text-base">{t.name}</p>
+                  <p className="font-black text-slate-800 dark:text-slate-100 tracking-tight text-base">{t.name}</p>
                   <div className="flex items-center gap-1.5 mt-1">
                     {t.status === 'Published' ? (
-                      <span className="flex items-center text-[10px] font-bold text-blue-600 bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded-md"><Globe className="w-3 h-3 mr-1" /> PUBLISHED</span>
+                      <span className="flex items-center text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 px-1.5 py-0.5 rounded-md"><Globe className="w-3 h-3 mr-1" /> PUBLISHED</span>
                     ) : (
-                      <span className="flex items-center text-[10px] font-bold text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-md"><EyeOff className="w-3 h-3 mr-1" /> DRAFT</span>
+                      <span className="flex items-center text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-1.5 py-0.5 rounded-md"><EyeOff className="w-3 h-3 mr-1" /> DRAFT</span>
                     )}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   {t.is_active && (
-                    <span className="flex items-center gap-1 text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-100 shadow-sm animate-pulse">
+                    <span className="flex items-center gap-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-1 rounded-md border border-emerald-100 dark:border-emerald-500/20 shadow-sm dark:shadow-none animate-pulse">
                       <CheckCircle2 className="w-3.5 h-3.5" /> ACTIVE
                     </span>
                   )}
@@ -168,7 +168,7 @@ export default function SettingsTerms({ timetables, onRefreshTrigger, fetchSetti
                     disabled={isUpdatingLifecycle}
                     title="Delete term"
                     aria-label={`Delete ${t.name}`}
-                    className="text-slate-400 hover:text-red-600 bg-white border border-slate-200 rounded-lg p-2 transition shadow-sm hover:border-red-200"
+                    className="text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2 transition shadow-sm dark:shadow-none hover:border-red-200 dark:hover:border-red-500/40"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -176,7 +176,7 @@ export default function SettingsTerms({ timetables, onRefreshTrigger, fetchSetti
               </div>
 
               {/* --- NEW: FAST LIFECYCLE CONTROLS STRIP --- */}
-              <div className="flex gap-2 border-t border-slate-100 pt-3 mt-1 justify-end">
+              <div className="flex gap-2 border-t border-slate-100 dark:border-slate-700 pt-3 mt-1 justify-end">
                 <button
                   type="button"
                   disabled={isUpdatingLifecycle}
@@ -191,7 +191,7 @@ export default function SettingsTerms({ timetables, onRefreshTrigger, fetchSetti
                       () => handleLifecycleTransition(t.id, goingLive ? 'Published' : 'Draft', t.is_active, e)
                     );
                   }}
-                  className="px-2.5 py-1 text-[11px] font-bold border border-slate-200 rounded-md bg-white text-slate-600 hover:bg-slate-50 flex items-center gap-1 transition"
+                  className="px-2.5 py-1 text-[11px] font-bold border border-slate-200 dark:border-slate-700 rounded-md bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-1 transition"
                 >
                   <RefreshCw className="w-3 h-3" /> {t.status === 'Published' ? 'Revert to Draft' : 'Publish'}
                 </button>

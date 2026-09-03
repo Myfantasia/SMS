@@ -55,7 +55,9 @@ class Pathway(models.Model):
     """
     curriculum = models.ForeignKey(Curriculum, on_delete=models.CASCADE, related_name='pathways')
     name = models.CharField(max_length=100)
-    description = models.CharField(max_length=255, blank=True)
+    # TextField, not CharField — this reads as a real paragraph on the student pathway-choice
+    # page (what the pathway covers, who it suits, where it leads), not a one-line label.
+    description = models.TextField(blank=True)
 
     class Meta:
         db_table = 'school_pathway'
@@ -77,7 +79,8 @@ class Track(models.Model):
     """
     pathway = models.ForeignKey(Pathway, on_delete=models.CASCADE, related_name='tracks')
     name = models.CharField(max_length=100)
-    description = models.CharField(max_length=255, blank=True)
+    # TextField, not CharField — same reasoning as Pathway.description above.
+    description = models.TextField(blank=True)
     display_order = models.PositiveIntegerField(default=0)
 
     class Meta:

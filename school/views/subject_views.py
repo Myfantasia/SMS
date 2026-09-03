@@ -8,7 +8,9 @@ from apps.students.models import StudentSubjectEnrollment, StudentPathwaySelecti
 from apps.core.services import write_audit_log
 from apps.identity.models import ( TeacherExtra, StudentExtra,)
 from apps.identity.services import get_current_school_id
+from apps.messaging.models import Notification
 from apps.results.models import SubjectTermResult
+from django.contrib.auth.models import User
 from django.http import JsonResponse
 import json
 from django.db import transaction, IntegrityError
@@ -16,6 +18,12 @@ from django.db.models import Q, Count
 from school.decorators import require_permission
 from school.rbac import curriculum_edit_guard, is_class_teacher_of_student
 from school.views.class_views import _eligible_subjects_for
+
+# Mathematics subjects assigned automatically based on a student's SSS pathway (see
+# _ensure_core_mathematics) rather than chosen via CurriculumPreset/SubjectPool self-service --
+# excluded from pool listings/requests so a student can't end up with two maths subjects (e.g.
+# Advanced Mathematics from their combo AND a self-requested Core/Essential Mathematics).
+SYSTEM_MANAGED_MATH_CODES = {'CMAT', 'EMAT'}
 
 
 def _is_admin(user):
@@ -845,21 +853,23 @@ def api_student_elective_options(request):
         pools = []
         for pool in _pools_for_pathway(preset, pathway, track):
             relevant_subjects = _pool_subjects_for_student(pool, pathway, track)
-            # Always-core subjects in the pool (e.g. English, Kiswahili) are auto-assigned,
-            # never shown as a pick -- so the pick range shown to the student must exclude
-            # them from min/max too, or a 6-subject pool with 4 always-core ones would look
-            # like it wants the student to choose 5-6 from the 2 actual alternatives shown.
-            always_core_count = sum(
-                1 for s in relevant_subjects if get_effective_is_core(s, grade.curriculum, grade.tier))
+
+            def _excluded(s):
+                # Always-core subjects (e.g. English, Kiswahili) are auto-assigned, and
+                # SYSTEM_MANAGED_MATH_CODES subjects are assigned automatically based on
+                # pathway (see _ensure_core_mathematics) -- neither is ever a student pick,
+                # so both must be excluded from the shown pick range/list, or e.g. a
+                # 6-subject pool with 4 always-core ones would look like it wants the
+                # student to choose 5-6 from the 2 actual alternatives shown.
+                return get_effective_is_core(s, grade.curriculum, grade.tier) or s.code in SYSTEM_MANAGED_MATH_CODES
+
+            excluded_count = sum(1 for s in relevant_subjects if _excluded(s))
             pools.append({
                 'pool_type': pool.pool_type,
                 'pool_type_label': pool.get_pool_type_display(),
-                'min_subjects': max(0, pool.min_subjects - always_core_count),
-                'max_subjects': max(0, pool.max_subjects - always_core_count),
-                'subjects': [
-                    _option(s) for s in relevant_subjects
-                    if not get_effective_is_core(s, grade.curriculum, grade.tier)
-                ],
+                'min_subjects': max(0, pool.min_subjects - excluded_count),
+                'max_subjects': max(0, pool.max_subjects - excluded_count),
+                'subjects': [_option(s) for s in relevant_subjects if not _excluded(s)],
             })
 
         return JsonResponse({
@@ -920,6 +930,12 @@ def api_student_elective_request(request):
 
         if get_effective_is_core(subject, student.cl.grade.curriculum, student.cl.grade.tier):
             return JsonResponse({'status': 'error', 'message': 'Core subjects do not require a request.'}, status=400)
+
+        if subject.code in SYSTEM_MANAGED_MATH_CODES:
+            return JsonResponse({
+                'status': 'error',
+                'message': f'{subject.name} is assigned automatically based on your pathway and cannot be requested directly.'
+            }, status=400)
 
         selection = _student_approved_selection(student, current_year)
         pathway = selection.pathway if selection else None
@@ -1077,20 +1093,26 @@ def _approve_combo_subjects(student, combo, academic_year):
 
 def _ensure_core_mathematics(student, combo, academic_year):
     """
-    Every SSS student must study mathematics regardless of pathway (per the CBC dossier). If
-    `combo`'s subjects don't already include Advanced Mathematics (AMAT) or Core Mathematics
-    (CMAT), auto-approve Essential Mathematics (EMAT) as an extra subject — added on top of
-    the combo's 3, never displacing a chosen subject. Idempotent via update_or_create.
+    Every SSS student must study mathematics regardless of pathway (per the CBC dossier), and
+    assignment is fully automatic -- never a student pick (see SYSTEM_MANAGED_MATH_CODES,
+    which keeps these two subjects out of self-service pool requests entirely). If `combo`'s
+    subjects don't already include Advanced Mathematics (AMAT) or Core Mathematics (CMAT),
+    auto-approve the pathway-appropriate alternative as an extra subject — added on top of
+    the combo's 3, never displacing a chosen subject: Core Mathematics for a STEM student who
+    didn't pick an Advanced-Math combination, Essential Mathematics for every other pathway.
+    Idempotent via update_or_create.
     """
     combo_codes = set(combo.subjects.values_list('code', flat=True))
     if combo_codes & {'AMAT', 'CMAT'}:
         return
+    is_stem = 'stem' in (combo.track.pathway.name or '').lower()
+    math_code = 'CMAT' if is_stem else 'EMAT'
     try:
-        essential_maths = Subject.objects.get(code='EMAT')
+        math_subject = Subject.objects.get(code=math_code)
     except Subject.DoesNotExist:
         return
     StudentSubjectEnrollment.objects.update_or_create(
-        student=student, subject=essential_maths, academic_year=academic_year,
+        student=student, subject=math_subject, academic_year=academic_year,
         defaults={'status': 'Approved'}
     )
 
@@ -1196,6 +1218,27 @@ def api_student_pathway_request(request):
             student=student, academic_year=current_year,
             defaults={'pathway': pathway, 'track': track, 'preset_combination': preset_combination, 'status': 'Pending'}
         )
+
+        request_summary = (
+            f"{student.user.get_full_name() or student.user.username} requested {pathway.name}"
+            f"{f' ({track.name})' if track else ''}"
+            f"{f' — {preset_combination.display_name()}' if preset_combination else ''}."
+        )
+        notify_recipients = list(User.objects.filter(
+            Q(is_superuser=True) | Q(is_staff=True) | Q(groups__name='ADMIN')
+        ).distinct())
+        class_teacher = getattr(student.cl, 'class_teacher', None)
+        if class_teacher and class_teacher.user_id not in {u.id for u in notify_recipients}:
+            notify_recipients.append(class_teacher.user)
+        Notification.objects.bulk_create([
+            Notification(
+                recipient=recipient,
+                title='New Pathway Request',
+                message=request_summary,
+                action_url='/admin-dashboard/pathway-requests',
+            ) for recipient in notify_recipients
+        ])
+
         return JsonResponse({
             'status': 'success',
             'message': f'Request for {pathway.name}'

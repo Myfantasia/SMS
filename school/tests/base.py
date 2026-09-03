@@ -3,9 +3,10 @@ from datetime import date
 from django.contrib.auth.models import User, Group
 from django.test import TestCase
 
-from school.models.classSubjects_models import GradeLevel, ClassStream, Subject
-from school.models.models import AcademicYear, ExamTerm, ExamEvent, GradingRule, TeacherExtra, StudentExtra
-from school.models.rbac_models import Permission
+from apps.academics.models import GradeLevel, ClassStream, Subject, AcademicYear, ExamTerm
+from apps.identity.models import TeacherExtra, StudentExtra
+from apps.exams.models import ExamEvent, GradingRule
+from apps.identity.models import Permission
 
 
 class ExamTestDataMixin:

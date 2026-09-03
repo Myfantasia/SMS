@@ -13,18 +13,11 @@ from django.core.files.storage import default_storage
 from django.db.models import Q
 from django.utils import timezone
 
-from school.models.classSubjects_models import ClassStream
-from school.models.models import ParentExtra, StudentExtra
-from school.models.chat_models import ChatThread, ThreadParticipant, MessageAudit
+from apps.academics.models import ClassStream
+from apps.identity.models import ParentExtra, StudentExtra
+from apps.messaging.models import ChatThread, ThreadParticipant, MessageAudit
 from school.rbac import HasModulePermission, user_has_permission, get_user_role_label
 
-class CsrfExemptSessionAuthentication(SessionAuthentication):
-    """
-    Custom session layer that authenticates users via active cookies
-    but bypasses the explicit frontend CSRF token header check.
-    """
-    def enforce_csrf(self, request):
-        return
 
 
 # ---> NEW HELPER: UNIFIED ADMIN AUTHORIZATION <---
@@ -183,7 +176,7 @@ class GetOrCreateDirectThreadAPI(APIView):
     React sends a target_user_id. Django returns an existing Chat UUID or makes a new one.
     """
     permission_classes = [IsAuthenticated]
-    authentication_classes = [CsrfExemptSessionAuthentication]
+    authentication_classes = [SessionAuthentication]
 
     def post(self, request):
         target_user_id = request.data.get('target_user_id')
@@ -376,7 +369,7 @@ class MarkThreadReadAPI(APIView):
     It updates their specific 'last_read_timestamp'.
     """
     permission_classes = [IsAuthenticated]
-    authentication_classes = [CsrfExemptSessionAuthentication]
+    authentication_classes = [SessionAuthentication]
 
     def post(self, request, thread_id):
         try:
@@ -402,7 +395,7 @@ class CreateAdminGroupThreadAPI(APIView):
     Restricts 1-way Broadcasts strictly to Administrators.
     """
     permission_classes = [IsAuthenticated]
-    authentication_classes = [CsrfExemptSessionAuthentication]
+    authentication_classes = [SessionAuthentication]
 
     def post(self, request):
         user = request.user
@@ -572,7 +565,7 @@ class ChatAttachmentUploadAPI(APIView):
     and extension server-side — the old Firebase Storage path had no validation at all.
     """
     permission_classes = [IsAuthenticated]
-    authentication_classes = [CsrfExemptSessionAuthentication]
+    authentication_classes = [SessionAuthentication]
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = 'uploads'
 
@@ -673,7 +666,7 @@ class LeaveConversationAPI(APIView):
     last participant leaves, the thread is soft-archived via is_active=False.
     """
     permission_classes = [IsAuthenticated]
-    authentication_classes = [CsrfExemptSessionAuthentication]
+    authentication_classes = [SessionAuthentication]
 
     def post(self, request, thread_id):
         user = request.user

@@ -3,20 +3,17 @@ from rest_framework.authentication import SessionAuthentication
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 
-from school.models.models import StudentExtra
-from school.models.students_model import StudentTask
+from apps.identity.models import StudentExtra
+from apps.students.models import StudentTask
 from school.serializers.student_serializers import StudentTaskSerializer
 
 
-class CsrfExemptSessionAuthentication(SessionAuthentication):
-    def enforce_csrf(self, request):
-        return
 
 
 class StudentTaskViewSet(viewsets.ModelViewSet):
     """Self-service CRUD for a student's own personal to-do items."""
     serializer_class = StudentTaskSerializer
-    authentication_classes = [CsrfExemptSessionAuthentication]
+    authentication_classes = [SessionAuthentication]
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):

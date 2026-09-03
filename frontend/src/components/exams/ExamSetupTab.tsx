@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Plus, BookOpen, Settings, CheckCircle2, Edit, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import GradingRulesModal from './GradingRulesModal'; 
+import GradingRulesModal from './GradingRulesModal';
 import TermModal from './TermModal'; // NEW: Imported your separated modal
 import ExamModal from './ExamModal'; // NEW: Imported your separated modal
 import api from '../../libs/axiosInstance';
@@ -37,7 +37,7 @@ const ExamSetupTab: React.FC = () => {
   const [activeTerm, setActiveTerm] = useState('Loading...');
   const [terms, setTerms] = useState<Term[]>([]);
   const [exams, setExams] = useState<ExamEvent[]>([]);
-  const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]); 
+  const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Modal States
@@ -58,7 +58,7 @@ const ExamSetupTab: React.FC = () => {
       setActiveTerm(response.data.active_term || 'No Active Term');
       setTerms(response.data.terms || []);
       setExams(response.data.exams || []);
-      setAcademicYears(response.data.academic_years || []); 
+      setAcademicYears(response.data.academic_years || []);
     } catch (error) {
       console.error("Failed to fetch setup data", error);
       toast.error("Failed to load setup data from server.");
@@ -77,7 +77,7 @@ const ExamSetupTab: React.FC = () => {
     try {
       await api.post(`/api/exams/terms/activate/${id}/`);
       toast.success('Active term updated!', { id: toastId });
-      fetchSetupData(); 
+      fetchSetupData();
     } catch (error) {
       console.error("Failed to activate term", error);
       toast.error('Failed to change active term.', { id: toastId });
@@ -91,13 +91,13 @@ const ExamSetupTab: React.FC = () => {
   const handleDeleteTerm = (id: string | number) => {
     toast((t) => (
       <div className="flex flex-col gap-3">
-        <p className="text-sm font-medium text-slate-800">
+        <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
           Delete this term? All connected exams will also be removed.
         </p>
         <div className="flex justify-end gap-2">
           <button
             onClick={() => toast.dismiss(t.id)}
-            className="px-3 py-1 text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-600 rounded transition"
+            className="px-3 py-1 text-xs font-medium bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded transition"
           >
             Cancel
           </button>
@@ -129,12 +129,12 @@ const ExamSetupTab: React.FC = () => {
   const confirmForceDeleteTerm = (id: string | number, impactMessage: string) => {
     toast((t) => (
       <div className="flex flex-col gap-3 max-w-sm">
-        <p className="text-sm font-bold text-red-700">This will permanently destroy real data.</p>
-        <p className="text-sm text-slate-700">{impactMessage}</p>
+        <p className="text-sm font-bold text-red-700 dark:text-red-400">This will permanently destroy real data.</p>
+        <p className="text-sm text-slate-700 dark:text-slate-200">{impactMessage}</p>
         <div className="flex justify-end gap-2">
           <button
             onClick={() => toast.dismiss(t.id)}
-            className="px-3 py-1 text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-600 rounded transition"
+            className="px-3 py-1 text-xs font-medium bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded transition"
           >
             Cancel
           </button>
@@ -162,13 +162,13 @@ const ExamSetupTab: React.FC = () => {
   const handleDeleteExam = (id: string | number) => {
     toast((t) => (
       <div className="flex flex-col gap-3">
-        <p className="text-sm font-medium text-slate-800">
+        <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
           Delete this exam? All student results tied to it will be lost.
         </p>
         <div className="flex justify-end gap-2">
           <button
             onClick={() => toast.dismiss(t.id)}
-            className="px-3 py-1 text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-600 rounded transition"
+            className="px-3 py-1 text-xs font-medium bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded transition"
           >
             Cancel
           </button>
@@ -200,12 +200,12 @@ const ExamSetupTab: React.FC = () => {
   const confirmForceDeleteExam = (id: string | number, impactMessage: string) => {
     toast((t) => (
       <div className="flex flex-col gap-3 max-w-sm">
-        <p className="text-sm font-bold text-red-700">This will permanently destroy real data.</p>
-        <p className="text-sm text-slate-700">{impactMessage}</p>
+        <p className="text-sm font-bold text-red-700 dark:text-red-400">This will permanently destroy real data.</p>
+        <p className="text-sm text-slate-700 dark:text-slate-200">{impactMessage}</p>
         <div className="flex justify-end gap-2">
           <button
             onClick={() => toast.dismiss(t.id)}
-            className="px-3 py-1 text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-600 rounded transition"
+            className="px-3 py-1 text-xs font-medium bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded transition"
           >
             Cancel
           </button>
@@ -253,47 +253,47 @@ const ExamSetupTab: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 relative">
-      
+
       {/* Top Stats/Overview Bar */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-blue-50 border border-blue-100 p-4 rounded-lg flex items-center justify-between">
+        <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 p-4 rounded-lg flex items-center justify-between">
           <div>
-            <p className="text-sm text-blue-600 font-semibold uppercase tracking-wider">Current Year</p>
-            <h3 className="text-2xl font-bold text-blue-900">{activeYear}</h3>
+            <p className="text-sm text-blue-600 dark:text-blue-400 font-semibold uppercase tracking-wider">Current Year</p>
+            <h3 className="text-2xl font-bold text-blue-900 dark:text-blue-300">{activeYear}</h3>
           </div>
-          <Calendar className="w-8 h-8 text-blue-300" />
+          <Calendar className="w-8 h-8 text-blue-300 dark:text-blue-500/50" />
         </div>
-        
-        <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-lg flex items-center justify-between">
+
+        <div className="bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-100 dark:border-emerald-500/20 p-4 rounded-lg flex items-center justify-between">
           <div>
-            <p className="text-sm text-emerald-600 font-semibold uppercase tracking-wider">Active Term</p>
-            <h3 className="text-2xl font-bold text-emerald-900">{activeTerm}</h3>
+            <p className="text-sm text-emerald-600 dark:text-emerald-400 font-semibold uppercase tracking-wider">Active Term</p>
+            <h3 className="text-2xl font-bold text-emerald-900 dark:text-emerald-300">{activeTerm}</h3>
           </div>
-          <CheckCircle2 className="w-8 h-8 text-emerald-300" />
+          <CheckCircle2 className="w-8 h-8 text-emerald-300 dark:text-emerald-500/50" />
         </div>
 
         {/* Action Card for Grading */}
-        <div 
+        <div
           onClick={() => setIsGradingModalOpen(true)}
-          className="bg-slate-50 border border-slate-200 p-4 rounded-lg flex items-center justify-between hover:bg-slate-100 cursor-pointer transition-colors"
+          className="bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 p-4 rounded-lg flex items-center justify-between hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-colors"
         >
           <div>
-            <p className="text-sm text-slate-600 font-semibold uppercase tracking-wider">Configuration</p>
-            <h3 className="text-lg font-bold text-slate-800">Grading Rules</h3>
+            <p className="text-sm text-slate-600 dark:text-slate-300 font-semibold uppercase tracking-wider">Configuration</p>
+            <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">Grading Rules</h3>
           </div>
-          <Settings className="w-8 h-8 text-slate-400" />
+          <Settings className="w-8 h-8 text-slate-400 dark:text-slate-500" />
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* LEFT COLUMN: Manage Terms */}
-        <div className="border border-slate-200 rounded-lg shadow-sm bg-white overflow-hidden flex flex-col">
-          <div className="bg-slate-50 border-b border-slate-200 p-4 flex justify-between items-center">
-            <h3 className="font-semibold text-slate-800 flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-slate-500" />
+        <div className="border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm dark:shadow-none bg-white dark:bg-slate-900 overflow-hidden flex flex-col">
+          <div className="bg-slate-50 dark:bg-slate-800/40 border-b border-slate-200 dark:border-slate-700 p-4 flex justify-between items-center">
+            <h3 className="font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+              <Calendar className="w-5 h-5 text-slate-500 dark:text-slate-400" />
               Academic Terms
             </h3>
-            <button 
+            <button
               onClick={openAddTerm}
               className="text-sm bg-blue-600 text-white px-3 py-1.5 rounded-md hover:bg-blue-700 flex items-center gap-1 transition"
             >
@@ -303,7 +303,7 @@ const ExamSetupTab: React.FC = () => {
           <div className="p-4 overflow-x-auto flex-1">
             <table className="w-full text-left text-sm whitespace-nowrap">
               <thead>
-                <tr className="text-slate-500 border-b">
+                <tr className="text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
                   <th className="pb-2 font-medium">Term Name</th>
                   <th className="pb-2 font-medium">Dates</th>
                   <th className="pb-2 font-medium">Status</th>
@@ -312,25 +312,25 @@ const ExamSetupTab: React.FC = () => {
               </thead>
               <tbody>
                 {isLoading ? (
-                  <tr><td colSpan={4} className="py-4 text-center text-slate-400">Loading terms...</td></tr>
+                  <tr><td colSpan={4} className="py-4 text-center text-slate-400 dark:text-slate-500">Loading terms...</td></tr>
                 ) : terms.length === 0 ? (
-                  <tr><td colSpan={4} className="py-4 text-center text-slate-400">No terms configured.</td></tr>
+                  <tr><td colSpan={4} className="py-4 text-center text-slate-400 dark:text-slate-500">No terms configured.</td></tr>
                 ) : (
                   terms.map(term => (
-                    <tr key={term.id} className="border-b last:border-0 hover:bg-slate-50 group">
-                      <td className="py-3 font-medium text-slate-800">{term.name}</td>
-                      <td className="py-3 text-slate-600">{term.startDate} to {term.endDate}</td>
+                    <tr key={term.id} className="border-b last:border-0 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 group">
+                      <td className="py-3 font-medium text-slate-800 dark:text-slate-100">{term.name}</td>
+                      <td className="py-3 text-slate-600 dark:text-slate-300">{term.startDate} to {term.endDate}</td>
                       <td className="py-3 flex items-center justify-between gap-2">
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          term.status === 'Active' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'
+                          term.status === 'Active' ? 'bg-emerald-100 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
                         }`}>
                           {term.status}
                         </span>
-                        
+
                         {term.status !== 'Active' && (
-                          <button 
+                          <button
                             onClick={() => handleActivateTerm(term.id)}
-                            className="text-[10px] font-bold text-blue-600 hover:text-blue-800 uppercase tracking-tight border border-blue-200 px-2 py-1 rounded hover:bg-blue-50 transition"
+                            className="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 uppercase tracking-tight border border-blue-200 dark:border-blue-500/40 px-2 py-1 rounded hover:bg-blue-50 dark:hover:bg-blue-500/10 transition"
                           >
                             Set Active
                           </button>
@@ -339,10 +339,10 @@ const ExamSetupTab: React.FC = () => {
                       {/* NEW ACTIONS COLUMN */}
                       <td className="py-3 text-right">
                         <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button type="button" onClick={() => openEditTerm(term)} className="p-1 text-slate-400 hover:text-blue-600 rounded">
+                          <button type="button" onClick={() => openEditTerm(term)} className="p-1 text-slate-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 rounded">
                             <Edit className="w-4 h-4" />
                           </button>
-                          <button  type="button" onClick={() => handleDeleteTerm(term.id)} className="p-1 text-slate-400 hover:text-red-600 rounded">
+                          <button  type="button" onClick={() => handleDeleteTerm(term.id)} className="p-1 text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400 rounded">
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
@@ -356,13 +356,13 @@ const ExamSetupTab: React.FC = () => {
         </div>
 
         {/* RIGHT COLUMN: Manage Exam Events */}
-        <div className="border border-slate-200 rounded-lg shadow-sm bg-white overflow-hidden flex flex-col">
-          <div className="bg-slate-50 border-b border-slate-200 p-4 flex justify-between items-center">
-            <h3 className="font-semibold text-slate-800 flex items-center gap-2">
-              <BookOpen className="w-5 h-5 text-slate-500" />
+        <div className="border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm dark:shadow-none bg-white dark:bg-slate-900 overflow-hidden flex flex-col">
+          <div className="bg-slate-50 dark:bg-slate-800/40 border-b border-slate-200 dark:border-slate-700 p-4 flex justify-between items-center">
+            <h3 className="font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+              <BookOpen className="w-5 h-5 text-slate-500 dark:text-slate-400" />
               Assessments & Exams
             </h3>
-            <button 
+            <button
               onClick={openAddExam}
               className="text-sm bg-blue-600 text-white px-3 py-1.5 rounded-md hover:bg-blue-700 flex items-center gap-1 transition"
             >
@@ -372,7 +372,7 @@ const ExamSetupTab: React.FC = () => {
           <div className="p-4 overflow-x-auto flex-1">
             <table className="w-full text-left text-sm whitespace-nowrap">
               <thead>
-                <tr className="text-slate-500 border-b">
+                <tr className="text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
                   <th className="pb-2 font-medium">Exam Name</th>
                   <th className="pb-2 font-medium">Max Marks</th>
                   <th className="pb-2 font-medium">Status</th>
@@ -381,20 +381,20 @@ const ExamSetupTab: React.FC = () => {
               </thead>
               <tbody>
                 {isLoading ? (
-                  <tr><td colSpan={4} className="py-4 text-center text-slate-400">Loading exams...</td></tr>
+                  <tr><td colSpan={4} className="py-4 text-center text-slate-400 dark:text-slate-500">Loading exams...</td></tr>
                 ) : exams.length === 0 ? (
-                  <tr><td colSpan={4} className="py-4 text-center text-slate-400">No exams configured.</td></tr>
+                  <tr><td colSpan={4} className="py-4 text-center text-slate-400 dark:text-slate-500">No exams configured.</td></tr>
                 ) : (
                   exams.map(exam => (
-                    <tr key={exam.id} className="border-b last:border-0 hover:bg-slate-50 group">
+                    <tr key={exam.id} className="border-b last:border-0 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 group">
                       <td className="py-3">
-                        <p className="font-medium text-slate-800">{exam.name}</p>
-                        <p className="text-xs text-slate-500">{exam.term_name} • {exam.exam_type}</p>
+                        <p className="font-medium text-slate-800 dark:text-slate-100">{exam.name}</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">{exam.term_name} • {exam.exam_type}</p>
                       </td>
-                      <td className="py-3 text-slate-600">{exam.marks}</td>
+                      <td className="py-3 text-slate-600 dark:text-slate-300">{exam.marks}</td>
                       <td className="py-3">
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          exam.status === 'Published' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
+                          exam.status === 'Published' ? 'bg-blue-100 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400' : 'bg-amber-100 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400'
                         }`}>
                           {exam.status}
                         </span>
@@ -402,10 +402,10 @@ const ExamSetupTab: React.FC = () => {
                       {/* NEW ACTIONS COLUMN */}
                       <td className="py-3 text-right">
                         <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button type="button" onClick={() => openEditExam(exam)} title="Edit exam" aria-label={`Edit ${exam.name}`} className="p-1 text-slate-400 hover:text-blue-600 rounded">
+                          <button type="button" onClick={() => openEditExam(exam)} title="Edit exam" aria-label={`Edit ${exam.name}`} className="p-1 text-slate-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 rounded">
                             <Edit className="w-4 h-4" />
                           </button>
-                          <button type="button" onClick={() => handleDeleteExam(exam.id)} title="Delete exam" aria-label={`Delete ${exam.name}`} className="p-1 text-slate-400 hover:text-red-600 rounded">
+                          <button type="button" onClick={() => handleDeleteExam(exam.id)} title="Delete exam" aria-label={`Delete ${exam.name}`} className="p-1 text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400 rounded">
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
@@ -418,31 +418,31 @@ const ExamSetupTab: React.FC = () => {
           </div>
         </div>
       </div>
-      
+
       {/* ================= MODALS ================= */}
 
       {/* NEW: Extracted Term Modal */}
-      <TermModal 
-        isOpen={isTermModalOpen} 
-        onClose={() => setIsTermModalOpen(false)} 
+      <TermModal
+        isOpen={isTermModalOpen}
+        onClose={() => setIsTermModalOpen(false)}
         onSuccess={fetchSetupData}
         academicYears={academicYears}
         editData={editingTerm} // Passes null if adding, or the term data if editing
       />
 
       {/* NEW: Extracted Exam Modal */}
-      <ExamModal 
-        isOpen={isExamModalOpen} 
-        onClose={() => setIsExamModalOpen(false)} 
+      <ExamModal
+        isOpen={isExamModalOpen}
+        onClose={() => setIsExamModalOpen(false)}
         onSuccess={fetchSetupData}
         terms={terms}
         editData={editingExam} // Passes null if adding, or the exam data if editing
       />
 
       {/* Grading Rules Component */}
-      <GradingRulesModal 
-        isOpen={isGradingModalOpen} 
-        onClose={() => setIsGradingModalOpen(false)} 
+      <GradingRulesModal
+        isOpen={isGradingModalOpen}
+        onClose={() => setIsGradingModalOpen(false)}
       />
 
     </div>

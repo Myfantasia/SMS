@@ -9,18 +9,18 @@ interface StudentResult {
   id: string;
   roll: string;
   name: string;
-  scores: Record<string, number | string>; 
+  scores: Record<string, number | string>;
   total: number;
   mean: number;
   grade: string;
-  position: number | string; 
+  position: number | string;
 }
 
 interface SelectionOption {
   id: string | number;
   name: string;
   status?: string;
-  can_publish?: boolean; 
+  can_publish?: boolean;
 }
 
 // NEW: Added the props interface to receive the role
@@ -29,10 +29,10 @@ interface ResultsBroadsheetProps {
 }
 
 const ResultsBroadsheet: React.FC<ResultsBroadsheetProps> = ({ role = 'teacher' }) => {
-  const [selectedClass, setSelectedClass] = useState(''); 
-  const [selectedExam, setSelectedExam] = useState('');   
+  const [selectedClass, setSelectedClass] = useState('');
+  const [selectedExam, setSelectedExam] = useState('');
   const [isPublishing, setIsPublishing] = useState(false);
-  const [isLoading, setIsLoading] = useState(false); 
+  const [isLoading, setIsLoading] = useState(false);
 
   const [availableClasses, setAvailableClasses] = useState<SelectionOption[]>([]);
   const [availableExams, setAvailableExams] = useState<SelectionOption[]>([]);
@@ -40,7 +40,7 @@ const ResultsBroadsheet: React.FC<ResultsBroadsheetProps> = ({ role = 'teacher' 
   const [results, setResults] = useState<StudentResult[]>([]);
   const [subjects, setSubjects] = useState<{code: string, name: string}[]>([]);
   const [curriculum, setCurriculum] = useState<'8-4-4' | 'CBC'>('8-4-4');
-  
+
   const [classPublishStatus, setClassPublishStatus] = useState('Draft');
 
   // --- 1. FETCH DROPDOWN SELECTIONS ON MOUNT ---
@@ -50,7 +50,7 @@ const ResultsBroadsheet: React.FC<ResultsBroadsheetProps> = ({ role = 'teacher' 
         const response = await api.get('/api/exams/selection-data/');
         setAvailableClasses(response.data.classes);
         setAvailableExams(response.data.exams);
-        
+
         if (response.data.classes.length > 0) setSelectedClass(response.data.classes[0].id.toString());
         if (response.data.exams.length > 0) setSelectedExam(response.data.exams[0].id.toString());
       } catch (error) {
@@ -75,7 +75,7 @@ const ResultsBroadsheet: React.FC<ResultsBroadsheetProps> = ({ role = 'teacher' 
         setCurriculum(response.data.curriculum);
         setSubjects(response.data.subjects);
         setResults(response.data.results);
-        
+
         if (response.data.class_publish_status) {
           setClassPublishStatus(response.data.class_publish_status);
         } else {
@@ -91,7 +91,7 @@ const ResultsBroadsheet: React.FC<ResultsBroadsheetProps> = ({ role = 'teacher' 
     };
 
     fetchBroadsheet();
-  }, [selectedClass, selectedExam]); 
+  }, [selectedClass, selectedExam]);
 
   // --- HANDLERS ---
 
@@ -100,26 +100,26 @@ const ResultsBroadsheet: React.FC<ResultsBroadsheetProps> = ({ role = 'teacher' 
     if (!selectedExam || !selectedClass) return;
 
     toast.custom((t) => (
-      <div className={`${t.visible ? 'animate-enter' : 'animate-leave'} max-w-md w-full bg-white shadow-2xl rounded-xl pointer-events-auto flex flex-col ring-1 ring-black ring-opacity-5 overflow-hidden`}>
+      <div className={`${t.visible ? 'animate-enter' : 'animate-leave'} max-w-md w-full bg-white dark:bg-slate-900 shadow-2xl dark:shadow-none rounded-xl pointer-events-auto flex flex-col ring-1 ring-black dark:ring-white/10 ring-opacity-5 overflow-hidden`}>
         <div className="p-5">
           <div className="flex items-start">
             <div className="shrink-0">
-              <div className="h-10 w-10 rounded-full bg-blue-50 flex items-center justify-center">
-                <UploadCloud className="h-5 w-5 text-blue-600" />
+              <div className="h-10 w-10 rounded-full bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center">
+                <UploadCloud className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               </div>
             </div>
             <div className="ml-4 w-0 flex-1">
-              <h3 className="text-base font-semibold text-slate-900">Publish Results</h3>
-              <p className="mt-1 text-sm text-slate-500">
+              <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Publish Results</h3>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                 You can publish the results for just this specific class{role === 'admin' && ', or broadcast the results for the entire school at once'}.
               </p>
             </div>
           </div>
         </div>
-        <div className="bg-slate-50 px-5 py-4 flex flex-col sm:flex-row justify-end gap-3 border-t border-slate-100">
+        <div className="bg-slate-50 dark:bg-slate-800/40 px-5 py-4 flex flex-col sm:flex-row justify-end gap-3 border-t border-slate-100 dark:border-slate-700">
           <button
             onClick={() => toast.dismiss(t.id)}
-            className="w-full sm:w-auto px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+            className="w-full sm:w-auto px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-blue-400 transition-colors"
           >
             Cancel
           </button>
@@ -132,18 +132,18 @@ const ResultsBroadsheet: React.FC<ResultsBroadsheetProps> = ({ role = 'teacher' 
                 toast.success('This class has been published successfully!');
                 setClassPublishStatus('Published');
               } catch (error: any) {
-                console.error("🔥 PUBLISH ERROR CAUGHT:", error); 
+                console.error("🔥 PUBLISH ERROR CAUGHT:", error);
                 const actualErrorMessage = error.response?.data?.error || error.message || "Unknown error occurred";
                 toast.error(`Error: ${actualErrorMessage}`);
               } finally {
                 setIsPublishing(false);
               }
             }}
-            className="w-full sm:w-auto px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-colors"
+            className="w-full sm:w-auto px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-500/10 hover:text-emerald-700 dark:hover:text-emerald-400 hover:border-emerald-300 dark:hover:border-emerald-500/40 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 dark:focus:ring-emerald-400 transition-colors"
           >
             This Class Only
           </button>
-          
+
           {/* UPDATED: Only Admins can see the Publish All button */}
           {role === 'admin' && (
             <button
@@ -155,14 +155,14 @@ const ResultsBroadsheet: React.FC<ResultsBroadsheetProps> = ({ role = 'teacher' 
                   toast.success('Entire school published successfully!');
                   setClassPublishStatus('Published');
                 } catch (error: any) {
-                  console.error("🔥 PUBLISH ERROR CAUGHT:", error); 
+                  console.error("🔥 PUBLISH ERROR CAUGHT:", error);
                   const actualErrorMessage = error.response?.data?.error || error.message || "Unknown error occurred";
                   toast.error(`Error: ${actualErrorMessage}`);
                 } finally {
                   setIsPublishing(false);
                 }
               }}
-              className="w-full sm:w-auto px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors shadow-sm"
+              className="w-full sm:w-auto px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-blue-400 transition-colors shadow-sm dark:shadow-none"
             >
               Publish All Classes
             </button>
@@ -177,26 +177,26 @@ const ResultsBroadsheet: React.FC<ResultsBroadsheetProps> = ({ role = 'teacher' 
     if (!selectedExam || !selectedClass) return;
 
     toast.custom((t) => (
-      <div className={`${t.visible ? 'animate-enter' : 'animate-leave'} max-w-md w-full bg-white shadow-2xl rounded-xl pointer-events-auto flex flex-col ring-1 ring-black ring-opacity-5 overflow-hidden`}>
+      <div className={`${t.visible ? 'animate-enter' : 'animate-leave'} max-w-md w-full bg-white dark:bg-slate-900 shadow-2xl dark:shadow-none rounded-xl pointer-events-auto flex flex-col ring-1 ring-black dark:ring-white/10 ring-opacity-5 overflow-hidden`}>
         <div className="p-5">
           <div className="flex items-start">
             <div className="shrink-0">
-              <div className="h-10 w-10 rounded-full bg-amber-50 flex items-center justify-center">
-                <AlertTriangle className="h-5 w-5 text-amber-600" />
+              <div className="h-10 w-10 rounded-full bg-amber-50 dark:bg-amber-500/10 flex items-center justify-center">
+                <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
               </div>
             </div>
             <div className="ml-4 w-0 flex-1">
-              <h3 className="text-base font-semibold text-slate-900">Revert to Draft</h3>
-              <p className="mt-1 text-sm text-slate-500">
+              <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Revert to Draft</h3>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                 This will hide the results from parent and student portals. Do you want to revert just this class{role === 'admin' && ' or the whole school'}?
               </p>
             </div>
           </div>
         </div>
-        <div className="bg-slate-50 px-5 py-4 flex flex-col sm:flex-row justify-end gap-3 border-t border-slate-100">
+        <div className="bg-slate-50 dark:bg-slate-800/40 px-5 py-4 flex flex-col sm:flex-row justify-end gap-3 border-t border-slate-100 dark:border-slate-700">
           <button
             onClick={() => toast.dismiss(t.id)}
-            className="w-full sm:w-auto px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 transition-colors"
+            className="w-full sm:w-auto px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 dark:focus:ring-amber-400 transition-colors"
           >
             Cancel
           </button>
@@ -208,12 +208,12 @@ const ResultsBroadsheet: React.FC<ResultsBroadsheetProps> = ({ role = 'teacher' 
                 toast.success('Class reversed to Draft!');
                 setClassPublishStatus('Draft');
               } catch (error: any) {
-                console.error("🔥 REVERT ERROR CAUGHT:", error); 
+                console.error("🔥 REVERT ERROR CAUGHT:", error);
                 const actualErrorMessage = error.response?.data?.error || error.message || "Unknown error occurred";
                 toast.error(`Error: ${actualErrorMessage}`);
               }
             }}
-            className="w-full sm:w-auto px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-amber-50 hover:text-amber-700 hover:border-amber-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 transition-colors"
+            className="w-full sm:w-auto px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-500/10 hover:text-amber-700 dark:hover:text-amber-400 hover:border-amber-300 dark:hover:border-amber-500/40 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 dark:focus:ring-amber-400 transition-colors"
           >
             This Class Only
           </button>
@@ -228,12 +228,12 @@ const ResultsBroadsheet: React.FC<ResultsBroadsheetProps> = ({ role = 'teacher' 
                   toast.success('Entire school reversed to Draft!');
                   setClassPublishStatus('Draft');
                 } catch (error: any) {
-                  console.error("🔥 REVERT ERROR CAUGHT:", error); 
+                  console.error("🔥 REVERT ERROR CAUGHT:", error);
                   const actualErrorMessage = error.response?.data?.error || error.message || "Unknown error occurred";
                   toast.error(`Error: ${actualErrorMessage}`);
                 }
               }}
-              className="w-full sm:w-auto px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors shadow-sm"
+              className="w-full sm:w-auto px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 dark:focus:ring-red-400 transition-colors shadow-sm dark:shadow-none"
             >
               Revert All Classes
             </button>
@@ -251,12 +251,12 @@ const ResultsBroadsheet: React.FC<ResultsBroadsheetProps> = ({ role = 'teacher' 
     }
 
     const subjectHeaders = subjects.map(s => s.code);
-    const headers = curriculum === '8-4-4' 
+    const headers = curriculum === '8-4-4'
       ? ['Rank', 'Adm Number', 'Student Name', ...subjectHeaders, 'Total', 'Mean', 'Grade']
       : ['Adm Number', 'Student Name', ...subjectHeaders, 'Overall Expectation'];
 
     const rows = results.map(student => {
-      const subjectScores = subjects.map(sub => 
+      const subjectScores = subjects.map(sub =>
         student.scores[sub.code] !== undefined ? student.scores[sub.code] : '-'
       );
 
@@ -264,23 +264,23 @@ const ResultsBroadsheet: React.FC<ResultsBroadsheetProps> = ({ role = 'teacher' 
         ? [student.position, student.roll, student.name, ...subjectScores, student.total, Number(student.mean).toFixed(1), student.grade]
         : [student.roll, student.name, ...subjectScores, student.grade];
 
-      return rowData.join(','); 
+      return rowData.join(',');
     });
 
     const csvContent = [headers.join(','), ...rows].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    
+
     const className = availableClasses.find(c => c.id.toString() === selectedClass)?.name || 'Class';
     const examName = availableExams.find(e => e.id.toString() === selectedExam)?.name || 'Exam';
-    
+
     link.href = url;
     link.setAttribute('download', `${className}_${examName}_Results.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    
+
     toast.success('CSV Downloaded!');
   };
 
@@ -291,50 +291,50 @@ const ResultsBroadsheet: React.FC<ResultsBroadsheetProps> = ({ role = 'teacher' 
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      
+
       {/* Top Action Bar */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white dark:bg-slate-900 p-4 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm dark:shadow-none">
         <div className="flex items-center gap-3">
-          <div className="bg-blue-100 p-2 rounded-lg">
-            <TrendingUp className="w-6 h-6 text-blue-700" />
+          <div className="bg-blue-100 dark:bg-blue-500/10 p-2 rounded-lg">
+            <TrendingUp className="w-6 h-6 text-blue-700 dark:text-blue-400" />
           </div>
           <div>
-            <h2 className="text-lg font-bold text-slate-800">Master Broadsheet</h2>
-            <p className="text-sm text-slate-500">Review aggregated performance before publishing.</p>
+            <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">Master Broadsheet</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Review aggregated performance before publishing.</p>
           </div>
         </div>
 
         <div className="flex gap-3 w-full md:w-auto">
-          <button 
+          <button
             onClick={handleExportCSV}
             disabled={results.length === 0 || isLoading}
-            className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50 font-medium transition-colors disabled:opacity-50"
+            className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 rounded-md hover:bg-slate-50 dark:hover:bg-slate-800 font-medium transition-colors disabled:opacity-50"
           >
             <Download className="w-4 h-4" /> Export CSV
           </button>
-          
+
           {/* Dynamic Button Rendering based on Specific Class Status */}
           {isCurrentlyPublished ? (
-             <button 
+             <button
                onClick={handleRevert}
-               className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-md hover:bg-amber-600 font-medium transition-colors shadow-sm"
+               className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-md hover:bg-amber-600 font-medium transition-colors shadow-sm dark:shadow-none"
              >
                <RotateCcw className="w-4 h-4" /> Revert to Draft
              </button>
           ) : !hasPublishRights ? (
             // ✨ STEP 6: Show a locked, disabled button if they aren't authorized
-            <button 
+            <button
               disabled
-              className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-slate-100 text-slate-400 border border-slate-200 rounded-md cursor-not-allowed font-medium shadow-sm"
+              className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700 rounded-md cursor-not-allowed font-medium shadow-sm dark:shadow-none"
               title="Only the assigned Class Teacher or Admin can publish results."
             >
               <AlertCircle className="w-4 h-4" /> Not Authorized to Publish
             </button>
           ) : (
-            <button 
+            <button
               onClick={handlePublish}
               disabled={isPublishing || isLoading || results.length === 0}
-              className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 font-medium transition-colors disabled:opacity-70 shadow-sm"
+              className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 font-medium transition-colors disabled:opacity-70 shadow-sm dark:shadow-none"
             >
               {isPublishing ? 'Publishing...' : <><UploadCloud className="w-4 h-4" /> Publish Results</>}
             </button>
@@ -343,9 +343,9 @@ const ResultsBroadsheet: React.FC<ResultsBroadsheetProps> = ({ role = 'teacher' 
       </div>
 
       {/* Filters */}
-      <div className="bg-slate-50 border border-slate-200 p-4 rounded-lg flex flex-col md:flex-row gap-4">
+      <div className="bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 p-4 rounded-lg flex flex-col md:flex-row gap-4">
         <div className="flex-1">
-          <label htmlFor="class-select" className="flex text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1 items-center gap-1">
+          <label htmlFor="class-select" className="flex text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1 items-center gap-1">
             <Filter className="w-3 h-3" /> Class Stream
           </label>
           <SearchableSelect
@@ -359,10 +359,10 @@ const ResultsBroadsheet: React.FC<ResultsBroadsheetProps> = ({ role = 'teacher' 
           />
         </div>
         <div className="flex-1">
-          <label htmlFor="exam-select" className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Assessment</label>
+          <label htmlFor="exam-select" className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Assessment</label>
           <select
             id="exam-select"
-            className="w-full p-2.5 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+            className="w-full p-2.5 border border-slate-300 dark:border-slate-600 rounded-md focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 outline-none bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100"
             value={selectedExam}
             onChange={(e) => setSelectedExam(e.target.value)}
           >
@@ -375,10 +375,10 @@ const ResultsBroadsheet: React.FC<ResultsBroadsheetProps> = ({ role = 'teacher' 
       </div>
 
       {/* The Broadsheet Table */}
-      <div className="border border-slate-200 rounded-lg shadow-sm bg-white overflow-hidden">
+      <div className="border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm dark:shadow-none bg-white dark:bg-slate-900 overflow-hidden">
         <div className="bg-slate-800 text-white p-4 flex justify-between items-center">
           <h3 className="font-semibold flex items-center gap-2">
-            <Award className="w-5 h-5 text-amber-400" /> 
+            <Award className="w-5 h-5 text-amber-400" />
             {curriculum} Curriculum Performance
           </h3>
           <span className="text-xs bg-slate-700 px-3 py-1 rounded-full border border-slate-600">
@@ -389,60 +389,60 @@ const ResultsBroadsheet: React.FC<ResultsBroadsheetProps> = ({ role = 'teacher' 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm whitespace-nowrap">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 text-slate-600">
-                {curriculum === '8-4-4' && <th className="py-3 px-4 font-bold text-slate-800 w-16">Rank</th>}
+              <tr className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300">
+                {curriculum === '8-4-4' && <th className="py-3 px-4 font-bold text-slate-800 dark:text-slate-100 w-16">Rank</th>}
                 <th className="py-3 px-4 font-semibold w-24">Adm No.</th>
-                <th className="py-3 px-4 font-semibold w-48 border-r border-slate-200">Student Name</th>
-                
+                <th className="py-3 px-4 font-semibold w-48 border-r border-slate-200 dark:border-slate-700">Student Name</th>
+
                 {/* Dynamic Subject Headers */}
                 {subjects.map(sub => (
                   <th key={sub.code} className="py-3 px-4 font-semibold text-center" title={sub.name}>
                     {sub.code}
                   </th>
                 ))}
-                
+
                 {/* Aggregate Headers */}
                 {curriculum === '8-4-4' ? (
                   <>
-                    <th className="py-3 px-4 font-bold text-slate-800 text-center border-l border-slate-200">Total</th>
-                    <th className="py-3 px-4 font-bold text-slate-800 text-center">Mean</th>
-                    <th className="py-3 px-4 font-bold text-slate-800 text-center">Grade</th>
+                    <th className="py-3 px-4 font-bold text-slate-800 dark:text-slate-100 text-center border-l border-slate-200 dark:border-slate-700">Total</th>
+                    <th className="py-3 px-4 font-bold text-slate-800 dark:text-slate-100 text-center">Mean</th>
+                    <th className="py-3 px-4 font-bold text-slate-800 dark:text-slate-100 text-center">Grade</th>
                   </>
                 ) : (
-                  <th className="py-3 px-4 font-bold text-slate-800 text-center border-l border-slate-200">Overall Expectation</th>
+                  <th className="py-3 px-4 font-bold text-slate-800 dark:text-slate-100 text-center border-l border-slate-200 dark:border-slate-700">Overall Expectation</th>
                 )}
               </tr>
             </thead>
             <tbody>
               {results.length === 0 && !isLoading ? (
                 <tr>
-                  <td colSpan={10} className="py-8 text-center text-slate-500">No results found for this selection.</td>
+                  <td colSpan={10} className="py-8 text-center text-slate-500 dark:text-slate-400">No results found for this selection.</td>
                 </tr>
               ) : (
                 results.map((student) => (
-                  <tr key={student.id} className="border-b last:border-0 border-slate-100 hover:bg-slate-50 transition-colors">
+                  <tr key={student.id} className="border-b last:border-0 border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
                     {curriculum === '8-4-4' && (
-                      <td className="py-2 px-4 font-bold text-slate-700">{student.position}</td>
+                      <td className="py-2 px-4 font-bold text-slate-700 dark:text-slate-200">{student.position}</td>
                     )}
-                    <td className="py-2 px-4 text-slate-500 font-mono text-xs">{student.roll}</td>
-                    <td className="py-2 px-4 font-medium text-slate-800 border-r border-slate-100">{student.name}</td>
-                    
+                    <td className="py-2 px-4 text-slate-500 dark:text-slate-400 font-mono text-xs">{student.roll}</td>
+                    <td className="py-2 px-4 font-medium text-slate-800 dark:text-slate-100 border-r border-slate-100 dark:border-slate-700">{student.name}</td>
+
                     {/* Subject Scores */}
                     {subjects.map(sub => (
-                      <td key={sub.code} className="py-2 px-4 text-center text-slate-600">
+                      <td key={sub.code} className="py-2 px-4 text-center text-slate-600 dark:text-slate-300">
                         {student.scores[sub.code] || '-'}
                       </td>
                     ))}
-                    
+
                     {/* Aggregates */}
                     {curriculum === '8-4-4' ? (
                       <>
-                        <td className="py-2 px-4 text-center font-semibold text-slate-800 border-l border-slate-100">{student.total}</td>
-                        <td className="py-2 px-4 text-center text-slate-600">{Number(student.mean).toFixed(1)}</td>
-                        <td className="py-2 px-4 text-center font-bold text-blue-700">{student.grade}</td>
+                        <td className="py-2 px-4 text-center font-semibold text-slate-800 dark:text-slate-100 border-l border-slate-100 dark:border-slate-700">{student.total}</td>
+                        <td className="py-2 px-4 text-center text-slate-600 dark:text-slate-300">{Number(student.mean).toFixed(1)}</td>
+                        <td className="py-2 px-4 text-center font-bold text-blue-700 dark:text-blue-400">{student.grade}</td>
                       </>
                     ) : (
-                      <td className="py-2 px-4 text-center font-semibold text-emerald-700 border-l border-slate-100">{student.grade}</td>
+                      <td className="py-2 px-4 text-center font-semibold text-emerald-700 dark:text-emerald-400 border-l border-slate-100 dark:border-slate-700">{student.grade}</td>
                     )}
                   </tr>
                 ))

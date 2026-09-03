@@ -170,11 +170,11 @@ export default function ChatWindow() {
   const handleDeleteMessage = (messageId: number) => {
     toast((t) => (
       <div className="flex flex-col gap-3 min-w-50">
-        <span className="text-sm font-medium text-slate-800">Delete for everyone?</span>
+        <span className="text-sm font-medium text-slate-800 dark:text-slate-100">Delete for everyone?</span>
         <div className="flex justify-end gap-2 mt-1">
           <button
             onClick={() => toast.dismiss(t.id)}
-            className="px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+            className="px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors"
           >
             Cancel
           </button>
@@ -198,17 +198,17 @@ export default function ChatWindow() {
   const canOpenParticipants = currentThread?.type === 'Group' || currentThread?.type === 'Broadcast';
 
   return (
-    <div className="flex flex-col h-full bg-slate-50 relative">
+    <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-800 relative">
 
       {/* HEADER BAR */}
-      <div className="p-4 border-b border-slate-200 flex items-center gap-1 justify-between bg-white z-10 shadow-sm shrink-0">
+      <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex items-center gap-1 justify-between bg-white dark:bg-slate-900 z-10 shadow-sm dark:shadow-none shrink-0">
         {/* Below `md` the thread list is hidden once a chat is open (see ChatDashboard.tsx) —
             this is the only way back to it on a phone-width screen. */}
         <button
           type="button"
           onClick={() => setActiveThread(null)}
           aria-label="Back to conversations"
-          className="md:hidden shrink-0 -m-1 p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+          className="md:hidden shrink-0 -m-1 p-2 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
         >
           <ArrowLeft className="w-5 h-5" />
         </button>
@@ -216,24 +216,24 @@ export default function ChatWindow() {
           type="button"
           onClick={() => canOpenParticipants && setShowParticipants(true)}
           disabled={!canOpenParticipants}
-          className={`flex items-center gap-3 min-w-0 flex-1 rounded-lg -m-1 p-1 transition-colors ${canOpenParticipants ? 'hover:bg-slate-50 cursor-pointer' : 'cursor-default'}`}
+          className={`flex items-center gap-3 min-w-0 flex-1 rounded-lg -m-1 p-1 transition-colors ${canOpenParticipants ? 'hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer' : 'cursor-default'}`}
           title={canOpenParticipants ? 'View participants' : undefined}
         >
           <div className={`shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${getThreadColor(currentThread?.type || 'Direct')}`}>
             {currentThread?.type === 'Direct'
-              ? <span className="text-xs font-semibold text-blue-700">{getInitials(currentThread.chat_name)}</span>
+              ? <span className="text-xs font-semibold text-blue-700 dark:text-blue-400">{getInitials(currentThread.chat_name)}</span>
               : getThreadIcon(currentThread?.type || 'Direct')}
           </div>
           <div className="min-w-0 text-left">
             <div className="flex items-center gap-2">
-              <h3 className="font-bold text-slate-800 truncate">{currentThread?.chat_name || 'Active Chat'}</h3>
+              <h3 className="font-bold text-slate-800 dark:text-slate-100 truncate">{currentThread?.chat_name || 'Active Chat'}</h3>
               {currentThread && (
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 border border-slate-200 rounded-full px-2 py-0.5 shrink-0">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700 rounded-full px-2 py-0.5 shrink-0">
                   {getThreadSubtitle(currentThread.type)}
                 </span>
               )}
             </div>
-            <p className="text-xs text-slate-500 flex items-center gap-1.5 font-medium">
+            <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5 font-medium">
               <span className={`w-2 h-2 rounded-full shrink-0 ${CONNECTION_DOT_STYLES[connectionStatus]}`} />
               {CONNECTION_LABELS[connectionStatus]}
             </p>
@@ -278,21 +278,21 @@ export default function ChatWindow() {
 
       {/* INPUT CONTROLS */}
       {isReadOnlyBroadcast ? (
-        <div className="p-4 border-t border-slate-200 bg-orange-50 shrink-0">
-          <p className="text-sm text-orange-700 font-medium flex items-center justify-center gap-2 text-center">
+        <div className="p-4 border-t border-slate-200 dark:border-slate-700 bg-orange-50 dark:bg-orange-500/10 shrink-0">
+          <p className="text-sm text-orange-700 dark:text-orange-400 font-medium flex items-center justify-center gap-2 text-center">
             <Megaphone className="w-4 h-4 shrink-0" />
             Only administrators can post in this broadcast channel.
           </p>
         </div>
       ) : (
-      <div className="p-4 border-t border-slate-200 bg-white shrink-0">
+      <div className="p-4 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shrink-0">
         {editingMessage && (
-          <div className="mb-3 flex items-center justify-between bg-blue-50 border border-blue-100 p-2.5 rounded-lg text-blue-700 text-xs font-medium animate-pulse">
+          <div className="mb-3 flex items-center justify-between bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 p-2.5 rounded-lg text-blue-700 dark:text-blue-400 text-xs font-medium animate-pulse">
             <span className="flex items-center gap-2"><Edit2 className="w-3.5 h-3.5"/> Editing Message...</span>
             <button
               type="button"
               onClick={() => {setEditingMessage(null); setNewMessage('');}}
-              className="hover:bg-blue-200 p-1 rounded-full transition-colors"
+              className="hover:bg-blue-200 dark:hover:bg-blue-500/20 p-1 rounded-full transition-colors"
               title="Cancel editing"
               aria-label="Cancel editing"
             >
@@ -308,7 +308,7 @@ export default function ChatWindow() {
               onClick={() => setIsAttachMenuOpen(!isAttachMenuOpen)}
               disabled={isUploading || isLocating}
               className={`p-3 rounded-full transition-all flex items-center justify-center
-                ${isAttachMenuOpen ? 'bg-blue-100 text-blue-600' : 'text-slate-400 hover:text-blue-600 hover:bg-blue-50'}
+                ${isAttachMenuOpen ? 'bg-blue-100 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10'}
               `}
               title="Attachment options"
               aria-label="Attachment options"
@@ -328,34 +328,34 @@ export default function ChatWindow() {
             {isAttachMenuOpen && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setIsAttachMenuOpen(false)}></div>
-                <div className="absolute bottom-14 left-0 bg-white border border-slate-200 shadow-[0_8px_30px_rgb(0,0,0,0.12)] rounded-2xl p-2 flex flex-col gap-1 w-64 z-50 animate-in fade-in zoom-in-95 duration-200 origin-bottom-left">
-                  <div className="px-3 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                <div className="absolute bottom-14 left-0 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-[0_8px_30px_rgb(0,0,0,0.12)] dark:shadow-none rounded-2xl p-2 flex flex-col gap-1 w-64 z-50 animate-in fade-in zoom-in-95 duration-200 origin-bottom-left">
+                  <div className="px-3 py-2 text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
                     Share Attachment
                   </div>
 
-                  <button type="button" onClick={() => triggerFileInput('image/*,video/*')} className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-xl text-slate-700 text-sm font-medium transition-colors w-full text-left">
-                    <div className="bg-blue-100 p-2 rounded-lg text-blue-600 shadow-sm"><ImageIcon className="w-4 h-4"/></div>
+                  <button type="button" onClick={() => triggerFileInput('image/*,video/*')} className="flex items-center gap-3 p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl text-slate-700 dark:text-slate-200 text-sm font-medium transition-colors w-full text-left">
+                    <div className="bg-blue-100 dark:bg-blue-500/10 p-2 rounded-lg text-blue-600 dark:text-blue-400 shadow-sm dark:shadow-none"><ImageIcon className="w-4 h-4"/></div>
                     <div>
                       <p>Photos & Videos</p>
-                      <p className="text-[10px] text-slate-400 font-normal">Gallery or Camera</p>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500 font-normal">Gallery or Camera</p>
                     </div>
                   </button>
 
-                  <button type="button" onClick={() => triggerFileInput('.pdf,.doc,.docx,.txt,.csv,.xlsx')} className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-xl text-slate-700 text-sm font-medium transition-colors w-full text-left">
-                    <div className="bg-emerald-100 p-2 rounded-lg text-emerald-600 shadow-sm"><FileText className="w-4 h-4"/></div>
+                  <button type="button" onClick={() => triggerFileInput('.pdf,.doc,.docx,.txt,.csv,.xlsx')} className="flex items-center gap-3 p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl text-slate-700 dark:text-slate-200 text-sm font-medium transition-colors w-full text-left">
+                    <div className="bg-emerald-100 dark:bg-emerald-500/10 p-2 rounded-lg text-emerald-600 dark:text-emerald-400 shadow-sm dark:shadow-none"><FileText className="w-4 h-4"/></div>
                     <div>
                       <p>Document</p>
-                      <p className="text-[10px] text-slate-400 font-normal">PDFs, Word, Excel</p>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500 font-normal">PDFs, Word, Excel</p>
                     </div>
                   </button>
 
-                  <div className="h-px bg-slate-100 my-1 mx-2"></div>
+                  <div className="h-px bg-slate-100 dark:bg-slate-700 my-1 mx-2"></div>
 
-                  <button type="button" onClick={handleLocationShare} className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-xl text-slate-700 text-sm font-medium transition-colors w-full text-left">
-                    <div className="bg-rose-100 p-2 rounded-lg text-rose-600 shadow-sm"><MapPin className="w-4 h-4"/></div>
+                  <button type="button" onClick={handleLocationShare} className="flex items-center gap-3 p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl text-slate-700 dark:text-slate-200 text-sm font-medium transition-colors w-full text-left">
+                    <div className="bg-rose-100 dark:bg-rose-500/10 p-2 rounded-lg text-rose-600 dark:text-rose-400 shadow-sm dark:shadow-none"><MapPin className="w-4 h-4"/></div>
                     <div>
                       <p>Location</p>
-                      <p className="text-[10px] text-slate-400 font-normal">Send current GPS spot</p>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500 font-normal">Send current GPS spot</p>
                     </div>
                   </button>
                 </div>
@@ -363,7 +363,7 @@ export default function ChatWindow() {
             )}
           </div>
 
-          <div className="flex-1 bg-slate-100 rounded-2xl px-4 py-1 border border-slate-200 focus-within:ring-2 focus-within:ring-blue-500 focus-within:bg-white transition-all">
+          <div className="flex-1 bg-slate-100 dark:bg-slate-800 rounded-2xl px-4 py-1 border border-slate-200 dark:border-slate-700 focus-within:ring-2 focus-within:ring-blue-500 dark:focus-within:ring-blue-400 focus-within:bg-white dark:focus-within:bg-slate-800 transition-all">
             <textarea
               rows={1}
               value={newMessage}
@@ -373,7 +373,7 @@ export default function ChatWindow() {
               }}
               placeholder={isUploading ? "Uploading file..." : isLocating ? "Getting location..." : "Write a message..."}
               disabled={isUploading || isLocating}
-              className="w-full bg-transparent border-none outline-none text-sm text-slate-700 py-2 resize-none max-h-32"
+              className="w-full bg-transparent border-none outline-none text-sm text-slate-700 dark:text-slate-200 py-2 resize-none max-h-32"
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
@@ -449,7 +449,7 @@ function MessageBubble({ message, onEdit, onDelete, currentUserId, showSenderRol
       <div className={`max-w-[85%] md:max-w-[70%] relative flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
 
         {showSenderLabel && (
-          <p className="text-[11px] font-medium text-slate-500 mb-1 ml-1 flex items-center gap-1.5">
+          <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1 ml-1 flex items-center gap-1.5">
             {message.sender_name}
             {showSenderRole && message.sender_role && (
               <span className={`text-[10px] font-semibold px-1.5 py-px rounded-full ${getRolePillClasses(message.sender_role)}`}>
@@ -459,9 +459,9 @@ function MessageBubble({ message, onEdit, onDelete, currentUserId, showSenderRol
           </p>
         )}
 
-        <div className={`p-3.5 rounded-2xl shadow-sm text-sm relative
-          ${isMe ? 'bg-blue-600 text-white rounded-tr-sm' : 'bg-white border border-slate-200 text-slate-800 rounded-tl-sm'}
-          ${isDeleted ? 'italic opacity-70 bg-slate-100 border-dashed border-slate-300 text-slate-500' : ''}
+        <div className={`p-3.5 rounded-2xl shadow-sm dark:shadow-none text-sm relative
+          ${isMe ? 'bg-blue-600 text-white rounded-tr-sm' : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-tl-sm'}
+          ${isDeleted ? 'italic opacity-70 bg-slate-100 dark:bg-slate-800 border-dashed border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400' : ''}
         `}>
 
           {message.attachment_url && !isDeleted && (
@@ -470,10 +470,10 @@ function MessageBubble({ message, onEdit, onDelete, currentUserId, showSenderRol
               target="_blank"
               rel="noreferrer"
               className={`flex items-center gap-3 p-3 rounded-xl mb-3 border transition-colors
-                ${isMe ? 'bg-blue-700/50 border-blue-500 hover:bg-blue-700' : 'bg-slate-50 border-slate-200 hover:bg-slate-100'}`}
+                ${isMe ? 'bg-blue-700/50 border-blue-500 hover:bg-blue-700' : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
             >
-              <div className={`p-2 rounded-lg ${isMe ? 'bg-blue-600' : 'bg-white shadow-sm'}`}>
-                <FileText className={`w-5 h-5 ${isMe ? 'text-white' : 'text-blue-600'}`} />
+              <div className={`p-2 rounded-lg ${isMe ? 'bg-blue-600' : 'bg-white dark:bg-slate-700 shadow-sm dark:shadow-none'}`}>
+                <FileText className={`w-5 h-5 ${isMe ? 'text-white' : 'text-blue-600 dark:text-blue-400'}`} />
               </div>
               <span className="text-xs font-semibold truncate max-w-50">
                 {message.attachment_name || 'Secure Document'}
@@ -485,11 +485,11 @@ function MessageBubble({ message, onEdit, onDelete, currentUserId, showSenderRol
 
           <div className={`flex items-center gap-2 mt-2 select-none ${isMe ? 'justify-end' : 'justify-start'}`}>
              {message.is_edited && !isDeleted && (
-               <span className={`text-[11px] font-medium ${isMe ? 'text-blue-200' : 'text-slate-400'}`}>
+               <span className={`text-[11px] font-medium ${isMe ? 'text-blue-200' : 'text-slate-400 dark:text-slate-500'}`}>
                  (Edited)
                </span>
              )}
-             <span className={`text-[11px] font-medium ${isMe ? 'text-blue-200' : 'text-slate-400'}`}>
+             <span className={`text-[11px] font-medium ${isMe ? 'text-blue-200' : 'text-slate-400 dark:text-slate-500'}`}>
                 {new Date(message.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
              </span>
           </div>
@@ -500,12 +500,12 @@ function MessageBubble({ message, onEdit, onDelete, currentUserId, showSenderRol
             ${isMe ? '-left-20 pr-2' : '-right-20 pl-2'}`}
           >
             {canEdit && (
-              <button onClick={onEdit} className="p-2 bg-white shadow-sm border border-slate-200 hover:bg-slate-50 rounded-full text-slate-400 hover:text-blue-600 transition-all" title="Edit Message (Available for 2 hours)">
+              <button onClick={onEdit} className="p-2 bg-white dark:bg-slate-900 shadow-sm dark:shadow-none border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-full text-slate-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all" title="Edit Message (Available for 2 hours)">
                 <Edit2 className="w-3.5 h-3.5" />
               </button>
             )}
             {canDelete && (
-              <button onClick={onDelete} className="p-2 bg-white shadow-sm border border-slate-200 hover:bg-red-50 rounded-full text-slate-400 hover:text-red-600 transition-all" title="Delete for Everyone">
+              <button onClick={onDelete} className="p-2 bg-white dark:bg-slate-900 shadow-sm dark:shadow-none border border-slate-200 dark:border-slate-700 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-full text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400 transition-all" title="Delete for Everyone">
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
             )}

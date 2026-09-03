@@ -1,7 +1,8 @@
 from django.test import TestCase, RequestFactory
 
-from school.models.models import Notification, ParentExtra
-from school.models.resultsModels import StudentTermResult
+from apps.identity.models import ParentExtra
+from apps.messaging.models import Notification
+from apps.results.models import StudentTermResult
 from school.tests.base import ExamTestDataMixin
 from school.views.results_views import StudentReportCardAPIView
 

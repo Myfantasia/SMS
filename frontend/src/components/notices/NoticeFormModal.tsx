@@ -19,7 +19,7 @@ export default function NoticeFormModal({ isOpen, onClose, onSuccess, initialDat
   const [audience, setAudience] = useState('All');
   const [isUrgent, setIsUrgent] = useState(false); // Added Urgent state
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -33,10 +33,10 @@ export default function NoticeFormModal({ isOpen, onClose, onSuccess, initialDat
       setSelectedFile(null); // Clear any pending file uploads when opening an edit
     } else {
       // Reset if it's a new post
-      setTitle(''); 
-      setMessage(''); 
-      setAudience('All'); 
-      setIsUrgent(false); 
+      setTitle('');
+      setMessage('');
+      setAudience('All');
+      setIsUrgent(false);
       setSelectedFile(null);
     }
   }, [initialData, isOpen]);
@@ -65,10 +65,10 @@ export default function NoticeFormModal({ isOpen, onClose, onSuccess, initialDat
     formData.append('message', message);
     formData.append('audience', audience);
     formData.append('is_urgent', String(isUrgent)); // Append urgent status
-    
+
     // In edit mode, we don't change the author. In create mode, we set it.
     if (!initialData) {
-      formData.append('by', 'School Admin'); 
+      formData.append('by', 'School Admin');
     }
 
     if (selectedFile) {
@@ -89,10 +89,10 @@ export default function NoticeFormModal({ isOpen, onClose, onSuccess, initialDat
         });
         toast.success('Notice published successfully!');
       }
-      
+
       onSuccess(); // Refresh the parent feed
       onClose(); // Close Modal
-      
+
     } catch (error) {
       console.error("Error saving notice:", error);
       toast.error("Failed to save notice. Please check your connection.");
@@ -103,47 +103,47 @@ export default function NoticeFormModal({ isOpen, onClose, onSuccess, initialDat
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
-        
+      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-xl dark:shadow-none border border-transparent dark:border-slate-700 w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
-          <h2 className="text-lg font-bold text-slate-800">
+        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-800">
+          <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">
             {initialData ? 'Edit Announcement' : 'Create New Notice'}
           </h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
+          <button onClick={onClose} className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-6 overflow-y-auto flex-1 space-y-5 custom-scrollbar">
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {/* Title Input */}
             <div className="md:col-span-2">
-              <label className="block text-sm font-semibold text-slate-700 mb-1">Notice Headline / Title *</label>
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Notice Headline / Title *</label>
               <div className="relative">
-                <Type className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input 
-                  required 
-                  type="text" 
+                <Type className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+                <input
+                  required
+                  type="text"
                   placeholder="e.g., Updated Fee Structure for Term 2"
-                  value={title} 
+                  value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-slate-700"
+                  className="w-full pl-10 pr-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 outline-none text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 placeholder:text-slate-400 dark:placeholder:text-slate-500"
                 />
               </div>
             </div>
 
             {/* Target Audience Dropdown */}
             <div className="md:col-span-2">
-              <label className="block text-sm font-semibold text-slate-700 mb-1">Target Audience</label>
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Target Audience</label>
               <div className="relative">
-                <Users className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <select 
-                  value={audience} 
+                <Users className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+                <select
+                  value={audience}
                   onChange={(e) => setAudience(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-slate-700 appearance-none"
+                  className="w-full pl-10 pr-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 outline-none bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 appearance-none"
                 >
                   <option value="All">All (Public, Staff & Students)</option>
                   <option value="Teachers">Teachers Only</option>
@@ -151,59 +151,59 @@ export default function NoticeFormModal({ isOpen, onClose, onSuccess, initialDat
                   <option value="Students">Students Only</option>
                 </select>
               </div>
-              <p className="text-xs text-slate-500 mt-1">Determines who will see this on their specific dashboard.</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Determines who will see this on their specific dashboard.</p>
             </div>
 
             {/* Message Area */}
             <div className="md:col-span-2">
-              <label className="block text-sm font-semibold text-slate-700 mb-1">Announcement Details *</label>
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Announcement Details *</label>
               <div className="relative">
-                <AlignLeft className="w-5 h-5 absolute left-3 top-3 text-slate-400" />
-                <textarea 
-                  required 
-                  rows={5} 
+                <AlignLeft className="w-5 h-5 absolute left-3 top-3 text-slate-400 dark:text-slate-500" />
+                <textarea
+                  required
+                  rows={5}
                   placeholder="Type your full announcement here..."
-                  value={message} 
+                  value={message}
                   onChange={(e) => setMessage(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none text-slate-700"
+                  className="w-full pl-10 pr-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 outline-none resize-none text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 placeholder:text-slate-400 dark:placeholder:text-slate-500"
                 />
               </div>
             </div>
 
             {/* File Upload Area */}
             <div className="md:col-span-2">
-              <label className="block text-sm font-semibold text-slate-700 mb-1">Attach Resource (Optional)</label>
-              
-              <div 
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Attach Resource (Optional)</label>
+
+              <div
                 onClick={() => fileInputRef.current?.click()}
-                className={`border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer transition-colors ${selectedFile ? 'border-blue-500 bg-blue-50' : 'border-slate-300 hover:bg-slate-50 hover:border-blue-400'}`}
+                className={`border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer transition-colors ${selectedFile ? 'border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-500/10' : 'border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 hover:border-blue-400 dark:hover:border-blue-500'}`}
               >
                 {/* Hidden File Input */}
-                <input 
-                  type="file" 
-                  ref={fileInputRef} 
-                  onChange={handleFileChange} 
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileChange}
                   className="hidden"
-                  accept=".pdf,.doc,.docx,.jpg,.png" 
+                  accept=".pdf,.doc,.docx,.jpg,.png"
                 />
-                
+
                 {selectedFile ? (
-                  <div className="flex flex-col items-center text-blue-700">
+                  <div className="flex flex-col items-center text-blue-700 dark:text-blue-400">
                     <FileText className="w-8 h-8 mb-2" />
                     <span className="font-semibold text-sm text-center">{selectedFile.name}</span>
-                    <span 
-                      className="text-xs mt-1 text-blue-500 opacity-80 cursor-pointer hover:underline" 
-                      onClick={(e) => { 
-                        e.stopPropagation(); 
-                        setSelectedFile(null); 
+                    <span
+                      className="text-xs mt-1 text-blue-500 dark:text-blue-400 opacity-80 cursor-pointer hover:underline"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedFile(null);
                       }}
                     >
                       Remove Attachment
                     </span>
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center text-slate-500">
-                    <UploadCloud className="w-8 h-8 mb-2 text-slate-400" />
+                  <div className="flex flex-col items-center text-slate-500 dark:text-slate-400">
+                    <UploadCloud className="w-8 h-8 mb-2 text-slate-400 dark:text-slate-500" />
                     <span className="font-semibold text-sm">
                       {initialData?.attachment ? 'Upload a new file to replace the existing one' : 'Click to upload a document'}
                     </span>
@@ -212,37 +212,37 @@ export default function NoticeFormModal({ isOpen, onClose, onSuccess, initialDat
                 )}
               </div>
             </div>
-            
+
             {/* The Urgent Toggle */}
-            <div className="md:col-span-2 flex items-center gap-3 bg-red-50 p-3 rounded-lg border border-red-100">
-              <input 
-                type="checkbox" 
-                id="is_urgent" 
+            <div className="md:col-span-2 flex items-center gap-3 bg-red-50 dark:bg-red-500/10 p-3 rounded-lg border border-red-100 dark:border-red-500/20">
+              <input
+                type="checkbox"
+                id="is_urgent"
                 checked={isUrgent}
                 onChange={(e) => setIsUrgent(e.target.checked)}
-                className="w-5 h-5 text-red-600 rounded cursor-pointer border-red-300 focus:ring-red-500"
+                className="w-5 h-5 text-red-600 dark:text-red-500 rounded cursor-pointer border-red-300 dark:border-red-500/40 focus:ring-red-500 dark:focus:ring-red-400"
               />
               <div>
-                <label htmlFor="is_urgent" className="font-bold text-red-800 cursor-pointer">Mark as Urgent Priority</label>
-                <p className="text-xs text-red-600">This will highlight the notice in red to grab immediate attention.</p>
+                <label htmlFor="is_urgent" className="font-bold text-red-800 dark:text-red-300 cursor-pointer">Mark as Urgent Priority</label>
+                <p className="text-xs text-red-600 dark:text-red-400">This will highlight the notice in red to grab immediate attention.</p>
               </div>
             </div>
-            
+
           </div>
 
           {/* Footer Actions */}
-          <div className="pt-4 mt-2 border-t border-slate-200 flex justify-end gap-3">
-            <button 
-              type="button" 
-              onClick={onClose} 
-              className="px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+          <div className="pt-4 mt-2 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-5 py-2.5 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
             >
               Cancel
             </button>
-            <button 
-              type="submit" 
-              disabled={isSubmitting} 
-              className="px-5 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-70 shadow-sm"
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="px-5 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-70 shadow-sm dark:shadow-none"
             >
               {isSubmitting ? 'Saving...' : (initialData ? 'Update Notice' : 'Broadcast Notice')}
             </button>

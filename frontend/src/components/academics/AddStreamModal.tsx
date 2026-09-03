@@ -84,28 +84,28 @@ const handleSubmit = async (e: React.FormEvent) => {
 
   return (
     <div className="fixed inset-0 z-60 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col">
-        
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl dark:shadow-none w-full max-w-sm overflow-hidden flex flex-col">
+
         {/* Beautiful Header Design */}
-        <div className="px-6 py-5 border-b border-slate-100 bg-slate-50 flex items-center justify-between relative overflow-hidden">
+        <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 flex items-center justify-between relative overflow-hidden">
           {/* Background Decorative Element */}
-          <div className="absolute top-0 right-0 -mr-4 -mt-4 w-24 h-24 bg-blue-100 rounded-full opacity-50 pointer-events-none blur-xl"></div>
-          
+          <div className="absolute top-0 right-0 -mr-4 -mt-4 w-24 h-24 bg-blue-100 dark:bg-blue-500/10 rounded-full opacity-50 pointer-events-none blur-xl"></div>
+
           <div className="flex items-center gap-3 relative z-10">
-            <div className="w-10 h-10 bg-white shadow-sm border border-slate-200 rounded-full flex items-center justify-center text-blue-600">
+            <div className="w-10 h-10 bg-white dark:bg-slate-900 shadow-sm dark:shadow-none border border-slate-200 dark:border-slate-700 rounded-full flex items-center justify-center text-blue-600 dark:text-blue-400">
               <Layers className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-slate-800 text-lg leading-tight" title="Modal Title">Add Stream</h3>
-              <p className="text-xs text-slate-500 font-medium tracking-wide">Target: {gradeName}</p>
+              <h3 className="font-bold text-slate-800 dark:text-slate-100 text-lg leading-tight" title="Modal Title">Add Stream</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium tracking-wide">Target: {gradeName}</p>
             </div>
           </div>
-          
-          <button 
+
+          <button
             type="button"
-            onClick={onClose} 
+            onClick={onClose}
             title="Close Window"
-            className="text-slate-400 hover:text-slate-700 bg-white hover:bg-slate-100 p-1.5 rounded-full transition-colors relative z-10 border border-transparent hover:border-slate-200"
+            className="text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 p-1.5 rounded-full transition-colors relative z-10 border border-transparent hover:border-slate-200 dark:hover:border-slate-600"
           >
             <X className="w-5 h-5" />
           </button>
@@ -114,46 +114,46 @@ const handleSubmit = async (e: React.FormEvent) => {
         {/* Input Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
           <div className="space-y-1.5">
-            <label htmlFor="streamNameInput" className="text-xs font-bold text-slate-600 uppercase tracking-wider block">
+            <label htmlFor="streamNameInput" className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider block">
               Stream Name <span className="text-red-500">*</span>
             </label>
-            <input 
+            <input
               id="streamNameInput"
-              type="text" 
+              type="text"
               required
               title="Enter a unique stream identifier"
               value={streamName}
               onChange={(e) => setStreamName(e.target.value)}
-              placeholder="e.g., East, West, Blue, Alpha" 
-              className="w-full border border-slate-300 rounded-xl p-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-white text-slate-800 transition-all shadow-sm"
+              placeholder="e.g., East, West, Blue, Alpha"
+              className="w-full border border-slate-300 dark:border-slate-600 rounded-xl p-3 outline-none focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-400/20 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 transition-all shadow-sm dark:shadow-none"
             />
           </div>
 
           <div className="space-y-1.5">
-            <label htmlFor="capacityInput" className="text-xs font-bold text-slate-600 uppercase tracking-wider block">
+            <label htmlFor="capacityInput" className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider block">
               Maximum Capacity <span className="text-red-500">*</span>
             </label>
             <div className="relative">
-              <input 
+              <input
                 id="capacityInput"
-                type="number" 
+                type="number"
                 required
                 min="1"
                 max="150"
                 title="Maximum number of students allowed"
                 value={capacity}
                 onChange={(e) => setCapacity(e.target.value)}
-                className="w-full border border-slate-300 rounded-xl p-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 bg-white text-slate-800 transition-all shadow-sm font-medium"
+                className="w-full border border-slate-300 dark:border-slate-600 rounded-xl p-3 outline-none focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-400/20 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 transition-all shadow-sm dark:shadow-none font-medium"
               />
-              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium pointer-events-none">
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 text-sm font-medium pointer-events-none">
                 Students
               </span>
             </div>
           </div>
 
           <div className="space-y-1.5">
-            <label htmlFor="stream-teacher" className="text-xs font-bold text-slate-600 uppercase tracking-wider block">
-              Class Teacher <span className="text-slate-400 normal-case font-medium">(optional)</span>
+            <label htmlFor="stream-teacher" className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider block">
+              Class Teacher <span className="text-slate-400 dark:text-slate-500 normal-case font-medium">(optional)</span>
             </label>
             <SearchableSelect
               id="stream-teacher"
@@ -165,16 +165,16 @@ const handleSubmit = async (e: React.FormEvent) => {
               emptyMessage="No teachers found."
               disabled={loadingTeacherOptions}
             />
-            <p className="text-xs text-slate-400">Can also be assigned later from the stream's edit action.</p>
+            <p className="text-xs text-slate-400 dark:text-slate-500">Can also be assigned later from the stream's edit action.</p>
           </div>
 
           <div className="pt-3 flex gap-3">
-            <button 
-              type="button" 
-              onClick={onClose} 
+            <button
+              type="button"
+              onClick={onClose}
               title="Cancel action"
               disabled={isSaving}
-              className="flex-1 px-4 py-3 border border-slate-200 text-slate-600 rounded-xl font-bold hover:bg-slate-50 transition-colors"
+              className="flex-1 px-4 py-3 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-xl font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
             >
               Cancel
             </button>

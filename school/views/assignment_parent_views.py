@@ -5,8 +5,8 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.db.models import Q
 
-from school.models.models import ParentExtra
-from school.models.assignments_models import StudentSubmission
+from apps.identity.models import ParentExtra
+from apps.assignments.models import StudentSubmission
 from school.views.assignment_common import (
     get_parent_profile, get_student_profile, build_review_payload, review_error_response
 )

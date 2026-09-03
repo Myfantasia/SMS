@@ -1,6 +1,7 @@
 import os
 import sys
 from dotenv import load_dotenv
+from django.urls import reverse_lazy
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -86,6 +87,184 @@ MIDDLEWARE = [
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
 ]
+
+# Unfold (the Django admin theme) reads its own "Return to site" / "View site" link from
+# this dict's SITE_URL, not from AdminSite.site_url (Django's own default mechanism,
+# which Unfold's each_context() override ignores) -- see unfold/sites.py:_get_config.
+#
+# SIDEBAR["navigation"] replaces Django's default alphabetical-by-app grouping with named
+# sections organized by how a Super Admin actually thinks about the system, cutting across
+# app boundaries freely -- see docs/superpowers/specs/2026-08-31-django-admin-overhaul-design.md
+# Section C. Every entry's "link" resolves against a real registered admin URL; an entry for
+# a model that isn't registered would raise NoReverseMatch (school.tests.test_admin_site_config
+# is the regression check for this). All ~49 Phase 1/2 models plus the ~30 Phase 3 models are
+# now registered and listed here, including the "Platform" group (School, SystemAuditLog,
+# BackgroundJob) which was deliberately omitted until Phase 3 registered those models.
+UNFOLD = {
+    "SITE_URL": "http://localhost:5173/",
+    "SITE_HEADER": "SMS Control Center",
+    "SITE_TITLE": "SMS Control Center",
+    # No custom logo image yet -- SITE_SYMBOL alone gives Unfold a Material Symbols icon
+    # to show in the header/favicon slot instead of the default Django icon.
+    "SITE_SYMBOL": "school",
+    "SIDEBAR": {
+        "show_search": True,
+        "show_all_applications": True,
+        "navigation": [
+            {
+                "title": "Governance & RBAC",
+                "separator": True,
+                "items": [
+                    {"title": "Roles", "icon": "shield_person", "link": reverse_lazy("admin:identity_role_changelist")},
+                    {"title": "Permissions", "icon": "key", "link": reverse_lazy("admin:identity_permission_changelist")},
+                    {"title": "User roles", "icon": "assignment_ind", "link": reverse_lazy("admin:identity_userrole_changelist")},
+                    {"title": "Admin invite codes", "icon": "mail", "link": reverse_lazy("admin:identity_admininvitecode_changelist")},
+                    {"title": "Forced password changes", "icon": "password", "link": reverse_lazy("admin:identity_forcedpasswordchange_changelist")},
+                ],
+            },
+            {
+                "title": "People",
+                "separator": True,
+                "items": [
+                    {"title": "Users", "icon": "person", "link": reverse_lazy("admin:auth_user_changelist")},
+                    {"title": "Admin extras", "icon": "verified_user", "link": reverse_lazy("admin:identity_adminextra_changelist")},
+                    {"title": "Teachers", "icon": "cast_for_education", "link": reverse_lazy("admin:identity_teacherextra_changelist")},
+                    {"title": "Students", "icon": "school", "link": reverse_lazy("admin:identity_studentextra_changelist")},
+                    {"title": "Parents", "icon": "family_restroom", "link": reverse_lazy("admin:identity_parentextra_changelist")},
+                    {"title": "Staff", "icon": "badge", "link": reverse_lazy("admin:identity_staffextra_changelist")},
+                ],
+            },
+            {
+                "title": "Rules & Policies",
+                "separator": True,
+                "items": [
+                    {"title": "Quota default rules", "icon": "tune", "link": reverse_lazy("admin:allocations_quotadefaultrule_changelist")},
+                    {"title": "Subject selection rules", "icon": "rule", "link": reverse_lazy("admin:academics_subjectselectionrule_changelist")},
+                    {"title": "Subject exclusion rules", "icon": "block", "link": reverse_lazy("admin:academics_subjectexclusionrule_changelist")},
+                    {"title": "Grading rules", "icon": "grade", "link": reverse_lazy("admin:exams_gradingrule_changelist")},
+                    {"title": "Subject splitting rules", "icon": "call_split", "link": reverse_lazy("admin:allocations_subjectsplittingrule_changelist")},
+                    {"title": "Global allocation policy", "icon": "policy", "link": reverse_lazy("admin:allocations_globalallocationpolicy_changelist")},
+                    {"title": "Timetable pedagogy policy", "icon": "policy", "link": reverse_lazy("admin:timetable_timetablepedagogypolicy_changelist")},
+                ],
+            },
+            {
+                "title": "Curriculum Structure",
+                "separator": True,
+                "items": [
+                    {"title": "Grade levels", "icon": "stairs", "link": reverse_lazy("admin:academics_gradelevel_changelist")},
+                    {"title": "Tiers", "icon": "layers", "link": reverse_lazy("admin:academics_tier_changelist")},
+                    {"title": "Departments", "icon": "corporate_fare", "link": reverse_lazy("admin:academics_department_changelist")},
+                    {"title": "Subjects", "icon": "menu_book", "link": reverse_lazy("admin:academics_subject_changelist")},
+                    {"title": "Subject curriculum profiles", "icon": "fact_check", "link": reverse_lazy("admin:academics_subjectcurriculumprofile_changelist")},
+                    {"title": "Preset combinations", "icon": "tune", "link": reverse_lazy("admin:academics_presetcombination_changelist")},
+                    {"title": "Curriculum presets", "icon": "bookmarks", "link": reverse_lazy("admin:academics_curriculumpreset_changelist")},
+                    {"title": "Curricula", "icon": "auto_stories", "link": reverse_lazy("admin:academics_curriculum_changelist")},
+                    {"title": "Pathways", "icon": "alt_route", "link": reverse_lazy("admin:academics_pathway_changelist")},
+                    {"title": "Tracks", "icon": "route", "link": reverse_lazy("admin:academics_track_changelist")},
+                    {"title": "Subject category limits", "icon": "filter_9_plus", "link": reverse_lazy("admin:academics_subjectcategorylimit_changelist")},
+                    {"title": "Subject pools", "icon": "waves", "link": reverse_lazy("admin:academics_subjectpool_changelist")},
+                ],
+            },
+            {
+                "title": "Classes & Enrollment",
+                "separator": True,
+                "items": [
+                    {"title": "Class streams", "icon": "groups", "link": reverse_lazy("admin:academics_classstream_changelist")},
+                    {"title": "Academic years", "icon": "event", "link": reverse_lazy("admin:academics_academicyear_changelist")},
+                    {"title": "Exam terms", "icon": "date_range", "link": reverse_lazy("admin:academics_examterm_changelist")},
+                    {"title": "Time slots", "icon": "schedule", "link": reverse_lazy("admin:academics_timeslot_changelist")},
+                    {"title": "Student subject enrollments", "icon": "how_to_reg", "link": reverse_lazy("admin:students_studentsubjectenrollment_changelist")},
+                    {"title": "Student pathway selections", "icon": "alt_route", "link": reverse_lazy("admin:students_studentpathwayselection_changelist")},
+                ],
+            },
+            {
+                "title": "Allocations & Timetable",
+                "separator": True,
+                "items": [
+                    {"title": "Subject quotas", "icon": "pie_chart", "link": reverse_lazy("admin:allocations_subjectquota_changelist")},
+                    {"title": "Subject allocations", "icon": "assignment_turned_in", "link": reverse_lazy("admin:allocations_subjectallocation_changelist")},
+                    {"title": "Subject blocks", "icon": "view_module", "link": reverse_lazy("admin:allocations_subjectblock_changelist")},
+                    {"title": "Timetables", "icon": "calendar_month", "link": reverse_lazy("admin:timetable_timetable_changelist")},
+                    {"title": "Lesson allocations", "icon": "event_note", "link": reverse_lazy("admin:timetable_lessonallocation_changelist")},
+                    {"title": "Allocation publish states", "icon": "publish", "link": reverse_lazy("admin:allocations_allocationpublishstate_changelist")},
+                    {"title": "Daily cover", "icon": "swap_horizontal_circle", "link": reverse_lazy("admin:timetable_dailycover_changelist")},
+                    {"title": "Teacher structural availability", "icon": "event_busy", "link": reverse_lazy("admin:staff_teacherstructuralavailability_changelist")},
+                ],
+            },
+            {
+                "title": "Attendance & Leave",
+                "separator": True,
+                "items": [
+                    {"title": "Attendance sessions", "icon": "event_available", "link": reverse_lazy("admin:attendance_attendancesession_changelist")},
+                    {"title": "Attendance records", "icon": "checklist", "link": reverse_lazy("admin:attendance_attendancerecord_changelist")},
+                    {"title": "Teacher leave", "icon": "beach_access", "link": reverse_lazy("admin:staff_teacherleave_changelist")},
+                    {"title": "Long-term relief assignments", "icon": "swap_horiz", "link": reverse_lazy("admin:staff_longtermreliefassignment_changelist")},
+                ],
+            },
+            {
+                "title": "Exams & Results",
+                "separator": True,
+                "items": [
+                    {"title": "Exam events", "icon": "quiz", "link": reverse_lazy("admin:exams_examevent_changelist")},
+                    {"title": "Exam results", "icon": "grading", "link": reverse_lazy("admin:exams_examresult_changelist")},
+                    {"title": "Student report summaries", "icon": "summarize", "link": reverse_lazy("admin:exams_studentreportsummary_changelist")},
+                    {"title": "Class exam status", "icon": "fact_check", "link": reverse_lazy("admin:exams_classexamstatus_changelist")},
+                    {"title": "Subject term results", "icon": "score", "link": reverse_lazy("admin:results_subjecttermresult_changelist")},
+                    {"title": "Student term results", "icon": "assessment", "link": reverse_lazy("admin:results_studenttermresult_changelist")},
+                    {"title": "Class performance analytics", "icon": "insights", "link": reverse_lazy("admin:results_classperformanceanalytics_changelist")},
+                    {"title": "National exam records", "icon": "workspace_premium", "link": reverse_lazy("admin:students_nationalexamrecord_changelist")},
+                ],
+            },
+            {
+                "title": "Assignments",
+                "separator": True,
+                "items": [
+                    {"title": "Assignments", "icon": "assignment", "link": reverse_lazy("admin:assignments_assignment_changelist")},
+                    {"title": "Questions", "icon": "help", "link": reverse_lazy("admin:assignments_question_changelist")},
+                    {"title": "Question options", "icon": "checklist_rtl", "link": reverse_lazy("admin:assignments_questionoption_changelist")},
+                    {"title": "Student submissions", "icon": "upload_file", "link": reverse_lazy("admin:assignments_studentsubmission_changelist")},
+                    {"title": "Student answers", "icon": "edit_note", "link": reverse_lazy("admin:assignments_studentanswer_changelist")},
+                    {"title": "Assignment groups", "icon": "groups_2", "link": reverse_lazy("admin:assignments_assignmentgroup_changelist")},
+                    {"title": "Assignment attachments", "icon": "attach_file", "link": reverse_lazy("admin:assignments_assignmentattachment_changelist")},
+                    {"title": "Rubric criteria", "icon": "checklist", "link": reverse_lazy("admin:assignments_rubriccriterion_changelist")},
+                    {"title": "Criterion scores", "icon": "scoreboard", "link": reverse_lazy("admin:assignments_criterionscore_changelist")},
+                    {"title": "Student tasks", "icon": "task", "link": reverse_lazy("admin:students_studenttask_changelist")},
+                ],
+            },
+            {
+                "title": "Communication",
+                "separator": True,
+                "items": [
+                    {"title": "Notices", "icon": "campaign", "link": reverse_lazy("admin:messaging_notice_changelist")},
+                    {"title": "Events", "icon": "event", "link": reverse_lazy("admin:messaging_event_changelist")},
+                    {"title": "Notifications", "icon": "notifications", "link": reverse_lazy("admin:messaging_notification_changelist")},
+                    {"title": "Chat user profiles", "icon": "account_circle", "link": reverse_lazy("admin:messaging_chatuserprofile_changelist")},
+                    {"title": "Chat threads", "icon": "forum", "link": reverse_lazy("admin:messaging_chatthread_changelist")},
+                    {"title": "Thread participants", "icon": "group", "link": reverse_lazy("admin:messaging_threadparticipant_changelist")},
+                    {"title": "Message audit", "icon": "history_edu", "link": reverse_lazy("admin:messaging_messageaudit_changelist")},
+                    {"title": "Chat action responses", "icon": "reply", "link": reverse_lazy("admin:messaging_chatactionresponse_changelist")},
+                ],
+            },
+            {
+                "title": "Content",
+                "separator": True,
+                "items": [
+                    {"title": "Blog posts", "icon": "article", "link": reverse_lazy("admin:content_blogpost_changelist")},
+                    {"title": "Alumni reviews", "icon": "reviews", "link": reverse_lazy("admin:content_alumnireview_changelist")},
+                ],
+            },
+            {
+                "title": "Platform",
+                "separator": True,
+                "items": [
+                    {"title": "Schools", "icon": "domain", "link": reverse_lazy("admin:identity_school_changelist")},
+                    {"title": "Background jobs", "icon": "sync", "link": reverse_lazy("admin:core_backgroundjob_changelist")},
+                    {"title": "System audit log", "icon": "fact_check", "link": reverse_lazy("admin:core_systemauditlog_changelist")},
+                ],
+            },
+        ],
+    },
+}
 
 CORS_ALLOW_CREDENTIALS = True
 

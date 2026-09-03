@@ -125,6 +125,14 @@ from school.views.subject_views import _ensure_core_mathematics
 
 
 class EnsureCoreMathematicsTests(TestCase):
+    """
+    Math assignment is fully automatic and pathway-aware (never a student pick — see
+    SYSTEM_MANAGED_MATH_CODES in subject_views.py): a STEM student whose combo omits both
+    Advanced Mathematics (AMAT) and Core Mathematics (CMAT) gets CMAT auto-added; a student on
+    any other pathway gets Essential Mathematics (EMAT) instead. AMAT/CMAT already present in
+    the combo itself always means no-op (student's chosen maths already satisfies it).
+    """
+
     def setUp(self):
         self.curriculum = Curriculum.objects.create(code='CBC5', name='CBC (core math test)')
         self.tier = Tier.objects.create(curriculum=self.curriculum, name='Senior Secondary', code='SSS5')
@@ -134,8 +142,10 @@ class EnsureCoreMathematicsTests(TestCase):
         self.student = StudentExtra.objects.create(user=self.user, roll='CM01', cl=self.stream, status=True)
         self.year = AcademicYear.objects.create(year='2096')
 
-        self.pathway = Pathway.objects.create(curriculum=self.curriculum, name='STEM')
-        self.track = Track.objects.create(pathway=self.pathway, name='Applied Sciences')
+        self.stem_pathway = Pathway.objects.create(curriculum=self.curriculum, name='STEM')
+        self.stem_track = Track.objects.create(pathway=self.stem_pathway, name='Applied Sciences')
+        self.other_pathway = Pathway.objects.create(curriculum=self.curriculum, name='Social Sciences')
+        self.other_track = Track.objects.create(pathway=self.other_pathway, name='Humanities & Business Studies')
 
         # Real catalog codes, not test-local ones — _ensure_core_mathematics matches on these
         # exact codes, and Django's test runner gives every test a fresh empty database, so
@@ -147,27 +157,43 @@ class EnsureCoreMathematicsTests(TestCase):
         self.chem = Subject.objects.create(code='CHEZ', name='Chemistry Z')
         self.bio = Subject.objects.create(code='BIOZ', name='Biology Z')
 
-    def test_adds_essential_maths_when_combo_has_no_maths(self):
-        combo = PresetCombination.objects.create(track=self.track, name='No-Maths Combo', code='NM')
+    def test_stem_combo_with_no_maths_gets_core_maths(self):
+        combo = PresetCombination.objects.create(track=self.stem_track, name='No-Maths Combo', code='NM')
+        combo.subjects.set([self.physics, self.chem, self.bio])
+
+        _ensure_core_mathematics(self.student, combo, self.year)
+
+        enrollment = StudentSubjectEnrollment.objects.get(student=self.student, subject=self.cmat, academic_year=self.year)
+        self.assertEqual(enrollment.status, 'Approved')
+        self.assertFalse(
+            StudentSubjectEnrollment.objects.filter(student=self.student, subject=self.emat, academic_year=self.year).exists()
+        )
+
+    def test_non_stem_combo_with_no_maths_gets_essential_maths(self):
+        combo = PresetCombination.objects.create(track=self.other_track, name='No-Maths Combo', code='NM3')
         combo.subjects.set([self.physics, self.chem, self.bio])
 
         _ensure_core_mathematics(self.student, combo, self.year)
 
         enrollment = StudentSubjectEnrollment.objects.get(student=self.student, subject=self.emat, academic_year=self.year)
         self.assertEqual(enrollment.status, 'Approved')
+        self.assertFalse(
+            StudentSubjectEnrollment.objects.filter(student=self.student, subject=self.cmat, academic_year=self.year).exists()
+        )
 
-    def test_does_not_add_essential_maths_when_combo_has_advanced_maths(self):
-        combo = PresetCombination.objects.create(track=self.track, name='AMAT Combo', code='AM')
+    def test_does_not_add_maths_when_combo_has_advanced_maths(self):
+        combo = PresetCombination.objects.create(track=self.stem_track, name='AMAT Combo', code='AM')
         combo.subjects.set([self.amat, self.physics, self.chem])
 
         _ensure_core_mathematics(self.student, combo, self.year)
 
         self.assertFalse(
-            StudentSubjectEnrollment.objects.filter(student=self.student, subject=self.emat, academic_year=self.year).exists()
+            StudentSubjectEnrollment.objects.filter(
+                student=self.student, subject__in=[self.cmat, self.emat], academic_year=self.year).exists()
         )
 
-    def test_does_not_add_essential_maths_when_combo_has_core_maths(self):
-        combo = PresetCombination.objects.create(track=self.track, name='CMAT Combo', code='CM')
+    def test_does_not_add_maths_when_combo_has_core_maths(self):
+        combo = PresetCombination.objects.create(track=self.stem_track, name='CMAT Combo', code='CM')
         combo.subjects.set([self.cmat, self.physics, self.chem])
 
         _ensure_core_mathematics(self.student, combo, self.year)
@@ -177,14 +203,14 @@ class EnsureCoreMathematicsTests(TestCase):
         )
 
     def test_idempotent_on_repeat_calls(self):
-        combo = PresetCombination.objects.create(track=self.track, name='No-Maths Combo 2', code='NM2')
+        combo = PresetCombination.objects.create(track=self.stem_track, name='No-Maths Combo 2', code='NM2')
         combo.subjects.set([self.physics, self.chem, self.bio])
 
         _ensure_core_mathematics(self.student, combo, self.year)
         _ensure_core_mathematics(self.student, combo, self.year)
 
         self.assertEqual(
-            StudentSubjectEnrollment.objects.filter(student=self.student, subject=self.emat, academic_year=self.year).count(), 1
+            StudentSubjectEnrollment.objects.filter(student=self.student, subject=self.cmat, academic_year=self.year).count(), 1
         )
 
 
@@ -412,11 +438,12 @@ class PromoteStudentSSSPathwayCarryForwardTests(TestCase):
         self.pathway = Pathway.objects.create(curriculum=self.curriculum, name='STEM')
         self.track = Track.objects.create(pathway=self.pathway, name='Pure Sciences')
 
-        # No AMAT/CMAT in this combo, so the core-math guarantee should add EMAT on top.
+        # No AMAT/CMAT in this combo -- on a STEM pathway the core-math guarantee should add
+        # CMAT (Core Mathematics) on top; EMAT is reserved for non-STEM pathways.
         self.physics = Subject.objects.create(code='PHY8', name='Physics 8')
         self.chem = Subject.objects.create(code='CHE8', name='Chemistry 8')
         self.bio = Subject.objects.create(code='BIO8', name='Biology 8')
-        self.emat = Subject.objects.create(code='EMAT', name='Essential Mathematics')
+        self.cmat = Subject.objects.create(code='CMAT', name='Core Mathematics')
         self.combo = PresetCombination.objects.create(track=self.track, name='Sciences Combo', code='SC8')
         self.combo.subjects.set([self.physics, self.chem, self.bio])
 
@@ -457,11 +484,12 @@ class PromoteStudentSSSPathwayCarryForwardTests(TestCase):
             )
             self.assertEqual(enrollment.status, 'Approved')
 
-        # Combo has neither AMAT nor CMAT -> the core-math guarantee should have added EMAT too.
-        emat_enrollment = StudentSubjectEnrollment.objects.get(
-            student=self.student, subject=self.emat, academic_year=self.new_year,
+        # Combo has neither AMAT nor CMAT, and the pathway is STEM -> the core-math
+        # guarantee should have added CMAT too.
+        cmat_enrollment = StudentSubjectEnrollment.objects.get(
+            student=self.student, subject=self.cmat, academic_year=self.new_year,
         )
-        self.assertEqual(emat_enrollment.status, 'Approved')
+        self.assertEqual(cmat_enrollment.status, 'Approved')
 
         # Prior year's selection is untouched (a clone, not a move).
         self.previous_selection.refresh_from_db()

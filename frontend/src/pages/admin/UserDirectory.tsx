@@ -6,10 +6,10 @@ interface UserDirectoryProps {
 }
 
 const DIRECTORY_META = {
-  teachers: { icon: GraduationCap, color: 'text-purple-600 bg-purple-50', label: 'Faculty' },
-  students: { icon: Users, color: 'text-blue-600 bg-blue-50', label: 'Learners' },
-  parents: { icon: UserSquare2, color: 'text-emerald-600 bg-emerald-50', label: 'Guardians' },
-  staff: { icon: Briefcase, color: 'text-amber-600 bg-amber-50', label: 'Support Staff' },
+  teachers: { icon: GraduationCap, color: 'text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-500/10', label: 'Faculty' },
+  students: { icon: Users, color: 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10', label: 'Learners' },
+  parents: { icon: UserSquare2, color: 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10', label: 'Guardians' },
+  staff: { icon: Briefcase, color: 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10', label: 'Support Staff' },
 } as const;
 
 export default function UserDirectory({ userType }: UserDirectoryProps) {
@@ -23,8 +23,8 @@ export default function UserDirectory({ userType }: UserDirectoryProps) {
           <Icon className="w-7 h-7" strokeWidth={2.5} />
         </div>
         <div>
-          <h1 className="text-2xl font-extrabold text-slate-800 capitalize">{userType} Directory</h1>
-          <p className="text-slate-500 text-sm mt-0.5">{meta.label} &middot; manage, edit, and view active profiles.</p>
+          <h1 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100 capitalize">{userType} Directory</h1>
+          <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5">{meta.label} &middot; manage, edit, and view active profiles.</p>
         </div>
       </div>
 

@@ -20,12 +20,12 @@ export default function AttendanceFilter({
   selectedDate, setSelectedDate, onLoadRoster, isLoadingRoster
 }: FilterProps) {
   return (
-    <div className="p-4 border-b border-slate-200 bg-slate-50 flex flex-col md:flex-row gap-4 items-end">
+    <div className="p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 flex flex-col md:flex-row gap-4 items-end">
 
       {/* --- ADMIN VIEW: Can select any class --- */}
       {role === 'admin' && (
         <div className="flex-1 w-full">
-          <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Select Class</label>
+          <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wider">Select Class</label>
           <SearchableSelect
             aria-label="Select Class"
             value={selectedClass}
@@ -41,9 +41,9 @@ export default function AttendanceFilter({
       {/* --- TEACHER VIEW: Read-only class display, resolved from their profile --- */}
       {role === 'teacher' && (
         <div className="flex-1 w-full">
-          <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">My Assigned Class</label>
-          <div className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg bg-slate-100 text-slate-600 font-medium flex items-center relative">
-            <Users className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wider">My Assigned Class</label>
+          <div className="w-full pl-10 pr-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-medium flex items-center relative">
+            <Users className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
             <span>{loadingClasses ? 'Loading...' : (teacherClassName || 'No class assigned')}</span>
           </div>
         </div>
@@ -51,14 +51,14 @@ export default function AttendanceFilter({
 
       {/* Shared Date Picker */}
       <div className="flex-1 w-full">
-        <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wider">Date</label>
+        <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wider">Date</label>
         <div className="relative">
-          <Calendar className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <Calendar className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
           <input
             type="date"
             value={selectedDate}
             onChange={(e) => setSelectedDate(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-slate-700"
+            className="w-full pl-10 pr-4 py-2 border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 text-slate-700 dark:text-slate-200"
           />
         </div>
       </div>
@@ -68,7 +68,7 @@ export default function AttendanceFilter({
           type="button"
           onClick={onLoadRoster}
           disabled={!selectedClass || isLoadingRoster}
-          className="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg font-medium hover:bg-slate-300 transition-colors flex items-center gap-2 disabled:opacity-50"
+          className="px-4 py-2 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-lg font-medium hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors flex items-center gap-2 disabled:opacity-50"
         >
           {isLoadingRoster ? <Loader2 className="w-4 h-4 animate-spin" /> : <Filter className="w-4 h-4" />} Load Roster
         </button>

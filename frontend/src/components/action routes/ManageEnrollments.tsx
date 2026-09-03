@@ -177,34 +177,34 @@ const fetchClassData = useCallback(async () => {
     // --- RENDER HELPERS ---
     const getStatusBadge = (state: string) => {
         const styles: Record<string, string> = {
-            'Active': 'bg-emerald-100 text-emerald-700 border-emerald-200',
-            'Suspended': 'bg-amber-100 text-amber-700 border-amber-200',
-            'Expelled': 'bg-red-100 text-red-700 border-red-200',
-            'Transferred': 'bg-blue-100 text-blue-700 border-blue-200',
-            'Reactivated': 'bg-purple-100 text-purple-700 border-purple-200'
+            'Active': 'bg-emerald-100 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/40',
+            'Suspended': 'bg-amber-100 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-500/40',
+            'Expelled': 'bg-red-100 dark:bg-red-500/10 text-red-700 dark:text-red-400 border-red-200 dark:border-red-500/40',
+            'Transferred': 'bg-blue-100 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-500/40',
+            'Reactivated': 'bg-purple-100 dark:bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-500/40'
         };
-        return <span className={`px-3 py-1 rounded-full text-xs font-medium border ${styles[state] || 'bg-gray-100'}`}>{state}</span>;
+        return <span className={`px-3 py-1 rounded-full text-xs font-medium border ${styles[state] || 'bg-gray-100 dark:bg-slate-800'}`}>{state}</span>;
     };
 
     const displayStudents = activeTab === 'active' ? roster : exitedHistory;
 
-    if (loading) return <div className="p-6 text-center text-slate-500 flex items-center justify-center gap-3"><span className="animate-spin h-5 w-5 border-2 border-blue-600 border-t-transparent rounded-full"></span>Loading real-time enrollments...</div>;
+    if (loading) return <div className="p-6 text-center text-slate-500 dark:text-slate-400 flex items-center justify-center gap-3"><span className="animate-spin h-5 w-5 border-2 border-blue-600 dark:border-blue-400 border-t-transparent rounded-full"></span>Loading real-time enrollments...</div>;
 
     return (
         <div className="p-6 max-w-7xl mx-auto space-y-6">
             {/* HEADER */}
-            <div className="flex justify-between items-end bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+            <div className="flex justify-between items-end bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm dark:shadow-none border border-slate-100 dark:border-slate-700">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-800">Manage Enrollments</h1>
-                    <p className="text-slate-500 mt-1">{classInfo.grade} {classInfo.name}</p>
+                    <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Manage Enrollments</h1>
+                    <p className="text-slate-500 dark:text-slate-400 mt-1">{classInfo.grade} {classInfo.name}</p>
                 </div>
                 <div className="flex gap-4 items-center">
                     <div className="text-right">
-                        <p className="text-sm text-slate-500 font-medium">Capacity</p>
-                        <p className="text-xl font-bold text-slate-800">{roster.length} / {classInfo.capacity}</p>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">Capacity</p>
+                        <p className="text-xl font-bold text-slate-800 dark:text-slate-100">{roster.length} / {classInfo.capacity}</p>
                     </div>
                     {/* PULL STUDENT BUTTON */}
-                    <button 
+                    <button
                         onClick={() => setIsPullModalOpen(true)}
                         className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition"
                     >
@@ -216,25 +216,25 @@ const fetchClassData = useCallback(async () => {
 
             {/* TAB AND BULK ACTION BAR */}
             <div className="flex justify-between items-center">
-                <div className="flex bg-white rounded-lg p-1 shadow-sm border border-slate-100">
-                    <button 
+                <div className="flex bg-white dark:bg-slate-900 rounded-lg p-1 shadow-sm dark:shadow-none border border-slate-100 dark:border-slate-700">
+                    <button
                         onClick={() => setActiveTab('active')}
-                        className={`px-4 py-2 rounded-md text-sm font-medium transition ${activeTab === 'active' ? 'bg-slate-100 text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
+                        className={`px-4 py-2 rounded-md text-sm font-medium transition ${activeTab === 'active' ? 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
                     >
                         Active Roster ({roster.length})
                     </button>
-                    <button 
+                    <button
                         onClick={() => setActiveTab('exited')}
-                        className={`px-4 py-2 rounded-md text-sm font-medium transition ${activeTab === 'exited' ? 'bg-slate-100 text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
+                        className={`px-4 py-2 rounded-md text-sm font-medium transition ${activeTab === 'exited' ? 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
                     >
                         Ghost Roster / Exited ({exitedHistory.length})
                     </button>
                 </div>
 
                 {activeTab === 'active' && selectedStudents.length > 0 && (
-                    <button 
+                    <button
                         onClick={() => setIsBulkModalOpen(true)}
-                        className="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-medium transition"
+                        className="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition"
                     >
                         <ArrowRightLeft className="w-4 h-4" />
                         Bulk Transfer ({selectedStudents.length})
@@ -243,9 +243,9 @@ const fetchClassData = useCallback(async () => {
             </div>
 
             {/* MAIN TABLE */}
-            <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
-                <table className="w-full text-left text-sm text-slate-600">
-                    <thead className="bg-slate-50 border-b border-slate-100 text-slate-500">
+            <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm dark:shadow-none border border-slate-100 dark:border-slate-700 overflow-hidden">
+                <table className="w-full text-left text-sm text-slate-600 dark:text-slate-300">
+                    <thead className="bg-slate-50 dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700 text-slate-500 dark:text-slate-400">
                         <tr>
                             {activeTab === 'active' && <th className="p-4 w-12"></th>}
                             <th className="p-4 font-medium">Student Info</th>
@@ -256,45 +256,45 @@ const fetchClassData = useCallback(async () => {
                             <th className="p-4 font-medium text-right">Action</th>
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                         {displayStudents.map((student) => (
-                            <tr key={student.id} className="hover:bg-slate-50 transition">
+                            <tr key={student.id} className="hover:bg-slate-50 dark:hover:bg-slate-800 transition">
                                 {activeTab === 'active' && (
                                     <td className="p-4">
-                                        <input 
-                                            type="checkbox" 
-                                            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                        <input
+                                            type="checkbox"
+                                            className="rounded border-slate-300 dark:border-slate-600 text-blue-600 dark:text-blue-400 focus:ring-blue-500 dark:focus:ring-blue-400 cursor-pointer"
                                             checked={selectedStudents.includes(student.id)}
                                             onChange={() => handleSelectStudent(student.id)}
                                         />
                                     </td>
                                 )}
-                                <td className="p-4 font-medium text-slate-800">
+                                <td className="p-4 font-medium text-slate-800 dark:text-slate-100">
                                     {student.name}
                                     {student.enrollment_notes && activeTab === 'exited' && (
-                                        <p className="text-xs text-slate-400 mt-1 font-normal line-clamp-1">{student.enrollment_notes}</p>
+                                        <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 font-normal line-clamp-1">{student.enrollment_notes}</p>
                                     )}
                                 </td>
                                 <td className="p-4">{student.roll}</td>
                                 <td className="p-4">{getStatusBadge(student.enrollment_state)}</td>
                                 <td className="p-4">
-                                    <span className={(student.fee_balance || 0) > 0 ? 'text-red-600 font-medium' : 'text-emerald-600'}>
+                                    <span className={(student.fee_balance || 0) > 0 ? 'text-red-600 dark:text-red-400 font-medium' : 'text-emerald-600 dark:text-emerald-400'}>
                                         KES {(student.fee_balance || 0).toLocaleString()}
                                     </span>
                                 </td>
                                 {activeTab === 'active' && (
                                     <td className="p-4 text-center">
-                                        {student.subjects_assigned 
-                                            ? <CheckCircle2 className="w-5 h-5 text-emerald-500 mx-auto" /> 
-                                            : <XCircle className="w-5 h-5 text-red-500 mx-auto" />
+                                        {student.subjects_assigned
+                                            ? <CheckCircle2 className="w-5 h-5 text-emerald-500 dark:text-emerald-400 mx-auto" />
+                                            : <XCircle className="w-5 h-5 text-red-500 dark:text-red-400 mx-auto" />
                                         }
                                     </td>
                                 )}
                                 <td className="p-4 text-right">
                                     {activeTab === 'active' && (
-                                        <button 
+                                        <button
                                             onClick={() => openActionModal(student)}
-                                            className="text-blue-600 hover:text-blue-800 font-medium text-sm"
+                                            className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium text-sm"
                                         >
                                             Manage
                                         </button>
@@ -309,17 +309,17 @@ const fetchClassData = useCallback(async () => {
             {/* UNIFIED ACTION MODAL */}
             {isActionModalOpen && targetStudent && (
                 <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden">
-                        <div className="p-6 border-b border-slate-100">
-                            <h2 className="text-xl font-bold text-slate-800">Manage Status: {targetStudent.name}</h2>
-                            <p className="text-sm text-slate-500">Current Status: {getStatusBadge(targetStudent.enrollment_state)}</p>
+                    <div className="bg-white dark:bg-slate-900 rounded-xl shadow-xl dark:shadow-none w-full max-w-lg overflow-hidden">
+                        <div className="p-6 border-b border-slate-100 dark:border-slate-700">
+                            <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">Manage Status: {targetStudent.name}</h2>
+                            <p className="text-sm text-slate-500 dark:text-slate-400">Current Status: {getStatusBadge(targetStudent.enrollment_state)}</p>
                         </div>
-                        
-                        <div className="p-6 space-y-5 bg-slate-50/50">
+
+                        <div className="p-6 space-y-5 bg-slate-50/50 dark:bg-slate-800/40">
                             {/* FEE GUARDRAIL WARNING */}
                             {(targetStudent.fee_balance || 0) > 0 && (
-                                <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex gap-3 text-red-800">
-                                    <AlertCircle className="w-5 h-5 shrink-0 text-red-600" />
+                                <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/40 rounded-lg p-4 flex gap-3 text-red-800 dark:text-red-300">
+                                    <AlertCircle className="w-5 h-5 shrink-0 text-red-600 dark:text-red-400" />
                                     <div className="text-sm">
                                         <p className="font-bold">Outstanding Balance: KES {(targetStudent.fee_balance || 0).toLocaleString()}</p>
                                         <p>Please ensure clearance before processing external transfers or expulsions.</p>
@@ -329,9 +329,9 @@ const fetchClassData = useCallback(async () => {
 
                             {/* ACTION SELECTOR */}
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Select Action</label>
-                                <select 
-                                    className="w-full border border-slate-300 rounded-lg p-2.5 text-sm bg-white"
+                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">Select Action</label>
+                                <select
+                                    className="w-full border border-slate-300 dark:border-slate-600 rounded-lg p-2.5 text-sm bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100"
                                     value={actionForm.action}
                                     onChange={(e) => setActionForm({...actionForm, action: e.target.value})}
                                 >
@@ -347,9 +347,9 @@ const fetchClassData = useCallback(async () => {
                             {/* STREAM SELECTOR */}
                             {actionForm.action === 'transfer' && (
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Target Stream</label>
-                                    <select 
-                                        className="w-full border border-slate-300 rounded-lg p-2.5 text-sm bg-white"
+                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">Target Stream</label>
+                                    <select
+                                        className="w-full border border-slate-300 dark:border-slate-600 rounded-lg p-2.5 text-sm bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100"
                                         value={actionForm.stream_id}
                                         onChange={(e) => setActionForm({...actionForm, stream_id: e.target.value})}
                                     >
@@ -363,9 +363,9 @@ const fetchClassData = useCallback(async () => {
 
                             {/* REASON / AUDIT LOG */}
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Reason / Notes (Required)</label>
-                                <textarea 
-                                    className="w-full border border-slate-300 rounded-lg p-2.5 text-sm"
+                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">Reason / Notes (Required)</label>
+                                <textarea
+                                    className="w-full border border-slate-300 dark:border-slate-600 rounded-lg p-2.5 text-sm bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
                                     rows={3}
                                     placeholder="Enter reason for audit logs..."
                                     value={actionForm.reason}
@@ -374,29 +374,29 @@ const fetchClassData = useCallback(async () => {
                             </div>
 
                             {/* NOTIFICATION TOGGLE */}
-                            <label className="flex items-center gap-3 p-3 border border-slate-200 rounded-lg bg-white cursor-pointer hover:bg-slate-50 transition">
-                                <input 
-                                    type="checkbox" 
-                                    className="rounded border-slate-300 text-blue-600 w-4 h-4 cursor-pointer"
+                            <label className="flex items-center gap-3 p-3 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition">
+                                <input
+                                    type="checkbox"
+                                    className="rounded border-slate-300 dark:border-slate-600 text-blue-600 dark:text-blue-400 w-4 h-4 cursor-pointer"
                                     checked={actionForm.notify_parent}
                                     onChange={(e) => setActionForm({...actionForm, notify_parent: e.target.checked})}
                                 />
-                                <div className="flex items-center gap-2 text-sm text-slate-700 select-none">
-                                    <Bell className="w-4 h-4 text-blue-500" />
+                                <div className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200 select-none">
+                                    <Bell className="w-4 h-4 text-blue-500 dark:text-blue-400" />
                                     Send immediate alert to Parent Portal
                                 </div>
                             </label>
                         </div>
 
-                        <div className="p-6 border-t border-slate-100 flex justify-between items-center bg-white">
-                            <button className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-800 transition">
+                        <div className="p-6 border-t border-slate-100 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-900">
+                            <button className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition">
                                 <FileText className="w-4 h-4" />
                                 Generate Doc
                             </button>
-                            
+
                             <div className="flex gap-3">
-                                <button onClick={() => setIsActionModalOpen(false)} className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition">Cancel</button>
-                                <button 
+                                <button onClick={() => setIsActionModalOpen(false)} className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition">Cancel</button>
+                                <button
                                     onClick={submitAction}
                                     disabled={!actionForm.action || !actionForm.reason}
                                     className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
@@ -421,10 +421,10 @@ const fetchClassData = useCallback(async () => {
             {/* PULL STUDENT MODAL */}
             {isPullModalOpen && (
                 <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
-                        <h2 className="text-lg font-bold text-slate-800 mb-4">Pull Unassigned Student</h2>
-                        <p className="text-sm text-slate-500 mb-4">Select a Reactivated or Unassigned student to pull into {classInfo.grade} {classInfo.name}.</p>
-                        
+                    <div className="bg-white dark:bg-slate-900 rounded-xl shadow-xl dark:shadow-none w-full max-w-md p-6">
+                        <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-4">Pull Unassigned Student</h2>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">Select a Reactivated or Unassigned student to pull into {classInfo.grade} {classInfo.name}.</p>
+
                         <div className="mb-6">
                             <SearchableSelect
                                 value={pullForm.student_id}
@@ -440,8 +440,8 @@ const fetchClassData = useCallback(async () => {
                         </div>
 
                         <div className="flex justify-end gap-3">
-                            <button onClick={() => setIsPullModalOpen(false)} className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition">Cancel</button>
-                            <button 
+                            <button onClick={() => setIsPullModalOpen(false)} className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition">Cancel</button>
+                            <button
                                type="button"
                                onClick={handlePullStudentSubmit}
                                disabled={!pullForm.student_id}

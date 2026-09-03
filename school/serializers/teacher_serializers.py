@@ -1,7 +1,8 @@
 from rest_framework import serializers
 
-from school.models.timetable_models import LessonAllocation
-from school.models.models import TeacherExtra, Notice
+from apps.timetable.models import LessonAllocation
+from apps.identity.models import TeacherExtra
+from apps.messaging.models import Notice
 
 
 class TeacherProfileSerializer(serializers.ModelSerializer):

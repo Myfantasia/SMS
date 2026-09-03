@@ -127,9 +127,9 @@ export default function AssignmentTaker() {
   if (loading) {
     return (
       <div className="max-w-4xl mx-auto space-y-6 animate-pulse">
-        <div className="h-14 bg-slate-200 rounded-2xl"></div>
-        <div className="h-40 bg-slate-200 rounded-2xl"></div>
-        <div className="h-56 bg-slate-200 rounded-2xl"></div>
+        <div className="h-14 bg-slate-200 dark:bg-slate-800 rounded-2xl"></div>
+        <div className="h-40 bg-slate-200 dark:bg-slate-800 rounded-2xl"></div>
+        <div className="h-56 bg-slate-200 dark:bg-slate-800 rounded-2xl"></div>
       </div>
     );
   }
@@ -140,15 +140,15 @@ export default function AssignmentTaker() {
   if (assignment.is_quiz && !assignment.started_at) {
     return (
       <div className="max-w-2xl mx-auto space-y-6">
-        <button onClick={() => navigate('..')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 transition-colors text-sm font-medium">
+        <button onClick={() => navigate('..')} className="flex items-center gap-2 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors text-sm font-medium">
           <ArrowLeft className="w-4 h-4" /> Back to Assignments
         </button>
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-8 text-center space-y-4">
-          <div className="w-16 h-16 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center mx-auto">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm dark:shadow-none border border-slate-100 dark:border-slate-700 p-8 text-center space-y-4">
+          <div className="w-16 h-16 bg-purple-100 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 rounded-full flex items-center justify-center mx-auto">
             <Timer className="w-8 h-8" />
           </div>
-          <h1 className="text-2xl font-bold text-slate-800">{assignment.title}</h1>
-          <p className="text-sm text-slate-500">
+          <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">{assignment.title}</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
             This is a timed quiz. You will have <strong>{assignment.duration_minutes} minutes</strong> once you begin, and the timer cannot be paused.
           </p>
           <button
@@ -166,43 +166,43 @@ export default function AssignmentTaker() {
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-20">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <button onClick={() => navigate('..')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 transition-colors text-sm font-medium">
+        <button onClick={() => navigate('..')} className="flex items-center gap-2 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors text-sm font-medium">
           <ArrowLeft className="w-4 h-4" /> Back to Assignments
         </button>
         {assignment.is_quiz && formattedTime && (
-          <div className={`flex items-center gap-2 px-4 py-2 rounded-xl border font-black text-lg ${remainingSeconds! < 60 ? 'bg-red-50 border-red-200 text-red-700' : 'bg-blue-50 border-blue-200 text-blue-700'}`}>
+          <div className={`flex items-center gap-2 px-4 py-2 rounded-xl border font-black text-lg ${remainingSeconds! < 60 ? 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/40 text-red-700 dark:text-red-400' : 'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/40 text-blue-700 dark:text-blue-400'}`}>
             <Clock className="w-5 h-5" /> {formattedTime}
           </div>
         )}
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 space-y-2">
-        <h1 className="text-2xl font-bold text-slate-800">{assignment.title}</h1>
-        <p className="text-sm text-slate-500">{assignment.subject}</p>
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm dark:shadow-none border border-slate-100 dark:border-slate-700 p-6 space-y-2">
+        <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">{assignment.title}</h1>
+        <p className="text-sm text-slate-500 dark:text-slate-400">{assignment.subject}</p>
         {assignment.is_group_assignment && assignment.group_name && (
-          <span className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded mt-1">
+          <span className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/40 px-2.5 py-1 rounded mt-1">
             <Users className="w-3.5 h-3.5" /> Group: {assignment.group_name} — your submission will be shared with your group.
           </span>
         )}
         {assignment.grading_status === 'Returned' && (
-          <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3 mt-2">
-            <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
-            <p className="text-sm text-amber-800">Your teacher returned this for revision. Update your answers below and resubmit.</p>
+          <div className="flex items-start gap-2 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/40 rounded-lg p-3 mt-2">
+            <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+            <p className="text-sm text-amber-800 dark:text-amber-300">Your teacher returned this for revision. Update your answers below and resubmit.</p>
           </div>
         )}
       </div>
 
       {(assignment.reference_notes || assignment.reference_links.length > 0 || assignment.teacher_attachment) && (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 space-y-3">
-          <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider">Reference Material</h3>
-          {assignment.reference_notes && <p className="text-sm text-slate-600 whitespace-pre-wrap">{assignment.reference_notes}</p>}
+        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm dark:shadow-none border border-slate-100 dark:border-slate-700 p-6 space-y-3">
+          <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">Reference Material</h3>
+          {assignment.reference_notes && <p className="text-sm text-slate-600 dark:text-slate-300 whitespace-pre-wrap">{assignment.reference_notes}</p>}
           {assignment.teacher_attachment && (
-            <a href={assignment.teacher_attachment} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm text-blue-600 hover:underline">
+            <a href={assignment.teacher_attachment} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 hover:underline">
               <UploadCloud className="w-4 h-4" /> Download master document
             </a>
           )}
           {assignment.reference_links.map((link, idx) => (
-            <a key={idx} href={link.url} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-sm text-blue-600 hover:underline">
+            <a key={idx} href={link.url} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 hover:underline">
               <Link2 className="w-4 h-4" /> {link.label || link.url}
             </a>
           ))}
@@ -211,24 +211,24 @@ export default function AssignmentTaker() {
 
       <div className="space-y-5">
         {assignment.questions.map((q, index) => (
-          <div key={q.id} className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 space-y-4">
+          <div key={q.id} className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm dark:shadow-none border border-slate-100 dark:border-slate-700 p-6 space-y-4">
             <div className="flex items-center justify-between">
-              <h4 className="font-semibold text-slate-800">Question {index + 1}</h4>
-              <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded">{q.max_score} pts</span>
+              <h4 className="font-semibold text-slate-800 dark:text-slate-100">Question {index + 1}</h4>
+              <span className="text-xs font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">{q.max_score} pts</span>
             </div>
-            <p className="text-slate-700 whitespace-pre-wrap">{q.question_text}</p>
+            <p className="text-slate-700 dark:text-slate-200 whitespace-pre-wrap">{q.question_text}</p>
 
             {q.question_type === 'MCQ' && (
               <div className="space-y-2">
                 {q.options.map(opt => (
-                  <label key={opt.id} className="flex items-center gap-3 p-2.5 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-50">
+                  <label key={opt.id} className="flex items-center gap-3 p-2.5 border border-slate-200 dark:border-slate-700 rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800">
                     <input
                       type="radio"
                       name={`q-${q.id}`}
                       checked={(answers[q.id]?.selected_options || []).includes(opt.id)}
                       onChange={() => setSingleOption(q.id, opt.id)}
                     />
-                    <span className="text-sm text-slate-700">{opt.option_text}</span>
+                    <span className="text-sm text-slate-700 dark:text-slate-200">{opt.option_text}</span>
                   </label>
                 ))}
               </div>
@@ -236,15 +236,15 @@ export default function AssignmentTaker() {
 
             {q.question_type === 'CHECKBOX' && (
               <div className="space-y-2">
-                <p className="text-xs text-slate-500">Select up to {q.required_answers || 1} option(s).</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Select up to {q.required_answers || 1} option(s).</p>
                 {q.options.map(opt => (
-                  <label key={opt.id} className="flex items-center gap-3 p-2.5 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-50">
+                  <label key={opt.id} className="flex items-center gap-3 p-2.5 border border-slate-200 dark:border-slate-700 rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800">
                     <input
                       type="checkbox"
                       checked={(answers[q.id]?.selected_options || []).includes(opt.id)}
                       onChange={() => toggleCheckboxOption(q.id, opt.id, q.required_answers)}
                     />
-                    <span className="text-sm text-slate-700">{opt.option_text}</span>
+                    <span className="text-sm text-slate-700 dark:text-slate-200">{opt.option_text}</span>
                   </label>
                 ))}
               </div>
@@ -256,7 +256,7 @@ export default function AssignmentTaker() {
                 value={answers[q.id]?.text_answer || ''}
                 onChange={(e) => setTextAnswer(q.id, e.target.value)}
                 placeholder="Type your answer..."
-                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-400 outline-none"
               />
             )}
 
@@ -266,26 +266,26 @@ export default function AssignmentTaker() {
                 value={answers[q.id]?.text_answer || ''}
                 onChange={(e) => setTextAnswer(q.id, e.target.value)}
                 placeholder="Write your response..."
-                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none resize-y"
+                className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-400 outline-none resize-y"
               />
             )}
 
             {q.question_type === 'FILE_UPLOAD' && (
-              <p className="text-sm text-slate-500 italic">Attach your work for this question using the file upload at the bottom of the page.</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400 italic">Attach your work for this question using the file upload at the bottom of the page.</p>
             )}
           </div>
         ))}
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 space-y-3">
-        <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider">Attach a File (Optional)</h3>
-        <label className="inline-flex items-center gap-2 px-4 py-2.5 border border-dashed border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50 cursor-pointer">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm dark:shadow-none border border-slate-100 dark:border-slate-700 p-6 space-y-3">
+        <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">Attach a File (Optional)</h3>
+        <label className="inline-flex items-center gap-2 px-4 py-2.5 border border-dashed border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
           <UploadCloud className="w-4 h-4" />
           {file ? file.name : 'Click to choose a file'}
           <input type="file" className="hidden" onChange={(e) => setFile(e.target.files?.[0] || null)} />
         </label>
         {assignment.student_attachment && !file && (
-          <p className="text-xs text-slate-500">Currently attached: <a href={assignment.student_attachment} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">view file</a></p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Currently attached: <a href={assignment.student_attachment} target="_blank" rel="noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline">view file</a></p>
         )}
       </div>
 

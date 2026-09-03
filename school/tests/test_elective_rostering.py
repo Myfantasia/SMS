@@ -1,6 +1,7 @@
 from django.test import TestCase
 
-from school.models.classSubjects_models import ClassStream, StudentSubjectEnrollment
+from apps.academics.models import ClassStream
+from apps.students.models import StudentSubjectEnrollment
 from school.tests.base import ExamTestDataMixin
 from school.utils import get_applicable_students, resolve_classroom_students
 

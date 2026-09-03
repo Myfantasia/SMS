@@ -1,8 +1,8 @@
 from django.test import TestCase, RequestFactory
 
-from school.models.resultsModels import ClassPerformanceAnalytics, StudentTermResult
+from apps.results.models import ClassPerformanceAnalytics, StudentTermResult
 from school.tests.base import ExamTestDataMixin
-from school.views.results_views import SchoolAnalyticsAPIView
+from apps.analytics.views import SchoolAnalyticsAPIView
 
 
 class SchoolAnalyticsGradeDistributionTests(ExamTestDataMixin, TestCase):

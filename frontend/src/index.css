@@ -1,5 +1,30 @@
 @import "tailwindcss";
 
+/* Class/attribute-based dark mode for the authenticated dashboard shell (DashboardLayouts.tsx
+   sets data-dashboard-theme="dark"/"light" on its root element via useDashboardThemeMode).
+   Without this, Tailwind v4's `dark:` variant defaults to the OS `prefers-color-scheme` media
+   query, which would ignore the in-app toggle entirely. Deliberately a DIFFERENT attribute name
+   than the public site's own `data-theme` (public/theme/useThemeMode.ts, set on
+   documentElement, defaults to 'dark') -- reusing `data-theme` here caused a real bug: since a
+   descendant matches `[data-theme="dark"] *` regardless of its OWN data-theme value, the public
+   login page's dark-by-default `<html data-theme="dark">` silently forced every dashboard page
+   into dark mode even when the dashboard's own attribute said "light". A distinct attribute
+   name makes that collision structurally impossible. */
+@custom-variant dark (&:where([data-dashboard-theme="dark"], [data-dashboard-theme="dark"] *));
+
+/* Smooths the light/dark switch inside the dashboard shell -- without this, toggling flips
+   every color instantly, which reads as a jarring flash rather than a deliberate transition.
+   Scoped to [data-dashboard-theme] descendants only, so the public site (its own separate
+   theme system) and any print/reduced-motion context are unaffected. Excludes background-image
+   so gradient/pattern fills don't visibly "wipe" across the element on toggle. */
+@media (prefers-reduced-motion: no-preference) {
+  [data-dashboard-theme] * {
+    transition-property: background-color, border-color, color, fill, stroke;
+    transition-duration: 150ms;
+    transition-timing-function: ease-out;
+  }
+}
+
 .react-calendar {
   width: 100% !important;
   max-width: 100% !important;

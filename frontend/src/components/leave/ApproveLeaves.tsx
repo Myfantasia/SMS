@@ -24,7 +24,7 @@ function DecisionRow({ leave, reliefTeachers, onDecide, isBusy }: DecisionRowPro
     <div className="flex flex-col sm:flex-row sm:items-center gap-3">
       {leave.is_long_term && (
         <div className="flex-1">
-          <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+          <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
             Relief Teacher (optional)
           </label>
           <div className="w-full sm:w-64">
@@ -42,14 +42,14 @@ function DecisionRow({ leave, reliefTeachers, onDecide, isBusy }: DecisionRowPro
         <button
           disabled={isBusy}
           onClick={() => onDecide(leave, 'Rejected')}
-          className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded-lg hover:bg-rose-100 transition-all disabled:opacity-60"
+          className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/40 rounded-lg hover:bg-rose-100 dark:hover:bg-rose-500/20 transition-all disabled:opacity-60"
         >
           <XCircle className="w-4 h-4" /> Reject
         </button>
         <button
           disabled={isBusy}
           onClick={() => onDecide(leave, 'Approved', reliefTeacherId ? Number(reliefTeacherId) : undefined)}
-          className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-all shadow-sm disabled:opacity-60"
+          className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-all shadow-sm dark:shadow-none disabled:opacity-60"
         >
           <CheckCircle2 className="w-4 h-4" /> Approve
         </button>
@@ -124,12 +124,12 @@ export default function ApproveLeaves() {
   return (
     <div className="max-w-5xl mx-auto">
       <div className="mb-6 flex items-center gap-4">
-        <div className="p-3 rounded-2xl text-blue-600 bg-blue-50">
+        <div className="p-3 rounded-2xl text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10">
           <ShieldCheck className="w-7 h-7" strokeWidth={2.5} />
         </div>
         <div>
-          <h1 className="text-2xl font-extrabold text-slate-800">Approve Leave Requests</h1>
-          <p className="text-slate-500 text-sm mt-0.5">
+          <h1 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100">Approve Leave Requests</h1>
+          <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5">
             Review pending applications, decide, and assign relief cover for long-term absences.
           </p>
         </div>
@@ -139,16 +139,16 @@ export default function ApproveLeaves() {
         <LeaveStatCards stats={stats} />
       </div>
 
-      <div className="flex bg-slate-100 p-1 rounded-lg w-fit mb-5">
+      <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg w-fit mb-5">
         <button
           onClick={() => setActiveTab('pending')}
-          className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${activeTab === 'pending' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+          className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${activeTab === 'pending' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm dark:shadow-none' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
         >
           <UserCheck2 className="w-4 h-4" /> Pending Decisions ({pendingLeaves.length})
         </button>
         <button
           onClick={() => setActiveTab('decided')}
-          className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${activeTab === 'decided' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+          className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${activeTab === 'decided' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm dark:shadow-none' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
         >
           <History className="w-4 h-4" /> Decision History
         </button>
@@ -156,12 +156,12 @@ export default function ApproveLeaves() {
 
       {isLoading ? (
         <div className="flex justify-center items-center py-20">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+          <Loader2 className="w-8 h-8 animate-spin text-blue-500 dark:text-blue-400" />
         </div>
       ) : activeTab === 'pending' ? (
         pendingLeaves.length === 0 ? (
-          <div className="text-center py-20 bg-white border border-slate-200 rounded-2xl shadow-inner">
-            <p className="text-slate-400 font-semibold tracking-tight italic">You are all caught up — no leave requests awaiting a decision.</p>
+          <div className="text-center py-20 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-inner dark:shadow-none">
+            <p className="text-slate-400 dark:text-slate-500 font-semibold tracking-tight italic">You are all caught up — no leave requests awaiting a decision.</p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -183,8 +183,8 @@ export default function ApproveLeaves() {
           </div>
         )
       ) : decidedLeaves.length === 0 ? (
-        <div className="text-center py-20 bg-white border border-slate-200 rounded-2xl shadow-inner">
-          <p className="text-slate-400 font-semibold tracking-tight italic">No decisions have been recorded yet.</p>
+        <div className="text-center py-20 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-inner dark:shadow-none">
+          <p className="text-slate-400 dark:text-slate-500 font-semibold tracking-tight italic">No decisions have been recorded yet.</p>
         </div>
       ) : (
         <div className="space-y-4">

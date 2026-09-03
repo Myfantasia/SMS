@@ -303,8 +303,8 @@ export default function TeacherAvailabilityView({ slots, onBack }: TeacherAvaila
   if (loadingStaff) {
     return (
       <div className="p-6 max-w-7xl mx-auto space-y-6 animate-pulse">
-        <div className="h-20 bg-slate-200 rounded-2xl"></div>
-        <div className="h-96 bg-slate-200 rounded-2xl"></div>
+        <div className="h-20 bg-slate-200 dark:bg-slate-800 rounded-2xl"></div>
+        <div className="h-96 bg-slate-200 dark:bg-slate-800 rounded-2xl"></div>
       </div>
     );
   }
@@ -313,25 +313,25 @@ export default function TeacherAvailabilityView({ slots, onBack }: TeacherAvaila
     <div className="p-6 max-w-7xl mx-auto space-y-6 animate-fade-in">
       
       {/* Top Navigation & Action Header */}
-      <div className="flex justify-between items-center bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+      <div className="flex justify-between items-center bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm dark:shadow-none">
         <div className="flex items-center gap-4">
-          <button 
+          <button
             onClick={onBack}
-            className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition font-bold flex items-center gap-2 text-sm"
+            className="p-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl transition font-bold flex items-center gap-2 text-sm"
           >
             <ArrowLeft className="w-4 h-4" /> Back to Schedule
           </button>
           <div>
-            <h1 className="text-2xl font-black text-slate-800 tracking-tight">Teacher Availability Matrix</h1>
-            <p className="text-xs text-slate-500 font-medium">Define recurring weekly blackout slots and part-time availability constraints.</p>
+            <h1 className="text-2xl font-black text-slate-800 dark:text-slate-100 tracking-tight">Teacher Availability Matrix</h1>
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Define recurring weekly blackout slots and part-time availability constraints.</p>
           </div>
         </div>
 
         {/* Teacher Profile Selector — searchable combobox instead of a flat <select>, so a
             large staff list stays usable */}
         <div className="relative min-w-70" ref={teacherPickerRef}>
-          <div className="flex items-center gap-2 border border-slate-300 rounded-xl px-3 py-2 bg-slate-50 shadow-sm focus-within:ring-2 focus-within:ring-indigo-500">
-            <User className="w-4 h-4 text-indigo-600 shrink-0" />
+          <div className="flex items-center gap-2 border border-slate-300 dark:border-slate-600 rounded-xl px-3 py-2 bg-slate-50 dark:bg-slate-800 shadow-sm dark:shadow-none focus-within:ring-2 focus-within:ring-indigo-500 dark:focus-within:ring-indigo-400">
+            <User className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
             <input
               type="text"
               aria-label="Search instructor by name or department"
@@ -339,23 +339,23 @@ export default function TeacherAvailabilityView({ slots, onBack }: TeacherAvaila
               onChange={(e) => setTeacherSearch(e.target.value)}
               onFocus={() => { setIsTeacherDropdownOpen(true); setTeacherSearch(''); }}
               placeholder="Search instructor by name or department..."
-              className="flex-1 bg-transparent outline-none text-sm font-bold text-slate-800 min-w-0"
+              className="flex-1 bg-transparent outline-none text-sm font-bold text-slate-800 dark:text-slate-100 min-w-0"
             />
-            <Search className="w-4 h-4 text-slate-400 shrink-0" />
+            <Search className="w-4 h-4 text-slate-400 dark:text-slate-500 shrink-0" />
           </div>
           {isTeacherDropdownOpen && (
-            <div className="absolute right-0 mt-1 w-full max-h-72 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-lg z-50">
+            <div className="absolute right-0 mt-1 w-full max-h-72 overflow-y-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg dark:shadow-none z-50">
               {filteredTeachers.length === 0 ? (
-                <div className="p-3 text-xs text-slate-400 font-medium text-center">No matching instructors.</div>
+                <div className="p-3 text-xs text-slate-400 dark:text-slate-500 font-medium text-center">No matching instructors.</div>
               ) : (
                 filteredTeachers.map(t => (
                   <button
                     key={t.id}
                     type="button"
                     onClick={() => { setSelectedTeacherId(t.id.toString()); setIsTeacherDropdownOpen(false); setTeacherSearch(''); }}
-                    className={`w-full text-left px-3 py-2 text-sm font-bold hover:bg-indigo-50 transition-colors ${t.id.toString() === selectedTeacherId ? 'bg-indigo-50 text-indigo-700' : 'text-slate-700'}`}
+                    className={`w-full text-left px-3 py-2 text-sm font-bold hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-colors ${t.id.toString() === selectedTeacherId ? 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400' : 'text-slate-700 dark:text-slate-200'}`}
                   >
-                    {t.name} <span className="text-xs font-medium text-slate-400">[{t.department || 'General'}]</span>
+                    {t.name} <span className="text-xs font-medium text-slate-400 dark:text-slate-500">[{t.department || 'General'}]</span>
                   </button>
                 ))
               )}
@@ -368,23 +368,23 @@ export default function TeacherAvailabilityView({ slots, onBack }: TeacherAvaila
         <>
           {/* Workload Telemetry Cards Bar */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 animate-fade-in">
-            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-              <p className="text-xs font-bold text-slate-400 uppercase">Instructor Name</p>
-              <p className="text-base font-black text-slate-800 mt-1">{activeTeacher.name}</p>
+            <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm dark:shadow-none">
+              <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase">Instructor Name</p>
+              <p className="text-base font-black text-slate-800 dark:text-slate-100 mt-1">{activeTeacher.name}</p>
             </div>
-            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-              <p className="text-xs font-bold text-slate-400 uppercase">Department</p>
-              <p className="text-base font-black text-indigo-600 mt-1">{activeTeacher.department || 'General'}</p>
+            <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm dark:shadow-none">
+              <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase">Department</p>
+              <p className="text-base font-black text-indigo-600 dark:text-indigo-400 mt-1">{activeTeacher.department || 'General'}</p>
             </div>
-            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-              <p className="text-xs font-bold text-slate-400 uppercase">Current Assigned Load</p>
-              <p className="text-base font-black text-emerald-600 mt-1">
+            <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm dark:shadow-none">
+              <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase">Current Assigned Load</p>
+              <p className="text-base font-black text-emerald-600 dark:text-emerald-400 mt-1">
                 {activeTeacher.current_load ?? 0} / {activeTeacher.max_weekly_lessons ?? 40} periods
               </p>
             </div>
-            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-              <p className="text-xs font-bold text-slate-400 uppercase">Total Restricted Slots</p>
-              <p className="text-base font-black text-red-600 mt-1">{Object.keys(blockedSlots).length} Slots Blocked</p>
+            <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm dark:shadow-none">
+              <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase">Total Restricted Slots</p>
+              <p className="text-base font-black text-red-600 dark:text-red-400 mt-1">{Object.keys(blockedSlots).length} Slots Blocked</p>
             </div>
           </div>
 
@@ -395,7 +395,7 @@ export default function TeacherAvailabilityView({ slots, onBack }: TeacherAvaila
               type="button"
               onClick={handleClearAllForTeacher}
               disabled={isSaving || Object.keys(blockedSlots).length === 0}
-              className="flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-red-50 border border-slate-200 hover:border-red-200 text-slate-600 hover:text-red-600 rounded-lg text-xs font-bold transition disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 px-3.5 py-2 bg-white dark:bg-slate-900 hover:bg-red-50 dark:hover:bg-red-500/10 border border-slate-200 dark:border-slate-700 hover:border-red-200 dark:hover:border-red-500/40 text-slate-600 dark:text-slate-300 hover:text-red-600 dark:hover:text-red-400 rounded-lg text-xs font-bold transition disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Eraser className="w-3.5 h-3.5" /> Clear All Blockouts for {activeTeacher.name}
             </button>
@@ -403,14 +403,14 @@ export default function TeacherAvailabilityView({ slots, onBack }: TeacherAvaila
               type="button"
               onClick={() => setShowCopyPanel(prev => !prev)}
               disabled={Object.keys(blockedSlots).length === 0}
-              className="flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 text-slate-600 hover:text-indigo-600 rounded-lg text-xs font-bold transition disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 px-3.5 py-2 bg-white dark:bg-slate-900 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 border border-slate-200 dark:border-slate-700 hover:border-indigo-200 dark:hover:border-indigo-500/40 text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-lg text-xs font-bold transition disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Copy className="w-3.5 h-3.5" /> Copy Pattern to Another Teacher
             </button>
 
             {showCopyPanel && (
-              <div className="w-full bg-indigo-50/60 border border-indigo-200 rounded-xl p-3 flex flex-wrap items-center gap-2 animate-fade-in">
-                <span className="text-xs font-bold text-indigo-900">Copy {Object.keys(blockedSlots).length} blockout(s) to:</span>
+              <div className="w-full bg-indigo-50/60 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/40 rounded-xl p-3 flex flex-wrap items-center gap-2 animate-fade-in">
+                <span className="text-xs font-bold text-indigo-900 dark:text-indigo-300">Copy {Object.keys(blockedSlots).length} blockout(s) to:</span>
                 <SearchableSelect
                   aria-label="Select Destination Teacher"
                   value={copyTargetTeacherId}
@@ -436,7 +436,7 @@ export default function TeacherAvailabilityView({ slots, onBack }: TeacherAvaila
                 <button
                   type="button"
                   onClick={() => { setShowCopyPanel(false); setCopyTargetTeacherId(''); }}
-                  className="px-3 py-1.5 text-indigo-700 hover:text-indigo-900 text-xs font-bold"
+                  className="px-3 py-1.5 text-indigo-700 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300 text-xs font-bold"
                 >
                   Cancel
                 </button>
@@ -486,25 +486,25 @@ export default function TeacherAvailabilityView({ slots, onBack }: TeacherAvaila
 
           {/* Main Availability Grid Matrix */}
           {loadingMatrix ? (
-            <div className="h-96 bg-slate-200 rounded-2xl animate-pulse"></div>
+            <div className="h-96 bg-slate-200 dark:bg-slate-800 rounded-2xl animate-pulse"></div>
           ) : (
-            <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
-              
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-sm dark:shadow-none overflow-hidden flex flex-col">
+
               {/* Day Header Row with Select All Column Controls */}
-              <div className={`grid ${gridColClass} border-b border-slate-100 bg-slate-50 font-bold text-slate-700 text-xs uppercase tracking-wider text-center sticky top-0 z-10`}>
-                <div className="p-4 border-r border-slate-100 bg-slate-100/60 flex items-center justify-center">Periods</div>
+              <div className={`grid ${gridColClass} border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 font-bold text-slate-700 dark:text-slate-200 text-xs uppercase tracking-wider text-center sticky top-0 z-10`}>
+                <div className="p-4 border-r border-slate-100 dark:border-slate-700 bg-slate-100/60 dark:bg-slate-800 flex items-center justify-center">Periods</div>
                 {activeDays.map(day => {
                   const daySlotIds = slots.filter(s => s.day === day && !s.is_global).map(s => s.id);
                   const isDayFullySelected = daySlotIds.length > 0 && daySlotIds.every(id => selectedSlotIds.includes(id));
                   return (
-                    <div key={day} className="p-3 border-r border-slate-100 flex flex-col items-center justify-center gap-1">
+                    <div key={day} className="p-3 border-r border-slate-100 dark:border-slate-700 flex flex-col items-center justify-center gap-1">
                       <span>{day}</span>
                       <button
                         type="button"
                         onClick={() => handleSelectEntireDay(day)}
-                        className="text-[10px] text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1 hover:underline"
+                        className="text-[10px] text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-bold flex items-center gap-1 hover:underline"
                       >
-                        {isDayFullySelected ? <CheckSquare className="w-3 h-3 text-indigo-600" /> : <Square className="w-3 h-3 text-slate-400" />}
+                        {isDayFullySelected ? <CheckSquare className="w-3 h-3 text-indigo-600 dark:text-indigo-400" /> : <Square className="w-3 h-3 text-slate-400 dark:text-slate-500" />}
                         Select Day
                       </button>
                     </div>
@@ -513,23 +513,23 @@ export default function TeacherAvailabilityView({ slots, onBack }: TeacherAvaila
               </div>
 
               {/* Weekly Time Grid Body */}
-              <div className="divide-y divide-slate-100">
+              <div className="divide-y divide-slate-100 dark:divide-slate-700">
                 {uniqueTimes.map(timeStr => (
-                  <div key={timeStr} className={`grid ${gridColClass} transition-colors hover:bg-slate-50/40`}>
-                    
-                    <div className="p-3 text-[11px] font-mono font-bold text-slate-500 flex flex-col items-center justify-center text-center bg-slate-50/30 border-r border-slate-100">
+                  <div key={timeStr} className={`grid ${gridColClass} transition-colors hover:bg-slate-50/40 dark:hover:bg-slate-800/40`}>
+
+                    <div className="p-3 text-[11px] font-mono font-bold text-slate-500 dark:text-slate-400 flex flex-col items-center justify-center text-center bg-slate-50/30 dark:bg-slate-800/40 border-r border-slate-100 dark:border-slate-700">
                       <span>{timeStr.split(' - ')[0]}</span>
-                      <span className="text-[9px] font-normal text-slate-300 my-0.5">to</span>
+                      <span className="text-[9px] font-normal text-slate-300 dark:text-slate-600 my-0.5">to</span>
                       <span>{timeStr.split(' - ')[1]}</span>
                     </div>
 
                     {activeDays.map(day => {
                       const targetSlot = slots.find(s => s.day === day && `${s.start_time} - ${s.end_time}` === timeStr);
-                      if (!targetSlot) return <div key={day} className="bg-slate-50/50 border-r border-slate-100"></div>;
+                      if (!targetSlot) return <div key={day} className="bg-slate-50/50 dark:bg-slate-800/40 border-r border-slate-100 dark:border-slate-700"></div>;
 
                       if (targetSlot.is_global) return (
-                        <div key={targetSlot.id} className="p-2 border-r border-slate-100 flex items-center justify-center">
-                          <div className="w-full h-full bg-slate-100 border border-slate-200 rounded-xl flex items-center justify-center text-[10px] text-slate-400 font-bold uppercase tracking-wider p-2 text-center leading-tight">
+                        <div key={targetSlot.id} className="p-2 border-r border-slate-100 dark:border-slate-700 flex items-center justify-center">
+                          <div className="w-full h-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl flex items-center justify-center text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider p-2 text-center leading-tight">
                             {targetSlot.global_label}
                           </div>
                         </div>
@@ -539,14 +539,14 @@ export default function TeacherAvailabilityView({ slots, onBack }: TeacherAvaila
                       const isSelected = selectedSlotIds.includes(targetSlot.id);
 
                       return (
-                        <div key={targetSlot.id} className="p-2 border-r border-slate-100 min-h-17.5">
+                        <div key={targetSlot.id} className="p-2 border-r border-slate-100 dark:border-slate-700 min-h-17.5">
                           <div
                             onClick={() => {
                               if (selectedSlotIds.length > 0) {
                                 // Toggle in batch array if batch mode active
-                                setSelectedSlotIds(prev => 
-                                  prev.includes(targetSlot.id) 
-                                    ? prev.filter(id => id !== targetSlot.id) 
+                                setSelectedSlotIds(prev =>
+                                  prev.includes(targetSlot.id)
+                                    ? prev.filter(id => id !== targetSlot.id)
                                     : [...prev, targetSlot.id]
                                 );
                               } else {
@@ -554,29 +554,29 @@ export default function TeacherAvailabilityView({ slots, onBack }: TeacherAvaila
                               }
                             }}
                             className={`w-full h-full min-h-14 rounded-xl border p-2 flex flex-col justify-between transition cursor-pointer group ${
-                              isSelected 
-                                ? 'ring-2 ring-indigo-500 bg-indigo-50 border-indigo-300'
-                                : reasonBlocked 
-                                ? 'bg-red-50/80 border-red-200 hover:bg-red-100/80' 
-                                : 'border-dashed border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/30'
+                              isSelected
+                                ? 'ring-2 ring-indigo-500 dark:ring-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 border-indigo-300 dark:border-indigo-500/40'
+                                : reasonBlocked
+                                ? 'bg-red-50/80 dark:bg-red-500/10 border-red-200 dark:border-red-500/40 hover:bg-red-100/80 dark:hover:bg-red-500/20'
+                                : 'border-dashed border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-500/40 hover:bg-indigo-50/30 dark:hover:bg-indigo-500/10'
                             }`}
                           >
                             <div className="flex justify-between items-start">
                               {reasonBlocked ? (
-                                <span className="text-[9px] font-black uppercase tracking-wider text-red-600 bg-red-100 px-1.5 py-0.5 rounded">
+                                <span className="text-[9px] font-black uppercase tracking-wider text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-500/10 px-1.5 py-0.5 rounded">
                                   BLOCKED
                                 </span>
                               ) : (
-                                <span className="text-[9px] font-bold text-slate-300 group-hover:text-indigo-500 transition-colors">
+                                <span className="text-[9px] font-bold text-slate-300 dark:text-slate-600 group-hover:text-indigo-500 dark:group-hover:text-indigo-400 transition-colors">
                                   AVAILABLE
                                 </span>
                               )}
                               {reasonBlocked && (
-                                <Trash2 className="w-3.5 h-3.5 text-red-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                <Trash2 className="w-3.5 h-3.5 text-red-400 dark:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity" />
                               )}
                             </div>
 
-                            <p className={`text-xs font-bold leading-tight truncate mt-1 ${reasonBlocked ? 'text-red-900' : 'text-slate-400'}`}>
+                            <p className={`text-xs font-bold leading-tight truncate mt-1 ${reasonBlocked ? 'text-red-900 dark:text-red-300' : 'text-slate-400 dark:text-slate-500'}`}>
                               {reasonBlocked || 'Click to Restrict'}
                             </p>
                           </div>
@@ -594,10 +594,10 @@ export default function TeacherAvailabilityView({ slots, onBack }: TeacherAvaila
       )}
 
       {!selectedTeacherId && (
-        <div className="border border-dashed border-slate-200 rounded-2xl p-16 text-center text-slate-400 flex flex-col items-center justify-center gap-2 bg-white">
-          <Calendar className="w-10 h-10 text-slate-300" />
-          <p className="text-sm font-bold text-slate-600">No Teacher Selected</p>
-          <p className="text-xs text-slate-400">Choose an instructor profile from the top right menu to view and manage blackout slots.</p>
+        <div className="border border-dashed border-slate-200 dark:border-slate-700 rounded-2xl p-16 text-center text-slate-400 dark:text-slate-500 flex flex-col items-center justify-center gap-2 bg-white dark:bg-slate-900">
+          <Calendar className="w-10 h-10 text-slate-300 dark:text-slate-600" />
+          <p className="text-sm font-bold text-slate-600 dark:text-slate-300">No Teacher Selected</p>
+          <p className="text-xs text-slate-400 dark:text-slate-500">Choose an instructor profile from the top right menu to view and manage blackout slots.</p>
         </div>
       )}
 
@@ -606,14 +606,14 @@ export default function TeacherAvailabilityView({ slots, onBack }: TeacherAvaila
         const targetSlot = slots.find(s => s.id === reasonModalSlotId);
         return (
           <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-70 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-fade-in">
-              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl dark:shadow-none w-full max-w-sm overflow-hidden animate-fade-in">
+              <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between bg-slate-50 dark:bg-slate-800/40">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-xl bg-red-50 text-red-600"><Lock className="w-4 h-4" /></div>
+                  <div className="p-2 rounded-xl bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400"><Lock className="w-4 h-4" /></div>
                   <div>
-                    <h3 className="font-black text-slate-800 text-sm">Block This Slot</h3>
+                    <h3 className="font-black text-slate-800 dark:text-slate-100 text-sm">Block This Slot</h3>
                     {targetSlot && (
-                      <p className="text-xs text-slate-400 font-medium">{targetSlot.day} &middot; {targetSlot.start_time} - {targetSlot.end_time}</p>
+                      <p className="text-xs text-slate-400 dark:text-slate-500 font-medium">{targetSlot.day} &middot; {targetSlot.start_time} - {targetSlot.end_time}</p>
                     )}
                   </div>
                 </div>
@@ -621,14 +621,14 @@ export default function TeacherAvailabilityView({ slots, onBack }: TeacherAvaila
                   onClick={() => setReasonModalSlotId(null)}
                   title="Cancel"
                   aria-label="Cancel"
-                  className="text-slate-400 hover:text-slate-600 p-1 rounded-md hover:bg-slate-200 transition-colors"
+                  className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 p-1 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
               <div className="p-6 space-y-4">
                 <div>
-                  <label htmlFor="block-reason-input" className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Reason</label>
+                  <label htmlFor="block-reason-input" className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Reason</label>
                   <input
                     id="block-reason-input"
                     type="text"
@@ -637,7 +637,7 @@ export default function TeacherAvailabilityView({ slots, onBack }: TeacherAvaila
                     onChange={(e) => setReasonInput(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter') commitSingleBlock(); }}
                     placeholder="e.g. HOD Administrative Time"
-                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    className="w-full border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-indigo-500 dark:focus:border-indigo-400 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100"
                   />
                 </div>
                 <div className="flex gap-3">
@@ -645,7 +645,7 @@ export default function TeacherAvailabilityView({ slots, onBack }: TeacherAvaila
                     type="button"
                     onClick={() => setReasonModalSlotId(null)}
                     disabled={isSaving}
-                    className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-600 rounded-lg font-bold text-sm hover:bg-slate-50 transition-colors"
+                    className="flex-1 px-4 py-2.5 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-lg font-bold text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
                   >
                     Cancel
                   </button>
