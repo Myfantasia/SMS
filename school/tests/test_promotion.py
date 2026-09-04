@@ -517,6 +517,131 @@ class PromoteStudentSSSPathwayCarryForwardTests(TestCase):
         )
 
 
+from apps.students.models import PromotionEvent
+
+
+class PromotionEventRecordingTests(TestCase):
+    def setUp(self):
+        self.curriculum = Curriculum.objects.create(code='PEV1', name='Promotion Event Test Curriculum')
+        self.tier = Tier.objects.create(curriculum=self.curriculum, name='Lower Primary', code='LPPEV1')
+        self.grade1 = GradeLevel.objects.create(name='Grade 1PEV', numeric_order=1, curriculum=self.curriculum, tier=self.tier)
+        self.grade2 = GradeLevel.objects.create(name='Grade 2PEV', numeric_order=2, curriculum=self.curriculum, tier=self.tier)
+        self.stream1 = ClassStream.objects.create(name='Central', grade=self.grade1)
+
+        self.exit_tier = Tier.objects.create(
+            curriculum=self.curriculum, name='Senior Secondary', code='SSPEV1',
+            exit_exam_code='KCSE', exit_is_terminal=True,
+        )
+        self.grade12 = GradeLevel.objects.create(name='Grade 12PEV', numeric_order=12, curriculum=self.curriculum, tier=self.exit_tier)
+        self.stream12 = ClassStream.objects.create(name='Central', grade=self.grade12)
+
+        self.year = AcademicYear.objects.create(year='2101')
+        ExamTerm.objects.create(
+            name='Term 1', academic_year=self.year, start_date='2101-01-01', end_date='2101-04-01',
+            results_finalized=True,
+        )
+
+        self.operator = User.objects.create_user(username='promotion_event_operator', password='x')
+
+    def test_plain_promotion_records_previous_state(self):
+        student_user = User.objects.create_user(username='pev_plain_student', password='x')
+        student = StudentExtra.objects.create(user=student_user, roll='PV01', cl=self.stream1, status=True)
+
+        result = _promote_student(student, self.year, performed_by_id=self.operator.id)
+
+        self.assertEqual(result['outcome'], 'promoted')
+        event = PromotionEvent.objects.get(student=student)
+        self.assertEqual(event.outcome, 'promoted')
+        self.assertEqual(event.previous_cl_id, self.stream1.id)
+        self.assertEqual(event.previous_enrollment_state, 'Active')
+        self.assertIsNone(event.created_pathway_selection_id)
+        self.assertEqual(event.performed_by_id, self.operator.id)
+        self.assertIsNone(event.reverted_at)
+
+    def test_graduation_records_null_previous_cl(self):
+        student_user = User.objects.create_user(username='pev_grad_student', password='x')
+        student = StudentExtra.objects.create(user=student_user, roll='PV02', cl=self.stream12, status=True)
+        NationalExamRecord.objects.create(student=student, exam_code='KCSE', academic_year=self.year)
+
+        result = _promote_student(student, self.year, performed_by_id=self.operator.id)
+
+        self.assertEqual(result['outcome'], 'graduated')
+        event = PromotionEvent.objects.get(student=student)
+        self.assertEqual(event.outcome, 'graduated')
+        self.assertIsNone(event.previous_cl_id)
+        self.assertEqual(event.previous_enrollment_state, 'Active')
+
+    def test_held_outcome_writes_no_event(self):
+        student_user = User.objects.create_user(username='pev_held_student', password='x')
+        unfinalized_year = AcademicYear.objects.create(year='2102')
+        student = StudentExtra.objects.create(user=student_user, roll='PV03', cl=self.stream1, status=True)
+
+        result = _promote_student(student, unfinalized_year, performed_by_id=self.operator.id)
+
+        self.assertEqual(result['outcome'], 'held')
+        self.assertFalse(PromotionEvent.objects.filter(student=student).exists())
+
+    def test_pathway_carry_forward_creates_event_with_created_selection(self):
+        # Mirrors PromoteStudentSSSPathwayCarryForwardTests' setup, but only checks the
+        # PromotionEvent side -- the pathway-carry-forward behavior itself is already covered.
+        sss_tier = Tier.objects.create(curriculum=self.curriculum, name='Senior Secondary Carry', code='SSCPEV1')
+        g10 = GradeLevel.objects.create(name='Grade 10PEV', numeric_order=10, curriculum=self.curriculum, tier=sss_tier)
+        g11 = GradeLevel.objects.create(name='Grade 11PEV', numeric_order=11, curriculum=self.curriculum, tier=sss_tier)
+        stream10 = ClassStream.objects.create(name='Gold', grade=g10)
+        pathway = Pathway.objects.create(curriculum=self.curriculum, name='STEM PEV')
+        track = Track.objects.create(pathway=pathway, name='Pure Sciences PEV')
+
+        new_year = AcademicYear.objects.create(year='2103')
+        ExamTerm.objects.create(
+            name='Term 1', academic_year=new_year, start_date='2103-01-01', end_date='2103-04-01',
+            results_finalized=True,
+        )
+        student_user = User.objects.create_user(username='pev_pathway_student', password='x')
+        student = StudentExtra.objects.create(user=student_user, roll='PV04', cl=stream10, status=True)
+        StudentPathwaySelection.objects.create(
+            student=student, pathway=pathway, track=track, academic_year=self.year, status='Approved',
+        )
+
+        result = _promote_student(student, new_year, performed_by_id=self.operator.id)
+
+        self.assertEqual(result['outcome'], 'promoted')
+        event = PromotionEvent.objects.get(student=student)
+        new_selection = StudentPathwaySelection.objects.get(student=student, academic_year=new_year)
+        self.assertEqual(event.created_pathway_selection_id, new_selection.id)
+
+    def test_pathway_carry_forward_does_not_attribute_an_updated_selection(self):
+        # If a StudentPathwaySelection already existed for the target year (e.g. re-running
+        # promotion after a correction), _carry_forward_pathway_selection updates it rather
+        # than creating it -- created_pathway_selection must stay None so a later revert never
+        # deletes a row that predates this promotion.
+        sss_tier = Tier.objects.create(curriculum=self.curriculum, name='Senior Secondary Update', code='SSUPEV1')
+        g10 = GradeLevel.objects.create(name='Grade 10UPEV', numeric_order=10, curriculum=self.curriculum, tier=sss_tier)
+        g11 = GradeLevel.objects.create(name='Grade 11UPEV', numeric_order=11, curriculum=self.curriculum, tier=sss_tier)
+        stream10 = ClassStream.objects.create(name='Gold', grade=g10)
+        pathway = Pathway.objects.create(curriculum=self.curriculum, name='STEM UPEV')
+        track = Track.objects.create(pathway=pathway, name='Pure Sciences UPEV')
+
+        new_year = AcademicYear.objects.create(year='2104')
+        ExamTerm.objects.create(
+            name='Term 1', academic_year=new_year, start_date='2104-01-01', end_date='2104-04-01',
+            results_finalized=True,
+        )
+        student_user = User.objects.create_user(username='pev_update_student', password='x')
+        student = StudentExtra.objects.create(user=student_user, roll='PV05', cl=stream10, status=True)
+        StudentPathwaySelection.objects.create(
+            student=student, pathway=pathway, track=track, academic_year=self.year, status='Approved',
+        )
+        # Pre-existing selection for the TARGET year -- update_or_create will update this, not create.
+        StudentPathwaySelection.objects.create(
+            student=student, pathway=pathway, track=track, academic_year=new_year, status='Approved',
+        )
+
+        _promote_student(student, new_year, performed_by_id=self.operator.id)
+
+        event = PromotionEvent.objects.get(student=student)
+        self.assertIsNone(event.created_pathway_selection_id)
+
+
 import json
 from django.core.cache import cache
 from django.test import RequestFactory
