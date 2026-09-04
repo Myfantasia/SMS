@@ -15,7 +15,7 @@ from apps.academics.models import (
     ExamTerm, GradeLevel, next_grade_level, get_or_create_class_stream, tier_requires_pathway_choice, AcademicYear,
 )
 from apps.identity.models import StudentExtra
-from apps.students.models import NationalExamRecord, StudentPathwaySelection
+from apps.students.models import NationalExamRecord, StudentPathwaySelection, PromotionEvent
 from apps.core.services import write_audit_log
 from school.rbac import HasModulePermission
 from school.views.subject_views import _approve_combo_subjects, _ensure_core_mathematics
@@ -60,14 +60,17 @@ def _carry_forward_pathway_selection(student, academic_year):
     Clones the student's most recent Approved StudentPathwaySelection into the new academic_year
     (an SSS student's pathway/track/combo doesn't change on promotion, only their grade does),
     then re-approves the combo's subjects and re-runs the core-math guarantee for the new year.
+    Returns (selection, created) -- created is True only when a brand-new row was written for
+    this (student, academic_year) pair, which _promote_student needs to know before it's safe
+    to attribute a PromotionEvent.created_pathway_selection to this promotion.
     """
     previous = StudentPathwaySelection.objects.filter(
         student=student, status='Approved',
     ).exclude(academic_year=academic_year).order_by('-academic_year_id').first()
     if previous is None:
-        return
+        return None, False
 
-    new_selection, _ = StudentPathwaySelection.objects.update_or_create(
+    new_selection, created = StudentPathwaySelection.objects.update_or_create(
         student=student, academic_year=academic_year,
         defaults={
             'pathway': previous.pathway, 'track': previous.track,
@@ -77,18 +80,24 @@ def _carry_forward_pathway_selection(student, academic_year):
     if new_selection.preset_combination_id:
         _approve_combo_subjects(student, new_selection.preset_combination, academic_year)
         _ensure_core_mathematics(student, new_selection.preset_combination, academic_year)
+    return new_selection, created
 
 
 def _move_student_to_grade(student, next_grade, academic_year):
     """Reassigns cl to the same-named stream in next_grade, creating it if needed, and carries
-    forward the pathway selection for SSS grades."""
+    forward the pathway selection for SSS grades. Returns the StudentPathwaySelection created
+    by this call (None if none was created -- either not an SSS grade, no previous selection to
+    carry forward, or an existing selection for the target year was updated rather than
+    created), for _promote_student to record on the resulting PromotionEvent."""
     current_stream_name = student.cl.name
     new_stream = get_or_create_class_stream(next_grade, current_stream_name)
     student.cl = new_stream
     student.save(update_fields=['cl'])
 
     if tier_requires_pathway_choice(next_grade.tier):
-        _carry_forward_pathway_selection(student, academic_year)
+        selection, created = _carry_forward_pathway_selection(student, academic_year)
+        return selection if created else None
+    return None
 
 
 def _readiness_for_student(student, academic_year, results_finalized=None):
@@ -171,22 +180,34 @@ def _readiness_for_student(student, academic_year, results_finalized=None):
     }
 
 
-def _promote_student(student, academic_year):
+def _promote_student(student, academic_year, performed_by_id=None):
     """
     Attempts to promote one student for `academic_year`.
     Returns {'student_id', 'outcome': 'promoted'|'graduated'|'held', 'detail': str}.
     Never raises for a normal "not ready yet" case — those are 'held', not errors.
+
+    `performed_by_id`: id of the user running this promotion (an admin, a class teacher, or
+    a bulk job's operator_id). Recorded on the PromotionEvent written for every non-'held'
+    outcome, so a later revert (PromotionRevertAPIView) and PromotionEventsAPIView's listing
+    know who to credit.
     """
     readiness = _readiness_for_student(student, academic_year)
     if not readiness['ready']:
         return {'student_id': student.id, 'outcome': 'held', 'detail': readiness['reason']}
 
     transition_type, exam_code, next_grade = readiness['_transition']
+    previous_cl = student.cl
+    previous_enrollment_state = student.enrollment_state
 
     if transition_type in ('plain', 'exam_gated'):
-        _move_student_to_grade(student, next_grade, academic_year)
+        created_pathway_selection = _move_student_to_grade(student, next_grade, academic_year)
         detail = f'Promoted to {next_grade.name}.' if transition_type == 'plain' \
             else f'Promoted to {next_grade.name} ({exam_code} recorded).'
+        PromotionEvent.objects.create(
+            student=student, academic_year=academic_year, outcome='promoted',
+            previous_cl=previous_cl, previous_enrollment_state=previous_enrollment_state,
+            created_pathway_selection=created_pathway_selection, performed_by_id=performed_by_id,
+        )
         return {'student_id': student.id, 'outcome': 'promoted', 'detail': detail}
 
     # transition_type == 'exit'
@@ -194,6 +215,11 @@ def _promote_student(student, academic_year):
     student.save(update_fields=['enrollment_state'])
     record = NationalExamRecord.objects.filter(student=student, exam_code=exam_code, academic_year=academic_year).first()
     destination = record.destination or 'not yet recorded'
+    PromotionEvent.objects.create(
+        student=student, academic_year=academic_year, outcome='graduated',
+        previous_cl=None, previous_enrollment_state=previous_enrollment_state,
+        performed_by_id=performed_by_id,
+    )
     return {
         'student_id': student.id, 'outcome': 'graduated',
         'detail': f'Graduated ({exam_code} recorded). Destination: {destination}.',
@@ -497,7 +523,7 @@ class PromoteSingleStudentAPIView(APIView):
             return Response({"error": "Student not found."}, status=status.HTTP_404_NOT_FOUND)
 
         with transaction.atomic():
-            outcome = _promote_student(student, academic_year)
+            outcome = _promote_student(student, academic_year, performed_by_id=user.id)
             if outcome['outcome'] != 'held':
                 write_audit_log(
                     operator_id=user.id, action_type='PROMOTE', module='SinglePromoteStudent',

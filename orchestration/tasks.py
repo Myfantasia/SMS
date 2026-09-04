@@ -382,7 +382,7 @@ def promote_students_task(self, job_id, academic_year_id, student_ids, operator_
             academic_year = AcademicYear.objects.get(id=academic_year_id)
             students = StudentExtra.objects.filter(id__in=student_ids).select_related('cl__grade__tier')
 
-            outcomes = [_promote_student(s, academic_year) for s in students]
+            outcomes = [_promote_student(s, academic_year, performed_by_id=operator_id) for s in students]
             promoted = sum(1 for o in outcomes if o['outcome'] == 'promoted')
             graduated = sum(1 for o in outcomes if o['outcome'] == 'graduated')
             held = sum(1 for o in outcomes if o['outcome'] == 'held')

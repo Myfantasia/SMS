@@ -26,8 +26,8 @@ class StudentTask(models.Model):
     """Personal to-do items a student manages for themselves (not tied to assignments)."""
     student = models.ForeignKey('identity.StudentExtra', on_delete=models.CASCADE, related_name='tasks')
     title = models.CharField(max_length=255)
-    due_date = models.DateField(blank=True, null=True)
-    is_done = models.BooleanField(default=False)
+    due_date = models.DateField(blank=True, null=True, db_index=True)
+    is_done = models.BooleanField(default=False, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -66,7 +66,7 @@ class StudentPathwaySelection(models.Model):
     )
     academic_year = models.ForeignKey('academics.AcademicYear', on_delete=models.CASCADE)
 
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending', db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -92,7 +92,7 @@ class StudentSubjectEnrollment(models.Model):
     subject = models.ForeignKey('academics.Subject', on_delete=models.CASCADE)
     academic_year = models.ForeignKey('academics.AcademicYear', on_delete=models.CASCADE)
 
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending', db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -140,3 +140,43 @@ class NationalExamRecord(models.Model):
 
     def __str__(self):
         return f"{self.student.get_name} - {self.exam_code} ({self.academic_year.year})"
+
+
+class PromotionEvent(models.Model):
+    """
+    Written by _promote_student (school/views/promotion_views.py) on every successful
+    promotion or graduation -- never on a 'held' outcome. Captures enough of the student's
+    pre-promotion state to support a full revert, and performed_at is what the 12-hour
+    Administrator correction window (PromotionRevertAPIView, _can_still_correct) measures
+    against.
+    """
+    OUTCOME_CHOICES = [('promoted', 'Promoted'), ('graduated', 'Graduated')]
+
+    student = models.ForeignKey('identity.StudentExtra', on_delete=models.CASCADE, related_name='promotion_events')
+    academic_year = models.ForeignKey('academics.AcademicYear', on_delete=models.CASCADE)
+    outcome = models.CharField(max_length=10, choices=OUTCOME_CHOICES)
+
+    previous_cl = models.ForeignKey(
+        'academics.ClassStream', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+        help_text="Student's class stream immediately before this promotion. Null for a "
+                   "'graduated' outcome, since graduation doesn't reassign cl.",
+    )
+    previous_enrollment_state = models.CharField(max_length=20)
+    created_pathway_selection = models.ForeignKey(
+        'StudentPathwaySelection', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+        help_text="Set only if this promotion created a new StudentPathwaySelection row via "
+                   "_carry_forward_pathway_selection (SSS grades). Reverting deletes exactly "
+                   "this row and nothing else -- an already-existing selection for the target "
+                   "year is left untouched.",
+    )
+
+    performed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    performed_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    reverted_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    reverted_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'school_promotionevent'
+
+    def __str__(self):
+        return f"{self.student.get_name} - {self.outcome} ({self.academic_year.year})"
