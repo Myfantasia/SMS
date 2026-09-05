@@ -704,6 +704,45 @@ class FinalizeTermAPIViewTests(PromotionAdminEndpointTestMixin, TestCase):
         self.assertFalse(self.term.results_finalized)
         self.assertIsNone(self.term.results_finalized_at)
 
+    def test_non_admin_cannot_un_finalize(self):
+        self.term.results_finalized = True
+        self.term.results_finalized_at = timezone.now()
+        self.term.save()
+        no_role_user = User.objects.create_user(username='finalize_no_role', password='x')
+        response = self._post(
+            FinalizeTermAPIView, f'/api/promotion/finalize-term/{self.term.id}/',
+            no_role_user, {'finalized': False}, term_id=self.term.id,
+        )
+        self.assertEqual(response.status_code, 403)
+        self.term.refresh_from_db()
+        self.assertTrue(self.term.results_finalized)
+
+    def test_admin_cannot_un_finalize_past_the_window(self):
+        from datetime import timedelta
+        self.term.results_finalized = True
+        self.term.results_finalized_at = timezone.now() - timedelta(hours=13)
+        self.term.save()
+        response = self._post(
+            FinalizeTermAPIView, f'/api/promotion/finalize-term/{self.term.id}/',
+            self.admin_user, {'finalized': False}, term_id=self.term.id,
+        )
+        # ExamTestDataMixin's admin_user is a superuser, which is always exempt from the
+        # window -- use a non-superuser Administrator to actually exercise the 12h block.
+        self.assertEqual(response.status_code, 200)
+
+        non_superuser_admin_user = User.objects.create_user(username='finalize_plain_admin', password='x')
+        non_superuser_admin_user.groups.add(self.admin_group)
+        self.term.results_finalized = True
+        self.term.results_finalized_at = timezone.now() - timedelta(hours=13)
+        self.term.save()
+        response = self._post(
+            FinalizeTermAPIView, f'/api/promotion/finalize-term/{self.term.id}/',
+            non_superuser_admin_user, {'finalized': False}, term_id=self.term.id,
+        )
+        self.assertEqual(response.status_code, 403)
+        self.term.refresh_from_db()
+        self.assertTrue(self.term.results_finalized)
+
 
 class RecordNationalExamAPIViewTests(PromotionAdminEndpointTestMixin, TestCase):
     def test_admin_can_record_an_exam(self):

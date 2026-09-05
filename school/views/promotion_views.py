@@ -247,7 +247,9 @@ def _promote_student(student, academic_year, performed_by_id=None):
 
 class FinalizeTermAPIView(APIView):
     """Admin toggle for ExamTerm.results_finalized — purely informational, does not block
-    result regeneration (see Task 2/spec §2)."""
+    result regeneration. Finalizing has no restriction beyond the base results.edit
+    permission; un-finalizing is Administrator-only and time-boxed to 12 hours after the
+    last finalize, unless the requester is a superuser (see _can_still_correct)."""
     permission_classes = [IsAuthenticated, HasModulePermission]
     authentication_classes = [SessionAuthentication]
     rbac_edit_permission = 'results.edit'
@@ -259,6 +261,18 @@ class FinalizeTermAPIView(APIView):
             return Response({"error": "Term not found."}, status=status.HTTP_404_NOT_FOUND)
 
         finalized = bool(request.data.get('finalized', True))
+
+        if not finalized:
+            if not _is_admin(request.user):
+                return Response(
+                    {"error": "Only Administrators can un-finalize a term."}, status=status.HTTP_403_FORBIDDEN,
+                )
+            if not _can_still_correct(request.user, term.results_finalized_at):
+                return Response(
+                    {"error": "The 12-hour window to un-finalize this term has passed. "
+                              "Only a superuser can un-finalize it now."}, status=status.HTTP_403_FORBIDDEN,
+                )
+
         term.results_finalized = finalized
         term.results_finalized_at = timezone.now() if finalized else None
         term.save(update_fields=['results_finalized', 'results_finalized_at'])
