@@ -604,3 +604,46 @@ class PromotionRevertAPIView(APIView):
                         f"{event.performed_by.username if event.performed_by else 'unknown'}.",
         )
         return Response({"student_id": student.id, "reverted": True})
+
+
+class PromotionEventsAPIView(APIView):
+    """Read-only: a student's promotion/graduation history, each row annotated with whether
+    the requesting user may revert it right now (see _can_still_correct)."""
+    permission_classes = [IsAuthenticated, HasModulePermission]
+    authentication_classes = [SessionAuthentication]
+    rbac_view_permission = 'results.view'
+
+    def get(self, request):
+        student_id = request.query_params.get('student_id')
+        if not student_id:
+            return Response({"error": "student_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            student = StudentExtra.objects.get(id=student_id)
+        except StudentExtra.DoesNotExist:
+            return Response({"error": "Student not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        user = request.user
+        events = PromotionEvent.objects.filter(student=student).select_related(
+            'academic_year', 'performed_by',
+        ).order_by('-performed_at')
+
+        rows = []
+        for event in events:
+            can_revert = (
+                event.reverted_at is None
+                and _is_admin(user)
+                and _can_still_correct(user, event.performed_at)
+            )
+            rows.append({
+                'id': event.id,
+                'outcome': event.outcome,
+                'academic_year': event.academic_year.year,
+                'performed_at': event.performed_at.isoformat(),
+                'performed_by_name': (
+                    (event.performed_by.get_full_name() or event.performed_by.username)
+                    if event.performed_by else None
+                ),
+                'reverted_at': event.reverted_at.isoformat() if event.reverted_at else None,
+                'can_revert': can_revert,
+            })
+        return Response({'events': rows})

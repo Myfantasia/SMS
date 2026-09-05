@@ -10,7 +10,7 @@ from apps.academics.models import AcademicYear, ClassStream, Curriculum, ExamTer
 from apps.identity.models import Permission, Role, StudentExtra, UserRole
 from apps.students.models import PromotionEvent
 from school.tests.base import ExamTestDataMixin
-from school.views.promotion_views import PromotionRevertAPIView, _promote_student
+from school.views.promotion_views import PromotionRevertAPIView, PromotionEventsAPIView, _promote_student
 
 
 class PromotionRevertAPIViewTests(ExamTestDataMixin, TestCase):
@@ -109,3 +109,81 @@ class PromotionRevertAPIViewTests(ExamTestDataMixin, TestCase):
     def test_unknown_event_returns_404(self):
         response = self._post(self.admin_user, 999999)
         self.assertEqual(response.status_code, 404)
+
+
+class PromotionEventsAPIViewTests(ExamTestDataMixin, TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        Permission.objects.get_or_create(code='results.view', defaults={'label': 'results.view', 'module': 'results'})
+        role = Role.objects.create(name='Events Viewer')
+        role.permissions.set(Permission.objects.filter(code='results.view'))
+        UserRole.objects.create(user=cls.admin_user, role=role)
+        UserRole.objects.create(user=cls.teacher_user, role=role)
+
+        cls.curriculum = Curriculum.objects.create(code='PEVW1', name='Events View Test Curriculum')
+        cls.tier = Tier.objects.create(curriculum=cls.curriculum, name='Lower Primary', code='LPPEVW1')
+        cls.g1 = GradeLevel.objects.create(name='Grade 1PEVW', numeric_order=1, curriculum=cls.curriculum, tier=cls.tier)
+        GradeLevel.objects.create(name='Grade 2PEVW', numeric_order=2, curriculum=cls.curriculum, tier=cls.tier)
+        cls.stream = ClassStream.objects.create(name='Central', grade=cls.g1)
+        cls.year = AcademicYear.objects.create(year='2106')
+        ExamTerm.objects.create(
+            name='Term 1', academic_year=cls.year, start_date='2106-01-01', end_date='2106-04-01',
+            results_finalized=True,
+        )
+
+    def setUp(self):
+        cache.clear()
+        self.factory = RequestFactory()
+
+    def _get(self, user, student_id):
+        request = self.factory.get(f'/api/promotion/events/?student_id={student_id}')
+        request.user = user
+        return PromotionEventsAPIView.as_view()(request)
+
+    def test_missing_student_id_is_rejected(self):
+        request = self.factory.get('/api/promotion/events/')
+        request.user = self.admin_user
+        response = PromotionEventsAPIView.as_view()(request)
+        self.assertEqual(response.status_code, 400)
+
+    def test_unknown_student_returns_404(self):
+        response = self._get(self.admin_user, 999999)
+        self.assertEqual(response.status_code, 404)
+
+    def test_admin_within_window_can_revert(self):
+        student_user = User.objects.create_user(username='pev_view_student_a', password='x')
+        student = StudentExtra.objects.create(user=student_user, roll='PVA1', cl=self.stream, status=True)
+        _promote_student(student, self.year, performed_by_id=self.admin_user.id)
+
+        response = self._get(self.admin_user, student.id)
+
+        self.assertEqual(response.status_code, 200)
+        events = response.data['events']
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]['outcome'], 'promoted')
+        self.assertIsNone(events[0]['reverted_at'])
+        self.assertTrue(events[0]['can_revert'])
+
+    def test_non_admin_cannot_revert_even_within_window(self):
+        student_user = User.objects.create_user(username='pev_view_student_b', password='x')
+        student = StudentExtra.objects.create(user=student_user, roll='PVB1', cl=self.stream, status=True)
+        _promote_student(student, self.year, performed_by_id=self.admin_user.id)
+
+        response = self._get(self.teacher_user, student.id)
+
+        self.assertFalse(response.data['events'][0]['can_revert'])
+
+    def test_already_reverted_event_cannot_revert_again(self):
+        student_user = User.objects.create_user(username='pev_view_student_c', password='x')
+        student = StudentExtra.objects.create(user=student_user, roll='PVC1', cl=self.stream, status=True)
+        _promote_student(student, self.year, performed_by_id=self.admin_user.id)
+        event = PromotionEvent.objects.get(student=student)
+        event.reverted_at = timezone.now()
+        event.reverted_by = self.admin_user
+        event.save(update_fields=['reverted_at', 'reverted_by'])
+
+        response = self._get(self.admin_user, student.id)
+
+        self.assertFalse(response.data['events'][0]['can_revert'])
+        self.assertIsNotNone(response.data['events'][0]['reverted_at'])
