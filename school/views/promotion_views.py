@@ -3,6 +3,8 @@ Grade promotion: plain (internal-results-gated), same-institution exam-gated (KP
 exit (cross-institution or terminal, KJSEA/KCSE) transitions. See
 docs/superpowers/specs/2026-08-12-sss-core-math-and-promotion-design.md.
 """
+from datetime import timedelta
+
 from django.utils import timezone
 from django.db import transaction
 from rest_framework.authentication import SessionAuthentication
@@ -18,7 +20,7 @@ from apps.identity.models import StudentExtra
 from apps.students.models import NationalExamRecord, StudentPathwaySelection, PromotionEvent
 from apps.core.services import write_audit_log
 from school.rbac import HasModulePermission
-from school.views.subject_views import _approve_combo_subjects, _ensure_core_mathematics
+from school.views.subject_views import _approve_combo_subjects, _ensure_core_mathematics, _is_admin
 from school.jobs import dispatch_background_job
 from orchestration.tasks import promote_students_task
 
@@ -53,6 +55,23 @@ def results_finalized_for_year(academic_year):
     """True once every ExamTerm under `academic_year` has been admin-finalized (Task 2)."""
     terms = ExamTerm.objects.filter(academic_year=academic_year)
     return terms.exists() and not terms.filter(results_finalized=False).exists()
+
+
+def _can_still_correct(user, performed_at, window_hours=12):
+    """
+    True if `user` may still correct/undo something that happened at `performed_at`.
+    A superuser always can. Anyone else needs to be within `window_hours` of `performed_at`
+    (None -- nothing has happened yet -- is never within the window). This only measures the
+    TIME part; admin standing itself is checked separately by each caller via _is_admin, since
+    _is_admin already returns True for superusers, so composing `_is_admin(user) and
+    _can_still_correct(user, performed_at)` correctly captures: superuser -> always allowed;
+    non-superuser admin -> allowed only within the window; non-admin -> never allowed.
+    """
+    if user.is_superuser:
+        return True
+    if performed_at is None:
+        return False
+    return timezone.now() - performed_at <= timedelta(hours=window_hours)
 
 
 def _carry_forward_pathway_selection(student, academic_year):
@@ -530,3 +549,58 @@ class PromoteSingleStudentAPIView(APIView):
                     description=f"{outcome['outcome'].capitalize()} {student.get_name} for {academic_year.year}: {outcome['detail']}",
                 )
         return Response(outcome, status=status.HTTP_200_OK)
+
+
+class PromotionRevertAPIView(APIView):
+    """
+    Admin-only undo of a completed promotion/graduation, within 12 hours unless the requester
+    is a superuser (see _can_still_correct). Restores previous_cl/previous_enrollment_state and
+    deletes any StudentPathwaySelection this specific promotion created -- never a
+    pre-existing one, since _promote_student only ever attributes created_pathway_selection
+    when _carry_forward_pathway_selection actually created a fresh row.
+    """
+    permission_classes = [IsAuthenticated, HasModulePermission]
+    authentication_classes = [SessionAuthentication]
+    rbac_edit_permission = 'results.edit'
+
+    def post(self, request, event_id):
+        user = request.user
+        try:
+            event = PromotionEvent.objects.select_related('student', 'created_pathway_selection').get(id=event_id)
+        except PromotionEvent.DoesNotExist:
+            return Response({"error": "Promotion event not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if event.reverted_at is not None:
+            return Response({"error": "This promotion was already reverted."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not _is_admin(user):
+            return Response({"error": "Only Administrators can revert a promotion."}, status=status.HTTP_403_FORBIDDEN)
+        if not _can_still_correct(user, event.performed_at):
+            return Response(
+                {"error": "The 12-hour window to revert this promotion has passed. "
+                          "Only a superuser can revert it now."}, status=status.HTTP_403_FORBIDDEN,
+            )
+
+        with transaction.atomic():
+            student = event.student
+            if event.outcome == 'graduated':
+                student.enrollment_state = event.previous_enrollment_state
+                student.save(update_fields=['enrollment_state'])
+            else:
+                student.cl = event.previous_cl
+                student.enrollment_state = event.previous_enrollment_state
+                student.save(update_fields=['cl', 'enrollment_state'])
+                if event.created_pathway_selection_id:
+                    event.created_pathway_selection.delete()
+
+            event.reverted_by = user
+            event.reverted_at = timezone.now()
+            event.save(update_fields=['reverted_by', 'reverted_at'])
+
+        write_audit_log(
+            operator_id=user.id, action_type='UPDATE', module='PromotionRevert',
+            description=f"Reverted {event.outcome} for {student.get_name} "
+                        f"({event.academic_year.year}), originally performed by "
+                        f"{event.performed_by.username if event.performed_by else 'unknown'}.",
+        )
+        return Response({"student_id": student.id, "reverted": True})
