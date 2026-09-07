@@ -425,6 +425,7 @@ class PromotionReadinessAPIView(APIView):
                 'student_id': student.id,
                 'name': student.get_name,
                 'grade_name': student.cl.grade.name if student.cl_id else None,
+                'stream_name': student.cl.name if student.cl_id else None,
                 'transition_type': readiness['transition_type'],
                 'requirement': readiness['requirement'],
                 'ready': readiness['ready'],
