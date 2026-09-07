@@ -19,7 +19,8 @@ from apps.academics.models import (
 from apps.identity.models import StudentExtra
 from apps.students.models import NationalExamRecord, StudentPathwaySelection, PromotionEvent
 from apps.core.services import write_audit_log
-from school.rbac import HasModulePermission
+from apps.academics.models import ClassStream
+from school.rbac import HasModulePermission, is_class_teacher_of_student
 from school.views.subject_views import _approve_combo_subjects, _ensure_core_mathematics, _is_admin
 from school.jobs import dispatch_background_job
 from orchestration.tasks import promote_students_task
@@ -341,9 +342,17 @@ class PromoteStudentsAPIView(APIView):
             return Response({"error": "academic_year_id is mandatory."}, status=status.HTTP_400_BAD_REQUEST)
 
         user = request.user
-        is_admin = user.is_superuser or user.groups.filter(name='ADMIN').exists()
-        if not is_admin:
-            return Response({"error": "Only Administrators can run a bulk promotion."}, status=status.HTTP_403_FORBIDDEN)
+        if not _is_admin(user):
+            if not stream_id:
+                return Response(
+                    {"error": "Only Administrators can run a whole-grade or whole-school promotion. "
+                              "A class teacher must select their own stream."}, status=status.HTTP_403_FORBIDDEN,
+                )
+            if not ClassStream.objects.filter(id=stream_id, class_teacher__user=user).exists():
+                return Response(
+                    {"error": "You can only run promotion for a class you are the class teacher of."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
 
         students_qs = StudentExtra.objects.filter(status=True).exclude(
             enrollment_state__in=['Graduated', 'Expelled', 'Transferred']
@@ -539,10 +548,6 @@ class PromoteSingleStudentAPIView(APIView):
 
     def post(self, request, student_id):
         user = request.user
-        is_admin = user.is_superuser or user.groups.filter(name='ADMIN').exists()
-        if not is_admin:
-            return Response({"error": "Only Administrators can promote a student."}, status=status.HTTP_403_FORBIDDEN)
-
         academic_year_id = request.data.get('academic_year_id')
         if not academic_year_id:
             return Response({"error": "academic_year_id is required."}, status=status.HTTP_400_BAD_REQUEST)
@@ -554,6 +559,12 @@ class PromoteSingleStudentAPIView(APIView):
             student = StudentExtra.objects.select_related('cl__grade__tier').get(id=student_id)
         except StudentExtra.DoesNotExist:
             return Response({"error": "Student not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if not (_is_admin(user) or is_class_teacher_of_student(user, student)):
+            return Response(
+                {"error": "Only Administrators, or this student's own class teacher, can promote them."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         with transaction.atomic():
             outcome = _promote_student(student, academic_year, performed_by_id=user.id)

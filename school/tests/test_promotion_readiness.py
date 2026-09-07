@@ -437,3 +437,53 @@ class PromotionPrerequisitesAPIViewTests(ExamTestDataMixin, TestCase):
         request.user = no_role_user
         response = PromotionPrerequisitesAPIView.as_view()(request)
         self.assertEqual(response.status_code, 403)
+
+
+class PromoteSingleStudentClassTeacherScopingTests(ExamTestDataMixin, TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        Permission.objects.get_or_create(code='results.edit', defaults={'label': 'results.edit', 'module': 'results'})
+        role = Role.objects.create(name='Class Teacher Promote')
+        role.permissions.set(Permission.objects.filter(code='results.edit'))
+        UserRole.objects.create(user=cls.teacher_user, role=role)
+
+        cls.curriculum = Curriculum.objects.create(code='PCTS1', name='Class Teacher Scoping Curriculum')
+        cls.tier = Tier.objects.create(curriculum=cls.curriculum, name='Lower Primary', code='LPPCTS1')
+        cls.g1 = GradeLevel.objects.create(name='Grade 1PCTS', numeric_order=1, curriculum=cls.curriculum, tier=cls.tier)
+        GradeLevel.objects.create(name='Grade 2PCTS', numeric_order=2, curriculum=cls.curriculum, tier=cls.tier)
+        cls.own_stream = ClassStream.objects.create(name='Own', grade=cls.g1, class_teacher=cls.teacher)
+        cls.other_stream = ClassStream.objects.create(name='Other', grade=cls.g1)
+
+        cls.year = AcademicYear.objects.create(year='2107')
+        ExamTerm.objects.create(
+            name='Term 1', academic_year=cls.year, start_date='2107-01-01', end_date='2107-04-01',
+            results_finalized=True,
+        )
+
+        own_user = User.objects.create_user(username='pcts_own_student', password='x')
+        cls.own_student = StudentExtra.objects.create(user=own_user, roll='CTS1', cl=cls.own_stream, status=True)
+        other_user = User.objects.create_user(username='pcts_other_student', password='x')
+        cls.other_student = StudentExtra.objects.create(user=other_user, roll='CTS2', cl=cls.other_stream, status=True)
+
+    def setUp(self):
+        cache.clear()
+        self.factory = RequestFactory()
+
+    def _post(self, user, student_id):
+        request = self.factory.post(
+            f'/api/promotion/promote-student/{student_id}/',
+            data=json.dumps({'academic_year_id': self.year.id}), content_type='application/json',
+        )
+        request.user = user
+        request._dont_enforce_csrf_checks = True
+        return PromoteSingleStudentAPIView.as_view()(request, student_id=student_id)
+
+    def test_class_teacher_can_promote_own_student(self):
+        response = self._post(self.teacher_user, self.own_student.id)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['outcome'], 'promoted')
+
+    def test_class_teacher_cannot_promote_other_student(self):
+        response = self._post(self.teacher_user, self.other_student.id)
+        self.assertEqual(response.status_code, 403)
