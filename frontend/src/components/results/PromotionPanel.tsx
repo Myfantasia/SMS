@@ -123,6 +123,7 @@ function downloadCsv(filename: string, headers: string[], rows: (string | number
 
 function PaginatedRowGroup({ rows }: { rows: ReadinessRow[] }) {
   const [page, setPage] = useState(1);
+  useEffect(() => setPage(1), [rows]);
   const pageCount = Math.max(1, Math.ceil(rows.length / 15));
   const pageRows = rows.slice((page - 1) * 15, page * 15);
   return (
@@ -179,7 +180,7 @@ function ReadinessTable({
     const readinessRows = rows as ReadinessRow[];
     const groups = new Map<string, ReadinessRow[]>();
     for (const row of readinessRows) {
-      const key = row.stream_name ?? 'Unassigned';
+      const key = `${row.grade_name ?? '—'} · ${row.stream_name ?? 'Unassigned'}`;
       const existing = groups.get(key);
       if (existing) existing.push(row); else groups.set(key, [row]);
     }
@@ -190,10 +191,10 @@ function ReadinessTable({
             <Button size="small" startIcon={<Download size={16} />} onClick={onExport}>Export CSV</Button>
           </Box>
         )}
-        {[...groups.entries()].map(([streamName, groupRows]) => (
-          <Box key={streamName}>
+        {[...groups.entries()].map(([groupKey, groupRows]) => (
+          <Box key={groupKey}>
             <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
-              {streamName} <Typography component="span" variant="caption" color="text.secondary">({groupRows.length})</Typography>
+              {groupKey} <Typography component="span" variant="caption" color="text.secondary">({groupRows.length})</Typography>
             </Typography>
             <PaginatedRowGroup rows={groupRows} />
           </Box>
@@ -269,7 +270,7 @@ export default function PromotionPanel() {
     api.get('/api/approved-users/students/').then((res) => {
       setStudents((res.data?.data ?? []).map((s: any) => ({ id: s.id, name: s.name, grade_name: s.grade_name ?? 'Not Assigned' })));
     }).catch(() => setStudents([]));
-  }, []);
+  }, [tiers]);
 
   // --- Working Scope: shared by the Requirements / Check Readiness / Run Promotion steps. ---
   const [scopeYearId, setScopeYearId] = useState('');
@@ -429,16 +430,19 @@ export default function PromotionPanel() {
   const [singleError, setSingleError] = useState<string | null>(null);
   const [studentEvents, setStudentEvents] = useState<PromotionEventRow[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
+  const [eventsError, setEventsError] = useState<string | null>(null);
   const [revertingEventId, setRevertingEventId] = useState<number | null>(null);
   const [revertError, setRevertError] = useState<string | null>(null);
 
   const fetchStudentEvents = async (studentId: number) => {
     setEventsLoading(true);
+    setEventsError(null);
     try {
       const res = await api.get(`/api/promotion/events/?student_id=${studentId}`);
       setStudentEvents(res.data?.events ?? []);
-    } catch {
+    } catch (err: any) {
       setStudentEvents([]);
+      setEventsError(err.response?.data?.error || 'Failed to load promotion history.');
     } finally {
       setEventsLoading(false);
     }
@@ -449,6 +453,8 @@ export default function PromotionPanel() {
     setRevertError(null);
     try {
       await api.post(`/api/promotion/revert/${eventId}/`);
+      setSingleResult(null);
+      setSingleReadiness(null);
       if (singleStudent) await fetchStudentEvents(singleStudent.id);
     } catch (err: any) {
       setRevertError(err.response?.data?.error || 'Failed to revert this promotion.');
@@ -504,6 +510,7 @@ export default function PromotionPanel() {
       const res = await api.post(`/api/promotion/promote-student/${singleStudent.id}/`, { academic_year_id: singleYearId });
       setSingleResult(res.data);
       setSingleReadiness(null);
+      await fetchStudentEvents(singleStudent.id);
     } catch (err: any) {
       setSingleError(err.response?.data?.error || 'Failed to promote this student.');
     } finally {
@@ -820,7 +827,8 @@ export default function PromotionPanel() {
                 <Typography variant="subtitle2" sx={{ mb: 1 }}>Recent promotions for {singleStudent.name}</Typography>
                 {eventsLoading && <CircularProgress size={20} />}
                 {revertError && <Alert severity="error" sx={{ mb: 1 }}>{revertError}</Alert>}
-                {!eventsLoading && studentEvents.length === 0 && (
+                {eventsError && <Alert severity="error" sx={{ mb: 1 }}>{eventsError}</Alert>}
+                {!eventsLoading && !eventsError && studentEvents.length === 0 && (
                   <Typography variant="body2" color="text.secondary">No promotion history yet.</Typography>
                 )}
                 {studentEvents.map((event) => (
