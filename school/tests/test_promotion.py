@@ -660,6 +660,10 @@ class PromotionAdminEndpointTestMixin(ExamTestDataMixin):
         role = Role.objects.create(name='Results Manager')
         role.permissions.set(Permission.objects.filter(code__in=('results.edit', 'results.view')))
         UserRole.objects.create(user=cls.admin_user, role=role)
+        # Granted here (not just to admin_user) so class-teacher-scoped tests can reach the
+        # actual business logic in PromoteStudentsAPIView/PromoteSingleStudentAPIView instead
+        # of being short-circuited by HasModulePermission's module-level RBAC gate first.
+        UserRole.objects.create(user=cls.teacher_user, role=role)
 
         cls.grade9 = GradeLevel.objects.create(
             name='Grade 9 Promo', numeric_order=9,
@@ -806,6 +810,33 @@ class PromoteStudentsAPIViewTests(PromotionAdminEndpointTestMixin, TestCase):
             self.admin_user, {'academic_year_id': self.year.id, 'grade_id': self.grade9.id},
         )
         self.assertEqual(response.status_code, 404)
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    def test_class_teacher_can_promote_their_own_stream(self):
+        self.term.results_finalized = True
+        self.term.save()
+        self.stream_cbc.class_teacher = self.teacher
+        self.stream_cbc.save(update_fields=['class_teacher'])
+        response = self._post(
+            PromoteStudentsAPIView, '/api/promotion/promote-students/',
+            self.teacher_user, {'academic_year_id': self.year.id, 'stream_id': self.stream_cbc.id},
+        )
+        self.assertEqual(response.status_code, 202)
+
+    def test_class_teacher_cannot_promote_a_different_stream(self):
+        other_stream = ClassStream.objects.create(name='Other', grade=self.grade9)
+        response = self._post(
+            PromoteStudentsAPIView, '/api/promotion/promote-students/',
+            self.teacher_user, {'academic_year_id': self.year.id, 'stream_id': other_stream.id},
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_class_teacher_without_stream_id_is_rejected(self):
+        response = self._post(
+            PromoteStudentsAPIView, '/api/promotion/promote-students/',
+            self.teacher_user, {'academic_year_id': self.year.id, 'grade_id': self.grade9.id},
+        )
+        self.assertEqual(response.status_code, 403)
 
 
 from school.views.student_dashboard_view import StudentDashboardOverviewAPI
