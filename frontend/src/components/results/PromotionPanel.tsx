@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Box, Card, CardContent, CardHeader, Button, TextField, MenuItem, Alert,
   CircularProgress, Stack, Typography, Table, TableHead, TableBody, TableRow, TableCell,
-  Chip, Autocomplete, Switch, FormControlLabel,
+  Chip, Autocomplete, Switch, FormControlLabel, Pagination, ToggleButton, ToggleButtonGroup,
   Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions,
 } from '@mui/material';
 import { CheckCircle2, Download } from 'lucide-react';
@@ -20,6 +20,7 @@ interface GradeOption {
   id: number;
   grade_name: string;
   curriculum_id: number;
+  tier_id: number | null;
 }
 
 interface TierOption {
@@ -33,6 +34,7 @@ interface ReadinessRow {
   student_id: number;
   name: string;
   grade_name: string | null;
+  stream_name: string | null;
   transition_type: string | null;
   requirement: string | null;
   ready: boolean;
@@ -60,6 +62,17 @@ interface PromotionResult {
 interface StudentOption {
   id: number;
   name: string;
+  grade_name: string;
+}
+
+interface PromotionEventRow {
+  id: number;
+  outcome: string;
+  academic_year: string;
+  performed_at: string;
+  performed_by_name: string | null;
+  reverted_at: string | null;
+  can_revert: boolean;
 }
 
 interface StreamOption {
@@ -108,6 +121,51 @@ function downloadCsv(filename: string, headers: string[], rows: (string | number
   URL.revokeObjectURL(url);
 }
 
+function PaginatedRowGroup({ rows }: { rows: ReadinessRow[] }) {
+  const [page, setPage] = useState(1);
+  const pageCount = Math.max(1, Math.ceil(rows.length / 15));
+  const pageRows = rows.slice((page - 1) * 15, page * 15);
+  return (
+    <Stack spacing={1}>
+      <Table size="small">
+        <TableHead>
+          <TableRow>
+            <TableCell>Student</TableCell>
+            <TableCell>Transition</TableCell>
+            <TableCell>Requirement</TableCell>
+            <TableCell>Status</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {pageRows.map((row) => (
+            <TableRow key={row.student_id}>
+              <TableCell>{row.name}</TableCell>
+              <TableCell>
+                {row.transition_type === 'exit'
+                  ? <Chip size="small" variant="outlined" label={`Graduates${row.exam_code ? ` (${row.exam_code})` : ''}`} />
+                  : row.next_grade_name
+                    ? <Chip size="small" variant="outlined" label={`→ ${row.next_grade_name}${row.exam_code ? ` (${row.exam_code})` : ''}`} />
+                    : '—'}
+              </TableCell>
+              <TableCell>{row.requirement ?? '—'}</TableCell>
+              <TableCell>
+                {row.ready
+                  ? <Chip size="small" color="success" label="Ready" />
+                  : <Chip size="small" color="warning" label={row.reason ?? 'Blocked'} />}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+      {pageCount > 1 && (
+        <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+          <Pagination count={pageCount} page={page} onChange={(_e, p) => setPage(p)} size="small" />
+        </Box>
+      )}
+    </Stack>
+  );
+}
+
 function ReadinessTable({
   rows, nameById, onExport,
 }: {
@@ -116,6 +174,34 @@ function ReadinessTable({
   onExport?: () => void;
 }) {
   const isReadinessRows = rows.length > 0 && 'ready' in rows[0];
+
+  if (isReadinessRows) {
+    const readinessRows = rows as ReadinessRow[];
+    const groups = new Map<string, ReadinessRow[]>();
+    for (const row of readinessRows) {
+      const key = row.stream_name ?? 'Unassigned';
+      const existing = groups.get(key);
+      if (existing) existing.push(row); else groups.set(key, [row]);
+    }
+    return (
+      <Stack spacing={2}>
+        {onExport && (
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <Button size="small" startIcon={<Download size={16} />} onClick={onExport}>Export CSV</Button>
+          </Box>
+        )}
+        {[...groups.entries()].map(([streamName, groupRows]) => (
+          <Box key={streamName}>
+            <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+              {streamName} <Typography component="span" variant="caption" color="text.secondary">({groupRows.length})</Typography>
+            </Typography>
+            <PaginatedRowGroup rows={groupRows} />
+          </Box>
+        ))}
+      </Stack>
+    );
+  }
+
   return (
     <Stack spacing={1}>
       {onExport && (
@@ -127,46 +213,24 @@ function ReadinessTable({
         <TableHead>
           <TableRow>
             <TableCell>Student</TableCell>
-            {isReadinessRows && <TableCell>Transition</TableCell>}
-            <TableCell>{isReadinessRows ? 'Requirement' : 'Outcome'}</TableCell>
-            <TableCell>{isReadinessRows ? 'Status' : 'Detail'}</TableCell>
+            <TableCell>Outcome</TableCell>
+            <TableCell>Detail</TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
-          {isReadinessRows
-            ? (rows as ReadinessRow[]).map((row) => (
-                <TableRow key={row.student_id}>
-                  <TableCell>
-                    {row.name} <Typography component="span" variant="caption" color="text.secondary">({row.grade_name ?? '—'})</Typography>
-                  </TableCell>
-                  <TableCell>
-                    {row.transition_type === 'exit'
-                      ? <Chip size="small" variant="outlined" label={`Graduates${row.exam_code ? ` (${row.exam_code})` : ''}`} />
-                      : row.next_grade_name
-                        ? <Chip size="small" variant="outlined" label={`→ ${row.next_grade_name}${row.exam_code ? ` (${row.exam_code})` : ''}`} />
-                        : '—'}
-                  </TableCell>
-                  <TableCell>{row.requirement ?? '—'}</TableCell>
-                  <TableCell>
-                    {row.ready
-                      ? <Chip size="small" color="success" label="Ready" />
-                      : <Chip size="small" color="warning" label={row.reason ?? 'Blocked'} />}
-                  </TableCell>
-                </TableRow>
-              ))
-            : (rows as PromotionOutcome[]).map((row) => (
-                <TableRow key={row.student_id}>
-                  <TableCell>{nameById?.[row.student_id] ?? `Student #${row.student_id}`}</TableCell>
-                  <TableCell>
-                    <Chip
-                      size="small"
-                      color={row.outcome === 'promoted' ? 'success' : row.outcome === 'graduated' ? 'info' : 'warning'}
-                      label={row.outcome}
-                    />
-                  </TableCell>
-                  <TableCell>{row.detail}</TableCell>
-                </TableRow>
-              ))}
+          {(rows as PromotionOutcome[]).map((row) => (
+            <TableRow key={row.student_id}>
+              <TableCell>{nameById?.[row.student_id] ?? `Student #${row.student_id}`}</TableCell>
+              <TableCell>
+                <Chip
+                  size="small"
+                  color={row.outcome === 'promoted' ? 'success' : row.outcome === 'graduated' ? 'info' : 'warning'}
+                  label={row.outcome}
+                />
+              </TableCell>
+              <TableCell>{row.detail}</TableCell>
+            </TableRow>
+          ))}
         </TableBody>
       </Table>
     </Stack>
@@ -187,15 +251,23 @@ export default function PromotionPanel() {
   const [students, setStudents] = useState<StudentOption[]>([]);
   const [streams, setStreams] = useState<StreamOption[]>([]);
 
+  const examGatedTierIds = new Set(tiers.filter((t) => !!t.exit_exam_code).map((t) => t.id));
+  const examEligibleStudents = students.filter((s) =>
+    grades.some((g) => g.grade_name === s.grade_name && examGatedTierIds.has(g.tier_id as number)),
+  );
+
   useEffect(() => {
     api.get('/api/academic-hub/').then((res) => {
       const classes = res.data?.data?.classes ?? [];
-      setStreams(classes.flatMap((c: any) =>
-        (c.streams ?? []).map((s: any) => ({ id: s.id, label: `${c.grade_name} · ${s.name}` }))
-      ));
+      const examGatedGradeIds = new Set(
+        classes.filter((c: any) => examGatedTierIds.has(c.tier_id)).map((c: any) => c.id),
+      );
+      setStreams(classes
+        .filter((c: any) => examGatedGradeIds.has(c.id))
+        .flatMap((c: any) => (c.streams ?? []).map((s: any) => ({ id: s.id, label: `${c.grade_name} · ${s.name}` }))));
     });
     api.get('/api/approved-users/students/').then((res) => {
-      setStudents((res.data?.data ?? []).map((s: any) => ({ id: s.id, name: s.name })));
+      setStudents((res.data?.data ?? []).map((s: any) => ({ id: s.id, name: s.name, grade_name: s.grade_name ?? 'Not Assigned' })));
     }).catch(() => setStudents([]));
   }, []);
 
@@ -346,6 +418,8 @@ export default function PromotionPanel() {
 
   const examSectionRef = useRef<HTMLDivElement>(null);
 
+  const [quickOverrideOpen, setQuickOverrideOpen] = useState(false);
+  const [nameFilterLetter, setNameFilterLetter] = useState<string | null>(null);
   const [singleStudent, setSingleStudent] = useState<StudentOption | null>(null);
   const [singleYearId, setSingleYearId] = useState('');
   const [singleReadiness, setSingleReadiness] = useState<ReadinessRow | null>(null);
@@ -353,7 +427,41 @@ export default function PromotionPanel() {
   const [singlePromoting, setSinglePromoting] = useState(false);
   const [singleResult, setSingleResult] = useState<PromotionOutcome | null>(null);
   const [singleError, setSingleError] = useState<string | null>(null);
+  const [studentEvents, setStudentEvents] = useState<PromotionEventRow[]>([]);
+  const [eventsLoading, setEventsLoading] = useState(false);
+  const [revertingEventId, setRevertingEventId] = useState<number | null>(null);
+  const [revertError, setRevertError] = useState<string | null>(null);
 
+  const fetchStudentEvents = async (studentId: number) => {
+    setEventsLoading(true);
+    try {
+      const res = await api.get(`/api/promotion/events/?student_id=${studentId}`);
+      setStudentEvents(res.data?.events ?? []);
+    } catch {
+      setStudentEvents([]);
+    } finally {
+      setEventsLoading(false);
+    }
+  };
+
+  const handleRevert = async (eventId: number) => {
+    setRevertingEventId(eventId);
+    setRevertError(null);
+    try {
+      await api.post(`/api/promotion/revert/${eventId}/`);
+      if (singleStudent) await fetchStudentEvents(singleStudent.id);
+    } catch (err: any) {
+      setRevertError(err.response?.data?.error || 'Failed to revert this promotion.');
+    } finally {
+      setRevertingEventId(null);
+    }
+  };
+
+  const filteredStudents = nameFilterLetter
+    ? students.filter((s) => s.name.toUpperCase().startsWith(nameFilterLetter))
+    : students;
+
+  const [examDialogOpen, setExamDialogOpen] = useState(false);
   const [bulkExamMode, setBulkExamMode] = useState(false);
   const [examStudent, setExamStudent] = useState<StudentOption | null>(null);
   const [examStreamId, setExamStreamId] = useState('');
@@ -516,7 +624,7 @@ export default function PromotionPanel() {
                 <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 0.5 }}>
                   {group.satisfied
                     ? <Chip size="small" color="success" label="Satisfied" />
-                    : <Chip size="small" color="warning" label="Not yet" />}
+                    : <Chip size="small" color="warning" variant="filled" label="⚠ Not yet" sx={{ fontWeight: 600 }} />}
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>{group.requirement}</Typography>
                   <Typography variant="caption" color="text.secondary">({group.grade_names.join(', ')})</Typography>
                 </Stack>
@@ -555,7 +663,7 @@ export default function PromotionPanel() {
                     onClick={() => {
                       if (group.exam_code) setExamCode(group.exam_code);
                       if (scopeYearId) setExamYearId(scopeYearId);
-                      examSectionRef.current?.scrollIntoView({ behavior: 'smooth' });
+                      setExamDialogOpen(true);
                     }}
                   >
                     Go to National Exam Recording
@@ -576,7 +684,7 @@ export default function PromotionPanel() {
       >
         <Stack spacing={2}>
           {prerequisites !== null && !allRequirementsSatisfied && (
-            <Alert severity="warning">
+            <Alert severity="warning" variant="filled" sx={{ fontWeight: 500 }}>
               Not all Step 1 requirements are met yet for this scope: {unmetRequirements.map((g) => g.requirement).join('; ')}.
               Some students below may show as blocked for reasons Step 1 already explains.
             </Alert>
@@ -647,24 +755,48 @@ export default function PromotionPanel() {
       <Card variant="outlined">
         <CardHeader title="Quick Override — Check / Promote a Single Student" subheader="For one-off corrections outside a full scope run." />
         <CardContent>
-          <Stack spacing={2}>
+          <Button variant="contained" onClick={() => setQuickOverrideOpen(true)}>Open Quick Override</Button>
+        </CardContent>
+      </Card>
+
+      <Dialog open={quickOverrideOpen} onClose={() => setQuickOverrideOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Quick Override — Check / Promote a Single Student</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <ToggleButtonGroup
+              size="small" value={nameFilterLetter} exclusive
+              onChange={(_e, letter) => setNameFilterLetter(letter)}
+              sx={{ flexWrap: 'wrap' }}
+            >
+              {'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map((letter) => (
+                <ToggleButton key={letter} value={letter} sx={{ px: 1, minWidth: 32 }}>{letter}</ToggleButton>
+              ))}
+            </ToggleButtonGroup>
             <Stack direction="row" spacing={2}>
               <Autocomplete
-                options={students}
-                getOptionLabel={(o) => o.name}
+                options={filteredStudents}
+                getOptionLabel={(o) => `${o.name} (${o.grade_name})`}
                 isOptionEqualToValue={(o, v) => o.id === v.id}
                 value={singleStudent}
-                onChange={(_e, value) => { setSingleStudent(value); setSingleReadiness(null); setSingleResult(null); }}
-                sx={{ minWidth: 260 }}
+                onChange={(_e, value) => {
+                  setSingleStudent(value);
+                  setSingleReadiness(null);
+                  setSingleResult(null);
+                  setStudentEvents([]);
+                  if (value) fetchStudentEvents(value.id);
+                }}
+                sx={{ minWidth: 260, flexGrow: 1 }}
                 renderInput={(params) => <TextField {...params} label="Student" size="small" />}
               />
               <TextField select label="Academic Year" value={singleYearId} onChange={(e) => { setSingleYearId(e.target.value); setSingleReadiness(null); }} size="small" sx={{ minWidth: 160 }}>
                 {academicYears.map((y) => <MenuItem key={y.id} value={y.id}>{y.year}</MenuItem>)}
               </TextField>
+            </Stack>
+            <Box>
               <Button variant="outlined" disabled={singleChecking || !singleStudent || !singleYearId} onClick={handleCheckSingle}>
                 {singleChecking ? <CircularProgress size={20} /> : 'Check'}
               </Button>
-            </Stack>
+            </Box>
             {singleError && <Alert severity="error">{singleError}</Alert>}
             {singleReadiness && (
               <>
@@ -683,14 +815,59 @@ export default function PromotionPanel() {
                 {singleResult.outcome}: {singleResult.detail}
               </Alert>
             )}
+            {singleStudent && (
+              <Box>
+                <Typography variant="subtitle2" sx={{ mb: 1 }}>Recent promotions for {singleStudent.name}</Typography>
+                {eventsLoading && <CircularProgress size={20} />}
+                {revertError && <Alert severity="error" sx={{ mb: 1 }}>{revertError}</Alert>}
+                {!eventsLoading && studentEvents.length === 0 && (
+                  <Typography variant="body2" color="text.secondary">No promotion history yet.</Typography>
+                )}
+                {studentEvents.map((event) => (
+                  <Stack key={event.id} direction="row" spacing={1} sx={{ alignItems: 'center', mb: 0.5 }}>
+                    <Chip
+                      size="small"
+                      color={event.outcome === 'graduated' ? 'info' : 'success'}
+                      label={`${event.outcome} — ${event.academic_year}`}
+                    />
+                    <Typography variant="caption" color="text.secondary">
+                      {event.performed_by_name ?? 'unknown'} · {new Date(event.performed_at).toLocaleString()}
+                      {event.reverted_at ? ' · reverted' : ''}
+                    </Typography>
+                    {event.can_revert && (
+                      <Button
+                        size="small" color="error"
+                        disabled={revertingEventId === event.id}
+                        onClick={() => handleRevert(event.id)}
+                      >
+                        {revertingEventId === event.id ? <CircularProgress size={16} /> : 'Revert'}
+                      </Button>
+                    )}
+                  </Stack>
+                ))}
+              </Box>
+            )}
           </Stack>
-        </CardContent>
-      </Card>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setQuickOverrideOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
 
       <Card variant="outlined" ref={examSectionRef}>
         <CardHeader title="Record a National Exam" subheader="KPSEA (Grade 6), KJSEA (Grade 9), or KCSE (Form 4 / Grade 12)." />
         <CardContent>
-          <Stack spacing={2}>
+          <Button variant="contained" onClick={() => setExamDialogOpen(true)}>Open National Exam Recording</Button>
+        </CardContent>
+      </Card>
+
+      <Dialog open={examDialogOpen} onClose={() => setExamDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Record a National Exam</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <Typography variant="body2" color="text.secondary">
+              Only grades whose tier has a national exam configured are offered below.
+            </Typography>
             <FormControlLabel
               control={<Switch checked={bulkExamMode} onChange={(e) => setBulkExamMode(e.target.checked)} />}
               label="Record for a whole stream at once"
@@ -702,8 +879,8 @@ export default function PromotionPanel() {
                 </TextField>
               ) : (
                 <Autocomplete
-                  options={students}
-                  getOptionLabel={(o) => o.name}
+                  options={examEligibleStudents}
+                  getOptionLabel={(o) => `${o.name} (${o.grade_name})`}
                   isOptionEqualToValue={(o, v) => o.id === v.id}
                   value={examStudent}
                   onChange={(_e, value) => setExamStudent(value)}
@@ -733,10 +910,13 @@ export default function PromotionPanel() {
                 {recordingExam ? <CircularProgress size={20} /> : bulkExamMode ? 'Save for Whole Stream' : 'Save Exam Record'}
               </Button>
             </Box>
+            {examMsg && <Alert severity={examFailed ? 'error' : 'success'}>{examMsg}</Alert>}
           </Stack>
-          {examMsg && <Alert sx={{ mt: 2 }} severity={examFailed ? 'error' : 'success'}>{examMsg}</Alert>}
-        </CardContent>
-      </Card>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setExamDialogOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
     </Stack>
   );
 }
