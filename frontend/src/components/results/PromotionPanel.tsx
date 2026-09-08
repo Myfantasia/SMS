@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Box, Card, CardContent, CardHeader, Button, TextField, MenuItem, Alert,
   CircularProgress, Stack, Typography, Table, TableHead, TableBody, TableRow, TableCell,
@@ -176,14 +176,24 @@ function ReadinessTable({
 }) {
   const isReadinessRows = rows.length > 0 && 'ready' in rows[0];
 
-  if (isReadinessRows) {
+  // Memoized on the `rows` prop's identity (not on the recomputed `readinessRows` cast) so that
+  // unrelated re-renders of the parent (opening a dialog, typing in a field, toggling the A-Z
+  // filter, etc.) don't rebuild the groups Map — and therefore don't hand PaginatedRowGroup a
+  // brand-new `groupRows` array reference every time, which would otherwise reset its pagination
+  // on every unrelated interaction (see PaginatedRowGroup's `useEffect(() => setPage(1), [rows])`).
+  const groups = useMemo(() => {
+    const map = new Map<string, ReadinessRow[]>();
     const readinessRows = rows as ReadinessRow[];
-    const groups = new Map<string, ReadinessRow[]>();
     for (const row of readinessRows) {
       const key = `${row.grade_name ?? '—'} · ${row.stream_name ?? 'Unassigned'}`;
-      const existing = groups.get(key);
-      if (existing) existing.push(row); else groups.set(key, [row]);
+      const existing = map.get(key);
+      if (existing) existing.push(row); else map.set(key, [row]);
     }
+    return map;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows]);
+
+  if (isReadinessRows) {
     return (
       <Stack spacing={2}>
         {onExport && (
