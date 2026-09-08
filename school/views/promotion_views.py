@@ -596,6 +596,9 @@ class PromotionRevertAPIView(APIView):
         except PromotionEvent.DoesNotExist:
             return Response({"error": "Promotion event not found."}, status=status.HTTP_404_NOT_FOUND)
 
+        # These checks don't need row-level consistency -- an unlocked read is fine for
+        # existence/RBAC/window validation. The authoritative reverted_at check happens below,
+        # under the row lock, immediately before the mutation.
         if event.reverted_at is not None:
             return Response({"error": "This promotion was already reverted."}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -608,6 +611,21 @@ class PromotionRevertAPIView(APIView):
             )
 
         with transaction.atomic():
+            # Re-fetch under a row lock and re-check reverted_at here -- this is the only check
+            # that actually needs to be race-free. Without the lock, two concurrent requests can
+            # both pass the unlocked check above before either commits, both mutate the student,
+            # and both report success. With it, the loser blocks until the winner commits, then
+            # correctly sees reverted_at already set.
+            # created_pathway_selection is a nullable FK -- select_related on it would produce
+            # a LEFT OUTER JOIN, and Postgres rejects FOR UPDATE on the nullable side of an
+            # outer join. student is non-nullable (an INNER JOIN), so it's safe to keep here;
+            # created_pathway_selection is instead lazily fetched below only when needed.
+            event = PromotionEvent.objects.select_related(
+                'student',
+            ).select_for_update().get(id=event_id)
+            if event.reverted_at is not None:
+                return Response({"error": "This promotion was already reverted."}, status=status.HTTP_400_BAD_REQUEST)
+
             student = event.student
             if event.outcome == 'graduated':
                 student.enrollment_state = event.previous_enrollment_state
@@ -618,6 +636,11 @@ class PromotionRevertAPIView(APIView):
                 student.save(update_fields=['cl', 'enrollment_state'])
                 if event.created_pathway_selection_id:
                     event.created_pathway_selection.delete()
+                    # Deleting the related object leaves event's cached reference pointing at
+                    # a now-pk-less instance; Django's save() validates cached related objects
+                    # regardless of update_fields and raises ValueError on that stale cache.
+                    # Clearing it here reflects reality (the row is gone) and lets save() proceed.
+                    event.created_pathway_selection = None
 
             event.reverted_by = user
             event.reverted_at = timezone.now()
