@@ -1,6 +1,9 @@
-"""Admin registrations for the `finance` app.
+from django.contrib import admin
 
-Track A (current phase): empty -- models still live in school/models and
-are registered in school/admin.py. Track B moves both the model class and
-its admin registration together, model by model.
-"""
+from apps.finance.models_shared import CashAccount
+
+
+@admin.register(CashAccount)
+class CashAccountAdmin(admin.ModelAdmin):
+    list_display = ['name', 'account_type', 'is_active']
+    list_filter = ['account_type', 'is_active']
