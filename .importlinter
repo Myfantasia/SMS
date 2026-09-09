@@ -1,0 +1,468 @@
+[importlinter]
+root_packages =
+    apps
+    orchestration
+
+# --- Contract 1: dependency direction ---
+# Each layer may import any layer strictly below it. Same-layer siblings
+# (grouped with `|`) may not import each other. `orchestration` sits above
+# everything -- it's the one documented exception to "apps never import
+# each other" (see the allocations<->timetable problem in the modular
+# monolith plan), and nothing is allowed to import it back.
+[importlinter:contract:app-layering]
+name = Modular monolith dependency direction
+type = layers
+# identity.admin registers a StudentSubjectEnrollmentInline on StudentExtraAdmin
+# (Django admin inlines require a real model class, not a DTO) -- an upward
+# read from the foundation layer, same class of "presentation layer needs a
+# real model instance" exception already granted to services.py call sites
+# elsewhere in this file. Tracked, not a design change: the inline belongs
+# conceptually to students, but Django's admin API ties it to the parent
+# model's ModelAdmin, which lives with StudentExtra in identity.
+ignore_imports =
+    apps.identity.admin -> apps.students.models
+layers =
+    orchestration
+    apps.analytics
+    apps.results
+    apps.exams
+    apps.timetable
+    apps.allocations | apps.staff | apps.attendance | apps.assignments | apps.messaging | apps.finance
+    apps.students
+    apps.academics
+    apps.identity
+    apps.core | apps.content
+
+# --- Contract 2: no cross-app model imports (one contract per app) ---
+# Every app's public surface is its services.py -- models.py is private to
+# the app that owns it. Split into one `forbidden` contract per app rather
+# than one contract listing all 12 apps as both source and target, because
+# import-linter's `forbidden` contract can't check a package against its own
+# submodule ("shared descendants" error) -- so each app's own models.py is
+# simply left off its own forbidden list instead of needing an
+# ignore_imports exception.
+
+[importlinter:contract:no-model-import-identity]
+name = identity may not import another app's models
+type = forbidden
+# Direct imports only -- calling another app's services.py (which itself
+# imports that app's own models internally) must stay legal; only a direct
+# `from apps.X.models import ...` elsewhere is the actual violation.
+allow_indirect_imports = True
+# Same Django-admin-inline exception as the app-layering contract above --
+# StudentSubjectEnrollmentInline needs the real StudentSubjectEnrollment
+# model class to register on StudentExtraAdmin.
+ignore_imports =
+    apps.identity.admin -> apps.students.models
+source_modules =
+    apps.identity
+forbidden_modules =
+    apps.academics.models
+    apps.students.models
+    apps.staff.models
+    apps.allocations.models
+    apps.attendance.models
+    apps.assignments.models
+    apps.messaging.models
+    apps.finance.models
+    apps.timetable.models
+    apps.exams.models
+    apps.results.models
+    apps.analytics.models
+    apps.content.models
+
+[importlinter:contract:no-model-import-academics]
+name = academics may not import another app's models
+type = forbidden
+# Direct imports only -- calling another app's services.py (which itself
+# imports that app's own models internally) must stay legal; only a direct
+# `from apps.X.models import ...` elsewhere is the actual violation.
+allow_indirect_imports = True
+source_modules =
+    apps.academics
+forbidden_modules =
+    apps.identity.models
+    apps.students.models
+    apps.staff.models
+    apps.allocations.models
+    apps.attendance.models
+    apps.assignments.models
+    apps.messaging.models
+    apps.finance.models
+    apps.timetable.models
+    apps.exams.models
+    apps.results.models
+    apps.analytics.models
+    apps.content.models
+
+[importlinter:contract:no-model-import-students]
+name = students may not import another app's models
+type = forbidden
+# Direct imports only -- calling another app's services.py (which itself
+# imports that app's own models internally) must stay legal; only a direct
+# `from apps.X.models import ...` elsewhere is the actual violation.
+allow_indirect_imports = True
+source_modules =
+    apps.students
+forbidden_modules =
+    apps.identity.models
+    apps.academics.models
+    apps.staff.models
+    apps.allocations.models
+    apps.attendance.models
+    apps.assignments.models
+    apps.messaging.models
+    apps.finance.models
+    apps.timetable.models
+    apps.exams.models
+    apps.results.models
+    apps.analytics.models
+    apps.content.models
+
+[importlinter:contract:no-model-import-staff]
+name = staff may not import another app's models
+type = forbidden
+# Direct imports only -- calling another app's services.py (which itself
+# imports that app's own models internally) must stay legal; only a direct
+# `from apps.X.models import ...` elsewhere is the actual violation.
+allow_indirect_imports = True
+source_modules =
+    apps.staff
+forbidden_modules =
+    apps.identity.models
+    apps.academics.models
+    apps.students.models
+    apps.allocations.models
+    apps.attendance.models
+    apps.assignments.models
+    apps.messaging.models
+    apps.finance.models
+    apps.timetable.models
+    apps.exams.models
+    apps.results.models
+    apps.analytics.models
+    apps.content.models
+
+[importlinter:contract:no-model-import-allocations]
+name = allocations may not import another app's models
+type = forbidden
+# Direct imports only -- calling another app's services.py (which itself
+# imports that app's own models internally) must stay legal; only a direct
+# `from apps.X.models import ...` elsewhere is the actual violation.
+allow_indirect_imports = True
+# Flagged tech debt, not an oversight: apps/allocations/services.py's
+# rollover_allocations/bulk_auto_allocate need a real ClassStream model
+# instance (not just a DTO) to pass into AllocationValidator's grade/teacher
+# traversal (alloc.classroom.grade, etc.) -- apps.academics.services only
+# returns DTOs by design, so a full rewrite of the validator to work off DTOs
+# is a real refactor of working allocation logic, not a mechanical import
+# fix. Deferred here the same way Track B step 6/7 deferred the orchestration
+# extraction and the analytics dashboard rewrite -- track as its own future
+# pass, not smuggled into a model-relocation step.
+# bulk_auto_allocate also needs a real TeacherExtra instance for the same
+# reason (qualification/availability checks in school/utils.py's helpers
+# operate on model instances) -- newly visible once identity's models moved
+# out of school/models/ in Track B step 9.
+ignore_imports =
+    apps.allocations.services -> apps.academics.models
+    apps.allocations.services -> apps.identity.models
+source_modules =
+    apps.allocations
+forbidden_modules =
+    apps.identity.models
+    apps.academics.models
+    apps.students.models
+    apps.staff.models
+    apps.attendance.models
+    apps.assignments.models
+    apps.messaging.models
+    apps.finance.models
+    apps.timetable.models
+    apps.exams.models
+    apps.results.models
+    apps.analytics.models
+    apps.content.models
+
+[importlinter:contract:no-model-import-attendance]
+name = attendance may not import another app's models
+type = forbidden
+# Direct imports only -- calling another app's services.py (which itself
+# imports that app's own models internally) must stay legal; only a direct
+# `from apps.X.models import ...` elsewhere is the actual violation.
+allow_indirect_imports = True
+source_modules =
+    apps.attendance
+forbidden_modules =
+    apps.identity.models
+    apps.academics.models
+    apps.students.models
+    apps.staff.models
+    apps.allocations.models
+    apps.assignments.models
+    apps.messaging.models
+    apps.finance.models
+    apps.timetable.models
+    apps.exams.models
+    apps.results.models
+    apps.analytics.models
+    apps.content.models
+
+[importlinter:contract:no-model-import-assignments]
+name = assignments may not import another app's models
+type = forbidden
+# Direct imports only -- calling another app's services.py (which itself
+# imports that app's own models internally) must stay legal; only a direct
+# `from apps.X.models import ...` elsewhere is the actual violation.
+allow_indirect_imports = True
+source_modules =
+    apps.assignments
+forbidden_modules =
+    apps.identity.models
+    apps.academics.models
+    apps.students.models
+    apps.staff.models
+    apps.allocations.models
+    apps.attendance.models
+    apps.messaging.models
+    apps.finance.models
+    apps.timetable.models
+    apps.exams.models
+    apps.results.models
+    apps.analytics.models
+    apps.content.models
+
+[importlinter:contract:no-model-import-messaging]
+name = messaging may not import another app's models
+type = forbidden
+# Direct imports only -- calling another app's services.py (which itself
+# imports that app's own models internally) must stay legal; only a direct
+# `from apps.X.models import ...` elsewhere is the actual violation.
+allow_indirect_imports = True
+source_modules =
+    apps.messaging
+forbidden_modules =
+    apps.identity.models
+    apps.academics.models
+    apps.students.models
+    apps.staff.models
+    apps.allocations.models
+    apps.attendance.models
+    apps.assignments.models
+    apps.finance.models
+    apps.timetable.models
+    apps.exams.models
+    apps.results.models
+    apps.analytics.models
+    apps.content.models
+
+[importlinter:contract:no-model-import-finance]
+name = finance may not import another app's models
+type = forbidden
+# Direct imports only -- calling another app's services.py (which itself
+# imports that app's own models internally) must stay legal; only a direct
+# `from apps.X.models import ...` elsewhere is the actual violation.
+allow_indirect_imports = True
+# Same "view predates the split, invisible until the model physically moved"
+# story as analytics.views below: FinanceOverviewAPI's StudentExtra/
+# TeacherExtra queries were already direct school.models.* imports (Track B
+# step 1 deliberately kept finance's internals unchanged) and only became a
+# detectable cross-app model import once identity relocated in step 9.
+# Tracked as the same future DTO-ification pass, not fixed here.
+ignore_imports =
+    apps.finance.views -> apps.identity.models
+source_modules =
+    apps.finance
+forbidden_modules =
+    apps.identity.models
+    apps.academics.models
+    apps.students.models
+    apps.staff.models
+    apps.allocations.models
+    apps.attendance.models
+    apps.assignments.models
+    apps.messaging.models
+    apps.timetable.models
+    apps.exams.models
+    apps.results.models
+    apps.analytics.models
+    apps.content.models
+
+[importlinter:contract:no-model-import-timetable]
+name = timetable may not import another app's models
+type = forbidden
+# Direct imports only -- calling another app's services.py (which itself
+# imports that app's own models internally) must stay legal; only a direct
+# `from apps.X.models import ...` elsewhere is the actual violation.
+allow_indirect_imports = True
+# Flagged tech debt, not an oversight: apps/timetable/services.py's
+# generate_lessons_for_scope needs real ClassStream instances (with
+# select_related('grade')) to hand to school/views/views_timetable.py's
+# generate_lessons_for_scope, which operates on model instances internally
+# -- same class of deferred DTO-ification as allocations' exception above.
+ignore_imports =
+    apps.timetable.services -> apps.academics.models
+source_modules =
+    apps.timetable
+forbidden_modules =
+    apps.identity.models
+    apps.academics.models
+    apps.students.models
+    apps.staff.models
+    apps.allocations.models
+    apps.attendance.models
+    apps.assignments.models
+    apps.messaging.models
+    apps.finance.models
+    apps.exams.models
+    apps.results.models
+    apps.analytics.models
+    apps.content.models
+
+[importlinter:contract:no-model-import-exams]
+name = exams may not import another app's models
+type = forbidden
+# Direct imports only -- calling another app's services.py (which itself
+# imports that app's own models internally) must stay legal; only a direct
+# `from apps.X.models import ...` elsewhere is the actual violation.
+allow_indirect_imports = True
+source_modules =
+    apps.exams
+forbidden_modules =
+    apps.identity.models
+    apps.academics.models
+    apps.students.models
+    apps.staff.models
+    apps.allocations.models
+    apps.attendance.models
+    apps.assignments.models
+    apps.messaging.models
+    apps.finance.models
+    apps.timetable.models
+    apps.results.models
+    apps.analytics.models
+    apps.content.models
+
+[importlinter:contract:no-model-import-results]
+name = results may not import another app's models
+type = forbidden
+# Direct imports only -- calling another app's services.py (which itself
+# imports that app's own models internally) must stay legal; only a direct
+# `from apps.X.models import ...` elsewhere is the actual violation.
+allow_indirect_imports = True
+# Flagged tech debt, not an oversight: apps/results/services.py's
+# generate_results_for_stream needs real ClassStream/ExamTerm instances to
+# hand to school/views/results_views.py's generate_results_for_stream, which
+# operates on model instances internally -- same class of deferred
+# DTO-ification as allocations' exception above.
+ignore_imports =
+    apps.results.services -> apps.academics.models
+source_modules =
+    apps.results
+forbidden_modules =
+    apps.identity.models
+    apps.academics.models
+    apps.students.models
+    apps.staff.models
+    apps.allocations.models
+    apps.attendance.models
+    apps.assignments.models
+    apps.messaging.models
+    apps.finance.models
+    apps.timetable.models
+    apps.exams.models
+    apps.analytics.models
+    apps.content.models
+
+[importlinter:contract:no-model-import-analytics]
+name = analytics may not import another app's models
+type = forbidden
+# Direct imports only -- calling another app's services.py (which itself
+# imports that app's own models internally) must stay legal; only a direct
+# `from apps.X.models import ...` elsewhere is the actual violation.
+allow_indirect_imports = True
+# Flagged tech debt, not an oversight: apps/analytics/views.py's 4 view classes
+# do deep multi-model aggregate/annotate/values queries directly against
+# ExamResult/SubjectTermResult/StudentTermResult/ClassPerformanceAnalytics
+# (school-wide grade distributions, term-over-term improvement, subject
+# matrices) -- this predates the modular monolith split (Track B step 1 already
+# noted "neither view file was rewired to go through services internally...
+# kept out of scope to keep that step's blast radius small") and was invisible
+# to import-linter until these models physically moved out of school/models/ in
+# Track B step 7. Wrapping every query here in DTO-returning services.py
+# functions is a real rewrite of this dashboard's data layer, not a mechanical
+# fix -- it's the same "analytics is the first true extraction candidate" work
+# the plan's event-bus section already names as a distinct future project, so
+# it's tracked there rather than forced into a model-relocation step.
+# apps.identity.models added in Track B step 9, same reasoning: StudentExtra
+# queries here predate the split and became detectable only once identity's
+# models physically moved out of school/models/.
+ignore_imports =
+    apps.analytics.views -> apps.exams.models
+    apps.analytics.views -> apps.results.models
+    apps.analytics.views -> apps.academics.models
+    apps.analytics.views -> apps.identity.models
+source_modules =
+    apps.analytics
+forbidden_modules =
+    apps.identity.models
+    apps.academics.models
+    apps.students.models
+    apps.staff.models
+    apps.allocations.models
+    apps.attendance.models
+    apps.assignments.models
+    apps.messaging.models
+    apps.finance.models
+    apps.timetable.models
+    apps.exams.models
+    apps.results.models
+    apps.content.models
+
+[importlinter:contract:no-model-import-content]
+name = content may not import another app's models
+type = forbidden
+# Direct imports only -- calling another app's services.py (which itself
+# imports that app's own models internally) must stay legal; only a direct
+# `from apps.X.models import ...` elsewhere is the actual violation.
+allow_indirect_imports = True
+source_modules =
+    apps.content
+forbidden_modules =
+    apps.identity.models
+    apps.academics.models
+    apps.students.models
+    apps.staff.models
+    apps.allocations.models
+    apps.attendance.models
+    apps.assignments.models
+    apps.messaging.models
+    apps.finance.models
+    apps.timetable.models
+    apps.exams.models
+    apps.results.models
+    apps.analytics.models
+
+# --- Contract 3: messaging is reached only via the event bus ---
+# Verbatim enforcement of the original spec's example: "exams never imports
+# messaging directly." No other app -- not even via services.py -- may
+# import apps.messaging at all; the only path in is shared/events.
+[importlinter:contract:messaging-via-bus-only]
+name = Messaging is reached via the event bus only, never a direct import
+type = forbidden
+source_modules =
+    apps.identity
+    apps.academics
+    apps.students
+    apps.staff
+    apps.allocations
+    apps.timetable
+    apps.exams
+    apps.results
+    apps.attendance
+    apps.assignments
+    apps.finance
+    apps.analytics
+    apps.core
+    apps.content
+forbidden_modules =
+    apps.messaging

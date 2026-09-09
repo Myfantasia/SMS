@@ -1,0 +1,9 @@
+repos:
+  - repo: local
+    hooks:
+      - id: import-linter
+        name: import-linter (modular monolith boundaries)
+        entry: venv/bin/lint-imports
+        language: system
+        pass_filenames: false
+        always_run: true
