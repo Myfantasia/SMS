@@ -16,7 +16,15 @@ class FinanceAwareTestRunner(DiscoverRunner):
 
     def setup_databases(self, **kwargs):
         old_config = super().setup_databases(**kwargs)
-        self._create_finance_tables()
+        # When every discovered test fails to import, Django decides no test needs a
+        # database at all ("Skipping setup of unused database(s)") and super() never
+        # points any connection at a test database — old_config comes back empty. If
+        # we ran _create_finance_tables() anyway in that case, it would execute
+        # against whatever the connection currently points at, which is the REAL
+        # database, not a test one. Only proceed when a test database was actually
+        # set up.
+        if old_config:
+            self._create_finance_tables()
         return old_config
 
     def _create_finance_tables(self):
