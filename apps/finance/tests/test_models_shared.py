@@ -1,28 +1,38 @@
+from django.db import models
 from django.test import TestCase
 from apps.finance.models_shared import (
     CashAccount, DocumentSequenceCounter,
-    FinancialRecordImmutableError,
+    FinancialRecordImmutableError, ImmutableFinancialRecordMixin,
 )
 from apps.finance.services_shared import next_document_number
-from apps.finance.tests.models import DummyImmutableModel
+
+
+class DummyImmutable(ImmutableFinancialRecordMixin, models.Model):
+    """Test-only concrete model to exercise the mixin without touching real finance models."""
+    amount = models.IntegerField()
+    note = models.CharField(max_length=50, default='')
+    PROTECTED_FIELDS = ('amount',)
+
+    class Meta:
+        app_label = 'finance'
 
 
 class ImmutableFinancialRecordMixinTests(TestCase):
     def test_protected_field_cannot_change_after_creation(self):
-        obj = DummyImmutableModel.objects.create(amount=100)
+        obj = DummyImmutable.objects.create(amount=100)
         obj.amount = 200
         with self.assertRaises(FinancialRecordImmutableError):
             obj.save()
 
     def test_unprotected_field_can_change_after_creation(self):
-        obj = DummyImmutableModel.objects.create(amount=100)
+        obj = DummyImmutable.objects.create(amount=100)
         obj.note = 'updated'
         obj.save()
         obj.refresh_from_db()
         self.assertEqual(obj.note, 'updated')
 
     def test_protected_field_is_free_to_set_on_creation(self):
-        obj = DummyImmutableModel.objects.create(amount=100)
+        obj = DummyImmutable.objects.create(amount=100)
         self.assertEqual(obj.amount, 100)
 
 
