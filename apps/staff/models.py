@@ -44,10 +44,10 @@ class TeacherLeave(models.Model):
     ]
 
     teacher = models.ForeignKey('identity.TeacherExtra', on_delete=models.CASCADE, related_name='leaves')
-    leave_type = models.CharField(max_length=20, choices=LEAVE_TYPE_CHOICES)
+    leave_type = models.CharField(max_length=20, choices=LEAVE_TYPE_CHOICES, db_index=True)
     start_date = models.DateField(help_text="First day of leave.")
     end_date = models.DateField(help_text="Last day of leave (inclusive).")
-    status = models.CharField(max_length=15, choices=STATUS_CHOICES, default='Pending')
+    status = models.CharField(max_length=15, choices=STATUS_CHOICES, default='Pending', db_index=True)
 
     reason = models.TextField(blank=True, null=True, help_text="Optional context notes.")
     created_at = models.DateTimeField(auto_now_add=True)

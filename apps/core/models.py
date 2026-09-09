@@ -33,15 +33,16 @@ class BackgroundJob(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     job_type = models.CharField(max_length=50)
     operator = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='background_jobs')
-    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='PENDING')
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='PENDING', db_index=True)
     result = models.JSONField(null=True, blank=True)
     error_message = models.TextField(null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     completed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = 'school_backgroundjob'
         ordering = ['-created_at']
+        indexes = [models.Index(fields=['status', '-created_at'], name='bgjob_status_created_idx')]
 
     def __str__(self):
         return f"{self.job_type} ({self.status}) - {self.id}"
@@ -67,11 +68,11 @@ class SystemAuditLog(models.Model):
     ]
 
     operator = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='audit_actions')
-    action_type = models.CharField(max_length=20, choices=ACTION_CHOICES)
-    module = models.CharField(max_length=100, help_text="e.g., 'SplittingEngine', 'ClassStream'")
+    action_type = models.CharField(max_length=20, choices=ACTION_CHOICES, db_index=True)
+    module = models.CharField(max_length=100, db_index=True, help_text="e.g., 'SplittingEngine', 'ClassStream'")
     description = models.TextField(help_text="Detailed summary of the operational event.")
     ip_address = models.GenericIPAddressField(null=True, blank=True)
-    timestamp = models.DateTimeField(auto_now_add=True)
+    timestamp = models.DateTimeField(auto_now_add=True, db_index=True)
 
     class Meta:
         db_table = 'school_systemauditlog'
