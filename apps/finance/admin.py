@@ -6,6 +6,7 @@ from apps.finance.models_fees import (
     FeeStructureItem,
     StudentFeeItemEnrollment,
     StudentFeeLedgerEntry,
+    StudentFeeAdjustment,
 )
 from apps.finance.models_shared import CashAccount
 
@@ -52,4 +53,17 @@ class StudentFeeLedgerEntryAdmin(admin.ModelAdmin):
         return False
 
     def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(StudentFeeAdjustment)
+class StudentFeeAdjustmentAdmin(admin.ModelAdmin):
+    list_display = ['student', 'adjustment_type', 'amount', 'requested_by', 'approved_by', 'created_at']
+    list_filter = ['adjustment_type']
+    autocomplete_fields = ['student']
+    # Created only via create_adjustment() so the ledger stays in sync — no direct add/edit here.
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
         return False

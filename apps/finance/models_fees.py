@@ -102,3 +102,29 @@ class StudentFeeLedgerEntry(models.Model):
 
     def __str__(self):
         return f"{self.student} {self.entry_type} {self.amount} (bal {self.running_balance})"
+
+
+class StudentFeeAdjustment(models.Model):
+    """A discount, scholarship, bursary, penalty, or correction applied to a
+    student's fee account — spec section 4.4. A negative/waiving amount
+    (discount, scholarship, bursary) requires approved_by to be set; this is
+    enforced in create_adjustment(), not here, since the model layer can't
+    know who is allowed to approve."""
+    ADJUSTMENT_TYPE_CHOICES = [
+        ('discount', 'Discount'),
+        ('scholarship', 'Scholarship'),
+        ('bursary', 'Bursary'),
+        ('penalty', 'Penalty'),
+        ('correction', 'Correction'),
+    ]
+    student = models.ForeignKey('identity.StudentExtra', on_delete=models.PROTECT, related_name='fee_adjustments')
+    category = models.ForeignKey(FeeCategory, on_delete=models.PROTECT, null=True, blank=True, related_name='adjustments')
+    adjustment_type = models.CharField(max_length=15, choices=ADJUSTMENT_TYPE_CHOICES)
+    amount = models.IntegerField(help_text='Signed: negative waives/reduces the balance, positive adds to it.')
+    reason = models.TextField()
+    requested_by = models.ForeignKey('auth.User', on_delete=models.PROTECT, related_name='+')
+    approved_by = models.ForeignKey('auth.User', on_delete=models.PROTECT, null=True, blank=True, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'finance_studentfeeadjustment'
