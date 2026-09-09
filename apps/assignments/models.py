@@ -38,7 +38,7 @@ class Assignment(models.Model):
     ]
 
     title = models.CharField(max_length=255)
-    assignment_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='Holiday')
+    assignment_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='Holiday', db_index=True)
 
     # Core Relationships
     teacher = models.ForeignKey('identity.TeacherExtra', on_delete=models.CASCADE, related_name='assignments_created')
@@ -61,14 +61,14 @@ class Assignment(models.Model):
 
     # --- OPTION 1: THE THREE-STAGE LIFECYCLE ---
     publish_date = models.DateTimeField(null=True, blank=True, help_text="When students can first see and open this.")
-    due_date = models.DateTimeField(null=True, blank=True, help_text="The official deadline. Submissions after this are marked LATE.")
+    due_date = models.DateTimeField(null=True, blank=True, db_index=True, help_text="The official deadline. Submissions after this are marked LATE.")
     cutoff_date = models.DateTimeField(null=True, blank=True, help_text="The absolute lockout. No submissions accepted after this minute.")
 
     # --- OPTION 2: TIMED QUIZ MODE ---
     is_quiz = models.BooleanField(default=False, help_text="If True, turns this into a strictly timed assessment.")
     duration_minutes = models.PositiveIntegerField(null=True, blank=True, help_text="Time limit in minutes (e.g., 45)")
 
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Draft')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Draft', db_index=True)
     total_max_score = models.DecimalField(max_digits=5, decimal_places=2, default=0.00, help_text="Auto-tallied from questions")
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -176,9 +176,9 @@ class Question(models.Model):
 
     assignment = models.ForeignKey(Assignment, on_delete=models.CASCADE, related_name='questions')
     question_text = models.TextField()
-    question_type = models.CharField(max_length=20, choices=QUESTION_TYPES)
+    question_type = models.CharField(max_length=20, choices=QUESTION_TYPES, db_index=True)
 
-    is_auto_graded = models.BooleanField(default=False)
+    is_auto_graded = models.BooleanField(default=False, db_index=True)
     max_score = models.DecimalField(max_digits=5, decimal_places=2, default=1.00)
 
     required_answers = models.PositiveIntegerField(default=1, null=True, blank=True,
@@ -195,7 +195,7 @@ class Question(models.Model):
 class QuestionOption(models.Model):
     question = models.ForeignKey(Question, on_delete=models.CASCADE, related_name='options')
     option_text = models.CharField(max_length=255)
-    is_correct = models.BooleanField(default=False)
+    is_correct = models.BooleanField(default=False, db_index=True)
 
     class Meta:
         db_table = 'school_questionoption'
@@ -235,7 +235,7 @@ class StudentSubmission(models.Model):
     submitted_at = models.DateTimeField(null=True, blank=True)
 
     # Automatically flags if submitted between due_date and cutoff_date
-    is_late = models.BooleanField(default=False)
+    is_late = models.BooleanField(default=False, db_index=True)
     attempt_number = models.PositiveIntegerField(default=1, help_text="Which submit attempt this is, for max_attempts enforcement.")
 
     # --- NEW: File Upload Feature ---
@@ -255,7 +255,7 @@ class StudentSubmission(models.Model):
         help_text="Optional annotated file sent back to the student"
     )
 
-    grading_status = models.CharField(max_length=20, choices=GRADING_STATUS, default='Pending')
+    grading_status = models.CharField(max_length=20, choices=GRADING_STATUS, default='Pending', db_index=True)
     total_awarded_score = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
     overall_feedback = models.TextField(null=True, blank=True)
 

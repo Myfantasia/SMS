@@ -30,9 +30,39 @@ import hashlib
 
 from django.db import models
 from django.contrib.auth.models import User
+from django.contrib.postgres.indexes import GinIndex
 from django.utils import timezone
 
 from school.validators import profile_pic_validator
+
+# --- Manual follow-up needed: trigram search indexes on auth.User (sms-orient Hard Rule #11) ---
+# The real people-search code (school/views/{views.py,rbac_views.py,results_views.py,
+# chat_views.py}) filters auth.User with Q(first_name__icontains=...)/last_name/username/
+# email. A plain B-tree index doesn't speed up icontains substring search; auth.User is a
+# third-party model this app doesn't own, so indexing it can't be a models.py field change
+# here, and per Hard Rule #1 no migration gets generated automatically for it either.
+#
+# `migrations.AddIndex` can't be used for this even hand-written: an operation inside an
+# `identity` migration resolves `model_name='user'` against *this app* (identity.user, which
+# doesn't exist), not auth.User -- Django operations always apply within their own migration's
+# app_label. Raw SQL sidesteps that entirely. Once you've run `makemigrations` for the field
+# changes in this file, hand-add a migration to this app with:
+#
+#   from django.contrib.postgres.operations import TrigramExtension
+#   from django.db import migrations
+#
+#   operations = [
+#       TrigramExtension(),
+#       migrations.RunSQL(
+#           sql="CREATE INDEX auth_user_first_name_trgm ON auth_user USING gin (first_name gin_trgm_ops);",
+#           reverse_sql="DROP INDEX auth_user_first_name_trgm;",
+#       ),
+#       # ...repeat RunSQL for last_name, username, email (auth_user_<field>_trgm)
+#   ]
+#
+# with `dependencies = [('auth', '0012_alter_user_first_name_max_length')]` (latest auth
+# migration as of this writing -- confirm with `showmigrations auth`) plus a dependency on
+# this app's own new migration, so it applies after the field-level changes above.
 
 
 def trash_user_account(extra_instance, *, operator=None, module, label):
@@ -137,14 +167,14 @@ class TeacherExtra(models.Model):
     )
 
     # --- EXISTING FIELDS ---
-    mobile = models.CharField(max_length=40)
+    mobile = models.CharField(max_length=40, db_index=True)
     joindate = models.DateField(auto_now_add=True)
-    status = models.BooleanField(default=False)  # False means waiting for admin approval
+    status = models.BooleanField(default=False, db_index=True)  # False means waiting for admin approval
 
     # We make salary optional and default to 0 so the admin can set it later
     salary = models.PositiveIntegerField(null=True, blank=True, default=0)
 
-    deleted_at = models.DateTimeField(null=True, blank=True)
+    deleted_at = models.DateTimeField(null=True, blank=True, db_index=True)
     deleted_by = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
 
     class Meta:
@@ -181,21 +211,21 @@ class StaffExtra(models.Model):
     there. job_title is display-only — it does not drive access on its own."""
     user = models.OneToOneField(User, on_delete=models.CASCADE)
 
-    job_title = models.CharField(max_length=100, blank=True, help_text="e.g. 'Librarian', 'Finance Officer' — display only, doesn't grant access on its own.")
+    job_title = models.CharField(max_length=100, blank=True, db_index=True, help_text="e.g. 'Librarian', 'Finance Officer' — display only, doesn't grant access on its own.")
     # What the applicant picked on the signup form — auto-assigned as their actual Role
     # on approval (see api_process_approval), so admin doesn't have to hunt for the right
     # Role by hand. Still just a starting point: admin can add/remove/change Roles freely
     # afterward on the Roles & Permissions page, same as any other individual assignment.
     requested_role = models.ForeignKey('Role', on_delete=models.SET_NULL, null=True, blank=True, related_name='staff_applicants')
     id_number = models.CharField(max_length=20, null=True, blank=True)
-    mobile = models.CharField(max_length=40, blank=True)
+    mobile = models.CharField(max_length=40, blank=True, db_index=True)
     address = models.CharField(max_length=255, null=True, blank=True)
     profile_pic = models.ImageField(upload_to='profile_pic/Staff/', null=True, blank=True, validators=[profile_pic_validator])
 
     joindate = models.DateField(auto_now_add=True)
-    status = models.BooleanField(default=False)  # False means waiting for admin approval
+    status = models.BooleanField(default=False, db_index=True)  # False means waiting for admin approval
 
-    deleted_at = models.DateTimeField(null=True, blank=True)
+    deleted_at = models.DateTimeField(null=True, blank=True, db_index=True)
     deleted_by = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
 
     class Meta:
@@ -219,12 +249,12 @@ class StaffExtra(models.Model):
 class StudentExtra(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     roll = models.CharField(max_length=20, unique=True)
-    mobile = models.CharField(max_length=40, null=True, blank=True)
+    mobile = models.CharField(max_length=40, null=True, blank=True, db_index=True)
     address = models.CharField(max_length=255, null=True)
     fee = models.PositiveIntegerField(null=True)
     cl = models.ForeignKey('academics.ClassStream', on_delete=models.SET_NULL, null=True, verbose_name="Class")
 
-    status = models.BooleanField(default=False)
+    status = models.BooleanField(default=False, db_index=True)
 
     # --- LEGACY SUMMARY FIELDS ---
     # Kept for every existing reader (AdminDashboard student list/API, seed scripts) that
@@ -270,15 +300,23 @@ class StudentExtra(models.Model):
         ('Graduated', 'Graduated'),
     ]
 
-    enrollment_state = models.CharField(max_length=20, choices=ENROLLMENT_STATUS_CHOICES, default='Active')
+    enrollment_state = models.CharField(max_length=20, choices=ENROLLMENT_STATUS_CHOICES, default='Active', db_index=True)
     enrollment_notes = models.TextField(null=True, blank=True, help_text="Reason for suspension/expulsion/transfer")
     last_enrollment_change = models.DateTimeField(auto_now=True, null=True)
 
-    deleted_at = models.DateTimeField(null=True, blank=True)
+    deleted_at = models.DateTimeField(null=True, blank=True, db_index=True)
     deleted_by = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
 
     class Meta:
         db_table = 'school_studentextra'
+        # `roll` is unique=True (already B-tree indexed for exact lookups), but
+        # views.py:1222's Q(roll__icontains=query) is a substring search — a trigram
+        # GIN index is what actually accelerates that at scale. Requires `CREATE
+        # EXTENSION pg_trgm` to have been run first (see the migration this field
+        # change generates for you — you'll need to add TrigramExtension() to it
+        # by hand before this index's migration, since enabling a Postgres extension
+        # isn't something `makemigrations` generates on its own).
+        indexes = [GinIndex(fields=['roll'], name='studentextra_roll_trgm', opclasses=['gin_trgm_ops'])]
 
     def refresh_parent_summary(self):
         """Recomputes parent_name/parent_mobile from the structured father/mother/guardian
@@ -320,15 +358,15 @@ RELATIONSHIP_CHOICES = [
 
 class ParentExtra(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
-    mobile = models.CharField(max_length=40)
+    mobile = models.CharField(max_length=40, db_index=True)
 
     relationship = models.CharField(max_length=20, choices=RELATIONSHIP_CHOICES, default='Father')
 
     # Linking Parent to a specific Student
     students = models.ManyToManyField(StudentExtra, db_table='school_parentextra_students')
-    status = models.BooleanField(default=False)
+    status = models.BooleanField(default=False, db_index=True)
 
-    deleted_at = models.DateTimeField(null=True, blank=True)
+    deleted_at = models.DateTimeField(null=True, blank=True, db_index=True)
     deleted_by = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
 
     class Meta:
@@ -348,7 +386,7 @@ class ParentExtra(models.Model):
 
 class AdminExtra(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
-    mobile = models.CharField(max_length=40, null=True)
+    mobile = models.CharField(max_length=40, null=True, db_index=True)
     address = models.CharField(max_length=200, null=True)
 
     # False = not yet fully approved by an existing admin. Unlike Teacher/Student/Parent,
@@ -365,7 +403,7 @@ class AdminExtra(models.Model):
     # verification_code stores a make_password() hash, not the raw digits — it's a low-entropy
     # 6-digit OTP, so a salted/slow hash matters here (unlike AdminInviteCode.code_hash below,
     # which is high-entropy and can safely use a fast unsalted digest).
-    status = models.BooleanField(default=False)
+    status = models.BooleanField(default=False, db_index=True)
     verification_code = models.CharField(max_length=128, null=True, blank=True)
     code_generated_at = models.DateTimeField(null=True, blank=True)
 
@@ -406,8 +444,8 @@ class AdminInviteCode(models.Model):
     code_hash = models.CharField(max_length=64, unique=True, db_index=True)
     code_preview = models.CharField(max_length=4)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='generated_admin_invites')
-    created_at = models.DateTimeField(auto_now_add=True)
-    expires_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    expires_at = models.DateTimeField(db_index=True)
     used_at = models.DateTimeField(null=True, blank=True)
     used_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
     revoked_at = models.DateTimeField(null=True, blank=True)
@@ -442,8 +480,8 @@ class Permission(models.Model):
     """A granular capability, e.g. 'curriculum.edit'. Module-tagged so the
     management UI can group permissions by feature area as more get added."""
     code = models.CharField(max_length=100, unique=True, help_text="e.g. 'curriculum.edit'")
-    label = models.CharField(max_length=150)
-    module = models.CharField(max_length=50, help_text="Groups permissions in the UI, e.g. 'Curriculum'")
+    label = models.CharField(max_length=150, db_index=True)
+    module = models.CharField(max_length=50, db_index=True, help_text="Groups permissions in the UI, e.g. 'Curriculum'")
 
     class Meta:
         db_table = 'school_permission'
@@ -460,7 +498,7 @@ class Role(models.Model):
     name = models.CharField(max_length=100)
     description = models.CharField(max_length=255, blank=True)
     rank = models.PositiveSmallIntegerField(
-        null=True, blank=True,
+        null=True, blank=True, db_index=True,
         help_text="Delegation tier. Lower ranks outrank higher ones. Null means "
                   "unranked -- cannot be granted or managed by anyone except a superuser.",
     )

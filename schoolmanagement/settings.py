@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.postgres',  # needed for GinIndex (identity.StudentExtra's trigram search index)
     'channels',
     'school',
 

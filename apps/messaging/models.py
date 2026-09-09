@@ -36,11 +36,11 @@ class Notice(models.Model):
 
     title = models.CharField(max_length=200, default="General Notice")
     message = models.TextField()  # Upgraded to TextField for longer announcements
-    date = models.DateField(auto_now_add=True)
+    date = models.DateField(auto_now_add=True, db_index=True)
     by = models.CharField(max_length=50, default='School Admin')
 
     # New fields for better UI filtering
-    audience = models.CharField(max_length=20, choices=AUDIENCE_CHOICES, default='All')
+    audience = models.CharField(max_length=20, choices=AUDIENCE_CHOICES, default='All', db_index=True)
     attachment = models.FileField(
         upload_to='notices/',
         null=True,
@@ -91,8 +91,8 @@ class Event(models.Model):
     end_time = models.DateTimeField()
 
     # e.g., 'Holiday', 'Exam', 'Meeting' - helps color-code the React Calendar
-    event_type = models.CharField(max_length=50, default='General')
-    is_active = models.BooleanField(default=True)
+    event_type = models.CharField(max_length=50, default='General', db_index=True)
+    is_active = models.BooleanField(default=True, db_index=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
     deleted_by = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
 
@@ -125,8 +125,8 @@ class Notification(models.Model):
     message = models.TextField()
 
     # Crucial for the UI "Unread" badge
-    is_read = models.BooleanField(default=False)
-    created_at = models.DateTimeField(auto_now_add=True)
+    is_read = models.BooleanField(default=False, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
     # Optional: A URL path to redirect the user when they click the notification
     action_url = models.CharField(max_length=255, null=True, blank=True)
@@ -176,14 +176,14 @@ class ChatThread(models.Model):
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    thread_type = models.CharField(max_length=20, choices=THREAD_TYPES, default='Direct')
+    thread_type = models.CharField(max_length=20, choices=THREAD_TYPES, default='Direct', db_index=True)
 
     # THE SIBLING FIX: Optionally link this chat to a specific student.
     # If a parent has twins, the teacher can have two separate threads with the same parent.
     related_student = models.ForeignKey('identity.StudentExtra', on_delete=models.SET_NULL, null=True, blank=True,
                                         related_name='chat_threads')
 
-    is_active = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -257,7 +257,7 @@ class ChatActionResponse(models.Model):
     message = models.ForeignKey(MessageAudit, on_delete=models.CASCADE, related_name='responses')
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='chat_actions')
 
-    response_type = models.CharField(max_length=50)
+    response_type = models.CharField(max_length=50, db_index=True)
     responded_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

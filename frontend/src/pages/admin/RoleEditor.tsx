@@ -26,27 +26,31 @@ interface Role {
 // permissions. Roles like Librarian/Nurse/Transport have no matching module yet, so they only
 // suggest the name/description and leave permissions for the admin to pick manually — nothing
 // here should imply functionality that doesn't actually exist behind a permission code yet.
-const ROLE_TEMPLATES: { name: string; description: string; permissions: string[] }[] = [
-  { name: 'Secretary', description: 'Front-office administrative support', permissions: ['classes.view', 'attendance.view', 'notices.edit', 'events.edit'] },
-  { name: 'Finance Officer', description: 'Fees, salaries, and financial oversight', permissions: ['finance.view'] },
-  { name: 'Accountant', description: 'Fees, salaries, and financial oversight', permissions: ['finance.view'] },
-  { name: 'Exam Officer', description: 'Coordinates exam scheduling and results processing', permissions: ['exams.view', 'exams.edit', 'results.view', 'results.edit'] },
-  { name: 'Marks Entry Clerk', description: 'Enters exam marks only — cannot change exam terms, events, or grading rules', permissions: ['exams.view', 'exams.marks'] },
-  { name: 'Registrar', description: 'Manages student enrollment, transfers, and status', permissions: ['classes.view', 'classes.enrollment'] },
-  { name: 'HR Officer', description: 'Approves staff leave requests', permissions: ['leave.view', 'leave.approve'] },
-  { name: 'Front Office Coordinator', description: 'Handles notices, events, and visitor coordination', permissions: ['notices.edit', 'events.edit', 'classes.view'] },
-  { name: 'Timetable Coordinator', description: 'Builds and maintains the school timetable', permissions: ['timetable.view', 'timetable.edit'] },
-  { name: 'Subject Allocation Coordinator', description: 'Manages teacher-subject allocations', permissions: ['allocations.view', 'allocations.edit'] },
-  { name: 'Deputy Principal', description: 'Senior leadership with broad academic oversight', permissions: ['classes.view', 'classes.edit', 'attendance.view', 'attendance.edit', 'results.view', 'results.edit', 'exams.view', 'exams.edit', 'timetable.view'] },
-  { name: 'Head of Department', description: 'Departmental academic oversight', permissions: ['results.view', 'exams.view', 'timetable.view'] },
-  { name: 'Chat Moderator', description: 'Oversees school messaging and communications', permissions: ['chat.manage'] },
-  { name: 'Librarian', description: 'Manages library resources', permissions: [] },
-  { name: 'School Nurse', description: 'Monitors student health and wellbeing', permissions: ['attendance.view'] },
-  { name: 'Counselor', description: 'Supports student wellbeing and academic progress', permissions: ['attendance.view', 'results.view'] },
-  { name: 'Transport Coordinator', description: 'Manages school transport logistics', permissions: [] },
-  { name: 'IT Support', description: 'Manages system access and technical support', permissions: [] },
-  { name: 'Receptionist', description: 'Front-desk visitor and enquiry management', permissions: ['classes.view'] },
-  { name: 'Board Member', description: 'Governance oversight — read-only visibility into results, finance, and audit activity', permissions: ['results.view', 'finance.view', 'audit.view'] },
+//
+// rank mirrors the hierarchy backend/school/management/commands/populate_demo_staff.py seeds
+// for the same role names (anchored on the fixed Admin=1/Teacher=5 system roles) — kept here
+// too so picking a template also proposes a sensible starting rank, not just permissions.
+const ROLE_TEMPLATES: { name: string; description: string; permissions: string[]; rank: number }[] = [
+  { name: 'Secretary', description: 'Front-office administrative support', permissions: ['classes.view', 'attendance.view', 'notices.edit', 'events.edit'], rank: 6 },
+  { name: 'Finance Officer', description: 'Fees, salaries, and financial oversight', permissions: ['finance.view'], rank: 6 },
+  { name: 'Accountant', description: 'Fees, salaries, and financial oversight', permissions: ['finance.view'], rank: 6 },
+  { name: 'Exam Officer', description: 'Coordinates exam scheduling and results processing', permissions: ['exams.view', 'exams.edit', 'results.view', 'results.edit'], rank: 3 },
+  { name: 'Marks Entry Clerk', description: 'Enters exam marks only — cannot change exam terms, events, or grading rules', permissions: ['exams.view', 'exams.marks'], rank: 7 },
+  { name: 'Registrar', description: 'Manages student enrollment, transfers, and status', permissions: ['classes.view', 'classes.enrollment'], rank: 6 },
+  { name: 'HR Officer', description: 'Approves staff leave requests', permissions: ['leave.view', 'leave.approve'], rank: 3 },
+  { name: 'Front Office Coordinator', description: 'Handles notices, events, and visitor coordination', permissions: ['notices.edit', 'events.edit', 'classes.view'], rank: 6 },
+  { name: 'Timetable Coordinator', description: 'Builds and maintains the school timetable', permissions: ['timetable.view', 'timetable.edit'], rank: 3 },
+  { name: 'Subject Allocation Coordinator', description: 'Manages teacher-subject allocations', permissions: ['allocations.view', 'allocations.edit'], rank: 3 },
+  { name: 'Deputy Principal', description: 'Senior leadership with broad academic oversight', permissions: ['classes.view', 'classes.edit', 'attendance.view', 'attendance.edit', 'results.view', 'results.edit', 'exams.view', 'exams.edit', 'timetable.view'], rank: 2 },
+  { name: 'Head of Department', description: 'Departmental academic oversight', permissions: ['results.view', 'exams.view', 'timetable.view'], rank: 3 },
+  { name: 'Chat Moderator', description: 'Oversees school messaging and communications', permissions: ['chat.manage'], rank: 7 },
+  { name: 'Librarian', description: 'Manages library resources', permissions: [], rank: 7 },
+  { name: 'School Nurse', description: 'Monitors student health and wellbeing', permissions: ['attendance.view'], rank: 7 },
+  { name: 'Counselor', description: 'Supports student wellbeing and academic progress', permissions: ['attendance.view', 'results.view'], rank: 7 },
+  { name: 'Transport Coordinator', description: 'Manages school transport logistics', permissions: [], rank: 7 },
+  { name: 'IT Support', description: 'Manages system access and technical support', permissions: [], rank: 7 },
+  { name: 'Receptionist', description: 'Front-desk visitor and enquiry management', permissions: ['classes.view'], rank: 7 },
+  { name: 'Board Member', description: 'Governance oversight — read-only visibility into results, finance, and audit activity', permissions: ['results.view', 'finance.view', 'audit.view'], rank: 2 },
 ];
 
 interface CloneState {
@@ -121,6 +125,7 @@ export default function RoleEditor() {
   const applyTemplate = (template: typeof ROLE_TEMPLATES[number]) => {
     setRoleName(template.name);
     setDescription(template.description);
+    setRank(String(template.rank));
     const ids = template.permissions
       .map((code) => permissionByCode.get(code)?.id)
       .filter((id): id is number => id !== undefined);

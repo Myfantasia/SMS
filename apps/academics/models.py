@@ -35,8 +35,8 @@ class Curriculum(models.Model):
     """
     code = models.CharField(max_length=10, unique=True, help_text="e.g. 'CBC', '8-4-4'")
     name = models.CharField(max_length=100, help_text="e.g. 'Competency Based Curriculum'")
-    is_active_for_new_grades = models.BooleanField(default=True)
-    is_archived = models.BooleanField(default=False)
+    is_active_for_new_grades = models.BooleanField(default=True, db_index=True)
+    is_archived = models.BooleanField(default=False, db_index=True)
 
     class Meta:
         db_table = 'school_curriculum'
@@ -210,7 +210,7 @@ class GradeLevel(models.Model):
     name = models.CharField(max_length=50, unique=True)
     numeric_order = models.IntegerField(help_text="Used for sorting (e.g., 6 for Grade 6)")
 
-    curriculum_type = models.CharField(max_length=10, choices=CURRICULUM_CHOICES, default='CBC')
+    curriculum_type = models.CharField(max_length=10, choices=CURRICULUM_CHOICES, default='CBC', db_index=True)
 
     curriculum = models.ForeignKey(
         Curriculum, on_delete=models.PROTECT, null=True, blank=True, related_name='grades'
@@ -385,7 +385,7 @@ class Department(models.Model):
     # left without a code needs to store NULL, not '', or the 2nd such row fails to save.
     code = models.CharField(max_length=10, null=True, blank=True, help_text="Optional short code, e.g. 'SCI'.")
     description = models.CharField(max_length=255, blank=True)
-    is_active = models.BooleanField(default=True, help_text="Inactive departments stay on existing subjects but drop out of pickers for new ones.")
+    is_active = models.BooleanField(default=True, db_index=True, help_text="Inactive departments stay on existing subjects but drop out of pickers for new ones.")
     curriculum = models.ForeignKey(
         'Curriculum', on_delete=models.CASCADE, related_name='departments',
         help_text="Which curriculum this department belongs to — CBC and 8-4-4 group subjects differently, so departments aren't shared across them."
@@ -459,6 +459,7 @@ class Subject(models.Model):
 
     class Meta:
         db_table = 'school_subject'
+        indexes = [models.Index(fields=['department', 'is_core'], name='subject_dept_core_idx')]
 
     def __str__(self):
         return f"{self.code} - {self.name}"
@@ -720,7 +721,7 @@ class SubjectPool(models.Model):
         ('GUIDED_ELECTIVE', 'Guided Elective'),
     ]
     preset = models.ForeignKey(CurriculumPreset, on_delete=models.CASCADE, related_name='pools')
-    pool_type = models.CharField(max_length=20, choices=POOL_TYPE_CHOICES)
+    pool_type = models.CharField(max_length=20, choices=POOL_TYPE_CHOICES, db_index=True)
     min_subjects = models.PositiveIntegerField(default=1)
     max_subjects = models.PositiveIntegerField(default=1)
     subjects = models.ManyToManyField(Subject, related_name='pools', blank=True, db_table='school_subjectpool_subjects')
@@ -756,8 +757,8 @@ class AcademicYear(models.Model):
     When an admin archives a year, all results under it become read-only.
     """
     year = models.CharField(max_length=10, unique=True, help_text="e.g., 2026")
-    is_active = models.BooleanField(default=True, help_text="Is this the current academic year?")
-    is_archived = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True, db_index=True, help_text="Is this the current academic year?")
+    is_archived = models.BooleanField(default=False, db_index=True)
 
     class Meta:
         db_table = 'school_academicyear'
@@ -773,7 +774,7 @@ class ExamTerm(models.Model):
     start_date = models.DateField()
     end_date = models.DateField()
 
-    is_active = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=False, db_index=True)
     results_finalized = models.BooleanField(
         default=False,
         help_text="Admin-confirmed: this term's results are done being recorded. Purely "
