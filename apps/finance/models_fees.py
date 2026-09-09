@@ -1,6 +1,8 @@
 """Fee-domain models: categories, structures, invoicing, payments, and the
 per-student ledger. See docs/superpowers/specs/2026-09-09-finance-subsystem-design.md
 section 4 for the full design this file implements."""
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
 
@@ -69,3 +71,34 @@ class StudentFeeItemEnrollment(models.Model):
     class Meta:
         db_table = 'finance_studentfeeitemenrollment'
         unique_together = [('student', 'fee_structure_item')]
+
+
+class StudentFeeLedgerEntry(models.Model):
+    """The authoritative record of what a student currently owes — a real
+    subsidiary accounts-receivable ledger, one per student (spec section 4.6).
+    Never write to this table directly; always go through
+    services_fees.post_ledger_entry(), which is the only thing that computes
+    running_balance correctly under concurrent writes."""
+    ENTRY_TYPE_CHOICES = [
+        ('charge', 'Charge'),
+        ('payment', 'Payment'),
+        ('adjustment', 'Adjustment'),
+    ]
+    student = models.ForeignKey('identity.StudentExtra', on_delete=models.PROTECT, related_name='fee_ledger_entries')
+    entry_type = models.CharField(max_length=10, choices=ENTRY_TYPE_CHOICES)
+    amount = models.IntegerField(help_text='Signed: positive increases the balance owed, negative decreases it.')
+    running_balance = models.IntegerField()
+    content_type = models.ForeignKey(ContentType, on_delete=models.PROTECT)
+    object_id = models.PositiveIntegerField()
+    reference = GenericForeignKey('content_type', 'object_id')
+    description = models.CharField(max_length=255)
+    date = models.DateField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'finance_studentfeeledgerentry'
+        indexes = [models.Index(fields=['student', 'date'])]
+        ordering = ['id']
+
+    def __str__(self):
+        return f"{self.student} {self.entry_type} {self.amount} (bal {self.running_balance})"

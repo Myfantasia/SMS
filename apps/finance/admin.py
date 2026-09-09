@@ -1,6 +1,12 @@
 from django.contrib import admin
 
-from apps.finance.models_fees import FeeCategory, FeeStructure, FeeStructureItem, StudentFeeItemEnrollment
+from apps.finance.models_fees import (
+    FeeCategory,
+    FeeStructure,
+    FeeStructureItem,
+    StudentFeeItemEnrollment,
+    StudentFeeLedgerEntry,
+)
 from apps.finance.models_shared import CashAccount
 
 
@@ -33,3 +39,17 @@ class StudentFeeItemEnrollmentAdmin(admin.ModelAdmin):
     list_display = ['student', 'fee_structure_item', 'enrolled_at']
     list_filter = ['fee_structure_item__fee_structure']
     autocomplete_fields = ['student']
+
+
+@admin.register(StudentFeeLedgerEntry)
+class StudentFeeLedgerEntryAdmin(admin.ModelAdmin):
+    list_display = ['student', 'entry_type', 'amount', 'running_balance', 'date']
+    list_filter = ['entry_type', 'date']
+    autocomplete_fields = ['student']
+    # Deliberately no add/edit/delete permissions beyond Django superuser default —
+    # this table is written only through post_ledger_entry(), never through the admin form.
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
