@@ -359,6 +359,18 @@ DATABASES = {
     }
 }
 
+# The finance app's models are being built out incrementally (see the
+# 2026-09-09 finance-fees-module-phase1 plan) without generating real migrations —
+# the user runs `makemigrations`/`migrate` themselves once the module is reviewed.
+# In the meantime, `manage.py test` needs real tables to exercise the new models
+# against, and Django's test runner only auto-creates tables for an app with NO
+# migration history for that model — since `finance` already has a `migrations/`
+# package, this tells the test runner to treat it as unmigrated for now and build
+# its tables directly from the current models. Remove this once real migrations
+# for `finance` are committed.
+if 'test' in sys.argv:
+    MIGRATION_MODULES = {'finance': None}
+
 # Was django.core.cache.backends.db.DatabaseCache — every cache read/write (login
 # throttling, verification-code attempt counters, chat rate limiting) was itself a
 # Postgres round trip. Redis moves that load off the database entirely and is shared
