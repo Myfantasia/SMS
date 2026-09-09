@@ -18,3 +18,13 @@ logs/
 
 # Local git worktrees used to isolate a plan's work from other concurrent sessions on this repo.
 .worktrees/
+
+# Personal IDE workspace config — local paths/DB-connection metadata, not project code.
+.idea/
+
+# User-uploaded media (student profile pictures, notice attachments, etc.) — real personal
+# content that should never be committed to the repo.
+media/
+
+# One-off personal/local admin script, not part of the app.
+add_teachers.py
