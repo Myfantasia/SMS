@@ -41,6 +41,22 @@ class PaymentModelTests(TestCase):
         payment.refresh_from_db()
         self.assertEqual(payment.status, 'failed')
 
+    def test_string_assigned_date_does_not_false_positive_on_a_later_unrelated_save(self):
+        """Regression test: a DateField assigned as a raw ISO string (the shape
+        request.data/a DRF serializer commonly hands a view) must not be treated
+        as 'changed' on a later save that only touches an unprotected field —
+        Django doesn't coerce a plain attribute assignment to a native date, so
+        the immutability check must normalize both sides before comparing."""
+        payment = Payment.objects.create(
+            student=self.student, amount=5000, method='cash', reference='RCPT-manual-5',
+            status='pending', recorded_by=self.recorder, date='2026-09-09',
+        )
+        payment.status = 'failed'
+        payment.save()
+        payment.refresh_from_db()
+        self.assertEqual(payment.status, 'failed')
+        self.assertEqual(payment.date, datetime.date(2026, 9, 9))
+
 
 class ReceiptModelTests(TestCase):
     def setUp(self):

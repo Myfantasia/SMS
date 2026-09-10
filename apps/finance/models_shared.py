@@ -2,6 +2,7 @@
 financial record uses, and the physical cash/bank accounts payments and GL
 entries can reference. Kept separate from models_fees.py because
 models_payroll.py and models_gl.py (later phases) both need these too."""
+from django.core.exceptions import FieldDoesNotExist
 from django.db import models
 
 
@@ -27,13 +28,34 @@ class ImmutableFinancialRecordMixin(models.Model):
             db_row = type(self).objects.filter(pk=self.pk).values(*self.PROTECTED_FIELDS).first()
             if db_row is not None:
                 for field_name in self.PROTECTED_FIELDS:
-                    if getattr(self, field_name) != db_row[field_name]:
+                    if not self._protected_field_unchanged(field_name, db_row[field_name]):
                         raise FinancialRecordImmutableError(
                             f"{type(self).__name__}.{field_name} cannot be changed after "
                             f"creation (record pk={self.pk}). Void this record and create "
                             f"a new one instead."
                         )
         super().save(*args, **kwargs)
+
+    def _protected_field_unchanged(self, field_name, persisted_value):
+        """Compares the in-memory value against what's actually persisted, first
+        normalizing both sides through the underlying Django field's to_python().
+        Needed because the in-memory attribute can hold a raw string (e.g. a
+        DateField assigned '2026-09-09' straight from request data, before any
+        DB round-trip coerces it) while `persisted_value` — read via .values() —
+        is already a native Python object (e.g. datetime.date). Comparing those
+        directly would false-positive as "changed" even when they're the same
+        value, incorrectly blocking a save that only touches an unprotected
+        field like status."""
+        current_value = getattr(self, field_name)
+        django_field_name = field_name[:-3] if field_name.endswith('_id') else field_name
+        try:
+            field = type(self)._meta.get_field(django_field_name)
+        except FieldDoesNotExist:
+            field = None
+        if field is not None:
+            current_value = field.to_python(current_value)
+            persisted_value = field.to_python(persisted_value)
+        return current_value == persisted_value
 
 
 class CashAccount(models.Model):
