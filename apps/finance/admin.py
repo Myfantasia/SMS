@@ -69,6 +69,9 @@ class InvoiceLineItemInline(admin.TabularInline):
     def has_add_permission(self, request, obj=None):
         return False
 
+    def has_change_permission(self, request, obj=None):
+        return False
+
 
 @admin.register(Invoice)
 class InvoiceAdmin(admin.ModelAdmin):
@@ -79,7 +82,14 @@ class InvoiceAdmin(admin.ModelAdmin):
     inlines = [InvoiceLineItemInline]
 
     # Generated only through services_fees.generate_invoice_for_student() — no manual add.
+    # Invoices are immutable financial records — they can only be voided, never edited or deleted.
     def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
         return False
 
 
