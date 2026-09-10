@@ -49,6 +49,9 @@ class StudentFeeLedgerEntryAdmin(admin.ModelAdmin):
     autocomplete_fields = ['student']
     # Deliberately no add/edit/delete permissions beyond Django superuser default —
     # this table is written only through post_ledger_entry(), never through the admin form.
+    def has_add_permission(self, request):
+        return False
+
     def has_change_permission(self, request, obj=None):
         return False
 
@@ -66,4 +69,7 @@ class StudentFeeAdjustmentAdmin(admin.ModelAdmin):
         return False
 
     def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
         return False

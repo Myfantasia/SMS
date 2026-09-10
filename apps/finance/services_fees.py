@@ -43,6 +43,10 @@ def create_adjustment(*, student, adjustment_type, amount, reason, requested_by,
         raise ValidationError(
             f"A negative adjustment ({adjustment_type}) of {amount} requires an approver."
         )
+    if approved_by is not None and approved_by == requested_by:
+        raise ValidationError(
+            "The approver of a negative adjustment cannot be the same user who requested it."
+        )
     with transaction.atomic():
         adjustment = StudentFeeAdjustment.objects.create(
             student=student, category=category, adjustment_type=adjustment_type,

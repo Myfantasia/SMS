@@ -53,3 +53,10 @@ class AdjustmentTests(TestCase):
         entry = StudentFeeLedgerEntry.objects.get()
         self.assertEqual(entry.amount, -3000)
         self.assertEqual(entry.running_balance, -3000)
+
+    def test_approver_cannot_be_the_same_as_requester(self):
+        with self.assertRaises(ValidationError):
+            create_adjustment(
+                student=self.student, adjustment_type='scholarship', amount=-3000,
+                reason='Merit scholarship', requested_by=self.requester, approved_by=self.requester,
+            )
