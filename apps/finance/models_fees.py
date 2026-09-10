@@ -5,7 +5,7 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
-from apps.finance.models_shared import ImmutableFinancialRecordMixin
+from apps.finance.models_shared import CashAccount, ImmutableFinancialRecordMixin
 
 
 class FeeCategory(models.Model):
@@ -182,3 +182,60 @@ class InvoiceLineItem(models.Model):
 
     class Meta:
         db_table = 'finance_invoicelineitem'
+
+
+class Payment(ImmutableFinancialRecordMixin, models.Model):
+    """A recorded payment against a student's fee account. `invoice` is nullable
+    because a payment can be applied against a student's overall balance rather
+    than one specific invoice. `method` stays a fixed choice list, not a
+    DB-configurable table — there is no real payment-gateway integration to
+    model against yet (spec section 9); `status` is reserved for that future
+    gateway path (pending/failed), manual entries are always 'confirmed'
+    immediately."""
+    METHOD_CHOICES = [
+        ('cash', 'Cash'),
+        ('bank_transfer', 'Bank Transfer'),
+        ('mpesa', 'M-Pesa'),
+        ('cheque', 'Cheque'),
+        ('other', 'Other'),
+    ]
+    STATUS_CHOICES = [
+        ('confirmed', 'Confirmed'),
+        ('pending', 'Pending'),
+        ('failed', 'Failed'),
+    ]
+    PROTECTED_FIELDS = ('student_id', 'invoice_id', 'amount', 'method', 'reference', 'date')
+
+    student = models.ForeignKey('identity.StudentExtra', on_delete=models.PROTECT, related_name='payments')
+    invoice = models.ForeignKey(Invoice, on_delete=models.PROTECT, null=True, blank=True, related_name='payments')
+    amount = models.PositiveIntegerField()
+    method = models.CharField(max_length=15, choices=METHOD_CHOICES)
+    reference = models.CharField(max_length=100, blank=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='confirmed')
+    recorded_by = models.ForeignKey('auth.User', on_delete=models.PROTECT, related_name='+')
+    cash_account = models.ForeignKey(CashAccount, on_delete=models.PROTECT, null=True, blank=True, related_name='payments')
+    date = models.DateField()
+    voided_at = models.DateTimeField(null=True, blank=True)
+    voided_by = models.ForeignKey('auth.User', on_delete=models.PROTECT, null=True, blank=True, related_name='+')
+    void_reason = models.TextField(blank=True)
+
+    class Meta:
+        db_table = 'finance_payment'
+        indexes = [models.Index(fields=['student', 'date'])]
+
+    def __str__(self):
+        return f"{self.student} - {self.amount} ({self.method})"
+
+
+class Receipt(models.Model):
+    """1:1 with a confirmed Payment. Generated synchronously the instant the
+    payment is confirmed — a single row, no Celery needed."""
+    payment = models.OneToOneField(Payment, on_delete=models.PROTECT, related_name='receipt')
+    receipt_number = models.CharField(max_length=30, unique=True)
+    generated_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'finance_receipt'
+
+    def __str__(self):
+        return self.receipt_number

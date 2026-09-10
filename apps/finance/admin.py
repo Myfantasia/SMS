@@ -9,6 +9,8 @@ from apps.finance.models_fees import (
     StudentFeeAdjustment,
     Invoice,
     InvoiceLineItem,
+    Payment,
+    Receipt,
 )
 from apps.finance.models_shared import CashAccount
 
@@ -83,6 +85,41 @@ class InvoiceAdmin(admin.ModelAdmin):
 
     # Generated only through services_fees.generate_invoice_for_student() — no manual add.
     # Invoices are immutable financial records — they can only be voided, never edited or deleted.
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(Payment)
+class PaymentAdmin(admin.ModelAdmin):
+    list_display = ['student', 'amount', 'method', 'status', 'date', 'recorded_by']
+    list_filter = ['method', 'status']
+    autocomplete_fields = ['student']
+
+    # Created only through services_fees.record_payment() — no manual add.
+    # Payments are immutable financial records — they can only be voided, never edited or deleted.
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(Receipt)
+class ReceiptAdmin(admin.ModelAdmin):
+    list_display = ['receipt_number', 'payment', 'generated_at']
+
+    # Generated synchronously by record_payment() when a Payment is confirmed —
+    # no manual add. Receipts are formal sequentially-numbered documents and must
+    # never be edited or deleted.
     def has_add_permission(self, request):
         return False
 
