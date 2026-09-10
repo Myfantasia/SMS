@@ -7,6 +7,8 @@ from apps.finance.models_fees import (
     StudentFeeItemEnrollment,
     StudentFeeLedgerEntry,
     StudentFeeAdjustment,
+    Invoice,
+    InvoiceLineItem,
 )
 from apps.finance.models_shared import CashAccount
 
@@ -56,6 +58,28 @@ class StudentFeeLedgerEntryAdmin(admin.ModelAdmin):
         return False
 
     def has_delete_permission(self, request, obj=None):
+        return False
+
+
+class InvoiceLineItemInline(admin.TabularInline):
+    model = InvoiceLineItem
+    extra = 0
+    can_delete = False
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(Invoice)
+class InvoiceAdmin(admin.ModelAdmin):
+    list_display = ['invoice_number', 'student', 'fee_structure', 'total', 'status', 'issued_at']
+    list_filter = ['status', 'fee_structure']
+    search_fields = ['invoice_number']
+    autocomplete_fields = ['student']
+    inlines = [InvoiceLineItemInline]
+
+    # Generated only through services_fees.generate_invoice_for_student() — no manual add.
+    def has_add_permission(self, request):
         return False
 
 
