@@ -5,7 +5,10 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 
-from apps.finance.models_fees import StudentFeeLedgerEntry, StudentFeeAdjustment
+from apps.finance.models_fees import (
+    StudentFeeLedgerEntry, StudentFeeAdjustment, Invoice, InvoiceLineItem, StudentFeeItemEnrollment,
+)
+from apps.finance.services_shared import next_document_number
 from apps.identity.models import StudentExtra
 from apps.core.services import write_audit_log
 
@@ -65,3 +68,43 @@ def create_adjustment(*, student, adjustment_type, amount, reason, requested_by,
             ),
         )
         return adjustment
+
+
+def generate_invoice_for_student(*, student, fee_structure, operator):
+    """Create one Invoice for `student` against `fee_structure`: every mandatory
+    FeeStructureItem, plus any optional item the student has a
+    StudentFeeItemEnrollment row for. Snapshots line items into
+    InvoiceLineItem so a later edit to the FeeStructure never changes this
+    invoice retroactively (spec section 4.5)."""
+    enrolled_item_ids = set(
+        StudentFeeItemEnrollment.objects.filter(student=student, fee_structure_item__fee_structure=fee_structure)
+        .values_list('fee_structure_item_id', flat=True)
+    )
+    applicable_items = [
+        item for item in fee_structure.items.select_related('category')
+        if not item.is_optional or item.pk in enrolled_item_ids
+    ]
+    total = sum(item.amount for item in applicable_items)
+
+    with transaction.atomic():
+        invoice = Invoice.objects.create(
+            student=student, fee_structure=fee_structure, total=total,
+            invoice_number=next_document_number('INV'),
+        )
+        InvoiceLineItem.objects.bulk_create([
+            InvoiceLineItem(
+                invoice=invoice, category=item.category,
+                description=item.category.name, amount=item.amount,
+            )
+            for item in applicable_items
+        ])
+        post_ledger_entry(
+            student=student, entry_type='charge', amount=total,
+            reference=invoice, description=f"Invoice {invoice.invoice_number} ({fee_structure.name})",
+        )
+        write_audit_log(
+            operator_id=operator.id if operator else None, action_type='CREATE', module='finance',
+            description=f"Generated invoice {invoice.invoice_number} for student {student.id} "
+                         f"({fee_structure.name}), total {total}.",
+        )
+        return invoice
