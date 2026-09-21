@@ -2,13 +2,14 @@
 inside transaction.atomic() and locks the affected student's StudentExtra row
 with select_for_update() first, per the Finance Subsystem Design spec section 11."""
 from django.core.exceptions import ValidationError
+from django.contrib.contenttypes.models import ContentType
 from django.db import models, transaction
 from django.db.models import Sum
 from django.utils import timezone
 
 from apps.finance.models_fees import (
     StudentFeeLedgerEntry, StudentFeeAdjustment, Invoice, InvoiceLineItem, StudentFeeItemEnrollment,
-    Payment, Receipt,
+    Payment, Receipt, InvoiceCreditApplication,
 )
 from apps.finance.services_shared import next_document_number
 from apps.identity.models import StudentExtra
@@ -37,6 +38,16 @@ def post_ledger_entry(*, student, entry_type, amount, reference, description, da
             description=description,
             date=date or timezone.now().date(),
         )
+
+
+def get_credit_balance(student):
+    """The student's unapplied overpayment credit: `max(0, -running_balance)` of
+    their latest ledger entry, 0 when they have no entries (spec section 4.8)."""
+    latest_balance = (
+        StudentFeeLedgerEntry.objects.filter(student=student).order_by('-id')
+        .values_list('running_balance', flat=True).first()
+    )
+    return max(0, -latest_balance) if latest_balance is not None else 0
 
 
 def create_adjustment(*, student, adjustment_type, amount, reason, requested_by, category=None, approved_by=None):
@@ -96,6 +107,9 @@ def generate_invoice_for_student(*, student, fee_structure, operator):
     with transaction.atomic():
         # Lock-first: see create_adjustment.
         student = StudentExtra.objects.select_for_update().get(pk=student.pk)
+        # Read the credit before the new charge lands: the ledger nets it against
+        # that charge, so afterwards it would already look consumed.
+        credit_before = get_credit_balance(student)
         invoice = Invoice.objects.create(
             student=student, fee_structure=fee_structure, total=total,
             invoice_number=next_document_number('INV'),
@@ -111,12 +125,19 @@ def generate_invoice_for_student(*, student, fee_structure, operator):
             student=student, entry_type='charge', amount=total,
             reference=invoice, description=f"Invoice {invoice.invoice_number} ({fee_structure.name})",
         )
+        # Spec section 4.8: apply carried-forward credit. No ledger entry -- the
+        # charge above already netted it against the balance.
+        applied = min(credit_before, total)
+        if applied > 0:
+            InvoiceCreditApplication.objects.create(student=student, invoice=invoice, amount=applied)
+            _recalculate_invoice_status(invoice)
         write_audit_log(
             operator_id=operator.id if operator else None, action_type='CREATE', module='finance',
             description=f"Generated invoice {invoice.invoice_number} for student {student.id} "
-                         f"({fee_structure.name}), total {total}.",
+                         f"({fee_structure.name}), total {total}"
+                         + (f", credit applied {applied}." if applied > 0 else '.'),
         )
-        return invoice
+        return Invoice.objects.get(pk=invoice.pk)
 
 
 def generate_invoices_for_structure(*, fee_structure, operator):
@@ -141,14 +162,18 @@ def generate_invoices_for_structure(*, fee_structure, operator):
 
 
 def _recalculate_invoice_status(invoice):
-    """An invoice's status is derived from its non-voided payments, not stored
-    independently — recomputed here after every payment against it. A voided
+    """An invoice's status is derived from its non-voided payments plus any
+    credit applied to it (spec section 4.8), not stored independently —
+    recomputed here after every payment or credit application against it. A voided
     invoice is terminal: its status is re-read from the DB (the caller's
     in-memory copy may be stale) and left untouched."""
     if Invoice.objects.filter(pk=invoice.pk).values_list('status', flat=True).first() == 'voided':
         return
     paid_amount = (
         Payment.objects.filter(invoice=invoice, voided_at__isnull=True, status='confirmed')
+        .aggregate(total=Sum('amount'))['total'] or 0
+    ) + (
+        InvoiceCreditApplication.objects.filter(invoice=invoice)
         .aggregate(total=Sum('amount'))['total'] or 0
     )
     if paid_amount >= invoice.total:
@@ -253,6 +278,21 @@ def void_payment(*, payment, voided_by, reason):
         payment = Payment.objects.select_for_update().get(pk=payment.pk)
         if payment.voided_at is not None:
             raise ValidationError(f"Payment {payment.pk} is already voided.")
+        # Payment has no created_at; its ledger entry (posted in the same
+        # transaction as the payment) carries the real timestamp.
+        payment_posted_at = (
+            StudentFeeLedgerEntry.objects.filter(
+                content_type=ContentType.objects.get_for_model(Payment), object_id=payment.pk,
+                entry_type='payment', amount__lt=0,
+            ).values_list('created_at', flat=True).first()
+        )
+        if payment_posted_at is not None and InvoiceCreditApplication.objects.filter(
+            student=student, created_at__gt=payment_posted_at,
+        ).exclude(invoice__status='voided').exists():
+            raise ValidationError(
+                f"Payment {payment.pk} cannot be voided: its overpayment credit has been applied to a "
+                f"later invoice. Void that invoice first, then void this payment."
+            )
         payment.voided_at = timezone.now()
         payment.voided_by = voided_by
         payment.void_reason = reason

@@ -26,6 +26,8 @@ whoever picks up that feature.
 """
 from typing import Optional
 
+from apps.finance.services_fees import get_credit_balance  # noqa: F401  (public re-export)
+
 
 def is_fees_clear(*, student_id: int, term_id: int) -> Optional[bool]:
     """Returns None (unknown/not tracked) today -- no fee data exists to check.

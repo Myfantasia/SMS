@@ -227,6 +227,27 @@ class Payment(ImmutableFinancialRecordMixin, models.Model):
         return f"{self.student} - {self.amount} ({self.method})"
 
 
+class InvoiceCreditApplication(ImmutableFinancialRecordMixin, models.Model):
+    """Overpayment credit auto-applied to a new invoice at generation time (spec
+    section 4.8). Deliberately posts NO ledger entry: the ledger's running
+    balance already nets the credit against the new charge, so a second entry
+    would double-count it. The invoice's status counts these rows alongside
+    confirmed payments. Immutable; if the invoice is voided the row is kept but
+    stops counting."""
+    PROTECTED_FIELDS = ('student_id', 'invoice_id', 'amount')
+
+    student = models.ForeignKey('identity.StudentExtra', on_delete=models.PROTECT, related_name='credit_applications')
+    invoice = models.ForeignKey(Invoice, on_delete=models.PROTECT, related_name='credit_applications')
+    amount = models.PositiveIntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'finance_invoicecreditapplication'
+
+    def __str__(self):
+        return f"{self.invoice} credit {self.amount}"
+
+
 class Receipt(models.Model):
     """1:1 with a confirmed Payment. Generated synchronously the instant the
     payment is confirmed — a single row, no Celery needed."""

@@ -9,6 +9,7 @@ from apps.finance.models_fees import (
     StudentFeeAdjustment,
     Invoice,
     InvoiceLineItem,
+    InvoiceCreditApplication,
     Payment,
     Receipt,
 )
@@ -85,6 +86,24 @@ class InvoiceAdmin(admin.ModelAdmin):
 
     # Generated only through services_fees.generate_invoice_for_student() — no manual add.
     # Invoices are immutable financial records — they can only be voided, never edited or deleted.
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(InvoiceCreditApplication)
+class InvoiceCreditApplicationAdmin(admin.ModelAdmin):
+    list_display = ['invoice', 'student', 'amount', 'created_at']
+    search_fields = ['invoice__invoice_number']
+    autocomplete_fields = ['student']
+
+    # Created only by generate_invoice_for_student() when carried-forward credit
+    # is applied. Immutable financial records — never added, edited or deleted here.
     def has_add_permission(self, request):
         return False
 
