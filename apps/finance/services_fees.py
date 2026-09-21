@@ -2,11 +2,13 @@
 inside transaction.atomic() and locks the affected student's StudentExtra row
 with select_for_update() first, per the Finance Subsystem Design spec section 11."""
 from django.core.exceptions import ValidationError
-from django.db import transaction
+from django.db import models, transaction
+from django.db.models import Sum
 from django.utils import timezone
 
 from apps.finance.models_fees import (
     StudentFeeLedgerEntry, StudentFeeAdjustment, Invoice, InvoiceLineItem, StudentFeeItemEnrollment,
+    Payment, Receipt,
 )
 from apps.finance.services_shared import next_document_number
 from apps.identity.models import StudentExtra
@@ -51,6 +53,11 @@ def create_adjustment(*, student, adjustment_type, amount, reason, requested_by,
             "The approver of a negative adjustment cannot be the same user who requested it."
         )
     with transaction.atomic():
+        # Lock the student row first: the create() below takes FOR KEY SHARE on it
+        # via the FK, and post_ledger_entry then wants FOR UPDATE -- taking the
+        # stronger lock up front avoids a lock-upgrade deadlock between two
+        # concurrent writers for one student.
+        student = StudentExtra.objects.select_for_update().get(pk=student.pk)
         adjustment = StudentFeeAdjustment.objects.create(
             student=student, category=category, adjustment_type=adjustment_type,
             amount=amount, reason=reason, requested_by=requested_by, approved_by=approved_by,
@@ -87,6 +94,8 @@ def generate_invoice_for_student(*, student, fee_structure, operator):
     total = sum(item.amount for item in applicable_items)
 
     with transaction.atomic():
+        # Lock-first: see create_adjustment.
+        student = StudentExtra.objects.select_for_update().get(pk=student.pk)
         invoice = Invoice.objects.create(
             student=student, fee_structure=fee_structure, total=total,
             invoice_number=next_document_number('INV'),
@@ -129,3 +138,62 @@ def generate_invoices_for_structure(*, fee_structure, operator):
         generate_invoice_for_student(student=student, fee_structure=fee_structure, operator=operator)
         for student in students
     ]
+
+
+def _recalculate_invoice_status(invoice):
+    """An invoice's status is derived from its non-voided payments, not stored
+    independently — recomputed here after every payment against it. A voided
+    invoice is terminal: its status is re-read from the DB (the caller's
+    in-memory copy may be stale) and left untouched."""
+    if Invoice.objects.filter(pk=invoice.pk).values_list('status', flat=True).first() == 'voided':
+        return
+    paid_amount = (
+        Payment.objects.filter(invoice=invoice, voided_at__isnull=True, status='confirmed')
+        .aggregate(total=Sum('amount'))['total'] or 0
+    )
+    if paid_amount >= invoice.total:
+        invoice.status = 'paid'
+    elif paid_amount > 0:
+        invoice.status = 'partially_paid'
+    else:
+        invoice.status = 'unpaid'
+    invoice.save(update_fields=['status'])
+
+
+def record_payment(*, student, amount, method, recorded_by, invoice=None, reference='', cash_account=None, date=None):
+    """Record a manual payment: create the Payment (always 'confirmed' for
+    manual entries, per spec section 9), post a negative ledger entry, update
+    the invoice's status if one was supplied, generate the Receipt
+    synchronously, and audit-log the action — all inside one transaction."""
+    if amount <= 0:
+        raise ValidationError("Payment amount must be greater than zero.")
+    if invoice is not None and invoice.student_id != student.id:
+        raise ValidationError("The invoice does not belong to this student.")
+    # Accepts a date, an ISO string or None; the ledger and the payment must
+    # share one real datetime.date so a backdated payment posts on its own date.
+    payment_date = models.DateField().to_python(date) if date else timezone.now().date()
+
+    with transaction.atomic():
+        # Lock-first: see create_adjustment.
+        student = StudentExtra.objects.select_for_update().get(pk=student.pk)
+        if invoice is not None:
+            if Invoice.objects.filter(pk=invoice.pk).values_list('status', flat=True).first() == 'voided':
+                raise ValidationError("Cannot record a payment against a voided invoice.")
+        payment = Payment.objects.create(
+            student=student, invoice=invoice, amount=amount, method=method,
+            reference=reference, status='confirmed', recorded_by=recorded_by,
+            cash_account=cash_account, date=payment_date,
+        )
+        post_ledger_entry(
+            student=student, entry_type='payment', amount=-amount, date=payment_date,
+            reference=payment, description=f"Payment received ({method})" + (f" for {invoice.invoice_number}" if invoice else ''),
+        )
+        if invoice is not None:
+            _recalculate_invoice_status(invoice)
+        receipt = Receipt.objects.create(payment=payment, receipt_number=next_document_number('RCPT'))
+        write_audit_log(
+            operator_id=recorded_by.id, action_type='CREATE', module='finance',
+            description=f"Recorded payment of {amount} ({method}) for student {student.id}"
+                         + (f" against invoice {invoice.invoice_number}" if invoice else '') + f"; receipt {receipt.receipt_number}.",
+        )
+        return payment, receipt
