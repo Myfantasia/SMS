@@ -65,6 +65,7 @@ class SystemAuditLog(models.Model):
         ('PROMOTE', 'Promoted or Graduated Student'),
         ('AUTH_SUCCESS', 'Authentication Succeeded'),
         ('AUTH_FAILURE', 'Authentication Failed'),
+        ('HARD_DELETE', 'Permanently Deleted Resource'),
     ]
 
     operator = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='audit_actions')

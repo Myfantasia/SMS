@@ -1,10 +1,10 @@
 """Fee-domain business logic. Every function here that touches the ledger runs
 inside transaction.atomic() and locks the affected student's StudentExtra row
 with select_for_update() first, per the Finance Subsystem Design spec section 11."""
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.contrib.contenttypes.models import ContentType
 from django.db import models, transaction
-from django.db.models import Sum
+from django.db.models import ProtectedError, Sum
 from django.utils import timezone
 
 from apps.finance.models_fees import (
@@ -309,6 +309,57 @@ def void_payment(*, payment, voided_by, reason):
             description=f"Voided payment {payment.pk} ({payment.amount}, {payment.method}): {reason}",
         )
         return payment
+
+
+def hard_delete_financial_record(*, model_class, pk, operator):
+    """Permanently remove a financial record. Deliberately narrow: only a real
+    Django superuser (there is no separate 'SUPER_ADMIN' RBAC tier in this
+    codebase -- is_superuser is the correct, already-existing mechanism) may
+    call this, and only on a record that has already been voided (defense in
+    depth: you can't hard-delete something that was never flagged as wrong).
+    Not reachable from any API endpoint -- Django admin action only, per spec
+    section 7.5.
+
+    Dependent rows: InvoiceLineItem cascades with its Invoice. A Payment's Receipt
+    (PROTECT) is deleted explicitly first, in the same transaction, and its number
+    is recorded in the audit description. Payment.invoice and
+    InvoiceCreditApplication.invoice are PROTECT, so an Invoice that still has
+    either is refused with a ValidationError naming them (nothing is deleted or
+    logged). Ledger entries are the immutable audit trail
+    and are never deleted: they reference their record through a
+    GenericForeignKey with no DB constraint, so after a hard delete they remain
+    with a dangling reference (`entry.reference` resolves to None)."""
+    if not operator.is_superuser:
+        raise PermissionDenied("Only a superuser may hard-delete a financial record.")
+    with transaction.atomic():
+        obj = model_class.objects.select_for_update().get(pk=pk)
+        if getattr(obj, 'voided_at', None) is None:
+            raise ValidationError(
+                f"{model_class.__name__} {pk} must be voided before it can be hard-deleted."
+            )
+        description = f"Hard-deleted {model_class.__name__} {pk} (was voided: {obj.void_reason})"
+        receipt = None
+        if model_class is Payment:
+            # Receipt.payment is PROTECT and record_payment() always issues a receipt, so it is
+            # removed explicitly first (same transaction). Receipt numbers are never reused, and
+            # the number is preserved in the audit description built here, before deletion.
+            receipt = Receipt.objects.filter(payment_id=obj.pk).first()
+            if receipt is not None:
+                description += f"; deleted receipt {receipt.receipt_number}"
+        try:
+            if receipt is not None:
+                receipt.delete()
+            obj.delete()
+        except ProtectedError as exc:
+            blockers = sorted({type(blocker).__name__ for blocker in exc.protected_objects})
+            raise ValidationError(
+                f"{model_class.__name__} {pk} cannot be hard-deleted while it still has "
+                f"dependent records ({', '.join(blockers)}); remove those first."
+            ) from exc
+        write_audit_log(
+            operator_id=operator.id, action_type='HARD_DELETE', module='finance',
+            description=description,
+        )
 
 
 def is_fees_clear(*, student_id, term_id=None, grace_threshold=0):

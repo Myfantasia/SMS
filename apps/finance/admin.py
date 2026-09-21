@@ -1,4 +1,5 @@
-from django.contrib import admin
+from django.contrib import admin, messages
+from django.core.exceptions import PermissionDenied, ValidationError
 
 from apps.finance.models_fees import (
     FeeCategory,
@@ -14,6 +15,35 @@ from apps.finance.models_fees import (
     Receipt,
 )
 from apps.finance.models_shared import CashAccount
+from apps.finance.services_fees import hard_delete_financial_record
+
+
+class SuperuserOnlyActionsMixin:
+    """Mixin to hide hard_delete_selected action from non-superusers."""
+
+    def get_actions(self, request):
+        actions = super().get_actions(request)
+        if not request.user.is_superuser and 'hard_delete_selected' in actions:
+            del actions['hard_delete_selected']
+        return actions
+
+
+@admin.action(description="Hard delete (superuser only, must already be voided)")
+def hard_delete_selected(modeladmin, request, queryset):
+    if not request.user.is_superuser:
+        modeladmin.message_user(request, "Only a superuser may hard-delete a financial record.", level=messages.ERROR)
+        return
+    deleted = 0
+    for obj in list(queryset):
+        try:
+            hard_delete_financial_record(model_class=type(obj), pk=obj.pk, operator=request.user)
+        except (PermissionDenied, ValidationError) as exc:
+            detail = ' '.join(exc.messages) if isinstance(exc, ValidationError) else str(exc)
+            modeladmin.message_user(request, f"{obj}: {detail}", level=messages.ERROR)
+            break
+        deleted += 1
+    if deleted:
+        modeladmin.message_user(request, f"Hard-deleted {deleted} record(s).", level=messages.SUCCESS)
 
 
 @admin.register(CashAccount)
@@ -77,12 +107,13 @@ class InvoiceLineItemInline(admin.TabularInline):
 
 
 @admin.register(Invoice)
-class InvoiceAdmin(admin.ModelAdmin):
+class InvoiceAdmin(SuperuserOnlyActionsMixin, admin.ModelAdmin):
     list_display = ['invoice_number', 'student', 'fee_structure', 'total', 'status', 'issued_at']
     list_filter = ['status', 'fee_structure']
     search_fields = ['invoice_number']
     autocomplete_fields = ['student']
     inlines = [InvoiceLineItemInline]
+    actions = [hard_delete_selected]
 
     # Generated only through services_fees.generate_invoice_for_student() — no manual add.
     # Invoices are immutable financial records — they can only be voided, never edited or deleted.
@@ -115,10 +146,11 @@ class InvoiceCreditApplicationAdmin(admin.ModelAdmin):
 
 
 @admin.register(Payment)
-class PaymentAdmin(admin.ModelAdmin):
+class PaymentAdmin(SuperuserOnlyActionsMixin, admin.ModelAdmin):
     list_display = ['student', 'amount', 'method', 'status', 'date', 'recorded_by']
     list_filter = ['method', 'status']
     autocomplete_fields = ['student']
+    actions = [hard_delete_selected]
 
     # Created only through services_fees.record_payment() — no manual add.
     # Payments are immutable financial records — they can only be voided, never edited or deleted.
