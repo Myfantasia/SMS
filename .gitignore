@@ -28,3 +28,27 @@ media/
 
 # One-off personal/local admin script, not part of the app.
 add_teachers.py
+
+# Any env-file variant (.env.local, .env.production, frontend/.env, ...) — only the template is committable.
+.env.*
+!.env.example
+
+# Private keys, certificates and cloud/service credentials.
+*.pem
+*.key
+*.p12
+*.pfx
+*credentials*.json
+*service-account*.json
+*serviceAccount*.json
+
+# Database files, dumps and backups — contain real student/staff/financial records.
+*.sqlite3
+*.dump
+*.sql
+*.bak
+db_backups/
+backups/
+
+# Per-machine Claude Code settings (local paths, permission grants).
+.claude/settings.local.json
