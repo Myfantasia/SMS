@@ -52,3 +52,11 @@ backups/
 
 # Per-machine Claude Code settings (local paths, permission grants).
 .claude/settings.local.json
+
+# AI-assistant working files (plans, specs, skills, agent config) — local tooling, not project code.
+docs/superpowers/
+.claude/
+CLAUDE.md
+AGENTS.md
+GEMINI.md
+.mcp.json
