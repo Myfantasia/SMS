@@ -9,7 +9,7 @@ from django.utils import timezone
 
 from apps.finance.models_fees import (
     StudentFeeLedgerEntry, StudentFeeAdjustment, Invoice, InvoiceLineItem, StudentFeeItemEnrollment,
-    Payment, Receipt, InvoiceCreditApplication,
+    Payment, Receipt, InvoiceCreditApplication, FeeCategory,
 )
 from apps.finance.services_shared import next_document_number
 from apps.identity.models import StudentExtra
@@ -50,11 +50,12 @@ def get_credit_balance(student):
     return max(0, -latest_balance) if latest_balance is not None else 0
 
 
-def create_adjustment(*, student, adjustment_type, amount, reason, requested_by, category=None, approved_by=None):
+def create_adjustment(*, student, adjustment_type, amount, reason, requested_by, category_id=None, approved_by=None):
     """Create a StudentFeeAdjustment and post it to the student's ledger.
     Any negative amount (a discount/scholarship/bursary that waives fees) must
     carry an approver — this is an audit requirement, not optional, per spec
-    section 4.4."""
+    section 4.4. `category_id` (optional) is resolved to the FeeCategory here."""
+    category = FeeCategory.objects.filter(id=category_id).first() if category_id else None
     if amount < 0 and approved_by is None:
         raise ValidationError(
             f"A negative adjustment ({adjustment_type}) of {amount} requires an approver."
@@ -75,7 +76,8 @@ def create_adjustment(*, student, adjustment_type, amount, reason, requested_by,
         )
         post_ledger_entry(
             student=student, entry_type='adjustment', amount=amount,
-            reference=adjustment, description=f"{adjustment.get_adjustment_type_display()}: {reason}",
+            reference=adjustment,
+            description=f"{adjustment.get_adjustment_type_display()}: {reason}"[:_LEDGER_DESCRIPTION_MAX],
         )
         write_audit_log(
             operator_id=requested_by.id, action_type='APPROVE' if approved_by else 'CREATE',

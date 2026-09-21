@@ -1,5 +1,6 @@
+from django.core.exceptions import PermissionDenied as DjangoPermissionDenied, ValidationError as DjangoValidationError
 from django.db import transaction
-from django.db.models import Sum
+from django.db.models import Prefetch, Sum
 from rest_framework.authentication import SessionAuthentication
 from rest_framework.generics import ListCreateAPIView
 from rest_framework.permissions import IsAuthenticated
@@ -7,10 +8,20 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 
-from apps.identity.models import StudentExtra, TeacherExtra
+from apps.identity.models import ParentExtra, StudentExtra, TeacherExtra
 from apps.core.services import write_audit_log
-from apps.finance.models_fees import FeeCategory, FeeStructure, FeeStructureItem, StudentFeeItemEnrollment
-from apps.finance.serializers_fees import FeeCategorySerializer, FeeStructureSerializer, FeeStructureDetailSerializer
+from apps.finance.models_fees import (
+    FeeCategory, FeeStructure, FeeStructureItem, Invoice, Payment, StudentFeeItemEnrollment, StudentFeeLedgerEntry,
+)
+from apps.finance.serializers_fees import (
+    FeeCategorySerializer, FeeStructureSerializer, FeeStructureDetailSerializer,
+    InvoiceSerializer, InvoiceDetailSerializer, PaymentSerializer, StudentFeeAdjustmentSerializer,
+    StudentFeeLedgerEntrySerializer, PaymentCreateSerializer, AdjustmentCreateSerializer, VoidSerializer,
+    InvoiceListQuerySerializer, PaymentListQuerySerializer, PageQuerySerializer, FeeClearanceQuerySerializer,
+)
+from apps.finance.services_fees import (
+    record_payment, void_invoice, void_payment, create_adjustment, is_fees_clear, get_credit_balance,
+)
 from school.rbac import HasModulePermission, user_has_permission
 from school.jobs import dispatch_background_job
 from orchestration.tasks import generate_invoices_for_structure_task
@@ -212,3 +223,193 @@ class StudentFeeItemEnrollmentSetAPIView(APIView):
             "enrolled_count": len(valid_ids),
             "ignored_student_ids": sorted(requested_ids - valid_ids),
         })
+
+
+def _service_error_response(exc):
+    """Turns a service-layer refusal into a clean 4xx. `exc.messages` (not
+    str(exc), which renders the list repr) gives plain human-readable text."""
+    if isinstance(exc, DjangoPermissionDenied):
+        return Response({"error": str(exc) or "Permission denied."}, status=status.HTTP_403_FORBIDDEN)
+    return Response({"error": ' '.join(exc.messages)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class InvoiceListAPIView(APIView):
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsAuthenticated, HasModulePermission]
+    rbac_view_permission = 'finance.view'
+
+    def get(self, request):
+        query = InvoiceListQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        filters = query.validated_data
+        invoices = Invoice.objects.prefetch_related('line_items__category')
+        if 'student_id' in filters:
+            invoices = invoices.filter(student_id=filters['student_id'])
+        if 'fee_structure_id' in filters:
+            invoices = invoices.filter(fee_structure_id=filters['fee_structure_id'])
+        if 'status' in filters:
+            invoices = invoices.filter(status=filters['status'])
+        page = query.slice(invoices.order_by('-issued_at', '-id'))
+        return Response(InvoiceSerializer(page, many=True).data)
+
+
+class InvoiceDetailAPIView(APIView):
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsAuthenticated, HasModulePermission]
+    rbac_view_permission = 'finance.view'
+
+    def get(self, request, invoice_id):
+        invoice = (
+            Invoice.objects.filter(id=invoice_id)
+            .prefetch_related(
+                'line_items__category', 'credit_applications',
+                Prefetch('payments', queryset=Payment.objects.select_related('receipt').order_by('date', 'id')),
+            )
+            .first()
+        )
+        if invoice is None:
+            return Response({"error": "Invoice not found."}, status=status.HTTP_404_NOT_FOUND)
+        return Response(InvoiceDetailSerializer(invoice).data)
+
+
+class PaymentListCreateAPIView(APIView):
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsAuthenticated, HasModulePermission]
+    rbac_view_permission = 'finance.view'
+    rbac_edit_permission = 'finance.record_payment'
+
+    def get(self, request):
+        query = PaymentListQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        payments = Payment.objects.select_related('receipt')
+        if 'student_id' in query.validated_data:
+            payments = payments.filter(student_id=query.validated_data['student_id'])
+        return Response(PaymentSerializer(query.slice(payments.order_by('-date', '-id')), many=True).data)
+
+    def post(self, request):
+        data = PaymentCreateSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        try:
+            payment, _receipt = record_payment(
+                student=data.validated_data['student'], amount=data.validated_data['amount'],
+                method=data.validated_data['method'], recorded_by=request.user,
+                invoice=data.validated_data.get('invoice'), reference=data.validated_data['reference'],
+                date=data.validated_data['date'],
+            )
+        except (DjangoValidationError, DjangoPermissionDenied) as exc:
+            return _service_error_response(exc)
+        return Response(PaymentSerializer(payment).data, status=status.HTTP_201_CREATED)
+
+
+class VoidInvoiceAPIView(APIView):
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsAuthenticated, HasModulePermission]
+    rbac_edit_permission = 'finance.void'
+
+    def post(self, request, invoice_id):
+        invoice = Invoice.objects.filter(id=invoice_id).first()
+        if invoice is None:
+            return Response({"error": "Invoice not found."}, status=status.HTTP_404_NOT_FOUND)
+        data = VoidSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        try:
+            # The service re-reads under lock and returns the fresh row; serialize that, not our stale copy.
+            voided = void_invoice(invoice=invoice, voided_by=request.user, reason=data.validated_data['reason'])
+        except (DjangoValidationError, DjangoPermissionDenied) as exc:
+            return _service_error_response(exc)
+        return Response(InvoiceSerializer(voided).data)
+
+
+class VoidPaymentAPIView(APIView):
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsAuthenticated, HasModulePermission]
+    rbac_edit_permission = 'finance.void'
+
+    def post(self, request, payment_id):
+        payment = Payment.objects.filter(id=payment_id).first()
+        if payment is None:
+            return Response({"error": "Payment not found."}, status=status.HTTP_404_NOT_FOUND)
+        data = VoidSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        try:
+            voided = void_payment(payment=payment, voided_by=request.user, reason=data.validated_data['reason'])
+        except (DjangoValidationError, DjangoPermissionDenied) as exc:
+            return _service_error_response(exc)
+        return Response(PaymentSerializer(voided).data)
+
+
+class StudentFeeAdjustmentCreateAPIView(APIView):
+    """`finance.edit` is enough to REQUEST an adjustment. A negative one (a
+    discount/scholarship/bursary) also needs `approved_by`, which must name an
+    active user holding `finance.approve_adjustment` other than the requester."""
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsAuthenticated, HasModulePermission]
+    rbac_edit_permission = 'finance.edit'
+
+    def post(self, request):
+        data = AdjustmentCreateSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        category = data.validated_data.get('category')
+        try:
+            adjustment = create_adjustment(
+                student=data.validated_data['student'], adjustment_type=data.validated_data['adjustment_type'],
+                amount=data.validated_data['amount'], reason=data.validated_data['reason'],
+                requested_by=request.user, category_id=category.id if category else None,
+                approved_by=data.validated_data.get('approved_by'),
+            )
+        except (DjangoValidationError, DjangoPermissionDenied) as exc:
+            return _service_error_response(exc)
+        return Response(StudentFeeAdjustmentSerializer(adjustment).data, status=status.HTTP_201_CREATED)
+
+
+def _can_view_student_statement(user, student_id):
+    """Finance staff (finance.view), the student themself, or an approved parent
+    linked to the student. Ownership-based access carries no permission code."""
+    if user_has_permission(user, 'finance.view'):
+        return True
+    if StudentExtra.objects.filter(pk=student_id, user=user).exists():
+        return True
+    return ParentExtra.objects.filter(
+        user=user, status=True, deleted_at__isnull=True, students__id=student_id,
+    ).exists()
+
+
+class StudentFeeLedgerStatementAPIView(APIView):
+    """Powers both the admin student-ledger view and the parent/student
+    read-only fee statement page (Task 21)."""
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, student_id):
+        # Authorize before looking the student up so a stranger cannot probe which ids exist.
+        if not _can_view_student_statement(request.user, student_id):
+            return Response({"error": "Not authorized to view this student's fee ledger."}, status=status.HTTP_403_FORBIDDEN)
+        student = StudentExtra.objects.filter(pk=student_id).first()
+        if student is None:
+            return Response({"error": "Student not found."}, status=status.HTTP_404_NOT_FOUND)
+        page = PageQuerySerializer(data=request.query_params)
+        page.is_valid(raise_exception=True)
+        entries = StudentFeeLedgerEntry.objects.filter(student=student).order_by('-id')
+        latest_balance = entries.values_list('running_balance', flat=True).first()
+        return Response({
+            "balance": latest_balance or 0,
+            "credit_balance": get_credit_balance(student),
+            "entries": StudentFeeLedgerEntrySerializer(page.slice(entries), many=True).data,
+        })
+
+
+class FeeClearanceStatusAPIView(APIView):
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsAuthenticated, HasModulePermission]
+    rbac_view_permission = 'finance.view'
+
+    def get(self, request, student_id):
+        query = FeeClearanceQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        is_clear = is_fees_clear(
+            student_id=student_id, term_id=query.validated_data['term_id'],
+            grace_threshold=query.validated_data['grace_threshold'],
+        )
+        if is_clear is None:
+            return Response({"error": "Student not found."}, status=status.HTTP_404_NOT_FOUND)
+        return Response({"is_clear": is_clear})

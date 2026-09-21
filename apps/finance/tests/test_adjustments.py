@@ -37,6 +37,17 @@ class AdjustmentTests(TestCase):
         entry = StudentFeeLedgerEntry.objects.get()
         self.assertEqual(entry.amount, 500)
 
+    def test_long_reason_is_truncated_in_the_ledger_description_but_kept_in_full_on_the_adjustment(self):
+        reason = 'r' * 600
+        adjustment = create_adjustment(
+            student=self.student, adjustment_type='correction', amount=500,
+            reason=reason, requested_by=self.requester,
+        )
+        adjustment.refresh_from_db()
+        self.assertEqual(adjustment.reason, reason)
+        entry = StudentFeeLedgerEntry.objects.get()
+        self.assertEqual(len(entry.description), 255)
+
     def test_negative_scholarship_requires_approval(self):
         with self.assertRaises(ValidationError):
             create_adjustment(
