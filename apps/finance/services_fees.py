@@ -197,3 +197,75 @@ def record_payment(*, student, amount, method, recorded_by, invoice=None, refere
                          + (f" against invoice {invoice.invoice_number}" if invoice else '') + f"; receipt {receipt.receipt_number}.",
         )
         return payment, receipt
+
+
+_LEDGER_DESCRIPTION_MAX = 255  # StudentFeeLedgerEntry.description max_length
+
+
+def void_invoice(*, invoice, voided_by, reason):
+    """Void an invoice: never edit or delete it. Sets the void_* fields,
+    posts a correcting negative charge to the student's ledger reversing the
+    original amount, and audit-logs the action. Reusing the existing 'DELETE'
+    ACTION_CHOICES value ('Soft Deleted Resource') for this -- no VOID choice
+    exists yet and this is conceptually the soft-delete case that choice
+    already describes.
+
+    Payments already made against the invoice are deliberately left in place:
+    the ledger simply goes to a credit equal to what was paid (the seed of the
+    overpayment carry-forward feature)."""
+    if not reason or not reason.strip():
+        raise ValidationError("A void reason is required.")
+    with transaction.atomic():
+        # Lock-first: see create_adjustment.
+        student = StudentExtra.objects.select_for_update().get(pk=invoice.student_id)
+        # Re-read under the lock: the caller's object may be stale.
+        invoice = Invoice.objects.select_for_update().get(pk=invoice.pk)
+        if invoice.status == 'voided':
+            raise ValidationError(f"Invoice {invoice.invoice_number} is already voided.")
+        invoice.status = 'voided'
+        invoice.voided_at = timezone.now()
+        invoice.voided_by = voided_by
+        invoice.void_reason = reason
+        invoice.save(update_fields=['status', 'voided_at', 'voided_by', 'void_reason'])
+        post_ledger_entry(
+            student=student, entry_type='charge', amount=-invoice.total,
+            reference=invoice,
+            description=f"Void of invoice {invoice.invoice_number}: {reason}"[:_LEDGER_DESCRIPTION_MAX],
+        )
+        write_audit_log(
+            operator_id=voided_by.id, action_type='DELETE', module='finance',
+            description=f"Voided invoice {invoice.invoice_number} ({invoice.total}): {reason}",
+        )
+        return invoice
+
+
+def void_payment(*, payment, voided_by, reason):
+    """Void a payment: reverses its ledger effect with a positive correcting
+    entry, recalculates its invoice's status if it had one (a voided invoice
+    stays voided), and audit-logs the action. The payment row itself is kept,
+    marked voided -- never deleted."""
+    if not reason or not reason.strip():
+        raise ValidationError("A void reason is required.")
+    with transaction.atomic():
+        # Lock-first: see create_adjustment.
+        student = StudentExtra.objects.select_for_update().get(pk=payment.student_id)
+        # Re-read under the lock: the caller's object may be stale.
+        payment = Payment.objects.select_for_update().get(pk=payment.pk)
+        if payment.voided_at is not None:
+            raise ValidationError(f"Payment {payment.pk} is already voided.")
+        payment.voided_at = timezone.now()
+        payment.voided_by = voided_by
+        payment.void_reason = reason
+        payment.save(update_fields=['voided_at', 'voided_by', 'void_reason'])
+        post_ledger_entry(
+            student=student, entry_type='payment', amount=payment.amount,
+            reference=payment,
+            description=f"Void of payment {payment.pk}: {reason}"[:_LEDGER_DESCRIPTION_MAX],
+        )
+        if payment.invoice_id is not None:
+            _recalculate_invoice_status(Invoice.objects.select_for_update().get(pk=payment.invoice_id))
+        write_audit_log(
+            operator_id=voided_by.id, action_type='DELETE', module='finance',
+            description=f"Voided payment {payment.pk} ({payment.amount}, {payment.method}): {reason}",
+        )
+        return payment
