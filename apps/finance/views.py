@@ -1,6 +1,7 @@
 from django.core.exceptions import PermissionDenied as DjangoPermissionDenied, ValidationError as DjangoValidationError
 from django.db import transaction
 from django.db.models import Prefetch, Sum
+from django.http import HttpResponse
 from rest_framework.authentication import SessionAuthentication
 from rest_framework.generics import ListCreateAPIView
 from rest_framework.permissions import IsAuthenticated
@@ -11,7 +12,7 @@ from rest_framework import status
 from apps.identity.models import ParentExtra, StudentExtra, TeacherExtra
 from apps.core.services import write_audit_log
 from apps.finance.models_fees import (
-    FeeCategory, FeeStructure, FeeStructureItem, Invoice, Payment, StudentFeeItemEnrollment, StudentFeeLedgerEntry,
+    FeeCategory, FeeStructure, FeeStructureItem, Invoice, Payment, Receipt, StudentFeeItemEnrollment, StudentFeeLedgerEntry,
 )
 from apps.finance.serializers_fees import (
     FeeCategorySerializer, FeeStructureSerializer, FeeStructureDetailSerializer,
@@ -22,6 +23,7 @@ from apps.finance.serializers_fees import (
 from apps.finance.services_fees import (
     record_payment, void_invoice, void_payment, create_adjustment, is_fees_clear, get_credit_balance,
 )
+from apps.finance.services_documents import render_invoice_pdf, render_receipt_pdf
 from school.rbac import HasModulePermission, user_has_permission
 from school.jobs import dispatch_background_job
 from orchestration.tasks import generate_invoices_for_structure_task
@@ -413,3 +415,47 @@ class FeeClearanceStatusAPIView(APIView):
         if is_clear is None:
             return Response({"error": "Student not found."}, status=status.HTTP_404_NOT_FOUND)
         return Response({"is_clear": is_clear})
+
+
+def _pdf_download_response(request, record, student_id_of, render, filename):
+    """Shared by the invoice/receipt downloads. `record is None` means the id
+    does not exist: only finance viewers may learn that (404); everyone else
+    gets the same 403 as for a forbidden id, so ids cannot be enumerated."""
+    if record is None:
+        if user_has_permission(request.user, 'finance.view'):
+            return Response({"error": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        return Response({"error": "Not authorized to download this document."}, status=status.HTTP_403_FORBIDDEN)
+    if not _can_view_student_statement(request.user, student_id_of(record)):
+        return Response({"error": "Not authorized to download this document."}, status=status.HTTP_403_FORBIDDEN)
+    try:
+        pdf_bytes = render(record)
+    except (ImportError, OSError):
+        # WeasyPrint (or its native pango/cairo libraries) is not installed on this server.
+        return Response({"error": "PDF generation is not available on this server."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+    response = HttpResponse(pdf_bytes, content_type='application/pdf')
+    response['Content-Disposition'] = f'inline; filename="{filename(record)}.pdf"'
+    return response
+
+
+class InvoicePDFAPIView(APIView):
+    """Finance staff, the student, or a linked approved parent (see `_can_view_student_statement`)."""
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, invoice_id):
+        invoice = Invoice.objects.filter(id=invoice_id).select_related('student__user', 'fee_structure__term').first()
+        return _pdf_download_response(
+            request, invoice, lambda i: i.student_id, render_invoice_pdf, lambda i: i.invoice_number,
+        )
+
+
+class ReceiptPDFAPIView(APIView):
+    """Finance staff, the student, or a linked approved parent (see `_can_view_student_statement`)."""
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, receipt_id):
+        receipt = Receipt.objects.filter(id=receipt_id).select_related('payment__student__user', 'payment__invoice').first()
+        return _pdf_download_response(
+            request, receipt, lambda r: r.payment.student_id, render_receipt_pdf, lambda r: r.receipt_number,
+        )

@@ -12,7 +12,7 @@ from apps.finance.views import (
     FeeCategoryListCreateAPIView, FeeStructureListCreateAPIView,
     FeeStructureDetailAPIView, StudentFeeItemEnrollmentSetAPIView,
     InvoiceListAPIView, InvoiceDetailAPIView, PaymentListCreateAPIView, VoidInvoiceAPIView, VoidPaymentAPIView,
-    StudentFeeAdjustmentCreateAPIView, StudentFeeLedgerStatementAPIView, FeeClearanceStatusAPIView,
+    StudentFeeAdjustmentCreateAPIView, StudentFeeLedgerStatementAPIView, FeeClearanceStatusAPIView, InvoicePDFAPIView, ReceiptPDFAPIView,
 )
 
 urlpatterns = [
@@ -27,6 +27,8 @@ urlpatterns += [
     path('api/finance/fee-structure-items/<int:item_id>/enrollments/', StudentFeeItemEnrollmentSetAPIView.as_view(), name='api_fee_structure_item_enrollments'),
     path('api/finance/invoices/', InvoiceListAPIView.as_view(), name='api_invoices'),
     path('api/finance/invoices/<int:invoice_id>/', InvoiceDetailAPIView.as_view(), name='api_invoice_detail'),
+    path('api/finance/invoices/<int:invoice_id>/pdf/', InvoicePDFAPIView.as_view(), name='api_invoice_pdf'),
+    path('api/finance/receipts/<int:receipt_id>/pdf/', ReceiptPDFAPIView.as_view(), name='api_receipt_pdf'),
     path('api/finance/invoices/<int:invoice_id>/void/', VoidInvoiceAPIView.as_view(), name='api_void_invoice'),
     path('api/finance/payments/', PaymentListCreateAPIView.as_view(), name='api_payments'),
     path('api/finance/payments/<int:payment_id>/void/', VoidPaymentAPIView.as_view(), name='api_void_payment'),

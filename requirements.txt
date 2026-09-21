@@ -62,3 +62,8 @@ zope.interface==8.5
 # Run `lint-imports` from the repo root; config is in .importlinter. New addition --
 # run `pip install -r requirements.txt` yourself to pick it up.
 import-linter==2.9
+
+# --- PDF generation for finance invoices/receipts (apps/finance/services_documents.py) ---
+# New addition -- run `pip install -r requirements.txt` yourself to pick it up.
+# WeasyPrint also needs the system pango/cairo libraries (e.g. Debian/Ubuntu: libpango-1.0-0 libpangoft2-1.0-0).
+weasyprint>=62.0
