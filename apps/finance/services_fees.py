@@ -309,3 +309,20 @@ def void_payment(*, payment, voided_by, reason):
             description=f"Voided payment {payment.pk} ({payment.amount}, {payment.method}): {reason}",
         )
         return payment
+
+
+def is_fees_clear(*, student_id, term_id=None, grace_threshold=0):
+    """Real implementation, replacing the previous always-None stub in
+    services.py. Checks the student's OVERALL account balance, not scoped to
+    a single term — a student carrying an unpaid balance from an earlier term
+    should not read as 'clear' just because the current term's charges happen
+    to be settled, so this deliberately does not filter ledger entries by
+    term_id. term_id is still accepted (both gate call sites pass one, per
+    spec section 4.7) so a future per-term clearance policy has a seam to add
+    without changing every call site. Returns True if balance <= grace_threshold,
+    False otherwise, or None if student_id doesn't correspond to a real student."""
+    if not StudentExtra.objects.filter(pk=student_id).exists():
+        return None
+    latest_entry = StudentFeeLedgerEntry.objects.filter(student_id=student_id).order_by('-id').first()
+    balance = latest_entry.running_balance if latest_entry else 0
+    return balance <= grace_threshold
