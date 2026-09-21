@@ -108,3 +108,24 @@ def generate_invoice_for_student(*, student, fee_structure, operator):
                          f"({fee_structure.name}), total {total}.",
         )
         return invoice
+
+
+def generate_invoices_for_structure(*, fee_structure, operator):
+    """Bulk-generate invoices for every eligible student in fee_structure's
+    grade. Idempotent by construction: students who already have a
+    non-voided invoice for this structure are skipped, so re-running this
+    (e.g. a double-submit) never creates duplicates — the caller doesn't need
+    to catch IntegrityError from the UniqueConstraint on Invoice."""
+    already_invoiced_student_ids = set(
+        Invoice.objects.filter(fee_structure=fee_structure)
+        .exclude(status='voided')
+        .values_list('student_id', flat=True)
+    )
+    students = StudentExtra.objects.filter(
+        cl__grade=fee_structure.grade_level, cl__is_deleted=False,
+        status=True, deleted_at__isnull=True,
+    ).exclude(id__in=already_invoiced_student_ids)
+    return [
+        generate_invoice_for_student(student=student, fee_structure=fee_structure, operator=operator)
+        for student in students
+    ]

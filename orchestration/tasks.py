@@ -400,3 +400,32 @@ def promote_students_task(self, job_id, academic_year_id, student_ids, operator_
         _mark_failure(job_id, str(e))
     finally:
         cache.delete(lock_key)
+
+
+@shared_task(bind=True)
+def generate_invoices_for_structure_task(self, job_id, fee_structure_id, operator_id, lock_key):
+    from django.contrib.auth.models import User
+    from apps.finance.models_fees import FeeStructure
+    from apps.finance import services_fees as finance_services
+
+    if not _acquire_lock_or_retry(self, job_id, lock_key):
+        return
+
+    _mark_running(job_id)
+    try:
+        with transaction.atomic():
+            fee_structure = FeeStructure.objects.select_for_update().get(id=fee_structure_id)
+            operator = User.objects.filter(id=operator_id).first()
+            invoices = finance_services.generate_invoices_for_structure(fee_structure=fee_structure, operator=operator)
+            core_services.write_audit_log(
+                operator_id=operator_id, action_type='CREATE', module='finance',
+                description=f"Bulk-generated {len(invoices)} invoice(s) for fee structure '{fee_structure.name}'.",
+            )
+        _mark_success(job_id, {
+            'message': f"{len(invoices)} invoice(s) generated for '{fee_structure.name}'.",
+            'invoice_count': len(invoices),
+        })
+    except Exception as e:
+        _mark_failure(job_id, str(e))
+    finally:
+        cache.delete(lock_key)

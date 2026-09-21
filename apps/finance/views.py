@@ -3,9 +3,13 @@ from rest_framework.authentication import SessionAuthentication
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework import status
 
 from apps.identity.models import StudentExtra, TeacherExtra
+from apps.finance.models_fees import FeeStructure
 from school.rbac import HasModulePermission, user_has_permission
+from school.jobs import dispatch_background_job
+from orchestration.tasks import generate_invoices_for_structure_task
 
 
 def _is_admin(user):
@@ -66,3 +70,35 @@ class FinanceOverviewAPI(APIView):
                 "teachers": teacher_data,
             }
         })
+
+
+class ActivateFeeStructureAPIView(APIView):
+    """Dispatches bulk invoice generation for every eligible student in a grade,
+    on the bulk_ops queue, then sets a FeeStructure to 'active' — mirrors
+    PromoteStudentsAPIView's dispatch pattern exactly."""
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsAuthenticated, HasModulePermission]
+    rbac_edit_permission = 'finance.edit'
+
+    def post(self, request, structure_id):
+        fee_structure = FeeStructure.objects.filter(id=structure_id).first()
+        if fee_structure is None:
+            return Response({"error": "Fee structure not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Scoped per fee structure — a double-submit on the same structure shares
+        # one lock rather than racing to generate duplicate invoices.
+        lock_key = f"finance_generate_invoices_lock_structure_{structure_id}"
+
+        job, error_response = dispatch_background_job(
+            job_type='generate_invoices_for_structure',
+            task=generate_invoices_for_structure_task,
+            task_args=(structure_id, request.user.id, lock_key),
+            operator=request.user,
+        )
+        if error_response is not None:
+            return error_response
+
+        fee_structure.status = 'active'
+        fee_structure.save(update_fields=['status'])
+
+        return Response({"status": "queued", "job_id": str(job.id)}, status=status.HTTP_202_ACCEPTED)
