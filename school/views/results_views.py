@@ -8,6 +8,7 @@ from django.db import transaction
 from django.core.cache import cache
 from django.db.models import Avg, Q, Max, Min
 from school.rbac import HasModulePermission, user_has_permission
+from apps.finance.services import is_gate_blocked
 from apps.identity.models import StudentExtra, ParentExtra
 from apps.exams.models import ExamResult
 from apps.messaging.models import Notification
@@ -488,6 +489,22 @@ class StudentReportCardAPIView(APIView):
         if not is_staff and not term_summary.is_published:
             return Response({"error": "This terminal report card is currently pending administrative verification."},
                             status=status.HTTP_403_FORBIDDEN)
+
+        if not is_staff:
+            blocked = is_gate_blocked(
+                student_id=student.id, gate='report_card', term_id=term_summary.term_id,
+            )
+            if blocked:
+                if not term_summary.results_withheld:
+                    term_summary.results_withheld = True
+                    term_summary.save(update_fields=['results_withheld'])
+                return Response(
+                    {"error": "This report card is withheld pending fee clearance. Please contact the finance office."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            elif term_summary.results_withheld:
+                term_summary.results_withheld = False
+                term_summary.save(update_fields=['results_withheld'])
 
         raw_marks = ExamResult.objects.filter(
             student=student,

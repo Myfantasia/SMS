@@ -359,22 +359,6 @@ DATABASES = {
     }
 }
 
-# The finance app's models are being built out incrementally (see the
-# 2026-09-09 finance-fees-module-phase1 plan) without generating real migrations —
-# the user runs `makemigrations`/`migrate` themselves once the module is reviewed.
-# `manage.py test` still needs real tables for the new models, including ones with
-# FKs into academics/identity. A plain `MIGRATION_MODULES = {'finance': None}` +
-# --run-syncdb doesn't work here: Django's migrate command runs the syncdb phase
-# for unmigrated apps BEFORE it applies the real migration plan (see
-# core/management/commands/migrate.py — "Run the syncdb phase" precedes "Migrate!"),
-# so finance's cross-app FK constraints fail with "relation ... does not exist"
-# for tables like academics_gradelevel that the real migrations haven't created
-# yet. FinanceAwareTestRunner below fixes the ordering instead: it lets the normal
-# migration plan finish first, then creates finance's current tables directly via
-# the schema editor. Remove both this TEST_RUNNER line and test_runner.py once
-# real migrations for `finance` are committed.
-TEST_RUNNER = 'schoolmanagement.test_runner.FinanceAwareTestRunner'
-
 # Was django.core.cache.backends.db.DatabaseCache — every cache read/write (login
 # throttling, verification-code attempt counters, chat rate limiting) was itself a
 # Postgres round trip. Redis moves that load off the database entirely and is shared
