@@ -22,6 +22,7 @@ from school.utils import build_grade_subject_block_map, get_subject_block_names,
     AllocationValidator, reserve_class_teacher_slot, fill_remaining_subjects, get_cached_unscheduled_errors, \
     get_subjects_with_active_virtual_groups, get_published_classroom_ids, publish_allocation, unpublish_allocation
 from apps.allocations.validation import validate_row
+from apps.allocations.services import lock_publish_state
 from school.views.views_timetable import sync_timetable_with_allocation_changes
 from django.shortcuts import get_object_or_404
 from django.http import JsonResponse
@@ -263,6 +264,8 @@ class AllocationMatrixAPIView(APIView):
             validator.seed_from_existing(baseline_allocations)
 
             with transaction.atomic():
+                lock_publish_state(classroom_id=class_id, term_id=term_id, academic_year_id=year_id)
+
                 # ✅ FIXED: Track the incoming allocation state to isolate dropped rows
                 incoming_teacher_subjects = set()
                 prior_allocations = list(SubjectAllocation.objects.filter(

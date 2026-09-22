@@ -28,6 +28,8 @@ from there directly.
 from dataclasses import dataclass
 from typing import Optional, Sequence
 
+from django.db import transaction
+
 from apps.allocations.models import SubjectQuota, SubjectAllocation, AllocationPublishState, GlobalAllocationPolicy, SubjectBlock
 
 
@@ -129,6 +131,34 @@ def publish_allocation(classroom_id: int, term_id: int, year_id: int, operator_i
     AllocationPublishState.objects.update_or_create(
         classroom_id=classroom_id, term_id=term_id, academic_year_id=year_id,
         defaults={'is_published': True, 'published_at': timezone.now(), 'published_by_id': operator_id},
+    )
+
+
+def lock_publish_state(*, classroom_id: int, academic_year_id: int, term_id: int) -> AllocationPublishState:
+    """
+    Serializes concurrent allocation mutations for one (classroom, term, year) scope by
+    acquiring a row lock on its AllocationPublishState row -- creating it first, as an
+    unpublished placeholder, if this is the scope's first-ever mutation. Two concurrent
+    requests for the same scope now block on this lock instead of interleaving their
+    SubjectAllocation delete+recreate.
+
+    MUST be called from inside an already-open transaction.atomic() block -- the lock is
+    released when that transaction commits or rolls back, same as any other
+    select_for_update() usage.
+    """
+    from django.db import IntegrityError
+
+    try:
+        with transaction.atomic():
+            AllocationPublishState.objects.get_or_create(
+                classroom_id=classroom_id, term_id=term_id, academic_year_id=academic_year_id,
+                defaults={'is_published': False},
+            )
+    except IntegrityError:
+        pass  # a concurrent caller created it first -- fine, the row exists either way
+
+    return AllocationPublishState.objects.select_for_update().get(
+        classroom_id=classroom_id, term_id=term_id, academic_year_id=academic_year_id,
     )
 
 
