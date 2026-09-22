@@ -31,6 +31,7 @@ from typing import Optional, Sequence
 from django.db import transaction
 
 from apps.allocations.models import SubjectQuota, SubjectAllocation, AllocationPublishState, GlobalAllocationPolicy, SubjectBlock
+from apps.allocations.validation import validate_row
 
 
 @dataclass(frozen=True)
@@ -283,13 +284,13 @@ def rollover_allocations(
     new_allocations = []
     rollover_warnings = []
     for alloc in old_allocations:
-        hard_error, row_warnings = validator.validate_and_record(
-            teacher=alloc.teacher, subject=alloc.subject, target_class=alloc.classroom,
-            term_id=target_term_id, year_id=year_id
+        hard_blocker, soft_blockers = validate_row(
+            validator, teacher=alloc.teacher, subject=alloc.subject, target_class=alloc.classroom,
+            term_id=target_term_id, year_id=year_id,
         )
-        if hard_error:
-            raise AllocationValidationError(hard_error)
-        rollover_warnings.extend(row_warnings)
+        if hard_blocker:
+            raise AllocationValidationError(hard_blocker.message)
+        rollover_warnings.extend(b.message for b in soft_blockers)
         new_allocations.append(SubjectAllocation(
             classroom_id=alloc.classroom_id,
             subject_id=alloc.subject_id,
