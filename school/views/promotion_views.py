@@ -16,6 +16,7 @@ from rest_framework import status
 from apps.academics.models import (
     ExamTerm, GradeLevel, next_grade_level, get_or_create_class_stream, tier_requires_pathway_choice, AcademicYear,
 )
+from apps.finance.services import is_gate_blocked
 from apps.identity.models import StudentExtra
 from apps.students.models import NationalExamRecord, StudentPathwaySelection, PromotionEvent
 from apps.core.services import write_audit_log
@@ -214,6 +215,12 @@ def _promote_student(student, academic_year, performed_by_id=None):
     readiness = _readiness_for_student(student, academic_year)
     if not readiness['ready']:
         return {'student_id': student.id, 'outcome': 'held', 'detail': readiness['reason']}
+
+    if is_gate_blocked(student_id=student.id, gate='promotion', academic_year_id=academic_year.id):
+        return {
+            'student_id': student.id, 'outcome': 'held',
+            'detail': 'Held: outstanding fee balance must be cleared before promotion.',
+        }
 
     transition_type, exam_code, next_grade = readiness['_transition']
     previous_cl = student.cl
