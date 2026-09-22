@@ -19,11 +19,13 @@ from apps.finance.serializers_fees import (
     InvoiceSerializer, InvoiceDetailSerializer, PaymentSerializer, StudentFeeAdjustmentSerializer,
     StudentFeeLedgerEntrySerializer, PaymentCreateSerializer, AdjustmentCreateSerializer, VoidSerializer,
     InvoiceListQuerySerializer, PaymentListQuerySerializer, PageQuerySerializer, FeeClearanceQuerySerializer,
+    CollectionsTrendQuerySerializer,
 )
 from apps.finance.services_fees import (
     record_payment, void_invoice, void_payment, create_adjustment, is_fees_clear, get_credit_balance,
 )
 from apps.finance.services_documents import render_invoice_pdf, render_receipt_pdf
+from apps.finance import services_reports
 from school.rbac import HasModulePermission, user_has_permission
 from school.jobs import dispatch_background_job
 from orchestration.tasks import generate_invoices_for_structure_task
@@ -459,3 +461,32 @@ class ReceiptPDFAPIView(APIView):
         return _pdf_download_response(
             request, receipt, lambda r: r.payment.student_id, render_receipt_pdf, lambda r: r.receipt_number,
         )
+
+
+class _FinanceReportAPIView(APIView):
+    """Read-only fee reports: `finance.view` only, no dedicated permission code."""
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsAuthenticated, HasModulePermission]
+    rbac_view_permission = 'finance.view'
+
+
+class FeeKPITilesAPIView(_FinanceReportAPIView):
+    def get(self, request):
+        return Response(services_reports.fee_kpi_tiles())
+
+
+class CollectionsTrendAPIView(_FinanceReportAPIView):
+    def get(self, request):
+        query = CollectionsTrendQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        return Response(services_reports.collections_trend(days=query.validated_data['days']))
+
+
+class FeeCategoryBreakdownAPIView(_FinanceReportAPIView):
+    def get(self, request):
+        return Response(services_reports.fee_category_breakdown())
+
+
+class StudentBalanceAgingAPIView(_FinanceReportAPIView):
+    def get(self, request):
+        return Response(services_reports.student_balance_aging())

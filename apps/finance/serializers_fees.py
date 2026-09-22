@@ -167,3 +167,7 @@ class PaymentListQuerySerializer(PageQuerySerializer):
 class FeeClearanceQuerySerializer(serializers.Serializer):
     term_id = serializers.IntegerField(min_value=1, required=False, default=None)
     grace_threshold = serializers.IntegerField(min_value=0, max_value=MAX_AMOUNT, required=False, default=0)
+
+
+class CollectionsTrendQuerySerializer(serializers.Serializer):
+    days = serializers.IntegerField(min_value=1, max_value=366, required=False, default=30)

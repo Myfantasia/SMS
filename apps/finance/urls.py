@@ -13,6 +13,7 @@ from apps.finance.views import (
     FeeStructureDetailAPIView, StudentFeeItemEnrollmentSetAPIView,
     InvoiceListAPIView, InvoiceDetailAPIView, PaymentListCreateAPIView, VoidInvoiceAPIView, VoidPaymentAPIView,
     StudentFeeAdjustmentCreateAPIView, StudentFeeLedgerStatementAPIView, FeeClearanceStatusAPIView, InvoicePDFAPIView, ReceiptPDFAPIView,
+    FeeKPITilesAPIView, CollectionsTrendAPIView, FeeCategoryBreakdownAPIView, StudentBalanceAgingAPIView,
 )
 
 urlpatterns = [
@@ -35,4 +36,8 @@ urlpatterns += [
     path('api/finance/adjustments/', StudentFeeAdjustmentCreateAPIView.as_view(), name='api_fee_adjustments'),
     path('api/finance/students/<int:student_id>/ledger/', StudentFeeLedgerStatementAPIView.as_view(), name='api_student_fee_ledger'),
     path('api/finance/students/<int:student_id>/fee-clearance/', FeeClearanceStatusAPIView.as_view(), name='api_fee_clearance_status'),
+    path('api/finance/reports/kpi-tiles/', FeeKPITilesAPIView.as_view(), name='api_fee_kpi_tiles'),
+    path('api/finance/reports/collections-trend/', CollectionsTrendAPIView.as_view(), name='api_collections_trend'),
+    path('api/finance/reports/category-breakdown/', FeeCategoryBreakdownAPIView.as_view(), name='api_fee_category_breakdown'),
+    path('api/finance/reports/student-aging/', StudentBalanceAgingAPIView.as_view(), name='api_student_balance_aging'),
 ]
