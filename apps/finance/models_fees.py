@@ -5,7 +5,7 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
-from apps.finance.models_shared import CashAccount, ImmutableFinancialRecordMixin
+from apps.finance.models_shared import CashAccount, FinancialRecordImmutableError, ImmutableFinancialRecordMixin
 
 
 class FeeCategory(models.Model):
@@ -246,6 +246,111 @@ class InvoiceCreditApplication(ImmutableFinancialRecordMixin, models.Model):
 
     def __str__(self):
         return f"{self.invoice} credit {self.amount}"
+
+
+class FeeClearancePolicy(models.Model):
+    """School-level setting (spec section 4.9): whether an unpaid fee balance
+    blocks a report card or promotion, and how much leeway (grace_threshold, a
+    whole-KES balance at or below which a student still counts as clear) is
+    allowed. Both flags default OFF so deploying this module never silently
+    withholds a report card -- a school opts in. Singleton, following the
+    exact convention already established by GlobalAllocationPolicy
+    (apps/allocations/models.py) and TimetableConstraint: save() forces pk=1,
+    get_solo() is get_or_create(pk=1, ...) so two concurrent first-reads race
+    on the DB's own uniqueness of pk=1 rather than a Python-level check, and
+    the row is never deleted (see delete() below)."""
+    block_report_cards = models.BooleanField(default=False)
+    block_promotion = models.BooleanField(default=False)
+    grace_threshold = models.PositiveIntegerField(default=0)
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey('auth.User', on_delete=models.PROTECT, null=True, blank=True, related_name='+')
+
+    class Meta:
+        db_table = 'finance_feeclearancepolicy'
+        verbose_name = 'Fee clearance policy'
+        verbose_name_plural = 'Fee clearance policy'
+
+    def save(self, *args, **kwargs):
+        self.pk = 1  # Singleton: forces this table to only ever have one row.
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise FinancialRecordImmutableError("The fee-clearance policy singleton cannot be deleted.")
+
+    @classmethod
+    def get_solo(cls):
+        """get_or_create(pk=1, ...), not a filter-then-create -- so two concurrent
+        first-reads racing to create row 1 rely on the DB's own primary-key
+        uniqueness (get_or_create retries with a plain get() if its insert hits
+        an IntegrityError) rather than a Python-level check-then-act that a race
+        could slip through."""
+        policy, _created = cls.objects.get_or_create(pk=1)
+        return policy
+
+    def __str__(self):
+        return (
+            f"Fee clearance policy (report cards {'blocked' if self.block_report_cards else 'allowed'}, "
+            f"promotion {'blocked' if self.block_promotion else 'allowed'}, grace {self.grace_threshold})"
+        )
+
+
+class FeeClearanceOverride(ImmutableFinancialRecordMixin, models.Model):
+    """One student's exemption from one fee-clearance gate (spec section 4.9) --
+    e.g. "let this student's report card through this term despite an unpaid
+    balance." Immutable and never deleted, like every other financial record
+    here: a mistake is corrected by revoking it (revoked_at/revoked_by/
+    revoke_reason), not by editing or deleting the row.
+
+    Exactly one of `term` (report_card gate) / `academic_year` (promotion gate)
+    is set, per which gate this override is for -- enforced in
+    services_fees.grant_clearance_override(), not here, since the model layer
+    has no clean way to make a FK's nullability conditional on a sibling field.
+
+    Uniqueness ("at most one ACTIVE override per (student, gate, term/year)")
+    needs TWO partial constraints, not one covering all four columns: a
+    plain multi-column UniqueConstraint treats NULL as never equal to NULL, so
+    a single constraint over (student, gate, term, academic_year) would silently
+    stop protecting BOTH gates -- report_card rows always have academic_year
+    NULL, promotion rows always have term NULL, so every row would differ from
+    every other row in at least one column and never collide. Splitting into
+    one constraint per gate, each scoped to just the FK that gate actually uses
+    (student+term for report_card, student+academic_year for promotion) keeps
+    every column in each constraint non-null for the rows it applies to, so the
+    DB can actually enforce it."""
+    GATE_CHOICES = [
+        ('report_card', 'Report Card'),
+        ('promotion', 'Promotion'),
+    ]
+    PROTECTED_FIELDS = ('student_id', 'gate', 'term_id', 'academic_year_id', 'reason', 'granted_by_id')
+
+    student = models.ForeignKey('identity.StudentExtra', on_delete=models.PROTECT, related_name='fee_clearance_overrides')
+    gate = models.CharField(max_length=15, choices=GATE_CHOICES)
+    term = models.ForeignKey('academics.ExamTerm', on_delete=models.PROTECT, null=True, blank=True, related_name='+')
+    academic_year = models.ForeignKey('academics.AcademicYear', on_delete=models.PROTECT, null=True, blank=True, related_name='+')
+    reason = models.TextField()
+    granted_by = models.ForeignKey('auth.User', on_delete=models.PROTECT, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    revoked_by = models.ForeignKey('auth.User', on_delete=models.PROTECT, null=True, blank=True, related_name='+')
+    revoke_reason = models.TextField(blank=True)
+
+    class Meta:
+        db_table = 'finance_feeclearanceoverride'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['student', 'term'],
+                condition=models.Q(revoked_at__isnull=True, gate='report_card'),
+                name='uniq_active_override_report_card',
+            ),
+            models.UniqueConstraint(
+                fields=['student', 'academic_year'],
+                condition=models.Q(revoked_at__isnull=True, gate='promotion'),
+                name='uniq_active_override_promotion',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.student} override for {self.get_gate_display()}"
 
 
 class Receipt(models.Model):

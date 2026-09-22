@@ -24,7 +24,7 @@ CSV_PATH = '/tmp/staff_demo_credentials.csv'
 #      are provisional here until their minimal modules exist and give them real permissions
 ROLES = [
     ('Secretary', 'Front-office administrative support', ['classes.view', 'attendance.view', 'notices.edit', 'events.edit'], 6),
-    ('Finance Officer', 'Fees, salaries, and financial oversight', ['finance.view', 'finance.edit', 'finance.record_payment', 'finance.void', 'finance.approve_adjustment'], 6),
+    ('Finance Officer', 'Fees, salaries, and financial oversight', ['finance.view', 'finance.edit', 'finance.record_payment', 'finance.void', 'finance.approve_adjustment', 'finance.override_clearance'], 6),
     ('Registrar', 'Manages student enrollment, transfers, and status', ['classes.view', 'classes.enrollment'], 6),
     ('HR Officer', 'Approves staff leave requests', ['leave.view', 'leave.approve'], 3),
     ('Marks Entry Clerk', 'Enters exam marks only — cannot change exam terms, events, or grading rules', ['exams.view', 'exams.marks'], 7),

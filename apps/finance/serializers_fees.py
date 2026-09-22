@@ -1,9 +1,10 @@
 from django.contrib.auth.models import User
 from rest_framework import serializers
 
+from apps.academics.models import AcademicYear, ExamTerm
 from apps.finance.models_fees import (
     FeeCategory, FeeStructure, FeeStructureItem, Invoice, InvoiceLineItem, Payment,
-    StudentFeeAdjustment, StudentFeeLedgerEntry,
+    StudentFeeAdjustment, StudentFeeLedgerEntry, FeeClearancePolicy, FeeClearanceOverride,
 )
 from apps.identity.models import StudentExtra
 from school.rbac import user_has_permission
@@ -171,3 +172,45 @@ class FeeClearanceQuerySerializer(serializers.Serializer):
 
 class CollectionsTrendQuerySerializer(serializers.Serializer):
     days = serializers.IntegerField(min_value=1, max_value=366, required=False, default=30)
+
+
+class FeeClearancePolicySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FeeClearancePolicy
+        fields = ['block_report_cards', 'block_promotion', 'grace_threshold', 'updated_at', 'updated_by']
+        read_only_fields = fields
+
+
+class FeeClearancePolicyUpdateSerializer(serializers.Serializer):
+    """PATCH-style: every field is optional so a PUT/PATCH can change just one
+    of them; the service only touches fields that were actually supplied."""
+    block_report_cards = serializers.BooleanField(required=False)
+    block_promotion = serializers.BooleanField(required=False)
+    grace_threshold = serializers.IntegerField(required=False, min_value=0, max_value=MAX_AMOUNT)
+
+
+class FeeClearanceOverrideSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FeeClearanceOverride
+        fields = [
+            'id', 'student', 'gate', 'term', 'academic_year', 'reason', 'granted_by',
+            'created_at', 'revoked_at', 'revoked_by', 'revoke_reason',
+        ]
+        read_only_fields = fields
+
+
+class ClearanceOverrideCreateSerializer(serializers.Serializer):
+    student = serializers.PrimaryKeyRelatedField(queryset=StudentExtra.objects.all())
+    gate = serializers.ChoiceField(choices=FeeClearanceOverride.GATE_CHOICES)
+    term = serializers.PrimaryKeyRelatedField(queryset=ExamTerm.objects.all(), required=False, allow_null=True)
+    academic_year = serializers.PrimaryKeyRelatedField(queryset=AcademicYear.objects.all(), required=False, allow_null=True)
+    reason = serializers.CharField(max_length=2000)
+
+
+class ClearanceOverrideRevokeSerializer(serializers.Serializer):
+    reason = serializers.CharField(max_length=2000)
+
+
+class ClearanceOverrideListQuerySerializer(serializers.Serializer):
+    student_id = serializers.IntegerField(min_value=1, required=False)
+    gate = serializers.ChoiceField(choices=FeeClearanceOverride.GATE_CHOICES, required=False)

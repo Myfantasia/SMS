@@ -49,6 +49,7 @@ PERMISSIONS = [
     ('finance.record_payment', 'Record a payment against a student fee account', 'Finance'),
     ('finance.void', 'Void an invoice or payment', 'Finance'),
     ('finance.approve_adjustment', 'Approve a discount, scholarship, bursary, or penalty', 'Finance'),
+    ('finance.override_clearance', 'Let a student through the fee-clearance gate despite an unpaid balance', 'Finance'),
 
     ('timetable.view', 'View the timetable', 'Timetable'),
     ('timetable.edit', 'Build/edit the timetable', 'Timetable'),
@@ -101,6 +102,7 @@ TEACHER_PERMISSIONS = [
 
 FINANCE_OFFICER_PERMISSIONS = [
     'finance.view', 'finance.edit', 'finance.record_payment', 'finance.void', 'finance.approve_adjustment',
+    'finance.override_clearance',
 ]
 
 ROLE_GROUP_SOURCE = {

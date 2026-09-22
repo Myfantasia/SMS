@@ -12,4 +12,6 @@ This app may import services from:
     - apps.identity.services
     - apps.students.services
 """
-from apps.finance.services_fees import get_credit_balance, is_fees_clear  # noqa: F401  (public re-exports)
+from apps.finance.services_fees import (  # noqa: F401  (public re-exports)
+    get_credit_balance, is_fees_clear, get_fee_clearance_policy, is_gate_blocked,
+)

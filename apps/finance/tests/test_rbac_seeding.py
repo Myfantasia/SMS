@@ -8,6 +8,7 @@ from school.management.commands.populate_demo_staff import ROLES
 
 FINANCE_CODES = {
     'finance.view', 'finance.edit', 'finance.record_payment', 'finance.void', 'finance.approve_adjustment',
+    'finance.override_clearance',
 }
 
 
@@ -31,6 +32,7 @@ class FinanceRBACSeedingTests(TestCase):
         seed()
         seed()
         self.assertEqual(Permission.objects.filter(code='finance.edit').count(), 1)
+        self.assertEqual(Permission.objects.filter(code='finance.override_clearance').count(), 1)
         self.assertEqual(Role.objects.filter(name='Finance Officer').count(), 1)
 
     def test_existing_finance_officer_role_is_extended_not_overwritten(self):

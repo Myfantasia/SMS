@@ -9,10 +9,11 @@ from django.utils import timezone
 
 from apps.finance.models_fees import (
     StudentFeeLedgerEntry, StudentFeeAdjustment, Invoice, InvoiceLineItem, StudentFeeItemEnrollment,
-    Payment, Receipt, InvoiceCreditApplication, FeeCategory,
+    Payment, Receipt, InvoiceCreditApplication, FeeCategory, FeeClearancePolicy, FeeClearanceOverride,
 )
 from apps.finance.services_shared import next_document_number
 from apps.identity.models import StudentExtra
+from apps.identity.services import user_has_permission
 from apps.core.services import write_audit_log
 
 
@@ -379,3 +380,152 @@ def is_fees_clear(*, student_id, term_id=None, grace_threshold=0):
     latest_entry = StudentFeeLedgerEntry.objects.filter(student_id=student_id).order_by('-id').first()
     balance = latest_entry.running_balance if latest_entry else 0
     return balance <= grace_threshold
+
+
+_OVERRIDE_PERMISSION = 'finance.override_clearance'
+
+
+def get_fee_clearance_policy():
+    """Read-only accessor for the singleton FeeClearancePolicy row, creating it
+    with its defaults on first read (see FeeClearancePolicy.get_solo)."""
+    return FeeClearancePolicy.get_solo()
+
+
+def update_fee_clearance_policy(*, updated_by, block_report_cards=None, block_promotion=None, grace_threshold=None):
+    """Update the fee-clearance policy singleton. Only fields explicitly passed
+    (not None) are changed -- a PATCH-style partial update. Audit-logs the
+    old -> new value of each field that actually changed, inside the same
+    atomic block as the write (spec section 4.9: "Changing the policy is
+    audit-logged")."""
+    if grace_threshold is not None and (isinstance(grace_threshold, bool) or not isinstance(grace_threshold, int) or grace_threshold < 0):
+        raise ValidationError("grace_threshold must be a non-negative integer.")
+    with transaction.atomic():
+        FeeClearancePolicy.get_solo()  # ensure row 1 exists before locking it below.
+        policy = FeeClearancePolicy.objects.select_for_update().get(pk=1)
+        changes = []
+        for field_name, new_value in (
+            ('block_report_cards', block_report_cards),
+            ('block_promotion', block_promotion),
+            ('grace_threshold', grace_threshold),
+        ):
+            if new_value is None:
+                continue
+            old_value = getattr(policy, field_name)
+            if old_value != new_value:
+                changes.append(f"{field_name}: {old_value} -> {new_value}")
+                setattr(policy, field_name, new_value)
+        policy.updated_by = updated_by
+        policy.save()
+        write_audit_log(
+            operator_id=updated_by.id if updated_by else None, action_type='UPDATE', module='finance',
+            description=(
+                "Updated fee-clearance policy (" + '; '.join(changes) + ")." if changes
+                else "Fee-clearance policy update requested no field changes."
+            ),
+        )
+        return policy
+
+
+def grant_clearance_override(*, student, gate, granted_by, reason, term=None, academic_year=None):
+    """Record a FeeClearanceOverride letting one student through one gate
+    despite an unpaid balance (spec section 4.9). `granted_by` must hold
+    finance.override_clearance -- checked with apps.identity.services'
+    user_has_permission (the same underlying check HasModulePermission and
+    school.rbac.user_has_permission both delegate to), not the request-scoped
+    school.rbac wrapper, since this is plain service-layer code with no
+    request object. Duplicate active override for the same (student, gate,
+    term/year) is rejected -- the DB partial constraints are the ultimate
+    backstop, but this pre-check gives a clean ValidationError instead of an
+    IntegrityError bubbling up as a 500."""
+    if not reason or not reason.strip():
+        raise ValidationError("A reason is required to grant a fee-clearance override.")
+    if gate not in dict(FeeClearanceOverride.GATE_CHOICES):
+        raise ValidationError(f"Unknown gate '{gate}'.")
+    if gate == 'report_card' and term is None:
+        raise ValidationError("A term is required for a report_card override.")
+    if gate == 'promotion' and academic_year is None:
+        raise ValidationError("An academic year is required for a promotion override.")
+    if gate == 'report_card' and academic_year is not None:
+        raise ValidationError("A report_card override must not set an academic year.")
+    if gate == 'promotion' and term is not None:
+        raise ValidationError("A promotion override must not set a term.")
+    if not user_has_permission(granted_by.id, _OVERRIDE_PERMISSION):
+        raise PermissionDenied("You do not hold the finance.override_clearance permission.")
+    with transaction.atomic():
+        # Lock the student row first, consistent with every other finance write
+        # (see create_adjustment) -- keeps lock-acquisition order consistent
+        # across the module even though this function never touches the ledger.
+        locked_student = StudentExtra.objects.select_for_update().get(pk=student.pk)
+        duplicate = FeeClearanceOverride.objects.select_for_update().filter(
+            student=locked_student, gate=gate, revoked_at__isnull=True,
+            term=term, academic_year=academic_year,
+        ).exists()
+        if duplicate:
+            raise ValidationError(
+                f"An active override already exists for this student's {gate} gate in this term/year."
+            )
+        override = FeeClearanceOverride.objects.create(
+            student=locked_student, gate=gate, term=term, academic_year=academic_year,
+            reason=reason, granted_by=granted_by,
+        )
+        write_audit_log(
+            operator_id=granted_by.id, action_type='CREATE', module='finance',
+            description=f"Granted fee-clearance override for student {locked_student.id} ({gate}): {reason}",
+        )
+        return override
+
+
+def revoke_clearance_override(*, override, revoked_by, reason):
+    """Revoke a FeeClearanceOverride: never edited or deleted, only marked
+    revoked (revoked_at/revoked_by/revoke_reason) -- same void-and-reissue
+    convention as every other financial record here. Re-reads the row under
+    lock before checking "already revoked" so a stale in-memory copy (same
+    class of bug void_invoice/void_payment fix for) can never double-revoke."""
+    if not reason or not reason.strip():
+        raise ValidationError("A reason is required to revoke a fee-clearance override.")
+    if not user_has_permission(revoked_by.id, _OVERRIDE_PERMISSION):
+        raise PermissionDenied("You do not hold the finance.override_clearance permission.")
+    with transaction.atomic():
+        fresh = FeeClearanceOverride.objects.select_for_update().get(pk=override.pk)
+        if fresh.revoked_at is not None:
+            raise ValidationError(f"Override {fresh.pk} is already revoked.")
+        fresh.revoked_at = timezone.now()
+        fresh.revoked_by = revoked_by
+        fresh.revoke_reason = reason
+        fresh.save(update_fields=['revoked_at', 'revoked_by', 'revoke_reason'])
+        write_audit_log(
+            operator_id=revoked_by.id, action_type='DELETE', module='finance',
+            description=f"Revoked fee-clearance override {fresh.pk} for student {fresh.student_id} ({fresh.gate}): {reason}",
+        )
+        return fresh
+
+
+def is_gate_blocked(*, student_id, gate, term_id=None, academic_year_id=None):
+    """The single gating helper Tasks 19/20 call instead of is_fees_clear
+    directly (spec section 4.9). Cheap early return when the gate's flag is
+    off -- deliberately never calls is_fees_clear in that branch. Only
+    report_card passes term_id through to is_fees_clear (the gate that
+    conceptually happens per-term); promotion never does. An unknown student
+    (is_fees_clear returns None) is never blocked. A False (not clear) result
+    is only a block if no ACTIVE override matches this SAME gate AND SAME
+    term/year -- an override scoped to a different term/year must never leak
+    protection to this one."""
+    if gate not in ('report_card', 'promotion'):
+        raise ValueError(f"Unknown gate '{gate}'.")
+    policy = FeeClearancePolicy.get_solo()
+    flag = policy.block_report_cards if gate == 'report_card' else policy.block_promotion
+    if not flag:
+        return False
+    is_clear = is_fees_clear(
+        student_id=student_id,
+        term_id=term_id if gate == 'report_card' else None,
+        grace_threshold=policy.grace_threshold,
+    )
+    if is_clear is None or is_clear:
+        return False
+    has_active_override = FeeClearanceOverride.objects.filter(
+        student_id=student_id, gate=gate, revoked_at__isnull=True,
+        term_id=term_id if gate == 'report_card' else None,
+        academic_year_id=academic_year_id if gate == 'promotion' else None,
+    ).exists()
+    return not has_active_override

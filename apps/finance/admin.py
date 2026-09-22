@@ -1,5 +1,6 @@
 from django.contrib import admin, messages
 from django.core.exceptions import PermissionDenied, ValidationError
+from unfold.admin import ModelAdmin as UnfoldModelAdmin
 
 from apps.finance.models_fees import (
     FeeCategory,
@@ -13,6 +14,8 @@ from apps.finance.models_fees import (
     InvoiceCreditApplication,
     Payment,
     Receipt,
+    FeeClearancePolicy,
+    FeeClearanceOverride,
 )
 from apps.finance.models_shared import CashAccount
 from apps.finance.services_fees import hard_delete_financial_record
@@ -187,6 +190,42 @@ class StudentFeeAdjustmentAdmin(admin.ModelAdmin):
     list_filter = ['adjustment_type']
     autocomplete_fields = ['student']
     # Created only via create_adjustment() so the ledger stays in sync — no direct add/edit here.
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(FeeClearancePolicy)
+class FeeClearancePolicyAdmin(UnfoldModelAdmin):
+    """Singleton (always pk=1), following the same admin convention already
+    established by GlobalAllocationPolicyAdmin (apps/allocations/admin.py):
+    disable add once the row exists, and disable delete entirely -- matching
+    the model's own save()-enforced singleton and delete() guard."""
+    list_display = ['block_report_cards', 'block_promotion', 'grace_threshold', 'updated_at', 'updated_by']
+
+    def has_add_permission(self, request):
+        return not FeeClearancePolicy.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(FeeClearanceOverride)
+class FeeClearanceOverrideAdmin(UnfoldModelAdmin):
+    """Immutable financial record -- created only via
+    services_fees.grant_clearance_override() and revoked only via
+    revoke_clearance_override(), never through the admin form -- read-only
+    here, consistent with the other immutable finance admins above
+    (InvoiceAdmin, PaymentAdmin, etc.)."""
+    list_display = ['student', 'gate', 'term', 'academic_year', 'granted_by', 'created_at', 'revoked_at']
+    list_filter = ['gate']
+    autocomplete_fields = ['student']
+
     def has_add_permission(self, request):
         return False
 
