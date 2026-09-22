@@ -76,6 +76,34 @@ class ValidateRowTests(SimpleTestCase):
         self.assertEqual(hard.code, "POLICY_VIOLATION")
         self.assertEqual(hard.rule_ref, "policy")
 
+    def test_burnout_warning_becomes_soft_blocker_dto(self):
+        validator = _StubValidator(warnings=[
+            "Burnout Warning: Jane Doe exceeds the max 28 weekly lessons limit.",
+        ])
+        hard, soft = validate_row(
+            validator, teacher=_FakeTeacher(1), subject=_FakeSubject(2), target_class=_FakeClass(3),
+            term_id=10, year_id=20,
+        )
+        self.assertIsNone(hard)
+        self.assertEqual(len(soft), 1)
+        self.assertEqual(soft[0].severity, "SOFT")
+        self.assertEqual(soft[0].code, "WEEKLY_CAP_EXCEEDED")
+        self.assertEqual(soft[0].rule_ref, "policy.max_weekly_lessons")
+
+    def test_preparation_warning_becomes_soft_blocker_dto(self):
+        validator = _StubValidator(warnings=[
+            "Preparation Warning: Jane Doe exceeds the max 6 unique class groups limit.",
+        ])
+        hard, soft = validate_row(
+            validator, teacher=_FakeTeacher(1), subject=_FakeSubject(2), target_class=_FakeClass(3),
+            term_id=10, year_id=20,
+        )
+        self.assertIsNone(hard)
+        self.assertEqual(len(soft), 1)
+        self.assertEqual(soft[0].severity, "SOFT")
+        self.assertEqual(soft[0].code, "MAX_CLASS_GROUPS_EXCEEDED")
+        self.assertEqual(soft[0].rule_ref, "policy.max_total_class_groups")
+
     def test_dry_run_flag_is_forwarded_and_no_state_mutation_is_hidden(self):
         validator = _StubValidator()
         validate_row(

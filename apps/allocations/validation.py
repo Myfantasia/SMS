@@ -51,6 +51,8 @@ _MESSAGE_CODE_MAP: Tuple[Tuple[str, str, str], ...] = (
     ("Consolidation Notice:", "PREP_CONSOLIDATION_DROP", "policy.min_classes_per_subject"),
     ("exceeded max subjects", "MAX_SUBJECTS_PER_CLASS", "policy.max_subjects_per_class"),
     ("exceeded max streams", "MAX_CLASSES_PER_SUBJECT", "policy.max_classes_per_subject"),
+    ("Burnout Warning:", "WEEKLY_CAP_EXCEEDED", "policy.max_weekly_lessons"),
+    ("Preparation Warning:", "MAX_CLASS_GROUPS_EXCEEDED", "policy.max_total_class_groups"),
 )
 
 
