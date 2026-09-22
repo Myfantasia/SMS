@@ -21,6 +21,7 @@ from apps.timetable.models import LessonAllocation, Timetable
 from school.utils import build_grade_subject_block_map, get_subject_block_names, is_tech_subject, \
     AllocationValidator, reserve_class_teacher_slot, fill_remaining_subjects, get_cached_unscheduled_errors, \
     get_subjects_with_active_virtual_groups, get_published_classroom_ids, publish_allocation, unpublish_allocation
+from apps.allocations.validation import validate_row
 from school.views.views_timetable import sync_timetable_with_allocation_changes
 from django.shortcuts import get_object_or_404
 from django.http import JsonResponse
@@ -241,6 +242,7 @@ class AllocationMatrixAPIView(APIView):
 
             policy = GlobalAllocationPolicy.load()
             warning_flags = []
+            blocker_flags = []
 
             designated_class_teacher = target_class.class_teacher
             class_teacher_is_allocated = False
@@ -283,13 +285,17 @@ class AllocationMatrixAPIView(APIView):
                     subject = subjects_by_id[s_id]
                     teacher = teachers_by_id[t_id]
 
-                    hard_error, row_warnings = validator.validate_and_record(
-                        teacher=teacher, subject=subject, target_class=target_class,
+                    hard_blocker, soft_blockers = validate_row(
+                        validator, teacher=teacher, subject=subject, target_class=target_class,
                         term_id=term_id, year_id=year_id
                     )
-                    if hard_error:
-                        return Response({"error": hard_error}, status=status.HTTP_400_BAD_REQUEST)
-                    warning_flags.extend(row_warnings)
+                    if hard_blocker:
+                        return Response(
+                            {"error": hard_blocker.message, "blocker": hard_blocker.to_dict()},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+                    blocker_flags.extend(soft_blockers)
+                    warning_flags.extend(b.message for b in soft_blockers)
 
                 if designated_class_teacher and not class_teacher_is_allocated:
                     class_teacher_name = designated_class_teacher.get_name
@@ -427,6 +433,7 @@ class AllocationMatrixAPIView(APIView):
             return Response({
                 "message": message,
                 "warnings": list(set(warning_flags)),
+                "blockers": [b.to_dict() for b in blocker_flags],
                 "ejected_lesson_count": sync_result["ejected_count"],
                 "swapped_lesson_count": sync_result["swapped_count"],
                 "bulk_published_count": bulk_published_count,
