@@ -163,9 +163,17 @@ allow_indirect_imports = True
 # reason (qualification/availability checks in school/utils.py's helpers
 # operate on model instances) -- newly visible once identity's models moved
 # out of school/models/ in Track B step 9.
+# Same class of exception, not a new kind of boundary violation:
+# apps/allocations/tests/ constructs realistic setUp fixtures using real
+# model instances from academics and identity (AcademicYear, ClassStream,
+# ExamTerm, GradeLevel, TeacherExtra, etc.), the same pattern
+# school/tests/base.py's ExamTestDataMixin already uses elsewhere in this
+# repo -- test fixtures need real instances, not DTOs, for realistic data.
 ignore_imports =
     apps.allocations.services -> apps.academics.models
     apps.allocations.services -> apps.identity.models
+    apps.allocations.tests.** -> apps.academics.models
+    apps.allocations.tests.** -> apps.identity.models
 source_modules =
     apps.allocations
 forbidden_modules =
