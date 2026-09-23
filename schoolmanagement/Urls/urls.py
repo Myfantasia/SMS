@@ -146,6 +146,7 @@ urlpatterns = [
     path('api/student/dashboard-overview/', StudentDashboardOverviewAPI.as_view(), name='api_student_dashboard_overview'),
     path('api/parent/dashboard-overview/', ParentDashboardOverviewAPI.as_view(), name='api_parent_dashboard_overview'),
     path('', include('apps.finance.urls')),
+    path('api/academics/', include('apps.academics.urls')),
     path('api/student/', include(student_router.urls)),
 
 # API endpoints for React Approvals Integration

@@ -26,7 +26,12 @@ back in Track B step 2).
 from dataclasses import dataclass
 from typing import Optional, Sequence
 
-from apps.academics.models import ClassStream, Subject, GradeLevel, Department, AcademicYear, ExamTerm, TimeSlot
+from django.db.models import Q
+
+from apps.academics.models import (
+    ClassStream, Subject, GradeLevel, Department, AcademicYear, ExamTerm, TimeSlot,
+    SubjectCurriculumProfile,
+)
 
 
 @dataclass(frozen=True)
@@ -154,14 +159,29 @@ def _grade_to_dto(g) -> GradeLevelDTO:
     )
 
 
-def list_departments(*, curriculum_id: Optional[int] = None) -> Sequence[DepartmentDTO]:
-
-    qs = Department.objects.all()
-    if curriculum_id is not None:
-        qs = qs.filter(curriculum_id=curriculum_id)
+def list_departments(*, curriculum_id: int, tier_id: Optional[int] = None) -> Sequence[DepartmentDTO]:
+    """
+    Active departments for one curriculum, optionally narrowed to only the departments actually
+    used by subjects in one tier. "Used in a tier" is derived from SubjectCurriculumProfile rows
+    scoped to that tier (or left tier-less, meaning "every tier"), plus the departments of any
+    subject with NO profile row at all -- those fall back to Subject.department everywhere,
+    matching get_effective_department's own fallback, so they stay visible in every tier.
+    """
+    qs = Department.objects.filter(curriculum_id=curriculum_id, is_active=True)
+    if tier_id is not None:
+        profile_dept_ids = set(
+            SubjectCurriculumProfile.objects.filter(curriculum_id=curriculum_id, department_id__isnull=False)
+            .filter(Q(tier_id=tier_id) | Q(tier_id__isnull=True))
+            .values_list('department_id', flat=True)
+        )
+        unprofiled_dept_ids = set(
+            Subject.live.filter(curriculum_profiles__isnull=True, department__curriculum_id=curriculum_id)
+            .values_list('department_id', flat=True)
+        )
+        qs = qs.filter(id__in=(profile_dept_ids | unprofiled_dept_ids))
     return tuple(
         DepartmentDTO(id=d.id, name=d.name, code=d.code, curriculum_id=d.curriculum_id)
-        for d in qs
+        for d in qs.order_by('name')
     )
 
 
