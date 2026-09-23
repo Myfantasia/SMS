@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CircleDollarSign, Banknote, Wallet, TrendingUp, TrendingDown, Search, Users, GraduationCap, PieChart } from 'lucide-react';
+import { CircleDollarSign, Banknote, Wallet, TrendingUp, TrendingDown, Search, Users, GraduationCap, PieChart, Layers } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useTheme } from '@mui/material/styles';
+import { useNavigate } from 'react-router-dom';
 import api from '../../libs/axiosInstance';
 import { INCOME_CATEGORIES, EXPENSE_CATEGORIES, MOCK_FINANCE_BREAKDOWN } from './financeCategories';
 
@@ -52,6 +53,10 @@ function BreakdownChart({ categories, amounts, color }: { categories: typeof INC
 }
 
 export default function FinanceHub() {
+  const navigate = useNavigate();
+  // Role-appropriate base path — this component is mounted under both
+  // /admin-dashboard and /staff-dashboard (Finance Officers use the latter).
+  const basePath = '/' + (window.location.pathname.split('/')[1] || 'admin-dashboard');
   const [data, setData] = useState<FinanceData | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>('fees');
@@ -183,6 +188,15 @@ export default function FinanceHub() {
           </div>
         )}
       </div>
+
+      {activeTab === 'fees' && (
+        <button
+          onClick={() => navigate(`${basePath}/finance/fee-structures`)}
+          className="flex items-center gap-2 text-sm font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors w-max"
+        >
+          <Layers className="w-4 h-4" /> Manage Fee Structures
+        </button>
+      )}
 
       {/* Content */}
       {activeTab === 'breakdown' ? (
