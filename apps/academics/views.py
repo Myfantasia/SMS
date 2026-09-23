@@ -14,10 +14,15 @@ def api_list_departments(request):
     curriculum_id = request.query_params.get('curriculum')
     if not curriculum_id:
         return Response({"error": "curriculum is required."}, status=400)
-    tier_id = request.query_params.get('tier') or None
+    tier_id_raw = request.query_params.get('tier') or None
+    try:
+        curriculum_id = int(curriculum_id)
+        tier_id = int(tier_id_raw) if tier_id_raw else None
+    except (TypeError, ValueError):
+        return Response({"error": "curriculum and tier must be integers."}, status=400)
     departments = list_departments(
-        curriculum_id=int(curriculum_id),
-        tier_id=int(tier_id) if tier_id else None,
+        curriculum_id=curriculum_id,
+        tier_id=tier_id,
     )
     return Response({"departments": [
         {"id": d.id, "name": d.name, "code": d.code, "curriculum_id": d.curriculum_id}

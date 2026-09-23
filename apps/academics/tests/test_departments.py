@@ -66,3 +66,7 @@ class ListDepartmentsEndpointTests(TestCase):
     def test_endpoint_requires_curriculum_param(self):
         response = self.client.get('/api/academics/departments/')
         self.assertEqual(response.status_code, 400)
+
+    def test_endpoint_rejects_non_numeric_curriculum(self):
+        response = self.client.get('/api/academics/departments/?curriculum=not-a-number')
+        self.assertEqual(response.status_code, 400)
