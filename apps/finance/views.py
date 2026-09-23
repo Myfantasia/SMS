@@ -9,6 +9,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 
+from apps.academics.models import GradeLevel, ExamTerm
 from apps.identity.models import ParentExtra, StudentExtra, TeacherExtra
 from apps.core.services import write_audit_log
 from apps.finance.models_fees import (
@@ -19,7 +20,7 @@ from apps.finance.serializers_fees import (
     InvoiceSerializer, InvoiceDetailSerializer, PaymentSerializer, StudentFeeAdjustmentSerializer,
     StudentFeeLedgerEntrySerializer, PaymentCreateSerializer, AdjustmentCreateSerializer, VoidSerializer,
     InvoiceListQuerySerializer, PaymentListQuerySerializer, PageQuerySerializer, FeeClearanceQuerySerializer,
-    CollectionsTrendQuerySerializer,
+    CollectionsTrendQuerySerializer, ExamTermLookupQuerySerializer,
 )
 from apps.finance.services_fees import (
     record_payment, void_invoice, void_payment, create_adjustment, is_fees_clear, get_credit_balance,
@@ -490,3 +491,31 @@ class FeeCategoryBreakdownAPIView(_FinanceReportAPIView):
 class StudentBalanceAgingAPIView(_FinanceReportAPIView):
     def get(self, request):
         return Response(services_reports.student_balance_aging())
+
+
+class GradeLevelLookupAPIView(_FinanceReportAPIView):
+    """Read-only `{id, name}` picklist for the Fee Structure form's grade
+    dropdown. Task 21a: gated on `finance.view` (not `classes.view`) so a
+    Finance Officer can populate this without the broader classes grant.
+    GradeLevel has no soft-delete flag, so every row is eligible."""
+
+    def get(self, request):
+        grades = GradeLevel.objects.order_by('numeric_order').values('id', 'name')
+        return Response(list(grades))
+
+
+class ExamTermLookupAPIView(_FinanceReportAPIView):
+    """Read-only `{id, name, academic_year_id}` picklist for the Fee
+    Structure form's term dropdown. Task 21a: gated on `finance.view`, same
+    reasoning as GradeLevelLookupAPIView above. Ordered most-recent-first by
+    start_date; an optional `?academic_year_id=` narrows to one year without
+    needing a dedicated "active year" convention."""
+
+    def get(self, request):
+        query = ExamTermLookupQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        terms = ExamTerm.objects.order_by('-start_date')
+        academic_year_id = query.validated_data.get('academic_year_id')
+        if academic_year_id is not None:
+            terms = terms.filter(academic_year_id=academic_year_id)
+        return Response(list(terms.values('id', 'name', 'academic_year_id')))

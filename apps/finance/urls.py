@@ -14,6 +14,7 @@ from apps.finance.views import (
     InvoiceListAPIView, InvoiceDetailAPIView, PaymentListCreateAPIView, VoidInvoiceAPIView, VoidPaymentAPIView,
     StudentFeeAdjustmentCreateAPIView, StudentFeeLedgerStatementAPIView, FeeClearanceStatusAPIView, InvoicePDFAPIView, ReceiptPDFAPIView,
     FeeKPITilesAPIView, CollectionsTrendAPIView, FeeCategoryBreakdownAPIView, StudentBalanceAgingAPIView,
+    GradeLevelLookupAPIView, ExamTermLookupAPIView,
 )
 from apps.finance.views_policy import (
     FeeClearancePolicyAPIView, ClearanceOverrideListCreateAPIView, ClearanceOverrideRevokeAPIView,
@@ -43,6 +44,8 @@ urlpatterns += [
     path('api/finance/reports/collections-trend/', CollectionsTrendAPIView.as_view(), name='api_collections_trend'),
     path('api/finance/reports/category-breakdown/', FeeCategoryBreakdownAPIView.as_view(), name='api_fee_category_breakdown'),
     path('api/finance/reports/student-aging/', StudentBalanceAgingAPIView.as_view(), name='api_student_balance_aging'),
+    path('api/finance/lookups/grades/', GradeLevelLookupAPIView.as_view(), name='api_finance_lookup_grades'),
+    path('api/finance/lookups/terms/', ExamTermLookupAPIView.as_view(), name='api_finance_lookup_terms'),
     path('api/finance/fee-clearance-policy/', FeeClearancePolicyAPIView.as_view(), name='api_fee_clearance_policy'),
     path('api/finance/clearance-overrides/', ClearanceOverrideListCreateAPIView.as_view(), name='api_clearance_overrides'),
     path('api/finance/clearance-overrides/<int:override_id>/revoke/', ClearanceOverrideRevokeAPIView.as_view(), name='api_clearance_override_revoke'),

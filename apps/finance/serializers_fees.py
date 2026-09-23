@@ -174,6 +174,20 @@ class CollectionsTrendQuerySerializer(serializers.Serializer):
     days = serializers.IntegerField(min_value=1, max_value=366, required=False, default=30)
 
 
+class ExamTermLookupQuerySerializer(serializers.Serializer):
+    academic_year_id = serializers.IntegerField(min_value=1, required=False)
+
+    def validate(self, attrs):
+        # DRF's HTML-form input handling (which query params go through) treats an
+        # empty string on a non-required field as "not provided" and silently skips
+        # it rather than validating it — so `?academic_year_id=` would otherwise pass
+        # straight through instead of failing IntegerField's int() coercion. Catch it
+        # explicitly so a blank value 400s the same way a non-integer one does.
+        if self.initial_data.get('academic_year_id') == '':
+            raise serializers.ValidationError({'academic_year_id': 'This field may not be blank.'})
+        return attrs
+
+
 class FeeClearancePolicySerializer(serializers.ModelSerializer):
     class Meta:
         model = FeeClearancePolicy
