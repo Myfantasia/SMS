@@ -259,6 +259,24 @@ class PaymentSerializerTests(InvoicePaymentAPITestData):
         self.assertIn('receipt_number', data)
         self.assertIsNone(data['receipt_number'])
 
+    def test_payment_without_a_receipt_serializes_receipt_id_as_none(self):
+        """Task 22a: same reverse-OneToOne-can-404 concern as receipt_number
+        above — a receiptless payment must serialize receipt_id: null, not error."""
+        payment = Payment.objects.create(
+            student=self.student, invoice=self.invoice, amount=1000, method='cash',
+            recorded_by=self.finance_user, date='2026-09-09',
+        )
+        data = PaymentSerializer(payment).data
+        self.assertIn('receipt_id', data)
+        self.assertIsNone(data['receipt_id'])
+
+    def test_payment_with_a_receipt_serializes_the_receipts_own_pk(self):
+        """receipt_id must be the Receipt's own pk (what ReceiptPDFAPIView's
+        receipt_id URL kwarg expects), not the payment's id."""
+        payment = self.pay(5000)
+        data = PaymentSerializer(payment).data
+        self.assertEqual(data['receipt_id'], payment.receipt.id)
+
 
 class VoidInvoiceAPITests(InvoicePaymentAPITestData):
     def void(self, reason, invoice_id=None):

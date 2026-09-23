@@ -3,8 +3,8 @@ from django.test import TestCase
 from rest_framework.test import APIRequestFactory, force_authenticate
 
 from apps.academics.models import AcademicYear, ExamTerm, GradeLevel
-from apps.identity.models import Permission, Role, UserRole
-from apps.finance.views import GradeLevelLookupAPIView, ExamTermLookupAPIView
+from apps.identity.models import Permission, Role, StudentExtra, UserRole
+from apps.finance.views import GradeLevelLookupAPIView, ExamTermLookupAPIView, StudentLookupAPIView
 
 
 class FinanceLookupAPITestData(TestCase):
@@ -115,3 +115,86 @@ class ExamTermLookupAPITests(FinanceLookupAPITestData):
             ExamTermLookupAPIView, '/api/finance/lookups/terms/?academic_year_id=', self.viewer_user,
         )
         self.assertEqual(response.status_code, 400)
+
+
+class StudentLookupAPITests(FinanceLookupAPITestData):
+    """Task 22a: a finance-scoped, permission-gated version of the public
+    parent-signup student search — see StudentLookupAPIView's docstring for why that
+    endpoint couldn't be reused directly."""
+
+    def make_student(self, username, first_name, last_name, roll, *, status=True, deleted_at=None):
+        user = User.objects.create_user(username=username, password='x', first_name=first_name, last_name=last_name)
+        return StudentExtra.objects.create(user=user, roll=roll, status=status, deleted_at=deleted_at)
+
+    def test_view_only_user_gets_200_with_id_name_roll_shape(self):
+        student = self.make_student('lookup_stu_1', 'Amina', 'Otieno', 'ROLL-001')
+
+        response = self.call(StudentLookupAPIView, '/api/finance/lookups/students/?q=Amina', self.viewer_user)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, [{'id': student.id, 'name': 'Amina Otieno', 'roll': 'ROLL-001'}])
+
+    def test_matches_by_roll(self):
+        student = self.make_student('lookup_stu_2', 'Brian', 'Kamau', 'RCPT-777')
+
+        response = self.call(StudentLookupAPIView, '/api/finance/lookups/students/?q=RCPT-77', self.viewer_user)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([row['id'] for row in response.data], [student.id])
+
+    def test_matches_by_first_name(self):
+        student = self.make_student('lookup_stu_3', 'Cynthia', 'Wanjiru', 'ROLL-003')
+
+        response = self.call(StudentLookupAPIView, '/api/finance/lookups/students/?q=Cynth', self.viewer_user)
+
+        self.assertEqual([row['id'] for row in response.data], [student.id])
+
+    def test_matches_by_last_name(self):
+        student = self.make_student('lookup_stu_4', 'Derek', 'Njoroge', 'ROLL-004')
+
+        response = self.call(StudentLookupAPIView, '/api/finance/lookups/students/?q=Njoro', self.viewer_user)
+
+        self.assertEqual([row['id'] for row in response.data], [student.id])
+
+    def test_query_under_two_chars_returns_400(self):
+        self.make_student('lookup_stu_5', 'Eve', 'Achieng', 'ROLL-005')
+
+        for path in (
+            '/api/finance/lookups/students/',
+            '/api/finance/lookups/students/?q=',
+            '/api/finance/lookups/students/?q=E',
+        ):
+            response = self.call(StudentLookupAPIView, path, self.viewer_user)
+            self.assertEqual(response.status_code, 400, path)
+
+    def test_permissionless_user_gets_403(self):
+        response = self.call(StudentLookupAPIView, '/api/finance/lookups/students/?q=Amina', self.plain_user)
+        self.assertEqual(response.status_code, 403)
+
+    def test_unauthenticated_user_is_rejected(self):
+        response = self.call(StudentLookupAPIView, '/api/finance/lookups/students/?q=Amina', user=None)
+        self.assertIn(response.status_code, (401, 403))
+
+    def test_inactive_student_is_excluded(self):
+        self.make_student('lookup_stu_inactive', 'Faith', 'Mutiso', 'ROLL-006', status=False)
+
+        response = self.call(StudentLookupAPIView, '/api/finance/lookups/students/?q=Faith', self.viewer_user)
+
+        self.assertEqual(response.data, [])
+
+    def test_soft_deleted_student_is_excluded(self):
+        self.make_student('lookup_stu_deleted', 'Grace', 'Wafula', 'ROLL-007', deleted_at='2026-01-01T00:00:00Z')
+
+        response = self.call(StudentLookupAPIView, '/api/finance/lookups/students/?q=Grace', self.viewer_user)
+
+        self.assertEqual(response.data, [])
+
+    def test_results_are_capped(self):
+        for n in range(12):
+            self.make_student(f'lookup_stu_cap_{n}', 'Common', f'Surname{n}', f'ROLL-CAP-{n}')
+
+        response = self.call(StudentLookupAPIView, '/api/finance/lookups/students/?q=Common', self.viewer_user)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertLessEqual(len(response.data), StudentLookupAPIView.STUDENT_LOOKUP_LIMIT)
+        self.assertEqual(len(response.data), 8)

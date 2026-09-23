@@ -3,7 +3,7 @@
 // endpoint paths below are verified directly against apps/finance/urls.py,
 // apps/finance/serializers_fees.py and apps/finance/views.py as of Task 21a/21b — not
 // guessed from the original spec.
-import api from './axiosInstance';
+import api, { API_BASE_URL } from './axiosInstance';
 
 // --- Lookups (Task 21a) ---------------------------------------------------------------
 // Finance-scoped picklists so a Finance Officer (who does not hold classes.view/exams.view)
@@ -180,10 +180,11 @@ export const getFeeClearanceStatus = (studentId: number, termId?: number, graceT
 
 // --- Documents ---------------------------------------------------------------------------
 // Used as direct <a href>/window.open targets, not fetched via axios — the endpoints
-// return raw PDF bytes (inline Content-Disposition).
-
-export const invoicePdfUrl = (invoiceId: number) => `/api/finance/invoices/${invoiceId}/pdf/`;
-export const receiptPdfUrl = (receiptId: number) => `/api/finance/receipts/${receiptId}/pdf/`;
+// return raw PDF bytes (inline Content-Disposition). A plain relative path would resolve
+// against the Vite dev server's own origin (5173), not Django's (8000), and 404 — so
+// these are prefixed with the same backend origin axiosInstance.ts uses.
+export const invoicePdfUrl = (invoiceId: number) => `${API_BASE_URL}/api/finance/invoices/${invoiceId}/pdf/`;
+export const receiptPdfUrl = (receiptId: number) => `${API_BASE_URL}/api/finance/receipts/${receiptId}/pdf/`;
 
 // --- Reports -----------------------------------------------------------------------------
 

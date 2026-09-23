@@ -64,13 +64,18 @@ class InvoiceSerializer(serializers.ModelSerializer):
 
 class PaymentSerializer(serializers.ModelSerializer):
     receipt_number = serializers.CharField(source='receipt.receipt_number', read_only=True, default=None)
+    # Task 22a: the receipt PDF endpoint (ReceiptPDFAPIView) is keyed by the receipt's
+    # own pk, not the payment's — so the frontend needs this id to build the download
+    # link. Same default=None pattern as receipt_number above: a receiptless payment
+    # serializes receipt_id: null instead of erroring on the missing reverse OneToOne.
+    receipt_id = serializers.IntegerField(source='receipt.id', read_only=True, default=None)
     is_voided = serializers.SerializerMethodField()
 
     class Meta:
         model = Payment
         fields = [
             'id', 'student', 'invoice', 'amount', 'method', 'reference', 'status', 'date',
-            'receipt_number', 'is_voided', 'voided_at', 'void_reason',
+            'receipt_number', 'receipt_id', 'is_voided', 'voided_at', 'void_reason',
         ]
         read_only_fields = fields
 
@@ -186,6 +191,14 @@ class ExamTermLookupQuerySerializer(serializers.Serializer):
         if self.initial_data.get('academic_year_id') == '':
             raise serializers.ValidationError({'academic_year_id': 'This field may not be blank.'})
         return attrs
+
+
+class StudentLookupQuerySerializer(serializers.Serializer):
+    """`q` is required with min_length=2 (rather than optional-with-empty-list) so every
+    under-2-character case — missing, blank, or a single character — 400s the same way,
+    matching Task 21a's ExamTermLookupQuerySerializer convention of validating query
+    params through a serializer instead of ad hoc view code."""
+    q = serializers.CharField(min_length=2)
 
 
 class FeeClearancePolicySerializer(serializers.ModelSerializer):

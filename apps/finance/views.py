@@ -1,6 +1,6 @@
 from django.core.exceptions import PermissionDenied as DjangoPermissionDenied, ValidationError as DjangoValidationError
 from django.db import transaction
-from django.db.models import Prefetch, Sum
+from django.db.models import Prefetch, Q, Sum
 from django.http import HttpResponse
 from rest_framework.authentication import SessionAuthentication
 from rest_framework.generics import ListCreateAPIView
@@ -20,7 +20,7 @@ from apps.finance.serializers_fees import (
     InvoiceSerializer, InvoiceDetailSerializer, PaymentSerializer, StudentFeeAdjustmentSerializer,
     StudentFeeLedgerEntrySerializer, PaymentCreateSerializer, AdjustmentCreateSerializer, VoidSerializer,
     InvoiceListQuerySerializer, PaymentListQuerySerializer, PageQuerySerializer, FeeClearanceQuerySerializer,
-    CollectionsTrendQuerySerializer, ExamTermLookupQuerySerializer,
+    CollectionsTrendQuerySerializer, ExamTermLookupQuerySerializer, StudentLookupQuerySerializer,
 )
 from apps.finance.services_fees import (
     record_payment, void_invoice, void_payment, create_adjustment, is_fees_clear, get_credit_balance,
@@ -519,3 +519,31 @@ class ExamTermLookupAPIView(_FinanceReportAPIView):
         if academic_year_id is not None:
             terms = terms.filter(academic_year_id=academic_year_id)
         return Response(list(terms.values('id', 'name', 'academic_year_id')))
+
+
+class StudentLookupAPIView(_FinanceReportAPIView):
+    """Read-only `[{id, name, roll}]` picklist so finance staff can find a student by
+    name/roll when recording a payment or generating an invoice, gated on `finance.view`
+    like the other Task 21a lookups above (no new RBAC code). This repo's only prior
+    student-search endpoint (school/views/views.py's api_search_students_for_parent_signup)
+    is deliberately public/pre-login and rate-limited against anonymous-abuse — wrong base
+    for an authenticated, permission-gated lookup, so this is a separate endpoint rather
+    than a reuse. Scoped to currently-enrolled students the same way
+    services_fees.generate_invoices_for_structure already does (status=True,
+    deleted_at__isnull=True); capped at STUDENT_LOOKUP_LIMIT, same order of magnitude as
+    the public endpoint's own [:8]."""
+
+    STUDENT_LOOKUP_LIMIT = 8
+
+    def get(self, request):
+        query = StudentLookupQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        q = query.validated_data['q']
+        students = StudentExtra.objects.filter(
+            Q(roll__icontains=q) | Q(user__first_name__icontains=q) | Q(user__last_name__icontains=q),
+            status=True, deleted_at__isnull=True,
+        ).select_related('user').order_by('user__first_name', 'user__last_name')[:self.STUDENT_LOOKUP_LIMIT]
+        return Response([
+            {'id': s.id, 'name': s.user.get_full_name() or s.user.username, 'roll': s.roll}
+            for s in students
+        ])
