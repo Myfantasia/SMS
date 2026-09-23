@@ -30,7 +30,7 @@ from typing import Optional, Sequence
 
 from django.db import transaction
 
-from apps.allocations.models import SubjectQuota, SubjectAllocation, AllocationPublishState, GlobalAllocationPolicy, SubjectBlock
+from apps.allocations.models import SubjectQuota, SubjectAllocation, AllocationPublishState, GlobalAllocationPolicy, SubjectBlock, QuotaDefaultRule
 from apps.allocations.validation import validate_row
 
 
@@ -103,6 +103,39 @@ def get_quota_map(*, grade_ids: Optional[Sequence[int]] = None) -> dict:
     if grade_ids is not None:
         qs = qs.filter(grade_id__in=grade_ids)
     return {(q.grade_id, q.subject_id): q.total_lessons for q in qs}
+
+
+def resolve_quota_default(
+    *, department_id: Optional[int], tier_id: Optional[int], grade_band: str, applies_when_blocked: bool
+) -> Optional[QuotaDefaultRule]:
+    """
+    Resolution order (see docs/superpowers/specs/2026-09-21-teacher-allocation-timetable-
+    settings-design.md section 4): (department, tier) -> (department, legacy grade_band) ->
+    (any department, tier) -> None. A None result means "no matching rule" -- the caller must
+    surface a blocker, never silently default to zero lessons.
+    """
+    if tier_id is not None:
+        rule = QuotaDefaultRule.objects.filter(
+            department_id=department_id, tier_id=tier_id, applies_when_blocked=applies_when_blocked,
+        ).first()
+        if rule:
+            return rule
+
+    rule = QuotaDefaultRule.objects.filter(
+        department_id=department_id, tier_id__isnull=True, grade_band=grade_band,
+        applies_when_blocked=applies_when_blocked,
+    ).first()
+    if rule:
+        return rule
+
+    if tier_id is not None:
+        rule = QuotaDefaultRule.objects.filter(
+            department_id__isnull=True, tier_id=tier_id, applies_when_blocked=applies_when_blocked,
+        ).first()
+        if rule:
+            return rule
+
+    return None
 
 
 def list_quotas(*, grade_id: int) -> Sequence[SubjectQuotaDTO]:

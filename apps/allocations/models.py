@@ -81,13 +81,23 @@ class QuotaDefaultRule(models.Model):
                    "SubjectBlock for this grade (e.g. Technical/elective option blocks) — leave "
                    "unchecked for the standalone-subject figures."
     )
+    tier = models.ForeignKey(
+        'academics.Tier', on_delete=models.CASCADE, null=True, blank=True, related_name='quota_default_rules',
+        help_text="Match this rule to a specific curriculum tier instead of the legacy grade_band "
+                  "bucket below. Leave blank to fall back to grade_band matching (legacy behavior)."
+    )
     total_lessons = models.PositiveIntegerField(default=0)
     double_lessons_required = models.PositiveIntegerField(default=0)
     remedial_lessons_required = models.PositiveIntegerField(default=1)
+    trim_priority = models.PositiveSmallIntegerField(
+        default=2,
+        help_text="0 = protected longest (cut last) ... 3 = cut first, when Auto-Fill Subject "
+                  "Quotas has to trim a grade's demand down to fit the week's available capacity."
+    )
 
     class Meta:
         db_table = 'school_quotadefaultrule'
-        unique_together = ('department', 'grade_band', 'applies_when_blocked')
+        unique_together = ('department', 'tier', 'grade_band', 'applies_when_blocked')
         ordering = ['department', 'grade_band']
 
     def __str__(self):
