@@ -1,11 +1,12 @@
 from datetime import date
+from unittest import mock
 
 from django.contrib.auth.models import User
 from django.test import TestCase
 from rest_framework.test import APIClient
 
 from apps.academics.models import AcademicYear, ExamTerm, GradeLevel, ClassStream, Subject
-from apps.allocations.models import GlobalAllocationPolicy
+from apps.allocations.models import AllocationPublishState, GlobalAllocationPolicy, SubjectAllocation
 from apps.identity.models import Permission, TeacherExtra
 
 
@@ -73,3 +74,38 @@ class AllocationMatrixBlockerTests(TestCase):
         second = self._post([{'subject_id': self.english.id, 'teacher_id': self.teacher.id}])
         self.assertEqual(second.status_code, 409)
         self.assertIn('published', second.data['error'].lower())
+
+    def test_save_rejected_when_class_becomes_published_between_precheck_and_lock(self):
+        # Simulates the race: the class is published in the DB, but the cheap pre-check missed it.
+        existing = SubjectAllocation.objects.create(
+            classroom=self.stream, subject=self.maths, teacher=self.teacher,
+            academic_year=self.year, term=self.term,
+        )
+        AllocationPublishState.objects.create(
+            classroom=self.stream, term=self.term, academic_year=self.year, is_published=True,
+        )
+
+        with mock.patch('school.views.teacherAllocation_view.get_published_classroom_ids', return_value=set()):
+            response = self._post([{'subject_id': self.english.id, 'teacher_id': self.teacher.id}])
+
+        self.assertEqual(response.status_code, 409)
+        self.assertIn('published', response.data['error'].lower())
+        allocations = SubjectAllocation.objects.filter(classroom=self.stream)
+        self.assertEqual(allocations.count(), 1)
+        self.assertEqual(allocations.get().pk, existing.pk)
+        self.assertEqual(allocations.get().subject_id, self.maths.id)
+
+    def test_rejected_save_leaves_no_placeholder_publish_state_row(self):
+        before = SubjectAllocation.objects.filter(classroom=self.stream).count()
+
+        response = self._post([
+            {'subject_id': self.maths.id, 'teacher_id': self.teacher.id},
+            {'subject_id': self.english.id, 'teacher_id': self.teacher.id},
+            {'subject_id': self.kiswahili.id, 'teacher_id': self.teacher.id},
+        ])
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(AllocationPublishState.objects.filter(classroom=self.stream).exists())
+        self.assertEqual(SubjectAllocation.objects.filter(classroom=self.stream).count(), before)
+
+        retry = self._post([{'subject_id': self.maths.id, 'teacher_id': self.teacher.id}])
+        self.assertEqual(retry.status_code, 201)

@@ -264,7 +264,14 @@ class AllocationMatrixAPIView(APIView):
             validator.seed_from_existing(baseline_allocations)
 
             with transaction.atomic():
-                lock_publish_state(classroom_id=class_id, term_id=term_id, academic_year_id=year_id)
+                publish_state = lock_publish_state(classroom_id=class_id, term_id=term_id, academic_year_id=year_id)
+                if publish_state.is_published:
+                    # Another save published this class while we waited on the row lock.
+                    transaction.set_rollback(True)
+                    return Response(
+                        {"error": "This class's allocation has been published and is locked. Unpublish it first to make changes."},
+                        status=status.HTTP_409_CONFLICT,
+                    )
 
                 # ✅ FIXED: Track the incoming allocation state to isolate dropped rows
                 incoming_teacher_subjects = set()
@@ -293,6 +300,7 @@ class AllocationMatrixAPIView(APIView):
                         term_id=term_id, year_id=year_id
                     )
                     if hard_blocker:
+                        transaction.set_rollback(True)
                         return Response(
                             {"error": hard_blocker.message, "blocker": hard_blocker.to_dict()},
                             status=status.HTTP_400_BAD_REQUEST,
@@ -305,6 +313,7 @@ class AllocationMatrixAPIView(APIView):
                     violation_msg = f"Class Teacher Violation: {class_teacher_name} is the designated class teacher for {target_class.name} and must be assigned to at least one subject in this class."
 
                     if policy.enforcement_mode == 'STRICT':
+                        transaction.set_rollback(True)
                         return Response({"error": violation_msg}, status=status.HTTP_400_BAD_REQUEST)
                     warning_flags.append(violation_msg)
 

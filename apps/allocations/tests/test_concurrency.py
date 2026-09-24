@@ -2,7 +2,7 @@ import threading
 import time
 from datetime import date
 
-from django.db import transaction
+from django.db import connection, transaction
 from django.test import TransactionTestCase
 
 from apps.academics.models import AcademicYear, ClassStream, ExamTerm, GradeLevel
@@ -25,29 +25,35 @@ class LockPublishStateConcurrencyTests(TransactionTestCase):
         second_acquired_at = {}
 
         def first_holder():
-            with transaction.atomic():
-                lock_publish_state(
-                    classroom_id=self.stream.id, term_id=self.term.id, academic_year_id=self.year.id,
-                )
-                acquired_by_first.set()
-                release_first.wait(timeout=5)
+            try:
+                with transaction.atomic():
+                    lock_publish_state(
+                        classroom_id=self.stream.id, term_id=self.term.id, academic_year_id=self.year.id,
+                    )
+                    acquired_by_first.set()
+                    release_first.wait(timeout=5)
+            finally:
+                connection.close()
 
         def second_caller():
-            acquired_by_first.wait(timeout=5)
-            with transaction.atomic():
-                lock_publish_state(
-                    classroom_id=self.stream.id, term_id=self.term.id, academic_year_id=self.year.id,
-                )
-                second_acquired_at['time'] = time.monotonic()
+            try:
+                acquired_by_first.wait(timeout=5)
+                with transaction.atomic():
+                    lock_publish_state(
+                        classroom_id=self.stream.id, term_id=self.term.id, academic_year_id=self.year.id,
+                    )
+                    second_acquired_at['time'] = time.monotonic()
+            finally:
+                connection.close()
 
         t1 = threading.Thread(target=first_holder)
         t1.start()
         acquired_by_first.wait(timeout=5)
-        before_release = time.monotonic()
         t2 = threading.Thread(target=second_caller)
         t2.start()
         time.sleep(0.3)  # give t2 a real chance to attempt (and block on) the row lock
         self.assertNotIn('time', second_acquired_at, "second caller acquired the lock while the first still held it")
+        before_release = time.monotonic()
         release_first.set()
         t1.join(timeout=5)
         t2.join(timeout=5)

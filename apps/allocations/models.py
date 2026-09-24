@@ -207,9 +207,10 @@ class SubjectAllocation(models.Model):
 class AllocationPublishState(models.Model):
     """
     Draft/Published status for one class stream's teacher allocations in one term/year. A row
-    only exists once a class has been published at least once — its absence means the class is
-    still in draft (freely editable), matching the school's existing behavior before this
-    model was introduced.
+    may also exist as an unpublished placeholder (created when a save takes the row lock via
+    lock_publish_state), so only is_published=True means published. A missing row still means
+    the class is in draft (freely editable), matching the school's existing behavior before
+    this model was introduced.
 
     While published, every allocation-mutating path (manual Matrix save, Auto-Allocate,
     Bulk Allocate, Rollover, Clear Grid) must refuse to touch this (classroom, term, year) scope

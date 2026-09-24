@@ -139,8 +139,9 @@ def get_published_classroom_ids(classroom_ids, term_id, year_id):
     Which of these classrooms already have a PUBLISHED allocation for this term/year — every
     allocation-mutating path (Matrix save, Auto-Allocate, Bulk Allocate, Rollover, Clear Grid)
     calls this first so a finalized, published schedule can't be silently overwritten by a
-    later run. A class with no AllocationPublishState row at all is still in draft (freely
-    editable) — that model only ever gets a row once a class has been published at least once.
+    later run. Only a row with is_published=True means published: a row may also exist as an
+    unpublished placeholder (created when a save takes the row lock via lock_publish_state),
+    and a class with no AllocationPublishState row at all is still in draft (freely editable).
     """
     from apps.allocations.models import AllocationPublishState
 
