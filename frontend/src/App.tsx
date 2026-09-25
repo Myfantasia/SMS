@@ -81,6 +81,8 @@ import LeaveRequestsHub from './components/leave/LeaveRequestsHub';
 import ApproveLeaves from './components/leave/ApproveLeaves';
 import FinanceHub from './components/Finance/FinanceHub';
 import FeeStructuresPage from './components/Finance/FeeStructuresPage';
+import InvoicesPage from './components/Finance/InvoicesPage';
+import PaymentsPage from './components/Finance/PaymentsPage';
 import ContentHub from './components/content/ContentHub';
 import Trash from './pages/admin/Trash';
 
@@ -225,6 +227,8 @@ export default function App() {
             {/* --- FINANCE: FEES & SALARY OVERVIEW --- */}
             <Route path="finance" element={<FinanceHub />} />
             <Route path="finance/fee-structures" element={<FeeStructuresPage />} />
+            <Route path="finance/invoices" element={<InvoicesPage />} />
+            <Route path="finance/payments" element={<PaymentsPage />} />
 
             {/* --- NEW: MESSAGING ROUTE --- */}
             <Route path="messages" element={<ChatDashboard />} />
@@ -336,6 +340,8 @@ export default function App() {
 
             <Route path="finance" element={<FinanceHub />} />
             <Route path="finance/fee-structures" element={<FeeStructuresPage />} />
+            <Route path="finance/invoices" element={<InvoicesPage />} />
+            <Route path="finance/payments" element={<PaymentsPage />} />
             <Route path="notices" element={<NoticesHub role="admin" />} />
             <Route path="events" element={<EventsHub role="admin" />} />
             <Route path="leave-requests" element={<LeaveRequestsHub role="admin" />} />

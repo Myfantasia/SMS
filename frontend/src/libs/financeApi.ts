@@ -27,6 +27,19 @@ export const listExamTermOptions = (academicYearId?: number) =>
     params: academicYearId ? { academic_year_id: academicYearId } : {},
   });
 
+// Task 22b: student picklist for the payment-recording form. `q` must be >= 2 chars
+// (StudentLookupQuerySerializer) or the backend 400s — callers debounce and gate on
+// length client-side before calling this. Scoped to currently-enrolled students, capped
+// at 8 results server-side.
+export interface StudentLookupOption {
+  id: number;
+  name: string;
+  roll: string;
+}
+
+export const searchStudents = (q: string) =>
+  api.get<StudentLookupOption[]>('/api/finance/lookups/students/', { params: { q } });
+
 // --- Fee categories / structures (Task 15) --------------------------------------------
 
 export interface FeeCategory {
@@ -125,6 +138,7 @@ export interface Payment {
   status: 'confirmed' | 'pending' | 'failed';
   date: string;
   receipt_number: string | null;
+  receipt_id: number | null;
   is_voided: boolean;
   voided_at: string | null;
   void_reason: string;

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CircleDollarSign, Banknote, Wallet, TrendingUp, TrendingDown, Search, Users, GraduationCap, PieChart, Layers } from 'lucide-react';
+import { CircleDollarSign, Banknote, Wallet, TrendingUp, TrendingDown, Search, Users, GraduationCap, PieChart, Layers, FileText, Receipt } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useTheme } from '@mui/material/styles';
 import { useNavigate } from 'react-router-dom';
@@ -190,12 +190,26 @@ export default function FinanceHub() {
       </div>
 
       {activeTab === 'fees' && (
-        <button
-          onClick={() => navigate(`${basePath}/finance/fee-structures`)}
-          className="flex items-center gap-2 text-sm font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors w-max"
-        >
-          <Layers className="w-4 h-4" /> Manage Fee Structures
-        </button>
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+          <button
+            onClick={() => navigate(`${basePath}/finance/fee-structures`)}
+            className="flex items-center gap-2 text-sm font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors w-max"
+          >
+            <Layers className="w-4 h-4" /> Manage Fee Structures
+          </button>
+          <button
+            onClick={() => navigate(`${basePath}/finance/invoices`)}
+            className="flex items-center gap-2 text-sm font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors w-max"
+          >
+            <FileText className="w-4 h-4" /> Invoices
+          </button>
+          <button
+            onClick={() => navigate(`${basePath}/finance/payments`)}
+            className="flex items-center gap-2 text-sm font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors w-max"
+          >
+            <Receipt className="w-4 h-4" /> Payments
+          </button>
+        </div>
       )}
 
       {/* Content */}
