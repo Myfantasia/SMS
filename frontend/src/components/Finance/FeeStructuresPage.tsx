@@ -9,8 +9,8 @@ import { useNavigate } from 'react-router-dom';
 import {
   listFeeStructures, createFeeStructure, activateFeeStructure,
   listGradeLevelOptions, listExamTermOptions,
-  FeeStructure, GradeLevelOption, ExamTermOption,
 } from '../../libs/financeApi';
+import type { FeeStructure, GradeLevelOption, ExamTermOption } from '../../libs/financeApi';
 
 export default function FeeStructuresPage() {
   const navigate = useNavigate();
@@ -176,7 +176,7 @@ export default function FeeStructuresPage() {
             onChange={(e) => setName(e.target.value)}
             size="small"
           />
-          <Select
+          <Select<number | ''>
             value={gradeId}
             onChange={(e) => setGradeId(e.target.value === '' ? '' : Number(e.target.value))}
             displayEmpty
@@ -187,7 +187,7 @@ export default function FeeStructuresPage() {
             <MenuItem value="">{gradesError ? 'Failed to load grades' : noGrades ? 'No grades available' : 'Select grade'}</MenuItem>
             {grades.map((g) => <MenuItem key={g.id} value={g.id}>{g.name}</MenuItem>)}
           </Select>
-          <Select
+          <Select<number | ''>
             value={termId}
             onChange={(e) => setTermId(e.target.value === '' ? '' : Number(e.target.value))}
             displayEmpty
