@@ -19,3 +19,4 @@ class MessagingConfig(AppConfig):
             from . import receivers  # noqa: F401
         except ImportError:
             pass
+        from . import allocation_receivers  # noqa: F401

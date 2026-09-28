@@ -246,3 +246,8 @@ def get_current_school_id(request) -> int:
             "(see the 'Explicitly out of scope' section of the CurriculumPreset scoping plan)."
         )
     return School.objects.values_list('id', flat=True).get()
+
+
+def get_teacher_user_ids(teacher_ids) -> tuple:
+    """Auth-user ids for the given TeacherExtra ids (used to address notifications)."""
+    return tuple(TeacherExtra.objects.filter(id__in=list(teacher_ids)).values_list('user_id', flat=True))
