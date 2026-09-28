@@ -28,6 +28,8 @@ below now import from there directly.
 from dataclasses import dataclass
 from typing import Optional, Sequence
 
+from django.db import transaction
+
 from apps.timetable.models import Timetable, LessonAllocation
 
 
@@ -42,6 +44,13 @@ class TimetableSyncResultDTO:
     swapped_count: int
     locked_skipped_count: int
     needs_regeneration: dict
+
+
+@dataclass(frozen=True)
+class SyncTargetDTO:
+    timetable_id: int
+    name: str
+    is_live: bool
 
 
 @dataclass(frozen=True)
@@ -89,6 +98,41 @@ def sync_with_allocation_changes(
         locked_skipped_count=result["locked_skipped_count"],
         needs_regeneration=result["needs_regeneration"],
     )
+
+
+def get_sync_target(*, term_id: int, year_id: int) -> Optional[SyncTargetDTO]:
+    """The timetable an allocation publish syncs into: the ACTIVE timetable for this term/year.
+
+    `is_live` is True when that timetable is Published -- callers must never sync into a live
+    timetable (a live timetable is only ever changed by an explicit, gated timetable publish)."""
+    timetable = Timetable.objects.filter(is_active=True, term_id=term_id, academic_year_id=year_id).first()
+    if timetable is None:
+        return None
+    return SyncTargetDTO(timetable_id=timetable.id, name=timetable.name, is_live=(timetable.status == 'Published'))
+
+
+def get_lesson_triples(*, timetable_id: int, class_ids: Sequence[int]) -> frozenset:
+    """Distinct (class_stream_id, teacher_id, subject_id) triples currently scheduled on a timetable
+    for the given classes -- the "before" picture a publish diffs the new allocations against, so a
+    republish after an unpublish/edit is compared with what is really on the grid, not with memory."""
+    rows = LessonAllocation.objects.filter(
+        timetable_id=timetable_id, class_stream_id__in=list(class_ids),
+    ).values_list('class_stream_id', 'teacher_id', 'subject_id').distinct()
+    return frozenset(rows)
+
+
+def preview_sync_with_allocation_changes(
+    *, active_timetable_id: Optional[int], prior_triples: frozenset, new_triples: frozenset,
+) -> TimetableSyncResultDTO:
+    """Dry run of sync_with_allocation_changes: runs the real sync inside a savepoint and rolls it
+    back, so the returned counts are exactly what a real publish would do and nothing persists.
+    (The sync engine has no native dry-run mode; this avoids duplicating its swap/eject logic.)"""
+    with transaction.atomic():
+        result = sync_with_allocation_changes(
+            active_timetable_id=active_timetable_id, prior_triples=prior_triples, new_triples=new_triples,
+        )
+        transaction.set_rollback(True)
+    return result
 
 
 def generate_lessons_for_scope(*, timetable_id: int, class_stream_ids: Sequence[int]) -> tuple:

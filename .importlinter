@@ -307,8 +307,12 @@ allow_indirect_imports = True
 # select_related('grade')) to hand to school/views/views_timetable.py's
 # generate_lessons_for_scope, which operates on model instances internally
 # -- same class of deferred DTO-ification as allocations' exception above.
+# Test fixtures need real model instances from academics and identity for realistic setUp data --
+# same class of exception already granted to apps.allocations.tests.** in its own contract.
 ignore_imports =
     apps.timetable.services -> apps.academics.models
+    apps.timetable.tests.** -> apps.academics.models
+    apps.timetable.tests.** -> apps.identity.models
 source_modules =
     apps.timetable
 forbidden_modules =
