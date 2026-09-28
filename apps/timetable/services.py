@@ -111,6 +111,18 @@ def get_sync_target(*, term_id: int, year_id: int) -> Optional[SyncTargetDTO]:
     return SyncTargetDTO(timetable_id=timetable.id, name=timetable.name, is_live=(timetable.status == 'Published'))
 
 
+def lock_sync_target(*, term_id: int, year_id: int) -> Optional[SyncTargetDTO]:
+    """Like get_sync_target, but takes a row lock on the active timetable. MUST be called inside an
+    open transaction.atomic(). Holding the lock until commit means the timetable status API cannot
+    flip it to Published between this check and the sync's writes (its UPDATE waits for our commit),
+    so a live timetable is never written to."""
+    timetable = Timetable.objects.select_for_update().filter(
+        is_active=True, term_id=term_id, academic_year_id=year_id).first()
+    if timetable is None:
+        return None
+    return SyncTargetDTO(timetable_id=timetable.id, name=timetable.name, is_live=(timetable.status == 'Published'))
+
+
 def get_lesson_triples(*, timetable_id: int, class_ids: Sequence[int]) -> frozenset:
     """Distinct (class_stream_id, teacher_id, subject_id) triples currently scheduled on a timetable
     for the given classes -- the "before" picture a publish diffs the new allocations against, so a

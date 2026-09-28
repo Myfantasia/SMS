@@ -1,13 +1,14 @@
 from datetime import date, time
 
 from django.contrib.auth.models import User
+from django.db import transaction
 from django.test import TestCase
 
 from apps.academics.models import AcademicYear, ClassStream, ExamTerm, GradeLevel, Subject, TimeSlot
 from apps.identity.models import TeacherExtra
 from apps.timetable.models import LessonAllocation, Timetable
 from apps.timetable.services import (
-    get_lesson_triples, get_sync_target, preview_sync_with_allocation_changes,
+    get_lesson_triples, get_sync_target, lock_sync_target, preview_sync_with_allocation_changes,
 )
 
 
@@ -115,3 +116,28 @@ class PreviewSyncTests(TimetableHelperFixtureMixin, TestCase):
         self.assertEqual(result.swapped_count, 1)
         lesson.refresh_from_db()
         self.assertEqual(lesson.teacher_id, self.teacher_a.id)
+
+
+class LockSyncTargetTests(TimetableHelperFixtureMixin, TestCase):
+    def setUp(self):
+        self.build_world()
+
+    def _locked(self):
+        with transaction.atomic():
+            return lock_sync_target(term_id=self.term.id, year_id=self.year.id)
+
+    def test_matches_get_sync_target_for_an_active_draft(self):
+        self.make_timetable(status='Draft')
+        target = self._locked()
+        self.assertEqual(target, get_sync_target(term_id=self.term.id, year_id=self.year.id))
+        self.assertFalse(target.is_live)
+
+    def test_matches_get_sync_target_for_an_active_published_timetable(self):
+        self.make_timetable(status='Published')
+        target = self._locked()
+        self.assertEqual(target, get_sync_target(term_id=self.term.id, year_id=self.year.id))
+        self.assertTrue(target.is_live)
+
+    def test_returns_none_when_there_is_no_active_timetable(self):
+        self.make_timetable(status='Draft', is_active=False)
+        self.assertIsNone(self._locked())

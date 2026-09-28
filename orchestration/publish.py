@@ -102,8 +102,10 @@ def _sync_summary(target, result) -> SyncSummaryDTO:
     )
 
 
-def _sync_inputs(term_id, year_id, class_ids):
-    target = timetable_services.get_sync_target(term_id=term_id, year_id=year_id)
+def _sync_inputs(term_id, year_id, class_ids, lock: bool = False):
+    # lock=True (publish only): row-lock the target so it cannot be flipped to Published mid-publish.
+    resolve = timetable_services.lock_sync_target if lock else timetable_services.get_sync_target
+    target = resolve(term_id=term_id, year_id=year_id)
     if target is None or target.is_live:
         return target, frozenset(), frozenset()
     prior = timetable_services.get_lesson_triples(timetable_id=target.timetable_id, class_ids=class_ids)
@@ -147,7 +149,7 @@ def publish_scope(
         if review.soft_blockers and not acknowledge_soft:
             raise AcknowledgementRequiredError(review.soft_blockers)
 
-        target, prior, new = _sync_inputs(term_id, year_id, ids)
+        target, prior, new = _sync_inputs(term_id, year_id, ids, lock=True)
         if target is None or target.is_live:
             sync = _no_sync(target)
         else:
