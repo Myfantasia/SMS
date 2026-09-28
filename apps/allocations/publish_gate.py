@@ -13,6 +13,10 @@ surface is still DTOs and primitives, never model instances.
 AllocationValidator and compute_school_allocation_gaps still live in school.utils, so they are
 imported lazily inside the functions that need them -- the same precedent as
 apps/allocations/services.py.
+
+Deliberate limit: the fingerprint covers the scope's own saved rows and published flags, not
+outside-scope load, policy, quotas or class-teacher assignment, because publish_scope re-runs
+review_scope under lock, so any new HARD blocker is always caught at confirm time.
 """
 import hashlib
 from dataclasses import dataclass
@@ -72,7 +76,9 @@ def resolve_publish_scope(
 
 def compute_scope_fingerprint(*, term_id: int, year_id: int, class_ids: Sequence[int]) -> str:
     """Hash of everything a review depends on: the scope's saved (class, subject, teacher) rows and
-    which of its classes are published. Same content => same fingerprint, so a draft edited and
+    which of its classes are published (deliberately NOT outside-scope load, policy, quotas or
+    class-teacher assignment: publish_scope re-runs review_scope under lock, so any new HARD
+    blocker is caught anyway). Same content => same fingerprint, so a draft edited and
     then edited back is still fresh; any real change makes a stale review detectable."""
     ids = tuple(sorted(set(int(c) for c in class_ids)))
     rows = sorted(_active_allocations(term_id, year_id).filter(classroom_id__in=ids)
@@ -107,9 +113,12 @@ def review_scope(*, term_id: int, year_id: int, class_ids: Sequence[int]) -> Sco
     policy = GlobalAllocationPolicy.load()
     blockers = []
 
+    # Fingerprint first: if the data changes mid-scan, the confirm sees a mismatch and fails safe.
+    fingerprint = compute_scope_fingerprint(term_id=term_id, year_id=year_id, class_ids=ids)
+
     for classroom_id in AllocationPublishState.objects.filter(
         term_id=term_id, academic_year_id=year_id, is_published=True, classroom_id__in=ids,
-    ).values_list('classroom_id', flat=True):
+    ).order_by('classroom_id').values_list('classroom_id', flat=True):
         blockers.append(BlockerDTO(
             code='ALREADY_PUBLISHED', severity='HARD', classroom_id=classroom_id,
             message="This class's allocation is already published.", rule_ref='publish.state',
@@ -126,7 +135,7 @@ def review_scope(*, term_id: int, year_id: int, class_ids: Sequence[int]) -> Sco
 
     in_scope = list(
         _active_allocations(term_id, year_id).filter(classroom_id__in=ids)
-        .select_related('teacher', 'subject', 'classroom', 'classroom__grade')
+        .select_related('teacher', 'teacher__user', 'subject', 'classroom', 'classroom__grade')
         .order_by('classroom_id', 'subject_id')
     )
     for allocation in in_scope:
@@ -137,6 +146,24 @@ def review_scope(*, term_id: int, year_id: int, class_ids: Sequence[int]) -> Sco
         if hard:
             blockers.append(hard)
         blockers.extend(soft)
+
+    # validate_and_record only sees rows already recorded, so on a multi-class scope its prep
+    # consolidation notice can claim a teacher teaches fewer streams than they finally do. Re-check
+    # against every active allocation (in and out of scope) and drop notices that don't hold.
+    final_streams = {}
+    for classroom_id, grade_id, subject_id, teacher_id in _active_allocations(term_id, year_id).values_list(
+        'classroom_id', 'classroom__grade_id', 'subject_id', 'teacher_id',
+    ):
+        final_streams.setdefault((teacher_id, subject_id, grade_id), set()).add(classroom_id)
+    grade_of = {a.classroom_id: a.classroom.grade_id for a in in_scope}
+    min_target = getattr(policy, 'min_classes_per_subject', 2)
+    blockers = [
+        b for b in blockers
+        if not (
+            b.code == 'PREP_CONSOLIDATION_MISS'
+            and len(final_streams.get((b.teacher_id, b.subject_id, grade_of.get(b.classroom_id)), ())) >= min_target
+        )
+    ]
 
     classrooms, teachers_by_class = {}, {}
     for allocation in in_scope:
@@ -165,17 +192,21 @@ def review_scope(*, term_id: int, year_id: int, class_ids: Sequence[int]) -> Sco
             ))
 
     scoped = set(ids)
-    for gap in compute_school_allocation_gaps(term_id, year_id):
-        if gap['class_id'] in scoped:
+    for gap in sorted(compute_school_allocation_gaps(term_id, year_id), key=lambda g: g['class_id']):
+        if gap['class_id'] not in scoped:
+            continue
+        # The class-teacher entry is already reported as CLASS_TEACHER_UNASSIGNED above.
+        missing = [m for m in gap['missing_subjects'] if not m.startswith('class teacher (')]
+        if missing:
             blockers.append(BlockerDTO(
                 code='INCOMPLETE_CLASS', severity='SOFT', classroom_id=gap['class_id'],
-                message=f"{gap['class_name']} still has no teacher for: {', '.join(gap['missing_subjects'])}.",
+                message=f"{gap['class_name']} still has no teacher for: {', '.join(missing)}.",
                 rule_ref='quota.completeness',
                 suggested_fix='Assign the missing subjects, or publish now and finish them later.',
             ))
 
     return ScopeReviewDTO(
         class_ids=ids,
-        fingerprint=compute_scope_fingerprint(term_id=term_id, year_id=year_id, class_ids=ids),
+        fingerprint=fingerprint,
         blockers=tuple(blockers),
     )

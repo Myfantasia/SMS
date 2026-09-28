@@ -177,3 +177,26 @@ class ReviewScopeTests(PublishGateFixtureMixin, TestCase):
         blockers = [b for b in review.blockers if b.code == 'CLASS_TEACHER_UNASSIGNED']
         self.assertEqual(len(blockers), 1)
         self.assertEqual(blockers[0].teacher_id, self.teacher_two.id)
+
+    def test_prep_notice_is_dropped_when_the_teacher_finally_teaches_enough_streams_in_scope(self):
+        self.allocate(self.a, self.maths, self.teacher)
+        self.allocate(self.b, self.maths, self.teacher)  # C has nothing: 3-stream grade
+        review = self.review(self.a.id, self.b.id)
+        self.assertNotIn('PREP_CONSOLIDATION_MISS', self.codes(review))
+
+    def test_a_lone_stream_in_a_three_stream_grade_keeps_the_prep_notice(self):
+        self.allocate(self.a, self.maths, self.teacher)
+        review = self.review(self.a.id)
+        notices = [b for b in review.blockers if b.code == 'PREP_CONSOLIDATION_MISS']
+        self.assertEqual(len(notices), 1)
+        self.assertEqual(notices[0].severity, 'SOFT')
+
+    def test_class_teacher_left_out_is_reported_once_not_also_as_incomplete(self):
+        SubjectQuota.objects.create(grade=self.grade, subject=self.maths, total_lessons=4)
+        self.a.class_teacher = self.teacher_two
+        self.a.save()
+        self.allocate(self.a, self.maths, self.teacher)  # quota fully covered
+        review = self.review(self.a.id)
+        codes = [b.code for b in review.blockers]
+        self.assertEqual(codes.count('CLASS_TEACHER_UNASSIGNED'), 1)
+        self.assertNotIn('INCOMPLETE_CLASS', codes)
