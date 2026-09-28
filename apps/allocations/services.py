@@ -335,11 +335,8 @@ def rollover_allocations(
 
     SubjectAllocation.objects.bulk_create(new_allocations)
 
-    # Rollover writes real, live contracts the same as any other allocation-save path --
-    # each affected class is published immediately, consistent with the Matrix save and
-    # Bulk Allocate.
-    for classroom_id in {a.classroom_id for a in new_allocations}:
-        publish_allocation(classroom_id, target_term_id, year_id, operator_id)
+    # Rollover only ever writes DRAFT contracts. Nothing is published (and nothing reaches the
+    # timetable) until an admin reviews them and uses Publish -- see orchestration/publish.py.
 
     new_triples = {(a.classroom_id, a.teacher_id, a.subject_id) for a in new_allocations}
 

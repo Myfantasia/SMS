@@ -20,10 +20,9 @@ from apps.attendance.models import AttendanceSession
 from apps.timetable.models import LessonAllocation, Timetable
 from school.utils import build_grade_subject_block_map, get_subject_block_names, is_tech_subject, \
     AllocationValidator, reserve_class_teacher_slot, fill_remaining_subjects, get_cached_unscheduled_errors, \
-    get_subjects_with_active_virtual_groups, get_published_classroom_ids, publish_allocation, unpublish_allocation
+    get_subjects_with_active_virtual_groups, get_published_classroom_ids, unpublish_allocation
 from apps.allocations.validation import validate_row
 from apps.allocations.services import lock_publish_state
-from school.views.views_timetable import sync_timetable_with_allocation_changes
 from django.shortcuts import get_object_or_404
 from django.http import JsonResponse
 import json
@@ -219,12 +218,6 @@ class AllocationMatrixAPIView(APIView):
         term_id = request.data.get('term_id')
         year_id = request.data.get('year_id')
         allocations = request.data.get('allocations', [])
-        # 'class' (default) only publishes/locks this one class, same as before this option
-        # existed. 'grade'/'all' additionally sweep up and publish every OTHER already-saved,
-        # still-draft class in that wider scope in the same request — for an admin who edited
-        # each class individually but wants to finalize a whole grade/school in one click instead
-        # of re-opening and re-saving every class just to lock it.
-        publish_scope = request.data.get('publish_scope', 'class')
 
         if not all([class_id, term_id, year_id]):
             return Response({"error": "Missing ID parameters."}, status=status.HTTP_400_BAD_REQUEST)
@@ -343,112 +336,10 @@ class AllocationMatrixAPIView(APIView):
                 ]
                 SubjectAllocation.objects.bulk_create(new_records)
 
-                # --- TIMETABLE SYNC ---
-                # SubjectAllocation has no FK back to LessonAllocation and this codebase has no
-                # signals, so without this a dropped contract would keep appearing on an
-                # already-generated/published timetable indefinitely ("ghost contract"), and a
-                # swapped-in teacher would never show up on the live grid until someone remembered
-                # to manually regenerate. sync_timetable_with_allocation_changes ejects drops,
-                # moves swaps onto the same slots in place where the new teacher is free, and falls
-                # back to a targeted regeneration (only for the affected subjects) otherwise.
-                prior_triples = {(class_id, pa.teacher_id, pa.subject_id) for pa in prior_allocations}
-                new_triples = {(class_id, t_id, s_id) for (t_id, s_id) in incoming_teacher_subjects}
-                active_timetable = Timetable.objects.filter(is_active=True).first()
-                sync_result = sync_timetable_with_allocation_changes(
-                    active_timetable=active_timetable, prior_triples=prior_triples, new_triples=new_triples
-                )
-
-                if (sync_result["ejected_count"] or sync_result["swapped_count"]
-                        or sync_result["needs_regeneration"] or sync_result["locked_skipped_count"]):
-                    write_audit_log(
-                        operator_id=request.user.id if request.user.is_authenticated else None,
-                        action_type='UPDATE',
-                        module='LessonAllocation',
-                        description=(
-                            f"Timetable sync for {target_class.name} after Allocation Matrix save: "
-                            f"{sync_result['ejected_count']} lesson(s) ejected, "
-                            f"{sync_result['swapped_count']} lesson(s) swapped to their new teacher in place, "
-                            f"{sum(len(v) for v in sync_result['needs_regeneration'].values())} subject(s) "
-                            f"sent to targeted regeneration, "
-                            f"{sync_result['locked_skipped_count']} locked lesson(s) left untouched."
-                        )
-                    )
-                    if sync_result["ejected_count"]:
-                        warning_flags.append(
-                            f"{sync_result['ejected_count']} timetabled lesson(s) were removed from the live grid "
-                            f"because their teacher-subject contract was dropped."
-                        )
-                    if sync_result["swapped_count"]:
-                        warning_flags.append(
-                            f"{sync_result['swapped_count']} timetabled lesson(s) were updated to their new "
-                            f"teacher in place on the live grid."
-                        )
-                    if sync_result["needs_regeneration"]:
-                        warning_flags.append(
-                            f"{sum(len(v) for v in sync_result['needs_regeneration'].values())} subject(s) "
-                            f"couldn't be moved in place and were automatically regenerated on the live grid."
-                        )
-                    if sync_result["locked_skipped_count"]:
-                        warning_flags.append(
-                            f"{sync_result['locked_skipped_count']} locked lesson(s) were left untouched on the "
-                            f"live grid despite this contract change — unlock them manually if they need updating."
-                        )
-
-                # Surface any lingering scheduling failures for this class from the last
-                # (re)generation run, so a Matrix edit that just fixed a contract also shows
-                # whether the grid is still short on that fix.
-                if active_timetable:
-                    warning_flags.extend(get_cached_unscheduled_errors(active_timetable.id, [target_class.name]))
-
-                # Saving IS publishing — a class's allocation moves from draft to published the
-                # moment it's saved here, and stays locked until explicitly unpublished.
-                publish_allocation(class_id, term_id, year_id, request.user)
-
-                bulk_published_count = 0
-                if publish_scope in ('grade', 'all'):
-                    if publish_scope == 'grade':
-                        sibling_ids = list(
-                            ClassStream.objects.filter(grade_id=target_grade_id)
-                            .exclude(id=class_id).values_list('id', flat=True)
-                        )
-                    else:
-                        sibling_ids = list(
-                            ClassStream.objects.exclude(id=class_id).values_list('id', flat=True)
-                        )
-
-                    # Only classes that actually have something saved are worth publishing —
-                    # an empty, never-touched class has no draft to finalize.
-                    already_published = get_published_classroom_ids(sibling_ids, term_id, year_id)
-                    drafted_ids = set(SubjectAllocation.objects.filter(
-                        classroom_id__in=sibling_ids, term_id=term_id, academic_year_id=year_id, is_active=True
-                    ).values_list('classroom_id', flat=True).distinct()) - already_published
-
-                    for cid in drafted_ids:
-                        publish_allocation(cid, term_id, year_id, request.user)
-                    bulk_published_count = len(drafted_ids)
-
-                    scope_label = "grade" if publish_scope == 'grade' else "school"
-                    write_audit_log(
-                        operator_id=request.user.id if request.user.is_authenticated else None,
-                        action_type='UPDATE',
-                        module='AllocationPublishState',
-                        description=(
-                            f"Saved {target_class.name} and published {bulk_published_count} other "
-                            f"already-drafted class(es) across the {scope_label} in the same action."
-                        )
-                    )
-
-            message = "Teachers successfully allocated to class!"
-            if bulk_published_count:
-                message += f" Also published {bulk_published_count} other drafted class(es) in the {'grade' if publish_scope == 'grade' else 'school'}."
-
             return Response({
-                "message": message,
+                "message": "Draft saved. Review and publish it to apply these teachers to the timetable.",
                 "warnings": list(set(warning_flags)),
                 "blockers": [b.to_dict() for b in blocker_flags],
-                "ejected_lesson_count": sync_result["ejected_count"],
-                "swapped_lesson_count": sync_result["swapped_count"],
-                "bulk_published_count": bulk_published_count,
             }, status=status.HTTP_201_CREATED)
 
         except Exception as e:

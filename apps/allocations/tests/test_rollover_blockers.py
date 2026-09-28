@@ -3,7 +3,7 @@ from datetime import date
 from django.test import TestCase
 
 from apps.academics.models import AcademicYear, ClassStream, ExamTerm, GradeLevel, Subject
-from apps.allocations.models import GlobalAllocationPolicy, SubjectAllocation
+from apps.allocations.models import AllocationPublishState, GlobalAllocationPolicy, SubjectAllocation
 from apps.allocations.services import AllocationValidationError, rollover_allocations
 from apps.identity.models import TeacherExtra
 from django.contrib.auth.models import User
@@ -47,3 +47,27 @@ class RolloverAllocationsBlockerTests(TestCase):
                 class_id=self.stream.id, operator_id=None,
             )
         self.assertIn('exceeded max subjects', str(ctx.exception))
+
+
+class RolloverLeavesDraftsTests(TestCase):
+    def test_rolled_over_classes_are_drafts_not_published(self):
+        year = AcademicYear.objects.create(year='2026', is_active=True)
+        source = ExamTerm.objects.create(name='Term 1', academic_year=year,
+                                         start_date=date(2026, 1, 1), end_date=date(2026, 4, 1), is_active=True)
+        target = ExamTerm.objects.create(name='Term 2', academic_year=year,
+                                         start_date=date(2026, 5, 1), end_date=date(2026, 8, 1), is_active=False)
+        grade = GradeLevel.objects.create(name='Grade 8', numeric_order=8, curriculum_type='CBC')
+        stream = ClassStream.objects.create(name='North', grade=grade)
+        maths = Subject.objects.create(code='MAT101', name='Mathematics', is_core=True)
+        user = User.objects.create_user(username='teacher_only', password='x')
+        teacher = TeacherExtra.objects.create(user=user, mobile='0700000000', status=True)
+        SubjectAllocation.objects.create(classroom=stream, subject=maths, teacher=teacher,
+                                         academic_year=year, term=source, is_active=True)
+
+        result = rollover_allocations(
+            source_term_id=source.id, target_term_id=target.id, year_id=year.id,
+            source_year_id=year.id, class_id=stream.id, operator_id=None)
+
+        self.assertEqual(result.new_allocation_count, 1)
+        self.assertTrue(SubjectAllocation.objects.filter(classroom=stream, term=target).exists())
+        self.assertFalse(AllocationPublishState.objects.filter(classroom=stream, is_published=True).exists())

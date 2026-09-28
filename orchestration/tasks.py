@@ -32,7 +32,7 @@ from django.utils import timezone
 from apps.core import services as core_services
 from apps.allocations.services import rollover_allocations, bulk_auto_allocate, AllocationValidationError
 from apps.timetable.services import (
-    get_active_timetable_id, sync_with_allocation_changes, generate_lessons_for_scope, get_timetable_name,
+    generate_lessons_for_scope, get_timetable_name,
 )
 from shared.events.bus import bus
 from shared.events.types import BackgroundJobCompletedEvent
@@ -186,8 +186,6 @@ def generate_timetable_task(self, job_id, timetable_id, stream_id, grade_id, loc
 
 @shared_task(bind=True)
 def rollover_allocations_task(self, job_id, source_term_id, target_term_id, year_id, class_id, source_year_id, operator_id, lock_key):
-    from school.utils import get_cached_unscheduled_errors
-
     if not _acquire_lock_or_retry(self, job_id, lock_key):
         return
 
@@ -199,35 +197,23 @@ def rollover_allocations_task(self, job_id, source_term_id, target_term_id, year
                 source_year_id=source_year_id, class_id=class_id, operator_id=operator_id,
             )
 
-            active_timetable_id = get_active_timetable_id(term_id=target_term_id, year_id=year_id)
-            sync_result = sync_with_allocation_changes(
-                active_timetable_id=active_timetable_id,
-                prior_triples=result.prior_triples, new_triples=result.new_triples,
-            )
-
             scope_label = f"class {result.scoped_classroom_label}" if result.scoped_classroom_label else "the whole term"
             core_services.write_audit_log(
                 operator_id=operator_id,
                 action_type='UPDATE',
                 module='RolloverEngine',
-                description=f"Rolled over term {source_term_id} -> {target_term_id} ({scope_label}): "
-                            f"{result.blocks_cloned} block(s) cloned, {result.new_allocation_count} allocation(s) carried over, "
-                            f"{sync_result.ejected_count} stale lesson(s) ejected, "
-                            f"{sync_result.swapped_count} lesson(s) swapped in place, "
-                            f"{sum(len(v) for v in sync_result.needs_regeneration.values())} subject(s) "
-                            f"regenerated."
+                description=f"Rolled over term {source_term_id} -> {target_term_id} ({scope_label}) as drafts: "
+                            f"{result.blocks_cloned} block(s) cloned, {result.new_allocation_count} allocation(s) carried over."
                             + (f" {len(result.skipped_published_classroom_ids)} published class(es) were skipped."
                                if result.skipped_published_classroom_ids else "")
             )
 
-        timetable_warnings = []
-        if active_timetable_id and result.scoped_classroom_name:
-            timetable_warnings = get_cached_unscheduled_errors(active_timetable_id, [result.scoped_classroom_name])
-
         message = (
             f"Successfully rolled over {result.new_allocation_count} allocation(s) and "
             f"{result.blocks_cloned} subject block(s)"
-            + (f" for {result.scoped_classroom_label}." if result.scoped_classroom_label else " to the new term.")
+            + (f" for {result.scoped_classroom_label} as drafts. Review and publish them to apply them to the timetable."
+               if result.scoped_classroom_label
+               else " to the new term as drafts. Review each class and publish it to apply it to the timetable.")
         )
         if result.skipped_published_classroom_ids:
             message += (f" {len(result.skipped_published_classroom_ids)} published class(es) were skipped — "
@@ -236,9 +222,9 @@ def rollover_allocations_task(self, job_id, source_term_id, target_term_id, year
         _mark_success(job_id, {
             'message': message,
             'warnings': list(result.warnings),
-            'ejected_lesson_count': sync_result.ejected_count,
-            'swapped_lesson_count': sync_result.swapped_count,
-            'timetable_warnings': timetable_warnings,
+            'ejected_lesson_count': 0,
+            'swapped_lesson_count': 0,
+            'timetable_warnings': [],
         })
     except AllocationValidationError as e:
         _mark_failure(job_id, str(e))
@@ -250,8 +236,6 @@ def rollover_allocations_task(self, job_id, source_term_id, target_term_id, year
 
 @shared_task(bind=True)
 def bulk_auto_allocate_task(self, job_id, grade_id, term_id, year_id, explicit_class_ids, operator_id, lock_key):
-    from school.utils import get_cached_unscheduled_errors
-
     if not _acquire_lock_or_retry(self, job_id, lock_key):
         return
 
@@ -263,33 +247,17 @@ def bulk_auto_allocate_task(self, job_id, grade_id, term_id, year_id, explicit_c
                 explicit_class_ids=explicit_class_ids, operator_id=operator_id,
             )
 
-            active_timetable_id = get_active_timetable_id()
-            sync_result = sync_with_allocation_changes(
-                active_timetable_id=active_timetable_id,
-                prior_triples=result.prior_triples, new_triples=result.new_triples,
-            )
-            total_regenerated_subjects = sum(len(v) for v in sync_result.needs_regeneration.values())
-
             core_services.write_audit_log(
                 operator_id=operator_id,
                 action_type='EXECUTION',
                 module='BulkAutoAllocate',
-                description=f"Bulk auto-allocated {len(result.target_class_ids)} class(es): "
-                            f"{result.total_saved} contract(s) saved, {sync_result.ejected_count} stale lesson(s) ejected, "
-                            f"{sync_result.swapped_count} lesson(s) swapped to their new teacher in place, "
-                            f"{total_regenerated_subjects} subject(s) targeted-regenerated, "
-                            f"{len(result.classes_with_gaps)} class(es) with gaps."
+                description=f"Bulk auto-allocated {len(result.target_class_ids)} class(es) as drafts: "
+                            f"{result.total_saved} contract(s) saved, {len(result.classes_with_gaps)} class(es) with gaps."
                             + (f" {len(result.skipped_published)} published class(es) were skipped." if result.skipped_published else "")
             )
 
-            timetable_warnings = []
-            if active_timetable_id:
-                timetable_warnings = get_cached_unscheduled_errors(
-                    active_timetable_id, list(result.target_class_names)
-                )
-
         message = (f"Bulk allocation complete: {result.total_saved} contract(s) across {len(result.target_class_ids)} class(es), "
-                    f"saved as Draft. Open each class in the Matrix and hit Save Grid to publish it.")
+                    f"saved as Draft. Open a class and use Review & Publish to apply it to the timetable.")
         if result.skipped_published:
             message += (f" {len(result.skipped_published)} published class(es) were skipped — "
                         f"unpublish them first to include them.")
@@ -299,10 +267,10 @@ def bulk_auto_allocate_task(self, job_id, grade_id, term_id, year_id, explicit_c
             "per_class": list(result.per_class_summary),
             "classes_with_gaps": list(result.classes_with_gaps),
             "teachers_near_cap": list(result.teachers_near_cap),
-            "ejected_lesson_count": sync_result.ejected_count,
-            "swapped_lesson_count": sync_result.swapped_count,
-            "regenerated_subject_count": total_regenerated_subjects,
-            "timetable_warnings": timetable_warnings,
+            "ejected_lesson_count": 0,
+            "swapped_lesson_count": 0,
+            "regenerated_subject_count": 0,
+            "timetable_warnings": [],
             "skipped_published": list(result.skipped_published),
         })
     except AllocationValidationError as e:
