@@ -4,6 +4,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { useTheme } from '@mui/material/styles';
 import { useNavigate } from 'react-router-dom';
 import api from '../../libs/axiosInstance';
+import { getStudentBalanceAging } from '../../libs/financeApi';
 import { INCOME_CATEGORIES, EXPENSE_CATEGORIES, MOCK_FINANCE_BREAKDOWN } from './financeCategories';
 
 interface StudentFeeRow {
@@ -61,6 +62,9 @@ export default function FinanceHub() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>('fees');
   const [searchTerm, setSearchTerm] = useState('');
+  const [balancesByStudent, setBalancesByStudent] = useState<Record<number, number>>({});
+  const [balancesLoaded, setBalancesLoaded] = useState(false);
+  const [balancesUnavailable, setBalancesUnavailable] = useState(false);
 
   useEffect(() => {
     api.get('/api/finance-overview/')
@@ -69,6 +73,23 @@ export default function FinanceHub() {
       })
       .catch((err) => console.error("Failed to fetch finance overview", err))
       .finally(() => setLoading(false));
+
+    // Real ledger balances (finance.view). Aging lists only students owing a positive
+    // balance (credits/overpayments are not listed here), so a missing row means nothing owed. A failure (e.g. 403) is flagged so the
+    // column shows "—" instead of a misleading 0 owed.
+    getStudentBalanceAging()
+      .then((res) => {
+        const map: Record<number, number> = {};
+        for (const row of res.data as { student_id: number; balance: number }[]) {
+          map[row.student_id] = row.balance;
+        }
+        setBalancesByStudent(map);
+        setBalancesLoaded(true);
+      })
+      .catch((err) => {
+        console.error("Failed to fetch student fee balances", err);
+        setBalancesUnavailable(true);
+      });
   }, []);
 
   const filteredStudents = useMemo(() => {
@@ -251,7 +272,7 @@ export default function FinanceHub() {
                   <tr className="bg-slate-50 dark:bg-slate-800 text-slate-400 dark:text-slate-500 uppercase text-[11px] tracking-wider">
                     <th className="py-3 px-5 font-bold">Student</th>
                     <th className="py-3 px-5 font-bold">Class</th>
-                    <th className="py-3 px-5 font-bold text-right">Fee</th>
+                    <th className="py-3 px-5 font-bold text-right">Balance Owed</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
@@ -268,7 +289,7 @@ export default function FinanceHub() {
                         </div>
                       </td>
                       <td className="py-3 px-5 text-slate-500 dark:text-slate-400">{s.class_name}</td>
-                      <td className="py-3 px-5 text-right font-bold text-slate-700 dark:text-slate-200">${s.fee.toLocaleString()}</td>
+                      <td className="py-3 px-5 text-right font-bold text-slate-700 dark:text-slate-200">{balancesUnavailable || !balancesLoaded ? '—' : `KES ${(balancesByStudent[s.id] ?? 0).toLocaleString()}`}</td>
                     </tr>
                   ))}
                 </tbody>
