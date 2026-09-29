@@ -202,3 +202,28 @@ class PublishScopeTests(PublishWorldMixin, TestCase):
         self.assertTrue(preview.sync.target_is_live)
         self.lesson.refresh_from_db()
         self.assertEqual(self.lesson.teacher_id, self.teacher_a.id)
+
+    def test_publishing_an_intentionally_emptied_class_ejects_its_lessons(self):
+        self.publish()  # class starts published with a Maths lesson (teacher_b, per build_world)
+        AllocationPublishState.objects.filter(classroom=self.stream).update(is_published=False)
+        self.draft.delete()  # admin cleared the draft entirely -- no allocations left for this class
+
+        fingerprint = compute_scope_fingerprint(term_id=self.term.id, year_id=self.year.id, class_ids=[self.stream.id])
+        result = publish_scope(
+            term_id=self.term.id, year_id=self.year.id, class_ids=[self.stream.id],
+            review_fingerprint=fingerprint, acknowledge_soft=True, operator_id=self.operator.id,
+        )
+
+        self.assertTrue(self.is_published())
+        self.assertFalse(LessonAllocation.objects.filter(id=self.lesson.id).exists())
+        self.assertEqual(result.sync.ejected_count, 1)
+
+    def test_a_never_allocated_class_still_cannot_be_published(self):
+        never_allocated = ClassStream.objects.create(name='Nowhere', grade=self.grade)
+        fingerprint = compute_scope_fingerprint(term_id=self.term.id, year_id=self.year.id, class_ids=[never_allocated.id])
+        with self.assertRaises(PublishBlockedError) as ctx:
+            publish_scope(
+                term_id=self.term.id, year_id=self.year.id, class_ids=[never_allocated.id],
+                review_fingerprint=fingerprint, acknowledge_soft=True, operator_id=self.operator.id,
+            )
+        self.assertTrue(any(b.code == 'NOTHING_TO_PUBLISH' for b in ctx.exception.blockers))

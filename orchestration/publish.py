@@ -144,12 +144,24 @@ def publish_scope(
             raise StaleReviewError("This draft changed after you reviewed it. Review it again before publishing.")
 
         review = publish_gate.review_scope(term_id=term_id, year_id=year_id, class_ids=ids)
-        if review.hard_blockers:
-            raise PublishBlockedError(review.hard_blockers)
+
+        target, prior, new = _sync_inputs(term_id, year_id, ids, lock=True)
+
+        # A class with no current allocations is normally a hard NOTHING_TO_PUBLISH blocker (it was
+        # never allocated). But if it currently HAS lessons on the sync target, that combination
+        # means the admin intentionally cleared its draft -- the correct publish outcome is to eject
+        # those lessons, not to refuse forever. Only suppress the blocker for classes where that's
+        # true; a genuinely never-allocated class (no lessons either) still stays hard-blocked.
+        classes_with_target_lessons = {c_id for (c_id, _t_id, _s_id) in prior}
+        hard_blockers = tuple(
+            b for b in review.hard_blockers
+            if not (b.code == 'NOTHING_TO_PUBLISH' and b.classroom_id in classes_with_target_lessons)
+        )
+        if hard_blockers:
+            raise PublishBlockedError(hard_blockers)
         if review.soft_blockers and not acknowledge_soft:
             raise AcknowledgementRequiredError(review.soft_blockers)
 
-        target, prior, new = _sync_inputs(term_id, year_id, ids, lock=True)
         if target is None or target.is_live:
             sync = _no_sync(target)
         else:
