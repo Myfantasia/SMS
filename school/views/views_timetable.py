@@ -2491,24 +2491,19 @@ def api_update_timetable_status(request, timetable_id):
         timetable = Timetable.objects.get(id=timetable_id)
         prior_status = timetable.status
 
-        going_live = data.get('status') == 'Published' or data.get('is_active', False)
-        if going_live and timetable.academic_year_id and timetable.term_id:
-            gaps = compute_school_allocation_gaps(timetable.term_id, timetable.academic_year_id)
-            if gaps:
-                gap_summary = "; ".join(
-                    f"{g['class_name']}: {', '.join(g['missing_subjects'])}" for g in gaps[:10]
-                )
-                more = f" (+{len(gaps) - 10} more class(es))" if len(gaps) > 10 else ""
-                return JsonResponse({
-                    'status': 'error',
-                    'message': f"Timetable cannot go live — {len(gaps)} class(es) have incomplete "
-                               f"teacher allocations: {gap_summary}{more}. Finish allocating every "
-                               f"class before publishing.",
-                    'allocation_gaps': gaps,
-                }, status=400)
+        going_live = data.get('status') == 'Published'
+        if going_live:
+            return JsonResponse({
+                'status': 'error',
+                'message': "Publishing a timetable now goes through Review & Publish (POST "
+                           "/api/timetable/publish/preview/ then /api/timetable/publish/), which "
+                           "checks for conflicts, completeness and rule violations before going live. "
+                           "This endpoint still handles setting a timetable back to Draft, or "
+                           "changing which timetable is active.",
+            }, status=400)
 
-        if 'status' in data:
-            timetable.status = data.get('status')  # 'Draft' or 'Published'
+        if 'status' in data and data.get('status') != 'Published':
+            timetable.status = data.get('status')  # e.g. back to 'Draft'
 
         if data.get('is_active', False):
             # Enforce singleton operation: only ONE timetable can be globally active at a time
