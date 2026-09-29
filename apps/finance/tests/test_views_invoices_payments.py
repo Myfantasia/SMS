@@ -12,11 +12,13 @@ from apps.finance.models_fees import (
     Payment, StudentFeeAdjustment, StudentFeeLedgerEntry,
 )
 from apps.finance.serializers_fees import PaymentSerializer
-from apps.finance.services_fees import generate_invoice_for_student, record_payment
+from apps.finance.services_fees import (
+    generate_invoice_for_student, record_payment, update_fee_clearance_policy, grant_clearance_override,
+)
 from apps.finance.views import (
     InvoiceListAPIView, InvoiceDetailAPIView, PaymentListCreateAPIView, VoidInvoiceAPIView,
     VoidPaymentAPIView, StudentFeeAdjustmentCreateAPIView, StudentFeeLedgerStatementAPIView,
-    FeeClearanceStatusAPIView,
+    FeeClearanceStatusAPIView, MyFeeClearanceStatusAPIView,
 )
 
 FINANCE_CODES = ['finance.view', 'finance.edit', 'finance.record_payment', 'finance.void', 'finance.approve_adjustment']
@@ -574,6 +576,15 @@ class StudentLedgerStatementAPITests(InvoicePaymentAPITestData):
 
 
 class FeeClearanceStatusAPITests(InvoicePaymentAPITestData):
+    def setUp(self):
+        super().setUp()
+        # "Current" term/year resolution (blocked_report_card/blocked_promotion) reads the
+        # is_active flag -- AcademicYear defaults True (set explicitly in the base setUp
+        # already), but ExamTerm defaults False, so it needs activating here.
+        self.term.is_active = True
+        self.term.save(update_fields=['is_active'])
+        self.year = self.term.academic_year
+
     def clearance(self, query='', student_id=None, user=None):
         return self.call(FeeClearanceStatusAPIView, 'get', f'/x/{query}', user or self.finance_user,
                          student_id=student_id or self.student.id)
@@ -606,3 +617,93 @@ class FeeClearanceStatusAPITests(InvoicePaymentAPITestData):
         self.pay(15000 + 4000)
         response = self.clearance()
         self.assertEqual(response.data['credit_balance'], 4000)
+
+    def test_student_can_check_their_own_clearance_status(self):
+        self.assertEqual(self.clearance(user=self.student.user).status_code, 200)
+
+    def test_linked_approved_parent_can_check_clearance_status_but_unlinked_cannot(self):
+        linked = ParentExtra.objects.create(
+            user=User.objects.create_user(username='clearance_parent_linked', password='x'),
+            mobile='0700', status=True,
+        )
+        linked.students.add(self.student)
+        unlinked = ParentExtra.objects.create(
+            user=User.objects.create_user(username='clearance_parent_unlinked', password='x'),
+            mobile='0700', status=True,
+        )
+        unlinked.students.add(self.make_student(2))
+        self.assertEqual(self.clearance(user=linked.user).status_code, 200)
+        self.assertEqual(self.clearance(user=unlinked.user).status_code, 403)
+
+    def test_blocked_fields_false_when_policy_flags_are_off_regardless_of_balance(self):
+        # Base setUp already left an unpaid balance of 15000 on self.student.
+        response = self.clearance()
+        self.assertFalse(response.data['blocked_report_card'])
+        self.assertFalse(response.data['blocked_promotion'])
+
+    def test_blocked_fields_true_when_flags_on_and_no_override(self):
+        update_fee_clearance_policy(updated_by=self.finance_user, block_report_cards=True, block_promotion=True)
+        response = self.clearance()
+        self.assertTrue(response.data['blocked_report_card'])
+        self.assertTrue(response.data['blocked_promotion'])
+
+    def test_blocked_fields_false_when_flags_on_and_active_override_covers_current_term_and_year(self):
+        update_fee_clearance_policy(updated_by=self.finance_user, block_report_cards=True, block_promotion=True)
+        override_holder = self.make_user('clearance_status_override_holder', ['finance.override_clearance'])
+        grant_clearance_override(
+            student=self.student, gate='report_card', granted_by=override_holder, reason='hardship', term=self.term,
+        )
+        grant_clearance_override(
+            student=self.student, gate='promotion', granted_by=override_holder, reason='hardship', academic_year=self.year,
+        )
+        response = self.clearance()
+        self.assertFalse(response.data['blocked_report_card'])
+        self.assertFalse(response.data['blocked_promotion'])
+
+    def test_is_clear_and_credit_balance_are_unchanged_by_the_new_fields(self):
+        response = self.clearance(f'?term_id={self.term.id}')
+        self.assertFalse(response.data['is_clear'])
+        self.assertEqual(response.data['credit_balance'], 0)
+        self.assertIn('blocked_report_card', response.data)
+        self.assertIn('blocked_promotion', response.data)
+
+
+class MyFeeClearanceStatusAPITests(InvoicePaymentAPITestData):
+    """MyFeeClearanceStatusAPIView -- the self-service counterpart of
+    FeeClearanceStatusAPIView added so StudentFeeStatementPage's own-statement
+    view (no student_id to call the by-id endpoint with) can show the same
+    blocked-gate badge a parent viewing a child already gets (Task 29 follow-up)."""
+    def setUp(self):
+        super().setUp()
+        self.term.is_active = True
+        self.term.save(update_fields=['is_active'])
+
+    def my_clearance(self, user=None):
+        return self.call(MyFeeClearanceStatusAPIView, 'get', '/x/', user or self.student.user)
+
+    def test_student_can_check_their_own_clearance_status(self):
+        response = self.my_clearance()
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.data['is_clear'])
+
+    def test_a_user_with_no_student_profile_is_forbidden(self):
+        self.assertEqual(self.my_clearance(user=self.finance_user).status_code, 403)
+
+    def test_blocked_fields_true_when_flags_on_and_no_override(self):
+        update_fee_clearance_policy(updated_by=self.finance_user, block_report_cards=True, block_promotion=True)
+        response = self.my_clearance()
+        self.assertTrue(response.data['blocked_report_card'])
+        self.assertTrue(response.data['blocked_promotion'])
+
+    def test_blocked_fields_false_when_an_active_override_covers_the_current_term_and_year(self):
+        update_fee_clearance_policy(updated_by=self.finance_user, block_report_cards=True, block_promotion=True)
+        override_holder = self.make_user('my_clearance_override_holder', ['finance.override_clearance'])
+        grant_clearance_override(
+            student=self.student, gate='report_card', granted_by=override_holder, reason='hardship', term=self.term,
+        )
+        grant_clearance_override(
+            student=self.student, gate='promotion', granted_by=override_holder, reason='hardship', academic_year=self.term.academic_year,
+        )
+        response = self.my_clearance()
+        self.assertFalse(response.data['blocked_report_card'])
+        self.assertFalse(response.data['blocked_promotion'])

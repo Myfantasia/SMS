@@ -9,7 +9,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 
-from apps.academics.models import GradeLevel, ExamTerm
+from apps.academics.models import GradeLevel, ExamTerm, AcademicYear
 from apps.identity.models import ParentExtra, StudentExtra, TeacherExtra
 from apps.core.services import write_audit_log
 from apps.finance.models_fees import (
@@ -23,7 +23,7 @@ from apps.finance.serializers_fees import (
     CollectionsTrendQuerySerializer, ExamTermLookupQuerySerializer, StudentLookupQuerySerializer,
 )
 from apps.finance.services_fees import (
-    record_payment, void_invoice, void_payment, create_adjustment, is_fees_clear, get_credit_balance,
+    record_payment, void_invoice, void_payment, create_adjustment, is_fees_clear, get_credit_balance, is_gate_blocked,
 )
 from apps.finance.services_documents import render_invoice_pdf, render_receipt_pdf
 from apps.finance import services_reports
@@ -431,12 +431,69 @@ class MyFeeLedgerAPIView(APIView):
         })
 
 
-class FeeClearanceStatusAPIView(APIView):
+class MyFeeClearanceStatusAPIView(APIView):
+    """The logged-in student's own fee-clearance status -- no student_id in the
+    URL, mirroring MyFeeLedgerAPIView (Task 24). Authenticated-only: this is
+    ownership-scoped self-service, same as MyFeeLedgerAPIView. Added because
+    StudentFeeStatementPage's own-statement view (no studentId prop) had no way
+    to learn its own StudentExtra id to call the by-id FeeClearanceStatusAPIView
+    (Task 29 follow-up)."""
     authentication_classes = [SessionAuthentication]
-    permission_classes = [IsAuthenticated, HasModulePermission]
-    rbac_view_permission = 'finance.view'
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        student = getattr(request.user, 'studentextra', None)
+        if student is None:
+            return Response({"error": "This account has no student profile."}, status=status.HTTP_403_FORBIDDEN)
+        query = FeeClearanceQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        is_clear = is_fees_clear(
+            student_id=student.id, term_id=query.validated_data['term_id'],
+            grace_threshold=query.validated_data['grace_threshold'],
+        )
+        current_term = ExamTerm.objects.filter(is_active=True).first()
+        current_year = AcademicYear.objects.filter(is_active=True).first()
+        return Response({
+            "is_clear": is_clear,
+            "credit_balance": get_credit_balance(student),
+            "blocked_report_card": is_gate_blocked(
+                student_id=student.id, gate='report_card',
+                term_id=current_term.id if current_term else None,
+            ),
+            "blocked_promotion": is_gate_blocked(
+                student_id=student.id, gate='promotion',
+                academic_year_id=current_year.id if current_year else None,
+            ),
+        })
+
+
+class FeeClearanceStatusAPIView(APIView):
+    """Finance staff (finance.view), the student themself, or their linked
+    approved parent may check clearance status -- same authorization shape as
+    StudentFeeLedgerStatementAPIView (see _can_view_student_statement, which
+    already includes the finance.view branch, so no separate HasModulePermission
+    wiring is needed here).
+
+    In addition to the raw balance-vs-grace-threshold check (`is_clear`), this
+    also reports whether the student is actually gate-blocked right now
+    (`blocked_report_card`/`blocked_promotion`), via `is_gate_blocked` --
+    policy-flag- and override-aware, unlike `is_clear`. "Current" term/year are
+    resolved via each model's `is_active` flag; if none is active, `None` is
+    passed through. Note: `is_gate_blocked` never errors on `term_id=None`/
+    `academic_year_id=None` -- `is_fees_clear` doesn't filter by term_id at all
+    (see its docstring), so the block still correctly reflects the policy flag
+    and overall balance. The only effect of an unresolvable current term/year is
+    that no override can ever suppress the block in that state, because
+    `grant_clearance_override` always requires a real term (report_card) or
+    academic_year (promotion), so a stored override's term/academic_year is
+    never None and therefore never matches the None passed here."""
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request, student_id):
+        # Authorize before looking the student up so a stranger cannot probe which ids exist.
+        if not _can_view_student_statement(request.user, student_id):
+            return Response({"error": "Not authorized to view this student's fee clearance status."}, status=status.HTTP_403_FORBIDDEN)
         query = FeeClearanceQuerySerializer(data=request.query_params)
         query.is_valid(raise_exception=True)
         is_clear = is_fees_clear(
@@ -446,7 +503,20 @@ class FeeClearanceStatusAPIView(APIView):
         if is_clear is None:
             return Response({"error": "Student not found."}, status=status.HTTP_404_NOT_FOUND)
         student = StudentExtra.objects.filter(pk=student_id).first()
-        return Response({"is_clear": is_clear, "credit_balance": get_credit_balance(student)})
+        current_term = ExamTerm.objects.filter(is_active=True).first()
+        current_year = AcademicYear.objects.filter(is_active=True).first()
+        return Response({
+            "is_clear": is_clear,
+            "credit_balance": get_credit_balance(student),
+            "blocked_report_card": is_gate_blocked(
+                student_id=student_id, gate='report_card',
+                term_id=current_term.id if current_term else None,
+            ),
+            "blocked_promotion": is_gate_blocked(
+                student_id=student_id, gate='promotion',
+                academic_year_id=current_year.id if current_year else None,
+            ),
+        })
 
 
 def _pdf_download_response(request, record, student_id_of, render, filename):

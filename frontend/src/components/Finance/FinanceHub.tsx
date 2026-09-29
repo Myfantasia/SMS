@@ -1,11 +1,345 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CircleDollarSign, Banknote, Wallet, TrendingUp, TrendingDown, Search, Users, GraduationCap, PieChart, Layers, FileText, Receipt, PiggyBank } from 'lucide-react';
+import { CircleDollarSign, Banknote, Wallet, TrendingUp, TrendingDown, Search, Users, GraduationCap, PieChart, Layers, FileText, Receipt, PiggyBank, ShieldCheck, ShieldOff } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useTheme } from '@mui/material/styles';
-import { useNavigate } from 'react-router-dom';
+import {
+  Switch, TextField, Button, Dialog, DialogTitle, DialogContent, DialogActions,
+  Select, MenuItem, FormControl, InputLabel, Autocomplete, Chip, CircularProgress,
+} from '@mui/material';
+import toast from 'react-hot-toast';
+import { useNavigate, useOutletContext } from 'react-router-dom';
 import api from '../../libs/axiosInstance';
-import { getStudentBalanceAging, getFeeKpiTiles, type FeeKpiTiles } from '../../libs/financeApi';
+import {
+  getStudentBalanceAging, getFeeKpiTiles, type FeeKpiTiles,
+  getFeeClearancePolicy, updateFeeClearancePolicy, type FeeClearancePolicy,
+  listClearanceOverrides, grantClearanceOverride, revokeClearanceOverride, type ClearanceOverride,
+  searchStudents, type StudentLookupOption, listExamTermOptions, type ExamTermOption,
+} from '../../libs/financeApi';
+import type { DashboardContextType } from '../../layouts/DashboardLayouts';
 import { INCOME_CATEGORIES, EXPENSE_CATEGORIES, MOCK_FINANCE_BREAKDOWN } from './financeCategories';
+
+// Both the service-layer 400/403 shape (`{error: "..."}`) and a DRF serializer-validation
+// 400 (`{field: ["..."]}`) are real possibilities from the clearance-policy/override
+// endpoints -- same extraction helper as InvoicesPage.tsx/PaymentsPage.tsx use for their
+// void dialogs, copied here rather than shared since neither file currently exports it.
+function extractErrorMessage(err: unknown, fallback: string): string {
+  const data = (err as { response?: { data?: Record<string, unknown> } })?.response?.data;
+  if (!data) return fallback;
+  if (typeof data.error === 'string') return data.error;
+  if (typeof data.detail === 'string') return data.detail;
+  const firstKey = Object.keys(data)[0];
+  const firstValue = firstKey ? data[firstKey] : undefined;
+  if (Array.isArray(firstValue) && typeof firstValue[0] === 'string') return firstValue[0];
+  return fallback;
+}
+
+const GATE_LABELS: Record<ClearanceOverride['gate'], string> = {
+  report_card: 'Report Card', promotion: 'Promotion',
+};
+
+/** Fee-clearance policy switches + grace threshold (spec 4.9). Renders only for a
+ * finance.view holder (implied by reaching this page, but checked anyway per this
+ * codebase's double-gating convention -- see CurriculumHub.tsx's canEdit/canArchive);
+ * every control is disabled (not hidden) without finance.edit. */
+function FeeClearancePolicyCard({ permissions }: { permissions: string[] }) {
+  const canView = permissions.includes('finance.view');
+  const canEdit = permissions.includes('finance.edit');
+  const [policy, setPolicy] = useState<FeeClearancePolicy | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [graceThresholdInput, setGraceThresholdInput] = useState('0');
+
+  useEffect(() => {
+    if (!canView) {
+      setLoading(false);
+      return;
+    }
+    getFeeClearancePolicy()
+      .then((res) => {
+        setPolicy(res.data);
+        setGraceThresholdInput(String(res.data.grace_threshold));
+      })
+      .catch(() => toast.error('Failed to load the fee-clearance policy.'))
+      .finally(() => setLoading(false));
+  }, [canView]);
+
+  if (!canView) return null;
+
+  const save = async (patch: Partial<Pick<FeeClearancePolicy, 'block_report_cards' | 'block_promotion' | 'grace_threshold'>>) => {
+    setSaving(true);
+    try {
+      const res = await updateFeeClearancePolicy(patch);
+      setPolicy(res.data);
+      setGraceThresholdInput(String(res.data.grace_threshold));
+      toast.success('Fee-clearance policy updated.');
+    } catch (err) {
+      toast.error(extractErrorMessage(err, 'Failed to update the fee-clearance policy.'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm dark:shadow-none space-y-4">
+      <div className="flex items-center gap-3">
+        <div className="p-2.5 rounded-xl text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10">
+          <ShieldCheck className="w-5 h-5" strokeWidth={2.5} />
+        </div>
+        <div>
+          <h2 className="text-base font-bold text-slate-800 dark:text-slate-100">Fee Clearance Policy</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Controls whether an unpaid balance blocks report cards or promotion.</p>
+        </div>
+      </div>
+      {loading || !policy ? (
+        <div className="py-6 flex justify-center"><CircularProgress size={24} /></div>
+      ) : (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-slate-600 dark:text-slate-300">Block report cards for unpaid balances</span>
+            <Switch
+              checked={policy.block_report_cards} disabled={!canEdit || saving}
+              onChange={(e) => save({ block_report_cards: e.target.checked })}
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-slate-600 dark:text-slate-300">Block promotion for unpaid balances</span>
+            <Switch
+              checked={policy.block_promotion} disabled={!canEdit || saving}
+              onChange={(e) => save({ block_promotion: e.target.checked })}
+            />
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <span className="text-sm text-slate-600 dark:text-slate-300">Grace threshold (KES)</span>
+            <TextField
+              size="small" type="number" value={graceThresholdInput} disabled={!canEdit || saving}
+              onChange={(e) => setGraceThresholdInput(e.target.value)}
+              onBlur={() => {
+                const value = Number(graceThresholdInput);
+                if (!Number.isFinite(value) || value < 0) {
+                  toast.error('Grace threshold must be a non-negative number.');
+                  setGraceThresholdInput(String(policy.grace_threshold));
+                  return;
+                }
+                if (value !== policy.grace_threshold) save({ grace_threshold: Math.trunc(value) });
+              }}
+              sx={{ width: 140 }}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Grant/revoke fee-clearance overrides (spec 4.9). Gated on finance.override_clearance
+ * for the whole card -- listing itself only needs finance.view, but this card's purpose
+ * (granting/revoking) needs the override permission, so the card isn't worth showing to
+ * someone who could only ever see it, not use it. */
+function ClearanceOverridesCard() {
+  const [overrides, setOverrides] = useState<ClearanceOverride[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [studentQuery, setStudentQuery] = useState('');
+  const [studentOptions, setStudentOptions] = useState<StudentLookupOption[]>([]);
+  const [selectedStudent, setSelectedStudent] = useState<StudentLookupOption | null>(null);
+  const [gate, setGate] = useState<ClearanceOverride['gate']>('report_card');
+  const [terms, setTerms] = useState<ExamTermOption[]>([]);
+  const [selectedTermId, setSelectedTermId] = useState<number | ''>('');
+  // No academic-year lookup exists in financeApi.ts (only grade/term lookups from Task
+  // 21a) -- a plain numeric id field is the minimal fallback the brief allows for this case.
+  const [academicYearId, setAcademicYearId] = useState('');
+  const [reason, setReason] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [revokeTarget, setRevokeTarget] = useState<ClearanceOverride | null>(null);
+  const [revokeReason, setRevokeReason] = useState('');
+  const [revoking, setRevoking] = useState(false);
+
+  const load = () => {
+    listClearanceOverrides()
+      .then((res) => setOverrides(res.data.filter((o) => !o.revoked_at)))
+      .catch(() => toast.error('Failed to load clearance overrides.'))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    load();
+    listExamTermOptions().then((res) => setTerms(res.data)).catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const q = studentQuery.trim();
+    if (q.length < 2) {
+      setStudentOptions([]);
+      return;
+    }
+    const handle = setTimeout(() => {
+      searchStudents(q).then((res) => setStudentOptions(res.data)).catch(() => undefined);
+    }, 300);
+    return () => clearTimeout(handle);
+  }, [studentQuery]);
+
+  const resetForm = () => {
+    setSelectedStudent(null);
+    setStudentQuery('');
+    setGate('report_card');
+    setSelectedTermId('');
+    setAcademicYearId('');
+    setReason('');
+  };
+
+  const handleGrant = async () => {
+    if (!selectedStudent) {
+      toast.error('Select a student.');
+      return;
+    }
+    if (!reason.trim()) {
+      toast.error('A reason is required.');
+      return;
+    }
+    if (gate === 'report_card' && !selectedTermId) {
+      toast.error('Select a term for a report-card override.');
+      return;
+    }
+    if (gate === 'promotion' && !academicYearId.trim()) {
+      toast.error('Enter an academic year id for a promotion override.');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await grantClearanceOverride({
+        student: selectedStudent.id,
+        gate,
+        reason: reason.trim(),
+        term: gate === 'report_card' ? Number(selectedTermId) : undefined,
+        academic_year: gate === 'promotion' ? Number(academicYearId) : undefined,
+      });
+      toast.success('Override granted.');
+      resetForm();
+      load();
+    } catch (err) {
+      toast.error(extractErrorMessage(err, 'Failed to grant the override.'));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleRevoke = async () => {
+    if (!revokeTarget) return;
+    if (!revokeReason.trim()) {
+      toast.error('A revoke reason is required.');
+      return;
+    }
+    setRevoking(true);
+    try {
+      await revokeClearanceOverride(revokeTarget.id, revokeReason.trim());
+      toast.success('Override revoked.');
+      setRevokeTarget(null);
+      setRevokeReason('');
+      load();
+    } catch (err) {
+      toast.error(extractErrorMessage(err, 'Failed to revoke the override.'));
+    } finally {
+      setRevoking(false);
+    }
+  };
+
+  return (
+    <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm dark:shadow-none space-y-4">
+      <div className="flex items-center gap-3">
+        <div className="p-2.5 rounded-xl text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10">
+          <ShieldOff className="w-5 h-5" strokeWidth={2.5} />
+        </div>
+        <div>
+          <h2 className="text-base font-bold text-slate-800 dark:text-slate-100">Fee Clearance Overrides</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Let one student through a blocked gate despite an unpaid balance.</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <Autocomplete
+          size="small"
+          options={studentOptions}
+          getOptionLabel={(o) => `${o.name} (${o.roll})`}
+          value={selectedStudent}
+          onChange={(_, value) => setSelectedStudent(value)}
+          inputValue={studentQuery}
+          onInputChange={(_, value) => setStudentQuery(value)}
+          renderInput={(params) => <TextField {...params} label="Student" placeholder="Search by name or roll" />}
+        />
+        <FormControl size="small">
+          <InputLabel id="clearance-gate-label">Gate</InputLabel>
+          <Select
+            labelId="clearance-gate-label" label="Gate" value={gate}
+            onChange={(e) => setGate(e.target.value as ClearanceOverride['gate'])}
+          >
+            <MenuItem value="report_card">Report Card</MenuItem>
+            <MenuItem value="promotion">Promotion</MenuItem>
+          </Select>
+        </FormControl>
+        {gate === 'report_card' ? (
+          <FormControl size="small">
+            <InputLabel id="clearance-term-label">Term</InputLabel>
+            <Select
+              labelId="clearance-term-label" label="Term" value={selectedTermId}
+              onChange={(e) => setSelectedTermId(e.target.value as number)}
+            >
+              {terms.map((t) => <MenuItem key={t.id} value={t.id}>{t.name}</MenuItem>)}
+            </Select>
+          </FormControl>
+        ) : (
+          <TextField
+            size="small" type="number" label="Academic year id" value={academicYearId}
+            onChange={(e) => setAcademicYearId(e.target.value)}
+            helperText="No academic-year lookup exists yet — enter the id directly."
+          />
+        )}
+        <TextField
+          size="small" label="Reason (required)" value={reason}
+          onChange={(e) => setReason(e.target.value)}
+        />
+      </div>
+      <Button variant="contained" onClick={handleGrant} disabled={submitting}>
+        {submitting ? 'Granting...' : 'Grant Override'}
+      </Button>
+
+      <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+        {loading ? (
+          <div className="py-4 flex justify-center"><CircularProgress size={20} /></div>
+        ) : overrides.length === 0 ? (
+          <p className="text-sm text-slate-400 dark:text-slate-500 py-2">No active overrides.</p>
+        ) : (
+          <div className="space-y-2 mt-2">
+            {overrides.map((o) => (
+              <div key={o.id} className="flex items-center justify-between gap-3 text-sm py-1.5">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Chip label={GATE_LABELS[o.gate]} size="small" />
+                  <span className="text-slate-600 dark:text-slate-300 truncate">Student #{o.student} — {o.reason}</span>
+                </div>
+                <Button size="small" color="error" onClick={() => setRevokeTarget(o)}>Revoke</Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <Dialog open={!!revokeTarget} onClose={() => (!revoking && setRevokeTarget(null))}>
+        <DialogTitle>Revoke override</DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth multiline minRows={2} label="Reason (required)" value={revokeReason}
+            onChange={(e) => setRevokeReason(e.target.value)} autoFocus
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setRevokeTarget(null)} disabled={revoking}>Cancel</Button>
+          <Button color="error" variant="contained" onClick={handleRevoke} disabled={revoking}>
+            {revoking ? 'Revoking...' : 'Confirm Revoke'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </div>
+  );
+}
 
 interface StudentFeeRow {
   id: number;
@@ -55,6 +389,7 @@ function BreakdownChart({ categories, amounts, color }: { categories: typeof INC
 
 export default function FinanceHub() {
   const navigate = useNavigate();
+  const { permissions } = useOutletContext<DashboardContextType>();
   // Role-appropriate base path — this component is mounted under both
   // /admin-dashboard and /staff-dashboard (Finance Officers use the latter).
   const basePath = '/' + (window.location.pathname.split('/')[1] || 'admin-dashboard');
@@ -245,6 +580,13 @@ export default function FinanceHub() {
               Credit Owed to Students: KES {kpiTiles.total_credit.toLocaleString()}
             </div>
           )}
+        </div>
+      )}
+
+      {activeTab === 'fees' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <FeeClearancePolicyCard permissions={permissions} />
+          {permissions.includes('finance.override_clearance') && <ClearanceOverridesCard />}
         </div>
       )}
 

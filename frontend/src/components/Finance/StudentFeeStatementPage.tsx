@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, Table, TableHead, TableRow, TableCell, TableBody, Chip, CircularProgress } from '@mui/material';
-import { Wallet } from 'lucide-react';
+import { Wallet, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../libs/axiosInstance';
-import { getMyFeeLedger, getStudentLedger } from '../../libs/financeApi';
+import { getMyFeeLedger, getStudentLedger, getFeeClearanceStatus, getMyFeeClearanceStatus } from '../../libs/financeApi';
 import type { LedgerEntry } from '../../libs/financeApi';
 
 const ENTRY_TYPE_COLOR: Record<LedgerEntry['entry_type'], 'default' | 'success' | 'warning'> = {
@@ -26,6 +26,8 @@ export default function StudentFeeStatementPage({ studentId }: Props) {
   const [creditBalance, setCreditBalance] = useState(0);
   const [entries, setEntries] = useState<LedgerEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [blockedReportCard, setBlockedReportCard] = useState(false);
+  const [blockedPromotion, setBlockedPromotion] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -38,6 +40,16 @@ export default function StudentFeeStatementPage({ studentId }: Props) {
       })
       .catch(() => toast.error('Failed to load the fee statement.'))
       .finally(() => setLoading(false));
+
+    // Supplementary, not blocking: fail silent on error so a clearance-status hiccup
+    // never breaks the page's main balance/ledger display.
+    const clearanceRequest = studentId ? getFeeClearanceStatus(studentId) : getMyFeeClearanceStatus();
+    clearanceRequest
+      .then((res) => {
+        setBlockedReportCard(!!res.data.blocked_report_card);
+        setBlockedPromotion(!!res.data.blocked_promotion);
+      })
+      .catch(() => undefined);
   }, [studentId]);
 
   if (loading) {
@@ -59,6 +71,23 @@ export default function StudentFeeStatementPage({ studentId }: Props) {
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Your fee ledger and current balance.</p>
         </div>
       </div>
+
+      {(blockedReportCard || blockedPromotion) && (
+        <div className="flex flex-col gap-2">
+          {blockedReportCard && (
+            <div className="flex items-center gap-3 rounded-2xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-4 py-3 text-amber-800 dark:text-amber-300">
+              <AlertTriangle className="w-5 h-5 shrink-0" />
+              <span className="text-sm font-medium">Your report card is being withheld until your fee balance is cleared.</span>
+            </div>
+          )}
+          {blockedPromotion && (
+            <div className="flex items-center gap-3 rounded-2xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-4 py-3 text-amber-800 dark:text-amber-300">
+              <AlertTriangle className="w-5 h-5 shrink-0" />
+              <span className="text-sm font-medium">Your promotion is on hold until your fee balance is cleared.</span>
+            </div>
+          )}
+        </div>
+      )}
 
       <Card>
         <CardContent>

@@ -193,10 +193,57 @@ export const getMyFeeLedger = (params?: { limit?: number; offset?: number }) =>
     '/api/finance/students/me/ledger/', { params },
   );
 export const getFeeClearanceStatus = (studentId: number, termId?: number, graceThreshold?: number) =>
-  api.get<{ is_clear: boolean | null; credit_balance: number }>(
+  api.get<{ is_clear: boolean | null; credit_balance: number; blocked_report_card: boolean; blocked_promotion: boolean }>(
     `/api/finance/students/${studentId}/fee-clearance/`,
     { params: { term_id: termId, grace_threshold: graceThreshold } },
   );
+// The logged-in student's own clearance status, resolved server-side by
+// MyFeeClearanceStatusAPIView (Task 29 follow-up) -- same response shape as
+// getFeeClearanceStatus, no id needed. Lets the own-statement view (no studentId
+// prop) show the same blocked-gate badge a parent viewing a child already gets.
+export const getMyFeeClearanceStatus = (termId?: number, graceThreshold?: number) =>
+  api.get<{ is_clear: boolean | null; credit_balance: number; blocked_report_card: boolean; blocked_promotion: boolean }>(
+    '/api/finance/students/me/fee-clearance/',
+    { params: { term_id: termId, grace_threshold: graceThreshold } },
+  );
+
+// --- Fee-clearance policy + overrides (Task 28/29, spec 4.9) ---------------------------
+
+export interface FeeClearancePolicy {
+  block_report_cards: boolean;
+  block_promotion: boolean;
+  grace_threshold: number;
+  updated_at: string;
+  updated_by: number | null;
+}
+
+export const getFeeClearancePolicy = () =>
+  api.get<FeeClearancePolicy>('/api/finance/fee-clearance-policy/');
+export const updateFeeClearancePolicy = (patch: {
+  block_report_cards?: boolean; block_promotion?: boolean; grace_threshold?: number;
+}) => api.patch<FeeClearancePolicy>('/api/finance/fee-clearance-policy/', patch);
+
+export interface ClearanceOverride {
+  id: number;
+  student: number;
+  gate: 'report_card' | 'promotion';
+  term: number | null;
+  academic_year: number | null;
+  reason: string;
+  granted_by: number;
+  created_at: string;
+  revoked_at: string | null;
+  revoked_by: number | null;
+  revoke_reason: string;
+}
+
+export const listClearanceOverrides = (params?: { student_id?: number; gate?: ClearanceOverride['gate'] }) =>
+  api.get<ClearanceOverride[]>('/api/finance/clearance-overrides/', { params });
+export const grantClearanceOverride = (data: {
+  student: number; gate: ClearanceOverride['gate']; term?: number; academic_year?: number; reason: string;
+}) => api.post<ClearanceOverride>('/api/finance/clearance-overrides/', data);
+export const revokeClearanceOverride = (overrideId: number, reason: string) =>
+  api.post<ClearanceOverride>(`/api/finance/clearance-overrides/${overrideId}/revoke/`, { reason });
 
 // --- Documents ---------------------------------------------------------------------------
 // Used as direct <a href>/window.open targets, not fetched via axios — the endpoints
