@@ -119,6 +119,7 @@ const menuItems: { title: string; items: MenuItemDef[] }[] = [
       
       // Sensitive Data
       { icon: CircleDollarSign, label: "Fees & Salary", href: "/admin-dashboard/finance", visible: ["admin"] },
+      { icon: CircleDollarSign, label: "My Fees", href: "/admin-dashboard/fees", visible: ["student", "parent"] },
     ],
   },
   {

@@ -403,6 +403,31 @@ class StudentFeeLedgerStatementAPIView(APIView):
         })
 
 
+class MyFeeLedgerAPIView(APIView):
+    """The logged-in student's own fee ledger, resolved server-side -- no
+    student_id in the URL, mirroring studentAssignmentService.ts's
+    /api/assignments/student/board/ convention (Task 24). Authenticated-only:
+    no finance.* permission is required, since this is ownership-scoped
+    self-service access, matching _can_view_student_statement's `is_self`
+    branch above and InvoicePDFAPIView/ReceiptPDFAPIView's precedent."""
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        student = getattr(request.user, 'studentextra', None)
+        if student is None:
+            return Response({"error": "This account has no student profile."}, status=status.HTTP_403_FORBIDDEN)
+        page = PageQuerySerializer(data=request.query_params)
+        page.is_valid(raise_exception=True)
+        entries = StudentFeeLedgerEntry.objects.filter(student=student).order_by('-id')
+        latest_balance = entries.values_list('running_balance', flat=True).first()
+        return Response({
+            "balance": latest_balance or 0,
+            "credit_balance": get_credit_balance(student),
+            "entries": StudentFeeLedgerEntrySerializer(page.slice(entries), many=True).data,
+        })
+
+
 class FeeClearanceStatusAPIView(APIView):
     authentication_classes = [SessionAuthentication]
     permission_classes = [IsAuthenticated, HasModulePermission]

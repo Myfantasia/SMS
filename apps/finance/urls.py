@@ -12,7 +12,7 @@ from apps.finance.views import (
     FeeCategoryListCreateAPIView, FeeStructureListCreateAPIView,
     FeeStructureDetailAPIView, StudentFeeItemEnrollmentSetAPIView,
     InvoiceListAPIView, InvoiceDetailAPIView, PaymentListCreateAPIView, VoidInvoiceAPIView, VoidPaymentAPIView,
-    StudentFeeAdjustmentCreateAPIView, StudentFeeLedgerStatementAPIView, FeeClearanceStatusAPIView, InvoicePDFAPIView, ReceiptPDFAPIView,
+    StudentFeeAdjustmentCreateAPIView, StudentFeeLedgerStatementAPIView, MyFeeLedgerAPIView, FeeClearanceStatusAPIView, InvoicePDFAPIView, ReceiptPDFAPIView,
     FeeKPITilesAPIView, CollectionsTrendAPIView, FeeCategoryBreakdownAPIView, StudentBalanceAgingAPIView,
     GradeLevelLookupAPIView, ExamTermLookupAPIView, StudentLookupAPIView,
 )
@@ -38,6 +38,7 @@ urlpatterns += [
     path('api/finance/payments/', PaymentListCreateAPIView.as_view(), name='api_payments'),
     path('api/finance/payments/<int:payment_id>/void/', VoidPaymentAPIView.as_view(), name='api_void_payment'),
     path('api/finance/adjustments/', StudentFeeAdjustmentCreateAPIView.as_view(), name='api_fee_adjustments'),
+    path('api/finance/students/me/ledger/', MyFeeLedgerAPIView.as_view(), name='api_my_fee_ledger'),
     path('api/finance/students/<int:student_id>/ledger/', StudentFeeLedgerStatementAPIView.as_view(), name='api_student_fee_ledger'),
     path('api/finance/students/<int:student_id>/fee-clearance/', FeeClearanceStatusAPIView.as_view(), name='api_fee_clearance_status'),
     path('api/finance/reports/kpi-tiles/', FeeKPITilesAPIView.as_view(), name='api_fee_kpi_tiles'),

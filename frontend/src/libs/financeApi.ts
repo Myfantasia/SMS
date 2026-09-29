@@ -186,6 +186,12 @@ export const getStudentLedger = (studentId: number, params?: { limit?: number; o
   api.get<{ balance: number; credit_balance: number; entries: LedgerEntry[] }>(
     `/api/finance/students/${studentId}/ledger/`, { params },
   );
+// The logged-in student's own ledger, resolved server-side by MyFeeLedgerAPIView (Task 24) --
+// same response shape as getStudentLedger, no id needed.
+export const getMyFeeLedger = (params?: { limit?: number; offset?: number }) =>
+  api.get<{ balance: number; credit_balance: number; entries: LedgerEntry[] }>(
+    '/api/finance/students/me/ledger/', { params },
+  );
 export const getFeeClearanceStatus = (studentId: number, termId?: number, graceThreshold?: number) =>
   api.get<{ is_clear: boolean | null }>(
     `/api/finance/students/${studentId}/fee-clearance/`,

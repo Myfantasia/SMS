@@ -83,6 +83,7 @@ import FinanceHub from './components/Finance/FinanceHub';
 import FeeStructuresPage from './components/Finance/FeeStructuresPage';
 import InvoicesPage from './components/Finance/InvoicesPage';
 import PaymentsPage from './components/Finance/PaymentsPage';
+import StudentFeeStatementPage, { ParentFeeStatementPage } from './components/Finance/StudentFeeStatementPage';
 import ContentHub from './components/content/ContentHub';
 import Trash from './pages/admin/Trash';
 
@@ -302,6 +303,7 @@ export default function App() {
             <Route path="events" element={<EventsHub role="student" />} />
             <Route path="notices" element={<NoticesHub role="student" />} />
             <Route path="tasks" element={<StudentTasks />} />
+            <Route path="fees" element={<StudentFeeStatementPage />} />
 
             <Route path="assignments" element={<StudentAssignments />} />
             <Route path="assignments/:id/take" element={<AssignmentTaker />} />
@@ -323,6 +325,7 @@ export default function App() {
 
             <Route path="assignments" element={<ParentAssignments />} />
             <Route path="assignments/:id/review" element={<AssignmentReview role="parent" />} />
+            <Route path="fees" element={<ParentFeeStatementPage />} />
           </Route>
 
           {/* STAFF ROUTE GROUP — non-teaching staff (librarian, finance officer, secretary,
