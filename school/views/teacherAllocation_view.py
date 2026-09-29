@@ -18,6 +18,7 @@ from apps.identity.models import (
 )
 from apps.attendance.models import AttendanceSession
 from apps.timetable.models import LessonAllocation, Timetable
+from apps.timetable.services import get_sync_target
 from school.utils import build_grade_subject_block_map, get_subject_block_names, is_tech_subject, \
     AllocationValidator, reserve_class_teacher_slot, fill_remaining_subjects, get_cached_unscheduled_errors, \
     get_subjects_with_active_virtual_groups, get_published_classroom_ids, unpublish_allocation
@@ -350,9 +351,10 @@ class UnpublishAllocationAPIView(APIView):
     """
     Re-opens published allocation(s) for editing — scoped to one class, a whole grade
     (streams + elective groups together), or every published class in the term, mirroring
-    ClearAllocationsAPIView's class/grade/school scope choice. Publishing is automatic (see
-    AllocationMatrixAPIView.post) — this is the one explicit, deliberate action required to
-    undo it, so a finalized schedule can't be nudged back into "editable" by accident.
+    ClearAllocationsAPIView's class/grade/school scope choice. Publishing itself is an explicit,
+    admin-gated action (Review & Publish; see orchestration/publish.py) — this is the other
+    explicit, deliberate action, required to undo it, so a finalized schedule can't be nudged
+    back into "editable" by accident.
     """
     authentication_classes = [SessionAuthentication]
     permission_classes = [IsAuthenticated, HasModulePermission]
@@ -412,10 +414,11 @@ class RolloverAllocationsAPIView(APIView):
     class in the term — mirrors the Timetable's "just this stream vs. the whole school" choice,
     so a single class's assignments can be re-rolled without touching everyone else's.
 
-    Also ejects any now-orphaned LessonAllocation rows on the active timetable for contracts
-    that existed before the rollover but didn't survive it (teacher/subject pair dropped) — the
-    same ghost-contract cleanup every other allocation-saving path (Matrix save, Bulk Allocate)
-    already does, which this endpoint was previously missing.
+    Leaves every copied class as a DRAFT and does not touch the timetable at all -- it only
+    saves SubjectAllocation rows for the class(es) to review. Ejecting now-orphaned
+    LessonAllocation rows for contracts that didn't survive the rollover (teacher/subject pair
+    dropped) happens only when the resulting draft is later published via Review & Publish
+    (see orchestration/publish.py), same as a Matrix save or Bulk Allocate.
     """
     authentication_classes = [SessionAuthentication]
     permission_classes = [IsAuthenticated, HasModulePermission]
@@ -451,9 +454,10 @@ class RolloverAllocationsAPIView(APIView):
         lock_key = f"rollover_lock_term_{target_term_id}"
         operator = request.user if request.user.is_authenticated else None
 
-        # The actual clone/validate/timetable-sync work (potentially whole-school in scope)
-        # runs in a Celery worker — see orchestration/tasks.py:rollover_allocations_task. This view
-        # only validates fast enough to keep an instant response, then hands off.
+        # The actual clone/validate work (potentially whole-school in scope, draft-only -- no
+        # timetable sync here) runs in a Celery worker — see
+        # orchestration/tasks.py:rollover_allocations_task. This view only validates fast enough
+        # to keep an instant response, then hands off.
         job, error_response = dispatch_background_job(
             job_type='rollover_allocations',
             task=rollover_allocations_task,
@@ -675,7 +679,11 @@ class ClearAllocationsAPIView(APIView):
 
     Also ejects the matching LessonAllocation rows on the active timetable for whatever scope
     was cleared — deleting a class's contracts but leaving its timetable lessons pointing at
-    now-nonexistent teacher assignments would be a ghost-contract regression.
+    now-nonexistent teacher assignments would be a ghost-contract regression. Skipped entirely
+    when the active timetable is live (Published): no code path may write to a Published
+    timetable outside the Review & Publish gate, so the SubjectAllocation rows are still
+    cleared (that's the draft, always safe to clear) but the live timetable's lessons are left
+    untouched.
     """
     authentication_classes = [SessionAuthentication]
     permission_classes = [IsAuthenticated, HasModulePermission]
@@ -693,9 +701,12 @@ class ClearAllocationsAPIView(APIView):
         try:
             with transaction.atomic():
                 query = SubjectAllocation.objects.filter(term_id=term_id, academic_year_id=year_id)
-                active_timetable = Timetable.objects.filter(
-                    is_active=True, term_id=term_id, academic_year_id=year_id
-                ).first()
+                # Resolved once per request (not per scope/class below): no code path may write
+                # lesson rows on a Published (live) timetable -- that invariant is enforced here
+                # by simply not resolving a target to eject from when the active timetable is live.
+                sync_target = get_sync_target(term_id=term_id, year_id=year_id)
+                timetable_is_live = bool(sync_target and sync_target.is_live)
+                active_timetable_id = sync_target.timetable_id if (sync_target and not timetable_is_live) else None
                 ejected_count = 0
 
                 if class_id:
@@ -708,8 +719,8 @@ class ClearAllocationsAPIView(APIView):
                         )
                     query = query.filter(classroom_id=class_id)
                     deleted_count, _ = query.delete()
-                    if active_timetable:
-                        stale = LessonAllocation.objects.filter(timetable=active_timetable, class_stream_id=class_id)
+                    if active_timetable_id:
+                        stale = LessonAllocation.objects.filter(timetable_id=active_timetable_id, class_stream_id=class_id)
                         ejected_count = stale.count()
                         stale.delete()
                     label = f"{classroom.grade.name} {classroom.name}"
@@ -732,9 +743,9 @@ class ClearAllocationsAPIView(APIView):
                     if published_ids:
                         query = query.exclude(classroom_id__in=published_ids)
                     deleted_count, _ = query.delete()
-                    if active_timetable:
+                    if active_timetable_id:
                         stale = LessonAllocation.objects.filter(
-                            timetable=active_timetable, class_stream_id__in=grade_classroom_ids
+                            timetable_id=active_timetable_id, class_stream_id__in=grade_classroom_ids
                         )
                         if published_ids:
                             stale = stale.exclude(class_stream_id__in=published_ids)
@@ -752,8 +763,8 @@ class ClearAllocationsAPIView(APIView):
                     if published_ids:
                         query = query.exclude(classroom_id__in=published_ids)
                     deleted_count, _ = query.delete()
-                    if active_timetable:
-                        stale = LessonAllocation.objects.filter(timetable=active_timetable)
+                    if active_timetable_id:
+                        stale = LessonAllocation.objects.filter(timetable_id=active_timetable_id)
                         if published_ids:
                             stale = stale.exclude(class_stream_id__in=published_ids)
                         ejected_count = stale.count()
@@ -764,6 +775,8 @@ class ClearAllocationsAPIView(APIView):
 
                 if ejected_count:
                     msg += f" {ejected_count} stale timetable lesson(s) ejected."
+                elif timetable_is_live:
+                    msg += " Timetable lessons were not touched because the active timetable is live (Published)."
 
                 write_audit_log(
                     operator_id=request.user.id if request.user.is_authenticated else None,

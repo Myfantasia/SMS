@@ -68,6 +68,8 @@ def get_timetable_name(*, timetable_id: int) -> Optional[str]:
     return t.name if t else None
 
 
+# Unused, kept for now -- no remaining callers since rollover/bulk-allocate stopped resolving
+# the active timetable inline (see get_sync_target / lock_sync_target below instead).
 def get_active_timetable_id(*, term_id: Optional[int] = None, year_id: Optional[int] = None) -> Optional[int]:
     qs = Timetable.objects.filter(is_active=True)
     if term_id is not None:
@@ -83,10 +85,13 @@ def sync_with_allocation_changes(
 ) -> TimetableSyncResultDTO:
     """Wraps school/views/views_timetable.py's
     sync_timetable_with_allocation_changes. Called ONLY from
-    orchestration/tasks.py (the composition-root layer) -- never directly
-    by apps.allocations, per the plan's dependency-cycle analysis. Must run
-    inside the caller's own transaction.atomic() block, exactly as today,
-    since a mid-run crash must roll back to the pre-run state.
+    orchestration/publish.py (the composition-root layer for publishing) --
+    never directly by apps.allocations, per the plan's dependency-cycle
+    analysis. Draft-only actions (Save Grid, rollover, bulk auto-allocate)
+    no longer call this at all; syncing and publishing now happen only via
+    an explicit Review & Publish. Must run inside the caller's own
+    transaction.atomic() block, exactly as today, since a mid-run crash must
+    roll back to the pre-run state.
     """
     from school.views.views_timetable import sync_timetable_with_allocation_changes as _sync
 

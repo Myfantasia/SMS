@@ -87,6 +87,48 @@ class ResolvePublishScopeTests(PublishGateFixtureMixin, TestCase):
             resolve_publish_scope(**self.kwargs('everything'))
 
 
+class SoftDeletedClassExcludedFromSweepTests(PublishGateFixtureMixin, TestCase):
+    """A soft delete doesn't touch a class's SubjectAllocation rows, so without excluding
+    classroom__is_deleted=True from _active_allocations, a soft-deleted class with lingering
+    active allocations would get swept into a grade-/school-wide publish scope and the
+    timetable sync would then write real lessons for a class that shouldn't exist any more."""
+    def setUp(self):
+        self.build_world()
+        self.allocate(self.a, self.maths, self.teacher)
+        self.allocate(self.b, self.maths, self.teacher_two)
+        self.a.soft_delete()
+
+    def test_soft_deleted_class_is_not_swept_into_a_grade_publish(self):
+        class_ids = resolve_publish_scope(
+            term_id=self.term.id, year_id=self.year.id, scope=SCOPE_GRADE,
+            class_id=self.b.id, grade_id=self.grade.id,
+        )
+        self.assertNotIn(self.a.id, class_ids)
+        self.assertIn(self.b.id, class_ids)
+
+    def test_soft_deleted_class_is_not_swept_into_an_all_scope_publish(self):
+        class_ids = resolve_publish_scope(
+            term_id=self.term.id, year_id=self.year.id, scope=SCOPE_ALL, class_id=self.b.id,
+        )
+        self.assertNotIn(self.a.id, class_ids)
+
+    def test_explicit_class_scope_still_includes_the_soft_deleted_class_id(self):
+        # resolve_publish_scope explicitly adds the class the admin is looking at to the result
+        # regardless (see its docstring) -- only the automatic sweep excludes soft-deleted
+        # classes, so directly asking for this one by id still returns it.
+        class_ids = resolve_publish_scope(
+            term_id=self.term.id, year_id=self.year.id, scope=SCOPE_CLASS, class_id=self.a.id,
+        )
+        self.assertEqual(class_ids, (self.a.id,))
+
+    def test_get_scope_triples_for_the_soft_deleted_class_id_still_works(self):
+        # Explicit inclusion (the caller passing this exact class_id) still runs cleanly -- it
+        # just finds nothing to carry over, since the class's own allocations no longer count as
+        # "active" for sync purposes once its class is gone. Nothing crashes either way.
+        triples = get_scope_triples(term_id=self.term.id, year_id=self.year.id, class_ids=[self.a.id])
+        self.assertEqual(triples, frozenset())
+
+
 class FingerprintTests(PublishGateFixtureMixin, TestCase):
     def setUp(self):
         self.build_world()

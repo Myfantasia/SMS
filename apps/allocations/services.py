@@ -57,9 +57,12 @@ class AllocationDTO:
 
 @dataclass(frozen=True)
 class RolloverResultDTO:
-    """Consumed by orchestration/tasks.py's rollover_allocations_task -- pairs
-    with apps.timetable.services.sync_with_allocation_changes's
-    TimetableSyncResultDTO, per the plan's allocations<->timetable design."""
+    """Consumed by orchestration/tasks.py's rollover_allocations_task. Carries
+    prior_triples/new_triples for parity with
+    apps.timetable.services.sync_with_allocation_changes's TimetableSyncResultDTO
+    shape, but the task itself no longer feeds them into a sync -- rollover is
+    draft-only; the timetable is only ever touched later, per class, via an
+    explicit Review & Publish (see orchestration/publish.py)."""
     blocks_cloned: int
     prior_triples: frozenset
     new_triples: frozenset
@@ -73,9 +76,12 @@ class RolloverResultDTO:
 
 @dataclass(frozen=True)
 class BulkAutoAllocateResultDTO:
-    """Consumed by orchestration/tasks.py's bulk_auto_allocate_task -- pairs
-    with apps.timetable.services.sync_with_allocation_changes's
-    TimetableSyncResultDTO, same as RolloverResultDTO above."""
+    """Consumed by orchestration/tasks.py's bulk_auto_allocate_task -- same
+    prior_triples/new_triples parity with
+    apps.timetable.services.sync_with_allocation_changes's TimetableSyncResultDTO
+    as RolloverResultDTO above, and the same caveat: bulk auto-allocate is
+    draft-only, so nothing here gets synced to the timetable until an explicit
+    Review & Publish."""
     total_saved: int
     target_class_ids: tuple
     target_class_names: tuple
@@ -234,12 +240,10 @@ def rollover_allocations(
     and carries SubjectAllocation rows forward from the source term/year to
     the target term/year, publishing each affected classroom.
 
-    Deliberately does NOT touch the timetable: the caller
-    (orchestration/tasks.py) is responsible for feeding this result's
-    prior_triples/new_triples into
-    apps.timetable.services.sync_with_allocation_changes, in the same
-    transaction.atomic() block, per the plan's allocations<->timetable
-    composition-root design -- this function must never import
+    Deliberately does NOT touch the timetable: every copied class is left as a DRAFT, and this
+    result's prior_triples/new_triples are only ever consumed later, per class, by an explicit
+    Review & Publish (orchestration/publish.py) -- not by the caller (orchestration/tasks.py)
+    itself, which no longer syncs anything inline. This function must never import
     apps.timetable.services itself (see this module's docstring).
 
     Raises AllocationValidationError on a hard policy violation (e.g. the
@@ -361,12 +365,15 @@ def bulk_auto_allocate(
     orchestration/tasks.py composition-root extraction). Auto-drafts
     teacher-subject-class contracts for every class in scope, leaving each
     class in DRAFT (never auto-published -- an admin reviews/adjusts in the
-    Matrix and publishes explicitly via Save Grid, same as the manual
+    Matrix and publishes explicitly via Review & Publish, same as the manual
     single-class flow).
 
     Deliberately does NOT touch the timetable, same reasoning as
-    rollover_allocations above -- returns prior_triples/new_triples for the
-    caller to feed into apps.timetable.services.sync_with_allocation_changes.
+    rollover_allocations above -- returns prior_triples/new_triples that only
+    get consumed later, per class, by an explicit Review & Publish
+    (orchestration/publish.py's use of
+    apps.timetable.services.sync_with_allocation_changes), not by this
+    task inline.
 
     Raises AllocationValidationError if the scope resolves to zero classes,
     or every class in scope is already published -- the caller should catch

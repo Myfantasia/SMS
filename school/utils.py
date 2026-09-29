@@ -150,6 +150,9 @@ def get_published_classroom_ids(classroom_ids, term_id, year_id):
     ).values_list('classroom_id', flat=True))
 
 
+# Dead/unused -- superseded by apps.allocations.services.publish_allocation (called from
+# orchestration/publish.py). Nothing in the codebase calls this one any more. Left in place for
+# now; a later cleanup task can remove it safely.
 def publish_allocation(classroom_id, term_id, year_id, user):
     """
     Marks one class's allocation as published for this term/year — called right after any

@@ -47,7 +47,13 @@ class ScopeReviewDTO:
 
 
 def _active_allocations(term_id: int, year_id: int):
-    return SubjectAllocation.objects.filter(term_id=term_id, academic_year_id=year_id, is_active=True)
+    # classroom__is_deleted=False: a soft-deleted class's SubjectAllocation rows are untouched by
+    # the soft delete itself, so without this filter a soft-deleted class with lingering active
+    # allocations gets swept into a grade-/school-wide publish scope and the timetable sync then
+    # writes real lessons for a class that shouldn't exist any more.
+    return SubjectAllocation.objects.filter(
+        term_id=term_id, academic_year_id=year_id, is_active=True, classroom__is_deleted=False,
+    )
 
 
 def resolve_publish_scope(
