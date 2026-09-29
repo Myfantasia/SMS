@@ -309,10 +309,17 @@ allow_indirect_imports = True
 # -- same class of deferred DTO-ification as allocations' exception above.
 # Test fixtures need real model instances from academics and identity for realistic setUp data --
 # same class of exception already granted to apps.allocations.tests.** in its own contract.
+# apps/timetable/verify.py needs real AllocationPublishState/SubjectAllocation/
+# GlobalAllocationPolicy/TeacherStructuralAvailability model instances for its own
+# .objects.filter(...)/.values_list(...) queries across timetable, allocation and staff data in
+# one verification pass -- same class of deferred DTO-ification as the services.py exception
+# just above.
 ignore_imports =
     apps.timetable.services -> apps.academics.models
     apps.timetable.tests.** -> apps.academics.models
     apps.timetable.tests.** -> apps.identity.models
+    apps.timetable.verify -> apps.allocations.models
+    apps.timetable.verify -> apps.staff.models
 source_modules =
     apps.timetable
 forbidden_modules =
