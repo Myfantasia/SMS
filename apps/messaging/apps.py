@@ -20,3 +20,4 @@ class MessagingConfig(AppConfig):
         except ImportError:
             pass
         from . import allocation_receivers  # noqa: F401
+        from . import timetable_receivers  # noqa: F401
