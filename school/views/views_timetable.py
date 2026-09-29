@@ -10,7 +10,7 @@ from apps.identity.models import (
 import random
 from apps.academics.models import (ClassStream, Subject, GradeLevel, TimeSlot, AcademicYear, ExamTerm,
                          get_effective_department)
-from apps.allocations.models import SubjectQuota, SubjectBlock, SubjectAllocation, GlobalAllocationPolicy, QuotaDefaultRule
+from apps.allocations.models import SubjectQuota, SubjectBlock, SubjectAllocation, GlobalAllocationPolicy, QuotaDefaultRule, AllocationPublishState
 from apps.core.models import SystemAuditLog
 from datetime import datetime
 from django.core.cache import cache
@@ -789,9 +789,22 @@ def generate_lessons_for_scope(timetable, streams, subject_filter=None):
             clear_query = clear_query.filter(subject_id__in=scoped_subject_ids)
         clear_query.delete()
 
-    # Load active allocation contracts: (stream_id, subject_id) -> teacher_instance
+    # PUBLISHED classes only -- used both to restrict the contract map below AND (later in this
+    # function) to guard the whole-timetable orphan-cleanup loop, so an unpublished class's
+    # existing lessons are never touched by it. A set, not a lazy queryset: it's checked once per
+    # row in a loop over every lesson on the timetable.
+    published_classroom_ids = set(AllocationPublishState.objects.filter(
+        term=timetable.term, academic_year=timetable.academic_year, is_published=True,
+    ).values_list('classroom_id', flat=True))
+
+    # Load PUBLISHED allocation contracts only: (stream_id, subject_id) -> teacher_instance.
+    # An unpublished draft (edited but not yet published via Review & Publish, see
+    # orchestration/publish.py) must never be treated as real here -- otherwise editing one
+    # class's draft can make a DIFFERENT, already-published class's current lesson look
+    # orphaned and get silently deleted by the cleanup pass below.
     active_allocations = SubjectAllocation.objects.filter(
-        academic_year=timetable.academic_year, term=timetable.term, is_active=True
+        academic_year=timetable.academic_year, term=timetable.term, is_active=True,
+        classroom_id__in=published_classroom_ids,
     ).select_related('classroom', 'subject', 'teacher')
     contract_map = {(alloc.classroom.id, alloc.subject.id): alloc.teacher for alloc in active_allocations}
 
@@ -937,9 +950,15 @@ def generate_lessons_for_scope(timetable, streams, subject_filter=None):
     )
     orphaned_lesson_ids = []
     for row in remaining_rows:
+        # An unpublished class (no row in published_classroom_ids) is never touched by this
+        # whole-timetable pass -- nothing has been published for it yet, so this pass has no
+        # authority over its existing lessons. Treated exactly like a locked row below: never
+        # deleted, but still trusted for occupancy so the generator doesn't double-book its
+        # teacher/slot.
+        class_is_published = row['class_stream_id'] in published_classroom_ids
         contract_teacher = contract_map.get((row['class_stream_id'], row['subject_id']))
         contract_matches = contract_teacher is not None and contract_teacher.id == row['teacher_id']
-        if not contract_matches and not row['is_locked']:
+        if class_is_published and not contract_matches and not row['is_locked']:
             # Not just untrusted for busy-tracking — actively delete it. Leaving it in place
             # (the old behavior) meant it stayed a physical row occupying its own
             # (timetable, slot, teacher) combination, so a fresh placement that considered that
@@ -947,7 +966,7 @@ def generate_lessons_for_scope(timetable, streams, subject_filter=None):
             # at the database's unique-constraint level the moment it tried to write there.
             orphaned_lesson_ids.append(row['id'])
             continue
-        if not contract_matches and row['is_locked']:
+        if class_is_published and not contract_matches and row['is_locked']:
             # A locked row is an explicit admin decision — never silently delete it just
             # because its allocation contract drifted. Surface the drift instead so an admin
             # can decide whether to unlock/fix it, and still trust it as busy below so the
@@ -2100,7 +2119,8 @@ def _get_substitution_busy_teacher_ids(target_lesson, target_slot, date_obj, exc
     teachers_on_leave = list(TeacherLeave.objects.filter(
         status='Approved',
         start_date__lte=date_obj,
-        end_date__gte=date_obj
+        end_date__gte=date_obj,
+        teacher__isnull=False,  # staff leave has no teacher; it never affects lesson cover
     ).values_list('teacher_id', flat=True))
 
     # LAYER 5: Deployed as long-term relief covering a scheduled lesson
