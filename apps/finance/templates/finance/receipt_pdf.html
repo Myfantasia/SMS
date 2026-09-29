@@ -17,5 +17,6 @@
   <p>Method: {{ payment.get_method_display }}</p>
   <p>Date: {{ payment.date|date:"Y-m-d" }}</p>
   {% if invoice %}<p>Applied to invoice: {{ invoice.invoice_number }}</p>{% endif %}
+  {% if credit_carried_forward %}<p>Credit carried forward: KES {{ credit_carried_forward }}</p>{% endif %}
 </body>
 </html>

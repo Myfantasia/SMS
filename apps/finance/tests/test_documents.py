@@ -100,6 +100,14 @@ class InvoiceHtmlTests(DocumentTestData):
         self.assertIn(voided.voided_at.strftime('%Y-%m-%d'), html)
         self.assertNotIn('secret internal reason', html)
 
+    def test_credit_applied_line_omitted_when_no_credit(self):
+        self.assertNotIn('Credit applied', build_invoice_html(self.invoice))
+
+    def test_credit_applied_line_shown_when_credit_was_applied(self):
+        InvoiceCreditApplication.objects.create(student=self.student, invoice=self.invoice, amount=300)
+        html = build_invoice_html(Invoice.objects.get(pk=self.invoice.pk))
+        self.assertIn('Credit applied: KES 300', html)
+
 
 class ReceiptHtmlTests(DocumentTestData):
     def test_html_contains_the_receipt_details(self):
@@ -129,6 +137,60 @@ class ReceiptHtmlTests(DocumentTestData):
         html = build_receipt_html(self.receipt.__class__.objects.get(pk=self.receipt.pk))
         self.assertIn('VOID', html)
         self.assertNotIn('secret internal reason', html)
+
+    def test_credit_carried_forward_line_omitted_with_no_credit_left(self):
+        # self.invoice totals 19000 (Tuition 15000 + Transport 4000); self.payment
+        # of 15000 only partially settles it, leaving 4000 still owed -- no credit.
+        self.assertNotIn('Credit carried forward', build_receipt_html(self.receipt))
+
+    def test_credit_carried_forward_line_shown_after_an_overpayment(self):
+        # 4000 is still owed after setUp's payment; this payment of 6000 clears
+        # that and leaves a 2000 credit.
+        _overpayment, overpay_receipt = record_payment(
+            student=self.student, amount=6000, method='cash', recorded_by=self.operator, date='2026-09-11',
+        )
+        html = build_receipt_html(overpay_receipt)
+        self.assertIn('Credit carried forward: KES 2000', html)
+
+    def test_credit_carried_forward_reflects_balance_right_after_this_payment_not_the_current_one(self):
+        # Payment A (6000) clears the 4000 still owed and leaves a 2000 credit;
+        # payment B (500) then pushes the running credit to 2500. Payment A's own
+        # receipt must still report 2000 -- the balance at ITS post time.
+        _payment_a, receipt_a = record_payment(
+            student=self.student, amount=6000, method='cash', recorded_by=self.operator, date='2026-09-11',
+        )
+        record_payment(
+            student=self.student, amount=500, method='cash', recorded_by=self.operator, date='2026-09-12',
+        )
+        self.assertIn('Credit carried forward: KES 2000', build_receipt_html(receipt_a))
+
+    def test_credit_carried_forward_survives_voiding_a_later_unrelated_payment(self):
+        # Payment A (6000) leaves a 2000 credit, same as above. void_payment posts a
+        # SECOND ledger entry for a *different* payment (self.payment) with the same
+        # content_type/object_id/entry_type shape as any payment's own entry, just a
+        # positive correcting amount -- proving build_receipt_html's `amount__lt=0`
+        # filter picks payment A's own entry and not get confused by an unrelated
+        # payment's void landing nearby in the ledger.
+        _payment_a, receipt_a = record_payment(
+            student=self.student, amount=6000, method='cash', recorded_by=self.operator, date='2026-09-11',
+        )
+        void_payment(payment=self.payment, voided_by=self.operator, reason='unrelated void')
+        self.assertIn('Credit carried forward: KES 2000', build_receipt_html(receipt_a))
+
+    def test_credit_carried_forward_line_is_the_historical_figure_even_once_voided(self):
+        # Voiding payment A itself posts A's OWN correcting (positive) entry with the
+        # same content_type/object_id/entry_type as A's original entry. The
+        # amount__lt=0 filter must still pick the original (negative) entry, not the
+        # correcting one -- proving the receipt keeps reporting what was true when the
+        # payment was made, same as it already keeps the original amount/method/date
+        # alongside the VOID banner rather than blanking them.
+        payment_a, receipt_a = record_payment(
+            student=self.student, amount=6000, method='cash', recorded_by=self.operator, date='2026-09-11',
+        )
+        void_payment(payment=payment_a, voided_by=self.operator, reason='reversed')
+        html = build_receipt_html(receipt_a.__class__.objects.get(pk=receipt_a.pk))
+        self.assertIn('VOID', html)
+        self.assertIn('Credit carried forward: KES 2000', html)
 
 
 @unittest.skipUnless(WEASYPRINT_AVAILABLE, 'weasyprint is not installed (pip install -r requirements.txt)')

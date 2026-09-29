@@ -29,5 +29,6 @@
       <tr class="total-row"><td colspan="2">Total</td><td class="amount">KES {{ invoice.total }}</td></tr>
     </tbody>
   </table>
+  {% if credit_applied %}<p>Credit applied: KES {{ credit_applied }}</p>{% endif %}
 </body>
 </html>

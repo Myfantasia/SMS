@@ -130,6 +130,28 @@ class InvoiceListAPITests(InvoicePaymentAPITestData):
         plain = self.make_user('plain_inv_user', [])
         self.assertEqual(self.call(InvoiceListAPIView, 'get', '/api/finance/invoices/', plain).status_code, 403)
 
+    def test_credit_applied_defaults_to_zero(self):
+        response = self.call(InvoiceListAPIView, 'get', f'/api/finance/invoices/?student_id={self.student.id}', self.finance_user)
+        self.assertEqual(response.data[0]['credit_applied'], 0)
+
+    def test_credit_applied_is_included_when_present(self):
+        InvoiceCreditApplication.objects.create(student=self.student, invoice=self.invoice, amount=300)
+        response = self.call(InvoiceListAPIView, 'get', f'/api/finance/invoices/?student_id={self.student.id}', self.finance_user)
+        self.assertEqual(response.data[0]['credit_applied'], 300)
+
+    def test_credit_applications_prefetch_does_not_grow_query_count(self):
+        InvoiceCreditApplication.objects.create(student=self.student, invoice=self.invoice, amount=300)
+        self.call(InvoiceListAPIView, 'get', '/api/finance/invoices/', self.finance_user)  # warm caches
+        with CaptureQueriesContext(connection) as one:
+            self.call(InvoiceListAPIView, 'get', '/api/finance/invoices/', self.finance_user)
+        for n in (2, 3, 4):
+            invoice = generate_invoice_for_student(student=self.make_student(n), fee_structure=self.structure, operator=self.finance_user)
+            InvoiceCreditApplication.objects.create(student=invoice.student, invoice=invoice, amount=100)
+        with CaptureQueriesContext(connection) as four:
+            response = self.call(InvoiceListAPIView, 'get', '/api/finance/invoices/', self.finance_user)
+        self.assertEqual(len(response.data), 4)
+        self.assertEqual(len(four), len(one))
+
 
 class InvoiceDetailAPITests(InvoicePaymentAPITestData):
     def test_detail_shows_line_items_payments_and_credit_applied(self):
@@ -575,3 +597,12 @@ class FeeClearanceStatusAPITests(InvoicePaymentAPITestData):
 
     def test_needs_finance_view(self):
         self.assertEqual(self.clearance(user=self.make_user('clearance_plain', [])).status_code, 403)
+
+    def test_credit_balance_is_zero_with_no_overpayment(self):
+        response = self.clearance()
+        self.assertEqual(response.data['credit_balance'], 0)
+
+    def test_credit_balance_reflects_an_overpayment(self):
+        self.pay(15000 + 4000)
+        response = self.clearance()
+        self.assertEqual(response.data['credit_balance'], 4000)

@@ -51,15 +51,21 @@ class InvoiceLineItemReadSerializer(serializers.ModelSerializer):
 
 
 class InvoiceSerializer(serializers.ModelSerializer):
+    """`credit_applications` should be prefetched by the view (see
+    InvoiceListAPIView) to avoid N+1 queries from `get_credit_applied`."""
     line_items = InvoiceLineItemReadSerializer(many=True, read_only=True)
+    credit_applied = serializers.SerializerMethodField()
 
     class Meta:
         model = Invoice
         fields = [
             'id', 'student', 'fee_structure', 'total', 'status', 'invoice_number', 'issued_at',
-            'voided_at', 'void_reason', 'line_items',
+            'voided_at', 'void_reason', 'line_items', 'credit_applied',
         ]
         read_only_fields = fields
+
+    def get_credit_applied(self, obj):
+        return sum(application.amount for application in obj.credit_applications.all())
 
 
 class PaymentSerializer(serializers.ModelSerializer):
@@ -84,16 +90,13 @@ class PaymentSerializer(serializers.ModelSerializer):
 
 
 class InvoiceDetailSerializer(InvoiceSerializer):
-    """`payments` and `credit_applications` must be prefetched by the view."""
+    """`payments` and `credit_applications` must be prefetched by the view.
+    `credit_applied` is inherited from InvoiceSerializer."""
     payments = PaymentSerializer(many=True, read_only=True)
-    credit_applied = serializers.SerializerMethodField()
 
     class Meta(InvoiceSerializer.Meta):
-        fields = InvoiceSerializer.Meta.fields + ['payments', 'credit_applied']
+        fields = InvoiceSerializer.Meta.fields + ['payments']
         read_only_fields = fields
-
-    def get_credit_applied(self, obj):
-        return sum(application.amount for application in obj.credit_applications.all())
 
 
 class StudentFeeAdjustmentSerializer(serializers.ModelSerializer):

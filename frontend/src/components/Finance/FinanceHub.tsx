@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CircleDollarSign, Banknote, Wallet, TrendingUp, TrendingDown, Search, Users, GraduationCap, PieChart, Layers, FileText, Receipt } from 'lucide-react';
+import { CircleDollarSign, Banknote, Wallet, TrendingUp, TrendingDown, Search, Users, GraduationCap, PieChart, Layers, FileText, Receipt, PiggyBank } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useTheme } from '@mui/material/styles';
 import { useNavigate } from 'react-router-dom';
 import api from '../../libs/axiosInstance';
-import { getStudentBalanceAging } from '../../libs/financeApi';
+import { getStudentBalanceAging, getFeeKpiTiles, type FeeKpiTiles } from '../../libs/financeApi';
 import { INCOME_CATEGORIES, EXPENSE_CATEGORIES, MOCK_FINANCE_BREAKDOWN } from './financeCategories';
 
 interface StudentFeeRow {
@@ -65,6 +65,7 @@ export default function FinanceHub() {
   const [balancesByStudent, setBalancesByStudent] = useState<Record<number, number>>({});
   const [balancesLoaded, setBalancesLoaded] = useState(false);
   const [balancesUnavailable, setBalancesUnavailable] = useState(false);
+  const [kpiTiles, setKpiTiles] = useState<FeeKpiTiles | null>(null);
 
   useEffect(() => {
     api.get('/api/finance-overview/')
@@ -90,6 +91,14 @@ export default function FinanceHub() {
         console.error("Failed to fetch student fee balances", err);
         setBalancesUnavailable(true);
       });
+
+    // School-wide credit owed to students (Task 26, spec 4.8) -- a separate figure
+    // from the per-student "Balance Owed" column above (Task 23) and from a
+    // student's own statement page (Task 24): this is the aggregate total_credit
+    // from fee_kpi_tiles(). A failure here just leaves the tile unrendered.
+    getFeeKpiTiles()
+      .then((res) => setKpiTiles(res.data))
+      .catch((err) => console.error("Failed to fetch fee KPI tiles", err));
   }, []);
 
   const filteredStudents = useMemo(() => {
@@ -230,6 +239,12 @@ export default function FinanceHub() {
           >
             <Receipt className="w-4 h-4" /> Payments
           </button>
+          {kpiTiles && (
+            <div className="flex items-center gap-2 text-sm font-semibold text-emerald-600 dark:text-emerald-400 ml-auto">
+              <PiggyBank className="w-4 h-4" />
+              Credit Owed to Students: KES {kpiTiles.total_credit.toLocaleString()}
+            </div>
+          )}
         </div>
       )}
 

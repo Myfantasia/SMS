@@ -247,7 +247,7 @@ class InvoiceListAPIView(APIView):
         query = InvoiceListQuerySerializer(data=request.query_params)
         query.is_valid(raise_exception=True)
         filters = query.validated_data
-        invoices = Invoice.objects.prefetch_related('line_items__category')
+        invoices = Invoice.objects.prefetch_related('line_items__category', 'credit_applications')
         if 'student_id' in filters:
             invoices = invoices.filter(student_id=filters['student_id'])
         if 'fee_structure_id' in filters:
@@ -322,6 +322,9 @@ class VoidInvoiceAPIView(APIView):
             voided = void_invoice(invoice=invoice, voided_by=request.user, reason=data.validated_data['reason'])
         except (DjangoValidationError, DjangoPermissionDenied) as exc:
             return _service_error_response(exc)
+        # InvoiceSerializer.get_credit_applied expects credit_applications prefetched
+        # (see its docstring); void_invoice returns a freshly-read row that isn't.
+        voided = Invoice.objects.prefetch_related('credit_applications').get(pk=voided.pk)
         return Response(InvoiceSerializer(voided).data)
 
 
@@ -442,7 +445,8 @@ class FeeClearanceStatusAPIView(APIView):
         )
         if is_clear is None:
             return Response({"error": "Student not found."}, status=status.HTTP_404_NOT_FOUND)
-        return Response({"is_clear": is_clear})
+        student = StudentExtra.objects.filter(pk=student_id).first()
+        return Response({"is_clear": is_clear, "credit_balance": get_credit_balance(student)})
 
 
 def _pdf_download_response(request, record, student_id_of, render, filename):

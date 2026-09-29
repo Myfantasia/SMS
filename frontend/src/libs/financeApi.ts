@@ -112,11 +112,11 @@ export interface Invoice {
   voided_at: string | null;
   void_reason: string;
   line_items: InvoiceLineItem[];
+  credit_applied: number;
 }
 
 export interface InvoiceDetail extends Invoice {
   payments: Payment[];
-  credit_applied: number;
 }
 
 export const listInvoices = (params?: { student_id?: number; fee_structure_id?: number; status?: Invoice['status'] }) =>
@@ -193,7 +193,7 @@ export const getMyFeeLedger = (params?: { limit?: number; offset?: number }) =>
     '/api/finance/students/me/ledger/', { params },
   );
 export const getFeeClearanceStatus = (studentId: number, termId?: number, graceThreshold?: number) =>
-  api.get<{ is_clear: boolean | null }>(
+  api.get<{ is_clear: boolean | null; credit_balance: number }>(
     `/api/finance/students/${studentId}/fee-clearance/`,
     { params: { term_id: termId, grace_threshold: graceThreshold } },
   );
@@ -208,7 +208,15 @@ export const receiptPdfUrl = (receiptId: number) => `${API_BASE_URL}/api/finance
 
 // --- Reports -----------------------------------------------------------------------------
 
-export const getFeeKpiTiles = () => api.get('/api/finance/reports/kpi-tiles/');
+export interface FeeKpiTiles {
+  outstanding_ar: number;
+  total_credit: number;
+  unpaid_invoice_count: number;
+  overdue_count: number;
+  collections_30d: number;
+}
+
+export const getFeeKpiTiles = () => api.get<FeeKpiTiles>('/api/finance/reports/kpi-tiles/');
 export const getCollectionsTrend = (days = 30) => api.get('/api/finance/reports/collections-trend/', { params: { days } });
 export const getFeeCategoryBreakdown = () => api.get('/api/finance/reports/category-breakdown/');
 export const getStudentBalanceAging = () => api.get('/api/finance/reports/student-aging/');

@@ -122,13 +122,14 @@ export default function InvoicesPage() {
                 <TableCell>Total</TableCell>
                 <TableCell>Status</TableCell>
                 <TableCell>Issued</TableCell>
+                <TableCell>Credit Applied</TableCell>
                 <TableCell>Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {invoicesError ? (
                 <TableRow>
-                  <TableCell colSpan={5}>
+                  <TableCell colSpan={6}>
                     <p className="py-8 text-center text-sm text-red-500 dark:text-red-400">
                       Couldn't load invoices — try refreshing the page.
                     </p>
@@ -136,7 +137,7 @@ export default function InvoicesPage() {
                 </TableRow>
               ) : invoices.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5}>
+                  <TableCell colSpan={6}>
                     <p className="py-8 text-center text-sm text-slate-400 dark:text-slate-500">
                       No invoices yet — activate a fee structure to generate some.
                     </p>
@@ -148,6 +149,13 @@ export default function InvoicesPage() {
                   <TableCell>KES {invoice.total.toLocaleString()}</TableCell>
                   <TableCell><Chip label={invoice.status} color={STATUS_COLOR[invoice.status]} size="small" /></TableCell>
                   <TableCell>{new Date(invoice.issued_at).toLocaleDateString()}</TableCell>
+                  <TableCell>
+                    {invoice.credit_applied > 0 ? (
+                      `KES ${invoice.credit_applied.toLocaleString()}`
+                    ) : (
+                      <span className="text-xs text-slate-400 dark:text-slate-500">—</span>
+                    )}
+                  </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-3">
                       <a
