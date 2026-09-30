@@ -1,3 +1,5 @@
+import logging
+
 from django.core.exceptions import PermissionDenied as DjangoPermissionDenied, ValidationError as DjangoValidationError
 from django.db import transaction
 from django.db.models import Prefetch, Q, Sum
@@ -187,6 +189,8 @@ class StudentFeeItemEnrollmentSetAPIView(APIView):
     rbac_edit_permission = 'finance.edit'
 
     def put(self, request, item_id):
+        if not isinstance(request.data, dict):
+            return Response({"error": "Request body must be a JSON object."}, status=status.HTTP_400_BAD_REQUEST)
         raw_ids = request.data.get('student_ids')
         # bool is an int subclass, so it has to be excluded explicitly.
         if not isinstance(raw_ids, list) or not all(isinstance(i, int) and not isinstance(i, bool) for i in raw_ids):
@@ -208,10 +212,12 @@ class StudentFeeItemEnrollmentSetAPIView(APIView):
             existing_ids = set(
                 StudentFeeItemEnrollment.objects.filter(fee_structure_item=item).values_list('student_id', flat=True)
             )
+            added_ids = valid_ids - existing_ids
+            removed_ids = existing_ids - valid_ids
             StudentFeeItemEnrollment.objects.filter(fee_structure_item=item).exclude(student_id__in=valid_ids).delete()
             StudentFeeItemEnrollment.objects.bulk_create([
                 StudentFeeItemEnrollment(student_id=student_id, fee_structure_item=item)
-                for student_id in valid_ids - existing_ids
+                for student_id in added_ids
             ])
             write_audit_log(
                 operator_id=request.user.id,
@@ -219,7 +225,8 @@ class StudentFeeItemEnrollmentSetAPIView(APIView):
                 module='finance',
                 description=(
                     f"Replaced enrollment roster for fee structure item {item.id}: "
-                    f"{len(existing_ids)} -> {len(valid_ids)} enrolled."
+                    f"{len(existing_ids)} -> {len(valid_ids)} enrolled. "
+                    f"Added student ids {sorted(added_ids)}; removed student ids {sorted(removed_ids)}."
                 ),
             )
 
@@ -531,11 +538,13 @@ def _pdf_download_response(request, record, student_id_of, render, filename):
         return Response({"error": "Not authorized to download this document."}, status=status.HTTP_403_FORBIDDEN)
     try:
         pdf_bytes = render(record)
-    except (ImportError, OSError):
+    except (ImportError, OSError) as exc:
         # WeasyPrint (or its native pango/cairo libraries) is not installed on this server.
+        logging.getLogger(__name__).warning("PDF generation unavailable for %r: %s", record, exc, exc_info=True)
         return Response({"error": "PDF generation is not available on this server."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
     response = HttpResponse(pdf_bytes, content_type='application/pdf')
     response['Content-Disposition'] = f'inline; filename="{filename(record)}.pdf"'
+    response['Cache-Control'] = 'private, no-store'
     return response
 
 

@@ -1,10 +1,10 @@
-import importlib.util
 import unittest
 from unittest import mock
 
 from django.contrib.auth.models import User
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
+from django.utils import timezone
 from rest_framework.test import APIRequestFactory, force_authenticate
 
 from apps.academics.models import AcademicYear, ExamTerm, GradeLevel, Curriculum, Tier
@@ -15,11 +15,24 @@ from apps.finance.models_fees import (
 )
 from apps.finance.services_fees import generate_invoice_for_student, record_payment, void_invoice, void_payment
 from apps.finance.services_documents import (
-    build_invoice_html, build_receipt_html, render_invoice_pdf, render_receipt_pdf,
+    build_invoice_html, build_receipt_html, render_invoice_pdf, render_receipt_pdf, _html_to_pdf,
 )
 from apps.finance.views import InvoicePDFAPIView, ReceiptPDFAPIView
 
-WEASYPRINT_AVAILABLE = importlib.util.find_spec('weasyprint') is not None
+def _weasyprint_actually_works():
+    """`find_spec` only proves the `weasyprint` package is importable -- it says
+    nothing about whether its native pango/cairo shared libraries actually load,
+    which is exactly the failure mode this hardening batch is guarding against
+    (see the OSError handling in apps.finance.views._pdf_download_response and
+    apps.finance.services_documents._html_to_pdf). Attempt the real import."""
+    try:
+        import weasyprint  # noqa: F401
+    except (ImportError, OSError):
+        return False
+    return True
+
+
+WEASYPRINT_AVAILABLE = _weasyprint_actually_works()
 
 
 def setUpModule():
@@ -201,6 +214,21 @@ class RealPdfTests(DocumentTestData):
     def test_render_receipt_pdf_returns_pdf_bytes(self):
         self.assertTrue(render_receipt_pdf(self.receipt).startswith(b'%PDF'))
 
+    def test_url_fetcher_denies_an_external_reference_without_crashing(self):
+        # _html_to_pdf's deny-all url_fetcher (SSRF defense-in-depth) must refuse a
+        # fetch attempt CLEANLY -- WeasyPrint's own internal fetch() wrapper reads
+        # `url_fetcher._fail_on_errors` unconditionally on whatever is passed, so a
+        # plain custom function (no such attribute) would crash the whole render
+        # with an unhandled AttributeError instead of just dropping the image. This
+        # renders a template with a stray external <img> (something neither real
+        # invoice/receipt template has today) straight through _html_to_pdf and
+        # confirms it still produces a real PDF -- the fetch is denied, logged
+        # internally by WeasyPrint as a warning, and rendering continues.
+        pdf_bytes = _html_to_pdf(
+            '<html><body><img src="http://169.254.169.254/should-be-denied.png"></body></html>'
+        )
+        self.assertTrue(pdf_bytes.startswith(b'%PDF'))
+
 
 class InvoicePDFViewTests(DocumentTestData):
     def get(self, user, invoice_id=None):
@@ -247,6 +275,32 @@ class InvoicePDFViewTests(DocumentTestData):
     def test_missing_native_libs_is_a_503(self, _render):
         self.assertEqual(self.get(self.operator).status_code, 503)
 
+    @mock.patch('apps.finance.views.render_invoice_pdf', return_value=b'%PDF-fake')
+    def test_soft_deleted_parent_is_forbidden(self, render):
+        # deleted_at is the soft-delete marker (apps.identity.models) -- distinct from
+        # `status` (approval). _can_view_student_statement's deleted_at__isnull=True
+        # filter must actually exclude a soft-deleted parent, not just an unapproved one.
+        parent = self.make_parent('pdf_deleted_parent', [self.student])
+        parent.deleted_at = timezone.now()
+        parent.save(update_fields=['deleted_at'])
+        self.assertEqual(self.get(parent.user).status_code, 403)
+        render.assert_not_called()
+
+    @mock.patch('apps.finance.views.render_invoice_pdf', return_value=b'%PDF-fake')
+    def test_voided_invoice_pdf_still_downloads(self, _render):
+        # Voiding is a bookkeeping state, not an access restriction -- a voided
+        # invoice's PDF (which itself renders a VOID banner) must still be
+        # downloadable by anyone otherwise authorized to view it.
+        voided = void_invoice(invoice=self.invoice, voided_by=self.operator, reason='test')
+        response = self.get(self.operator, invoice_id=voided.pk)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content, b'%PDF-fake')
+        self.assertEqual(response['Content-Type'], 'application/pdf')
+
+    @mock.patch('apps.finance.views.render_invoice_pdf', return_value=b'%PDF-fake')
+    def test_pdf_response_has_no_store_cache_control(self, _render):
+        self.assertEqual(self.get(self.operator)['Cache-Control'], 'private, no-store')
+
 
 class ReceiptPDFViewTests(DocumentTestData):
     def get(self, user, receipt_id=None):
@@ -270,9 +324,21 @@ class ReceiptPDFViewTests(DocumentTestData):
     def test_others_are_forbidden(self, render):
         other = self.make_student(2)
         unlinked = self.make_parent('pdf_unlinked_parent', [other])
-        for user in (other.user, unlinked.user, self.make_user('pdf_nobody', [])):
+        pending = self.make_parent('pdf_pending_parent', [self.student], status=False)
+        for user in (other.user, unlinked.user, pending.user, self.make_user('pdf_nobody', [])):
             self.assertEqual(self.get(user).status_code, 403, user.username)
         render.assert_not_called()
+
+    @mock.patch('apps.finance.views.render_receipt_pdf', return_value=b'%PDF-fake')
+    def test_soft_deleted_parent_is_forbidden(self, render):
+        parent = self.make_parent('pdf_receipt_deleted_parent', [self.student])
+        parent.deleted_at = timezone.now()
+        parent.save(update_fields=['deleted_at'])
+        self.assertEqual(self.get(parent.user).status_code, 403)
+        render.assert_not_called()
+
+    def test_unauthenticated_is_rejected(self):
+        self.assertIn(self.get(None).status_code, (401, 403))
 
     def test_unknown_id_is_404_for_finance_and_403_for_others(self):
         self.assertEqual(self.get(self.operator, receipt_id=99999999).status_code, 404)
@@ -283,3 +349,21 @@ class ReceiptPDFViewTests(DocumentTestData):
         response = self.get(self.operator)
         self.assertEqual(response.status_code, 503)
         self.assertEqual(response.data, {"error": "PDF generation is not available on this server."})
+
+    @mock.patch('apps.finance.views.render_receipt_pdf', side_effect=OSError('libpango missing'))
+    def test_missing_native_libs_is_a_503(self, _render):
+        self.assertEqual(self.get(self.operator).status_code, 503)
+
+    @mock.patch('apps.finance.views.render_receipt_pdf', return_value=b'%PDF-fake')
+    def test_voided_payment_receipt_pdf_still_downloads(self, _render):
+        # Same rationale as InvoicePDFViewTests.test_voided_invoice_pdf_still_downloads:
+        # voiding is bookkeeping, not an access restriction.
+        void_payment(payment=self.payment, voided_by=self.operator, reason='test')
+        response = self.get(self.operator)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content, b'%PDF-fake')
+        self.assertEqual(response['Content-Type'], 'application/pdf')
+
+    @mock.patch('apps.finance.views.render_receipt_pdf', return_value=b'%PDF-fake')
+    def test_pdf_response_has_no_store_cache_control(self, _render):
+        self.assertEqual(self.get(self.operator)['Cache-Control'], 'private, no-store')

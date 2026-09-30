@@ -207,3 +207,45 @@ class StudentFeeItemEnrollmentSetAPITests(FinanceAPITestData):
         self.assertEqual(log.operator_id, self.finance_user.id)
         self.assertIn(f'item {self.transport_item.id}', log.description)
         self.assertIn('1 -> 1', log.description)
+
+    def test_audit_log_records_which_student_ids_were_added_and_removed(self):
+        keep, drop, add = self.make_student(1), self.make_student(2), self.make_student(3)
+        StudentFeeItemEnrollment.objects.create(student=keep, fee_structure_item=self.transport_item)
+        StudentFeeItemEnrollment.objects.create(student=drop, fee_structure_item=self.transport_item)
+        self.put(self.transport_item.id, {'student_ids': [keep.id, add.id]})
+        log = SystemAuditLog.objects.get(module='finance', action_type='UPDATE')
+        self.assertIn(f'[{add.id}]', log.description)
+        self.assertIn(f'[{drop.id}]', log.description)
+
+    def test_non_dict_body_is_a_400_not_a_500(self):
+        for bad_body in ([1, 2, 3], 'student_ids', 5, None):
+            response = self.put(self.transport_item.id, bad_body)
+            self.assertEqual(response.status_code, 400, bad_body)
+
+    def test_status_field_in_payload_is_silently_ignored_not_a_mass_assignment_path(self):
+        # StudentFeeItemEnrollmentSetAPIView reads only `student_ids` from the
+        # payload -- there is no serializer bound to FeeStructure/status, so a
+        # `status` key here does nothing, by construction, not because of a
+        # guard. Capturing the ORIGINAL status (rather than hardcoding 'draft')
+        # and asserting it's unchanged is what this test actually proves: if a
+        # future change ever starts reading other keys from this payload (e.g.
+        # to bulk-update the structure), this regresses and catches it.
+        original_status = self.structure.status
+        student = self.make_student(1)
+        response = self.put(self.transport_item.id, {'student_ids': [student.id], 'status': 'active'})
+        self.assertEqual(response.status_code, 200)
+        self.structure.refresh_from_db()
+        self.assertEqual(self.structure.status, original_status)
+        # Activation is a real, distinct, finance.edit-gated action
+        # (ActivateFeeStructureAPIView) -- never a side effect of an
+        # enrollment write, regardless of what the enrollment payload contains.
+
+    def test_rejected_write_leaves_no_audit_log_row_but_a_valid_write_does(self):
+        SystemAuditLog.objects.all().delete()
+        rejected = self.put(self.transport_item.id, {'student_ids': 'not-a-list'})
+        self.assertEqual(rejected.status_code, 400)
+        self.assertEqual(SystemAuditLog.objects.filter(module='finance', action_type='UPDATE').count(), 0)
+
+        accepted = self.put(self.transport_item.id, {'student_ids': [self.make_student(1).id]})
+        self.assertEqual(accepted.status_code, 200)
+        self.assertEqual(SystemAuditLog.objects.filter(module='finance', action_type='UPDATE').count(), 1)

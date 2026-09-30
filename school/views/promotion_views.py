@@ -3,6 +3,7 @@ Grade promotion: plain (internal-results-gated), same-institution exam-gated (KP
 exit (cross-institution or terminal, KJSEA/KCSE) transitions. See
 docs/superpowers/specs/2026-08-12-sss-core-math-and-promotion-design.md.
 """
+import logging
 from datetime import timedelta
 
 from django.utils import timezone
@@ -216,7 +217,17 @@ def _promote_student(student, academic_year, performed_by_id=None):
     if not readiness['ready']:
         return {'student_id': student.id, 'outcome': 'held', 'detail': readiness['reason']}
 
-    if is_gate_blocked(student_id=student.id, gate='promotion', academic_year_id=academic_year.id):
+    try:
+        gate_blocked = is_gate_blocked(student_id=student.id, gate='promotion', academic_year_id=academic_year.id)
+    except Exception as exc:
+        # A DB-level failure here must never silently mean "not blocked" -- degrade to
+        # the same conservative held outcome as a real block.
+        logging.getLogger(__name__).warning(
+            "is_gate_blocked failed for student %s promotion gate; treating as blocked: %s",
+            student.id, exc,
+        )
+        gate_blocked = True
+    if gate_blocked:
         return {
             'student_id': student.id, 'outcome': 'held',
             'detail': 'Held: outstanding fee balance must be cleared before promotion.',

@@ -9,6 +9,7 @@ calls the exact same _promote_student function per student (see
 orchestration/tasks.py) and must therefore inherit the gate automatically.
 """
 import json
+from unittest import mock
 
 from django.contrib.auth.models import User
 from django.contrib.contenttypes.models import ContentType
@@ -116,6 +117,18 @@ class PromotionFeeGateTests(TestCase):
         post_ledger_entry(student=self.student, entry_type='charge', amount=500, reference=self.category, description='Term fee')
         result = _promote_student(self.student, self.year)
         self.assertEqual(result['outcome'], 'promoted')
+
+    def test_a_db_error_from_is_gate_blocked_holds_the_promotion_not_lets_it_through(self):
+        # A DB-level failure evaluating the gate must never silently mean "not
+        # blocked" -- it must degrade to the same conservative held outcome as a
+        # real block, not raise and not promote the student.
+        self._enable_policy()
+        with mock.patch('school.views.promotion_views.is_gate_blocked', side_effect=Exception('db exploded')):
+            result = _promote_student(self.student, self.year)
+        self.assertEqual(result['outcome'], 'held')
+        self.assertIn('fee', result['detail'].lower())
+        self.student.refresh_from_db()
+        self.assertEqual(self.student.cl_id, self.stream.id)
 
 
 class PromotionFeeGateBulkPathTests(TestCase):

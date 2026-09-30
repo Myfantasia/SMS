@@ -1,3 +1,5 @@
+from unittest import mock
+
 from django.contrib.auth.models import User
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
@@ -148,3 +150,14 @@ class ReportCardFeeGateTests(ExamTestDataMixin, TestCase):
         self.assertEqual(response.status_code, 200)
         self.term_summary.refresh_from_db()
         self.assertFalse(self.term_summary.results_withheld)
+
+    def test_a_db_error_from_is_gate_blocked_holds_the_report_card_not_lets_it_through(self):
+        # A DB-level failure evaluating the gate must never silently mean "not
+        # blocked" -- it must degrade to the same conservative withheld outcome
+        # as a real block, not raise and not serve the report card.
+        self._enable_policy()
+        with mock.patch('school.views.results_views.is_gate_blocked', side_effect=Exception('db exploded')):
+            response = self._get(self.student_user, search=self.student.roll)
+        self.assertEqual(response.status_code, 403)
+        self.term_summary.refresh_from_db()
+        self.assertTrue(self.term_summary.results_withheld)

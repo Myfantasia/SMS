@@ -1,6 +1,7 @@
 from django.contrib import admin, messages
-from django.core.exceptions import PermissionDenied, ValidationError
+from django.core.exceptions import ObjectDoesNotExist, PermissionDenied, ValidationError
 from unfold.admin import ModelAdmin as UnfoldModelAdmin
+from unfold.admin import TabularInline as UnfoldTabularInline
 
 from apps.finance.models_fees import (
     FeeCategory,
@@ -40,7 +41,7 @@ def hard_delete_selected(modeladmin, request, queryset):
     for obj in list(queryset):
         try:
             hard_delete_financial_record(model_class=type(obj), pk=obj.pk, operator=request.user)
-        except (PermissionDenied, ValidationError) as exc:
+        except (PermissionDenied, ValidationError, ObjectDoesNotExist) as exc:
             detail = ' '.join(exc.messages) if isinstance(exc, ValidationError) else str(exc)
             modeladmin.message_user(request, f"{obj}: {detail}", level=messages.ERROR)
             break
@@ -50,38 +51,38 @@ def hard_delete_selected(modeladmin, request, queryset):
 
 
 @admin.register(CashAccount)
-class CashAccountAdmin(admin.ModelAdmin):
+class CashAccountAdmin(UnfoldModelAdmin):
     list_display = ['name', 'account_type', 'is_active']
     list_filter = ['account_type', 'is_active']
 
 
 @admin.register(FeeCategory)
-class FeeCategoryAdmin(admin.ModelAdmin):
+class FeeCategoryAdmin(UnfoldModelAdmin):
     list_display = ['name', 'description']
     search_fields = ['name']
 
 
-class FeeStructureItemInline(admin.TabularInline):
+class FeeStructureItemInline(UnfoldTabularInline):
     model = FeeStructureItem
     extra = 1
 
 
 @admin.register(FeeStructure)
-class FeeStructureAdmin(admin.ModelAdmin):
+class FeeStructureAdmin(UnfoldModelAdmin):
     list_display = ['name', 'grade_level', 'term', 'status']
     list_filter = ['status', 'grade_level', 'term']
     inlines = [FeeStructureItemInline]
 
 
 @admin.register(StudentFeeItemEnrollment)
-class StudentFeeItemEnrollmentAdmin(admin.ModelAdmin):
+class StudentFeeItemEnrollmentAdmin(UnfoldModelAdmin):
     list_display = ['student', 'fee_structure_item', 'enrolled_at']
     list_filter = ['fee_structure_item__fee_structure']
     autocomplete_fields = ['student']
 
 
 @admin.register(StudentFeeLedgerEntry)
-class StudentFeeLedgerEntryAdmin(admin.ModelAdmin):
+class StudentFeeLedgerEntryAdmin(UnfoldModelAdmin):
     list_display = ['student', 'entry_type', 'amount', 'running_balance', 'date']
     list_filter = ['entry_type', 'date']
     autocomplete_fields = ['student']
@@ -97,7 +98,7 @@ class StudentFeeLedgerEntryAdmin(admin.ModelAdmin):
         return False
 
 
-class InvoiceLineItemInline(admin.TabularInline):
+class InvoiceLineItemInline(UnfoldTabularInline):
     model = InvoiceLineItem
     extra = 0
     can_delete = False
@@ -110,7 +111,7 @@ class InvoiceLineItemInline(admin.TabularInline):
 
 
 @admin.register(Invoice)
-class InvoiceAdmin(SuperuserOnlyActionsMixin, admin.ModelAdmin):
+class InvoiceAdmin(SuperuserOnlyActionsMixin, UnfoldModelAdmin):
     list_display = ['invoice_number', 'student', 'fee_structure', 'total', 'status', 'issued_at']
     list_filter = ['status', 'fee_structure']
     search_fields = ['invoice_number']
@@ -131,7 +132,7 @@ class InvoiceAdmin(SuperuserOnlyActionsMixin, admin.ModelAdmin):
 
 
 @admin.register(InvoiceCreditApplication)
-class InvoiceCreditApplicationAdmin(admin.ModelAdmin):
+class InvoiceCreditApplicationAdmin(UnfoldModelAdmin):
     list_display = ['invoice', 'student', 'amount', 'created_at']
     search_fields = ['invoice__invoice_number']
     autocomplete_fields = ['student']
@@ -149,7 +150,7 @@ class InvoiceCreditApplicationAdmin(admin.ModelAdmin):
 
 
 @admin.register(Payment)
-class PaymentAdmin(SuperuserOnlyActionsMixin, admin.ModelAdmin):
+class PaymentAdmin(SuperuserOnlyActionsMixin, UnfoldModelAdmin):
     list_display = ['student', 'amount', 'method', 'status', 'date', 'recorded_by']
     list_filter = ['method', 'status']
     autocomplete_fields = ['student']
@@ -168,7 +169,7 @@ class PaymentAdmin(SuperuserOnlyActionsMixin, admin.ModelAdmin):
 
 
 @admin.register(Receipt)
-class ReceiptAdmin(admin.ModelAdmin):
+class ReceiptAdmin(UnfoldModelAdmin):
     list_display = ['receipt_number', 'payment', 'generated_at']
 
     # Generated synchronously by record_payment() when a Payment is confirmed —
@@ -185,7 +186,7 @@ class ReceiptAdmin(admin.ModelAdmin):
 
 
 @admin.register(StudentFeeAdjustment)
-class StudentFeeAdjustmentAdmin(admin.ModelAdmin):
+class StudentFeeAdjustmentAdmin(UnfoldModelAdmin):
     list_display = ['student', 'adjustment_type', 'amount', 'requested_by', 'approved_by', 'created_at']
     list_filter = ['adjustment_type']
     autocomplete_fields = ['student']

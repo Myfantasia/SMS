@@ -30,6 +30,7 @@ from apps.core.models import BackgroundJob, SystemAuditLog
 ActionType = Literal[
     "CREATE", "UPDATE", "DELETE", "RESTORE", "SIMULATION",
     "EXECUTION", "APPROVE", "REJECT", "AUTH_SUCCESS", "AUTH_FAILURE",
+    "HARD_DELETE",
 ]
 JobStatus = Literal["PENDING", "RUNNING", "SUCCESS", "FAILURE"]
 

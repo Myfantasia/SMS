@@ -1,3 +1,5 @@
+import logging
+
 from rest_framework.authentication import SessionAuthentication
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.throttling import ScopedRateThrottle
@@ -491,9 +493,18 @@ class StudentReportCardAPIView(APIView):
                             status=status.HTTP_403_FORBIDDEN)
 
         if not is_staff:
-            blocked = is_gate_blocked(
-                student_id=student.id, gate='report_card', term_id=term_summary.term_id,
-            )
+            try:
+                blocked = is_gate_blocked(
+                    student_id=student.id, gate='report_card', term_id=term_summary.term_id,
+                )
+            except Exception as exc:
+                # A DB-level failure here must never silently mean "not blocked" --
+                # degrade to the same conservative withheld outcome as a real block.
+                logging.getLogger(__name__).warning(
+                    "is_gate_blocked failed for student %s report_card gate; treating as blocked: %s",
+                    student.id, exc,
+                )
+                blocked = True
             if blocked:
                 if not term_summary.results_withheld:
                     term_summary.results_withheld = True

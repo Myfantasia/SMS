@@ -47,7 +47,19 @@ def build_receipt_html(receipt):
 
 def _html_to_pdf(html_string):
     from weasyprint import HTML
-    return HTML(string=html_string).write_pdf()
+    from weasyprint.urls import URLFetcher
+
+    # SSRF defense-in-depth: the invoice/receipt templates are plain inline-styled
+    # HTML with no external resources, so WeasyPrint should never need to fetch
+    # anything while rendering one. `allowed_protocols=[]` uses WeasyPrint's own
+    # fetcher class to refuse every URL outright (a plain custom function here
+    # would lack the `_fail_on_errors` attribute WeasyPrint's internal fetch()
+    # wrapper reads unconditionally, crashing with AttributeError instead of
+    # denying cleanly) -- any attempt (e.g. a future template regression, or
+    # attacker-controlled content reaching the template) is refused rather than
+    # silently allowed to reach an internal or attacker-controlled URL.
+    deny_all_fetcher = URLFetcher(allowed_protocols=[])
+    return HTML(string=html_string, url_fetcher=deny_all_fetcher).write_pdf()
 
 
 def render_invoice_pdf(invoice):

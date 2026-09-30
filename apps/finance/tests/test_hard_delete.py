@@ -2,11 +2,13 @@ import datetime
 from unittest import mock
 
 from django.contrib import admin as django_admin
-from django.contrib.auth.models import User
+from django.contrib.admin.helpers import ACTION_CHECKBOX_NAME
+from django.contrib.auth.models import Permission, User
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.messages import constants as message_levels
-from django.core.exceptions import PermissionDenied, ValidationError
+from django.core.exceptions import ObjectDoesNotExist, PermissionDenied, ValidationError
 from django.test import RequestFactory, TestCase
+from django.urls import reverse
 
 from apps.academics.models import AcademicYear, ExamTerm, GradeLevel, Curriculum, Tier
 from apps.core.models import SystemAuditLog
@@ -221,3 +223,73 @@ class HardDeleteAdminActionTests(HardDeleteTestData):
         self.assertFalse(Receipt.objects.filter(pk=receipt.pk).exists())
         self.assertEqual(message_user.call_args.kwargs['level'], message_levels.SUCCESS)
         self.assertIn(receipt.receipt_number, self.hard_delete_audit_rows().get().description)
+
+    def test_object_does_not_exist_is_reported_as_a_clean_error(self):
+        # A record that vanishes between selection and execution (e.g. deleted by another
+        # operator in the meantime) must be reported the same clean way as PermissionDenied
+        # and ValidationError, not surfaced as an unhandled 500.
+        void_invoice(invoice=self.invoice, voided_by=self.superuser, reason='test')
+        with mock.patch(
+            'apps.finance.admin.hard_delete_financial_record',
+            side_effect=ObjectDoesNotExist('Invoice matching query does not exist.'),
+        ):
+            message_user = self._run_action(self.superuser, Invoice.objects.filter(pk=self.invoice.pk))
+        self.assertEqual(message_user.call_args.kwargs['level'], message_levels.ERROR)
+        self.assertTrue(Invoice.objects.filter(pk=self.invoice.pk).exists())
+        self.assertEqual(self.hard_delete_audit_rows().count(), 0)
+
+    def test_forged_post_bypassing_the_action_dropdown_still_requires_superuser(self):
+        # SuperuserOnlyActionsMixin only hides the action from the dropdown menu. A
+        # forged POST naming the action directly (bypassing that menu) must still be
+        # refused for a non-superuser, and must still work for a superuser. Note this
+        # test exercises the FULL HTTP layer, where Django's own response_action()
+        # validates the posted action name against get_action_choices() BEFORE ever
+        # calling hard_delete_selected -- so for a non-superuser this is actually
+        # blocked by that layer, not by hard_delete_selected's own is_superuser check
+        # (admin.py's `if not request.user.is_superuser` early-return). That check is
+        # exercised in isolation by test_own_superuser_check_refuses_before_calling_the_service
+        # below, which calls the action function directly and bypasses get_actions().
+        void_invoice(invoice=self.invoice, voided_by=self.superuser, reason='test')
+        changelist_url = reverse('admin:finance_invoice_changelist')
+        post_data = {
+            'action': 'hard_delete_selected',
+            ACTION_CHECKBOX_NAME: [str(self.invoice.pk)],
+            'index': '0',
+        }
+
+        view_permission = Permission.objects.get(
+            codename='view_invoice', content_type=ContentType.objects.get_for_model(Invoice),
+        )
+        self.regular_admin.user_permissions.add(view_permission)
+        self.client.force_login(self.regular_admin)
+        response = self.client.post(changelist_url, post_data, follow=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(Invoice.objects.filter(pk=self.invoice.pk).exists())
+        self.assertEqual(self.hard_delete_audit_rows().count(), 0)
+
+        # Django admin's own gate (AdminSite.has_permission) requires is_staff, separately
+        # from is_superuser -- self.superuser (setUp) is deliberately is_staff=False to prove
+        # the service-layer check elsewhere doesn't depend on it, so a second, admin-accessible
+        # superuser is needed here to actually reach the changelist view over HTTP and confirm
+        # a genuine superuser's forged POST still works.
+        staff_superuser = User.objects.create_user(
+            username='hard_delete_staff_superuser', password='x', is_superuser=True, is_staff=True,
+        )
+        self.client.force_login(staff_superuser)
+        response = self.client.post(changelist_url, post_data, follow=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(Invoice.objects.filter(pk=self.invoice.pk).exists())
+
+    def test_own_superuser_check_refuses_before_calling_the_service(self):
+        # Isolates hard_delete_selected's OWN `if not request.user.is_superuser` check
+        # (admin.py) from the service layer's independent PermissionDenied check
+        # (hard_delete_financial_record) and from Django's get_actions()-based dropdown
+        # filtering (neither of which is invoked here). The mock never raising anything
+        # proves the action's own early-return is what refuses this call -- if that
+        # early-return were deleted, the mock WOULD get called and "succeed", flipping
+        # this assertion.
+        with mock.patch('apps.finance.admin.hard_delete_financial_record') as mocked_service:
+            message_user = self._run_action(self.regular_admin, Invoice.objects.filter(pk=self.invoice.pk))
+        mocked_service.assert_not_called()
+        self.assertEqual(message_user.call_args.kwargs['level'], message_levels.ERROR)
+        self.assertIn('superuser', message_user.call_args.args[1].lower())
