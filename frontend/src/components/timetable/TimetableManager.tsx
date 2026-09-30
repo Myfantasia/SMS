@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useOutletContext, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
+import { useAccess } from '../../libs/permissions';
 import toast from 'react-hot-toast';
 import { Trash2, Wand2 } from 'lucide-react';
 import TimetableHeader from './TimetableHeader';
@@ -7,8 +8,9 @@ import TimetableBuckets from './TimetableBuckets';
 import TimetableGrid from './TimetableGrid';
 import AssignLessonModal from './AssignLessonModal';
 import TimetableSettings from './TimetableSettings';
-import ViewBlockModal from './ViewBlockModal'; 
-import SubstituteModal from './SubstituteModal'; 
+import ViewBlockModal from './ViewBlockModal';
+import SubstituteModal from './SubstituteModal';
+import TimetablePublishModal from './TimetablePublishModal';
 import type { Bucket, ClassStream, DailyCoverEntry, Lesson, Teacher, TimeSlot, Timetable } from '../../libs/types';
 import api from '../../libs/axiosInstance';
 import { pollJob } from '../../libs/pollJob';
@@ -17,7 +19,11 @@ import MasterTimetableView from './MasterTimetableView';
 import ScheduleUnderConstruction from './ScheduleUnderConstruction';
 
 export default function TimetableManager() {
-  const { role } = useOutletContext<{ role: string }>();
+  // The manager UI (`role === 'admin'` below) is what timetable.edit unlocks -- so a Timetable
+  // Coordinator on the staff dashboard, or anyone else an admin grants that code, gets the same
+  // controls the admin does. Everyone else keeps their own dashboard's read-only view.
+  const { role: dashboardRole, can } = useAccess();
+  const role = can('timetable.edit') ? 'admin' : dashboardRole;
   // Lets other pages (e.g. a class's "Manage Timetable" button) deep-link
   // straight to that class instead of always landing on the first one.
   const [searchParams] = useSearchParams();
@@ -63,6 +69,10 @@ export default function TimetableManager() {
 
   // Lifecycle Toggle State
   const [isProcessingPublish, setIsProcessingPublish] = useState(false);
+  // Going live now goes through Review & Publish (TimetablePublishModal) instead of the direct
+  // status flip below -- the backend's api_update_timetable_status refuses a 'Published' target
+  // and redirects here. Reverting to Draft still uses the direct flip; Task 6 left that working.
+  const [showPublishModal, setShowPublishModal] = useState(false);
 
   const isPublished = activeTimetable?.status === 'Published';
 
@@ -94,10 +104,16 @@ export default function TimetableManager() {
   const handlePublishLifecycleToggle = () => {
     if (!activeTimetable || isEngineBusy || isProcessingPublish) return;
 
-    const targetNextStatus = isPublished ? 'Draft' : 'Published';
-    const alertMessage = isPublished 
-      ? "Revert this timetable back to Draft status? Public views will be hidden."
-      : "Publish this schedule framework to go Live? Grid modifications and compilation tools will be locked.";
+    // Going live is no longer a direct status flip -- it goes through Review & Publish, which
+    // checks for conflicts, completeness and pedagogy rule violations before the schedule is
+    // visible to teachers/students/parents.
+    if (!isPublished) {
+      setShowPublishModal(true);
+      return;
+    }
+
+    const targetNextStatus = 'Draft' as const;
+    const alertMessage = "Revert this timetable back to Draft status? Public views will be hidden.";
 
     // Renders a custom interactive confirmation card inside react-hot-toast
     toast((t) => (
@@ -632,6 +648,19 @@ export default function TimetableManager() {
 
       {activeSlotId && (
         <AssignLessonModal setActiveSlotId={setActiveSlotId} buckets={buckets} teachers={teachers} selectedSubject={selectedSubject} setSelectedSubject={setSelectedSubject} selectedTeacher={selectedTeacher} setSelectedTeacher={setSelectedTeacher} isDoublePeriod={isDoublePeriod} setIsDoublePeriod={setIsDoublePeriod} handleSaveLesson={handleSaveLesson} isSaving={isSaving} />
+      )}
+
+      {activeTimetable && (
+        <TimetablePublishModal
+          open={showPublishModal}
+          onClose={() => setShowPublishModal(false)}
+          timetableId={activeTimetable.id}
+          timetableName={activeTimetable.name}
+          onPublished={() => {
+            setActiveTimetable(prev => prev ? { ...prev, status: 'Published' } : null);
+            fetchGridData();
+          }}
+        />
       )}
 
       {coverAllocationId && (
