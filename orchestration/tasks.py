@@ -32,7 +32,7 @@ from django.utils import timezone
 from apps.core import services as core_services
 from apps.allocations.services import rollover_allocations, bulk_auto_allocate, AllocationValidationError
 from apps.timetable.services import (
-    generate_lessons_for_scope, get_timetable_name,
+    generate_lessons_for_scope, get_timetable_name, refuse_if_timetable_is_live,
 )
 from shared.events.bus import bus
 from shared.events.types import BackgroundJobCompletedEvent
@@ -142,6 +142,11 @@ def generate_timetable_task(self, job_id, timetable_id, stream_id, grade_id, loc
         # whole thing means a mid-run crash rolls back to the pre-run state instead —
         # either every in-scope stream ends up fully regenerated, or none of them do.
         with transaction.atomic():
+            # A live (Published) timetable is only ever changed by the reviewed publish flow --
+            # refuse before this task's clear/regenerate pass ever touches it, even though the
+            # view that queued this job already tried the same check (a race between the two is
+            # still possible, since dispatch is async).
+            refuse_if_timetable_is_live(timetable_id=timetable_id)
             streams = ClassStream.live.all().select_related('grade')
             if stream_id:
                 streams = streams.filter(id=stream_id)

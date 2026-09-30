@@ -113,12 +113,30 @@ def _sync_inputs(term_id, year_id, class_ids, lock: bool = False):
     return target, prior, new
 
 
+def _suppress_intentionally_emptied_blockers(blockers, classes_with_target_lessons):
+    """A class with no current allocations is normally a hard NOTHING_TO_PUBLISH blocker (it was
+    never allocated). But if it currently HAS lessons on the sync target, that combination means
+    the admin intentionally cleared its draft -- the correct publish outcome is to eject those
+    lessons, not to refuse forever. Only suppress the blocker for classes where that's true; a
+    genuinely never-allocated class (no lessons either) still stays hard-blocked.
+
+    Shared by preview_publish and publish_scope so a preview accurately predicts whether the
+    confirm path will actually let the publish through."""
+    return tuple(
+        b for b in blockers
+        if not (b.code == 'NOTHING_TO_PUBLISH' and b.classroom_id in classes_with_target_lessons)
+    )
+
+
 def preview_publish(*, term_id: int, year_id: int, class_ids: Sequence[int]) -> PublishPreviewDTO:
     """Read-only: what would publishing this scope do? Validates, fingerprints, and dry-runs the
     timetable sync (skipped when there are hard blockers -- the numbers would be meaningless)."""
     review = publish_gate.review_scope(term_id=term_id, year_id=year_id, class_ids=class_ids)
     target, prior, new = _sync_inputs(term_id, year_id, review.class_ids)
-    if review.hard_blockers or target is None or target.is_live:
+    classes_with_target_lessons = {c_id for (c_id, _t_id, _s_id) in prior}
+    blockers = _suppress_intentionally_emptied_blockers(review.blockers, classes_with_target_lessons)
+    hard_blockers = tuple(b for b in blockers if b.severity == 'HARD')
+    if hard_blockers or target is None or target.is_live:
         sync = _no_sync(target)
     else:
         result = timetable_services.preview_sync_with_allocation_changes(
@@ -126,7 +144,7 @@ def preview_publish(*, term_id: int, year_id: int, class_ids: Sequence[int]) -> 
         )
         sync = _sync_summary(target, result)
     return PublishPreviewDTO(class_ids=review.class_ids, fingerprint=review.fingerprint,
-                             blockers=review.blockers, sync=sync)
+                             blockers=blockers, sync=sync)
 
 
 def publish_scope(
@@ -147,20 +165,22 @@ def publish_scope(
 
         target, prior, new = _sync_inputs(term_id, year_id, ids, lock=True)
 
-        # A class with no current allocations is normally a hard NOTHING_TO_PUBLISH blocker (it was
-        # never allocated). But if it currently HAS lessons on the sync target, that combination
-        # means the admin intentionally cleared its draft -- the correct publish outcome is to eject
-        # those lessons, not to refuse forever. Only suppress the blocker for classes where that's
-        # true; a genuinely never-allocated class (no lessons either) still stays hard-blocked.
         classes_with_target_lessons = {c_id for (c_id, _t_id, _s_id) in prior}
-        hard_blockers = tuple(
-            b for b in review.hard_blockers
-            if not (b.code == 'NOTHING_TO_PUBLISH' and b.classroom_id in classes_with_target_lessons)
-        )
+        hard_blockers = _suppress_intentionally_emptied_blockers(review.hard_blockers, classes_with_target_lessons)
         if hard_blockers:
             raise PublishBlockedError(hard_blockers)
         if review.soft_blockers and not acknowledge_soft:
             raise AcknowledgementRequiredError(review.soft_blockers)
+
+        # Mark every class in scope published BEFORE syncing the timetable: the sync's scheduler
+        # (generate_lessons_for_scope) reads PUBLISHED allocations only, so a class being published
+        # for the first time -- or one whose teacher just changed -- must already be marked
+        # published by the time the sync runs, or the scheduler finds no eligible teacher for it and
+        # places nothing (existing lessons can even be ejected first with nothing placed to replace
+        # them). Safe inside this same transaction.atomic(): if anything below fails, the whole
+        # block -- including these publish_allocation calls -- still rolls back.
+        for classroom_id in ids:
+            allocation_services.publish_allocation(classroom_id, term_id, year_id, operator_id)
 
         if target is None or target.is_live:
             sync = _no_sync(target)
@@ -168,9 +188,6 @@ def publish_scope(
             result = timetable_services.sync_with_allocation_changes(
                 active_timetable_id=target.timetable_id, prior_triples=prior, new_triples=new)
             sync = _sync_summary(target, result)
-
-        for classroom_id in ids:
-            allocation_services.publish_allocation(classroom_id, term_id, year_id, operator_id)
 
         acknowledged = len(review.soft_blockers)
         core_services.write_audit_log(

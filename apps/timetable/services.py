@@ -128,6 +128,16 @@ def lock_sync_target(*, term_id: int, year_id: int) -> Optional[SyncTargetDTO]:
     return SyncTargetDTO(timetable_id=timetable.id, name=timetable.name, is_live=(timetable.status == 'Published'))
 
 
+def refuse_if_timetable_is_live(*, timetable_id: int) -> None:
+    """Raise if the given timetable is Published (live). Call this -- inside an open
+    transaction.atomic() for write paths -- before any write to a timetable's lessons or slots, so
+    a live timetable is never silently edited outside the reviewed publish flow."""
+    from django.core.exceptions import PermissionDenied
+    timetable = Timetable.objects.select_for_update().filter(id=timetable_id).first()
+    if timetable is not None and timetable.status == 'Published':
+        raise PermissionDenied("This timetable is published and live. Unpublish it or edit a draft instead.")
+
+
 def get_lesson_triples(*, timetable_id: int, class_ids: Sequence[int]) -> frozenset:
     """Distinct (class_stream_id, teacher_id, subject_id) triples currently scheduled on a timetable
     for the given classes -- the "before" picture a publish diffs the new allocations against, so a

@@ -142,8 +142,10 @@ class TeacherPersonalTimetableAPIView(APIView):
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        # 2. Grab the current globally active timetable context
-        active_timetable = Timetable.objects.filter(is_active=True).first()
+        # 2. Grab the current globally active timetable context. status='Published' -- an admin
+        # can still make a Draft timetable "active"; without this a teacher would see an
+        # unreviewed draft grid before it's actually gone live.
+        active_timetable = Timetable.objects.filter(is_active=True, status='Published').first()
         if not active_timetable:
             return Response(
                 {"message": "No active timetable framework published for this term yet.", "timetable_data": []},

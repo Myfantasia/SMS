@@ -1,9 +1,11 @@
 import json
 import traceback
 from django.http import JsonResponse
+from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.db.models import Count, F
 from apps.timetable.models import LessonAllocation, Timetable, TimetablePedagogyPolicy, DailyCover
+from apps.timetable.services import refuse_if_timetable_is_live
 from apps.identity.models import (
     TeacherExtra,
 )
@@ -384,6 +386,7 @@ def api_save_lesson(request):
         # EXECUTION & LOGGING
         # ==========================================
         with transaction.atomic():
+            refuse_if_timetable_is_live(timetable_id=timetable.id)
             for slot in target_slots:
                 LessonAllocation.objects.create(
                     timetable=timetable, time_slot=slot, class_stream=class_stream,
@@ -408,6 +411,8 @@ def api_save_lesson(request):
         return JsonResponse({'status': 'error', 'message': 'Timetable record not found.'}, status=404)
     except TimeSlot.DoesNotExist:
         return JsonResponse({'status': 'error', 'message': 'Time slot record not found.'}, status=404)
+    except PermissionDenied as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=409)
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': f"System Error: {str(e)}"}, status=500)
 
@@ -438,20 +443,22 @@ def api_remove_lesson(request, allocation_id):
             operator = request.user if request.user.is_authenticated else None
             desc = f"Manually removed {lesson.subject.name} for {grade.name} from the grid."
 
-            # Simply check the database relationship instead of string matching
-            block_map = build_grade_subject_block_map(grade_ids=[grade.id])
-            if block_map.get((grade.id, lesson.subject_id)) is not None:
-                LessonAllocation.objects.filter(
-                    timetable_id=lesson.timetable_id,
-                    time_slot_id=lesson.time_slot_id,
-                    subject=lesson.subject,
-                    class_stream__grade=grade,
-                    is_locked=False
-                ).delete()
-                msg = f'{lesson.subject.name} removed across the grade. Buckets refilled.'
-            else:
-                lesson.delete()
-                msg = 'Standalone lesson removed from grid. Bucket refilled.'
+            with transaction.atomic():
+                refuse_if_timetable_is_live(timetable_id=lesson.timetable_id)
+                # Simply check the database relationship instead of string matching
+                block_map = build_grade_subject_block_map(grade_ids=[grade.id])
+                if block_map.get((grade.id, lesson.subject_id)) is not None:
+                    LessonAllocation.objects.filter(
+                        timetable_id=lesson.timetable_id,
+                        time_slot_id=lesson.time_slot_id,
+                        subject=lesson.subject,
+                        class_stream__grade=grade,
+                        is_locked=False
+                    ).delete()
+                    msg = f'{lesson.subject.name} removed across the grade. Buckets refilled.'
+                else:
+                    lesson.delete()
+                    msg = 'Standalone lesson removed from grid. Bucket refilled.'
 
             # --- NEW: COMMIT AUDIT LOG ---
             write_audit_log(
@@ -464,6 +471,8 @@ def api_remove_lesson(request, allocation_id):
             return JsonResponse({'status': 'success', 'message': msg})
         except LessonAllocation.DoesNotExist:
             return JsonResponse({'status': 'error', 'message': 'Allocation not found.'}, status=404)
+        except PermissionDenied as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=409)
         except Exception as e:
             return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
     return JsonResponse({'status': 'error', 'message': 'Invalid request method.'}, status=405)
@@ -606,9 +615,11 @@ def api_manage_timetables(request):
             if data.get('is_active'):
                 Timetable.objects.update(is_active=False)
 
+            # A brand-new timetable always starts as Draft, regardless of what the client sent --
+            # going live requires the reviewed Review & Publish flow, never a direct create.
             Timetable.objects.create(
                 name=data.get('name'),
-                status=data.get('status', 'Draft'),
+                status='Draft',
                 is_active=data.get('is_active', False)
             )
             return JsonResponse({'status': 'success', 'message': 'Timetable container created.'})
@@ -660,8 +671,26 @@ def api_manage_timeslots(request):
     elif request.method == 'DELETE':
         try:
             data = json.loads(request.body)
-            TimeSlot.objects.get(id=data.get('id')).delete()
+            slot_id = data.get('id')
+
+            # A slot isn't tied to one timetable -- it can carry lessons on several. If ANY of
+            # them is live (Published), refuse the delete rather than silently cascading into a
+            # live grid outside the reviewed publish flow.
+            live_timetable_ids = list(
+                LessonAllocation.objects.filter(
+                    time_slot_id=slot_id, timetable__status='Published',
+                ).values_list('timetable_id', flat=True).distinct()
+            )
+            if live_timetable_ids:
+                raise PermissionDenied(
+                    "This time slot has lesson(s) on a published, live timetable. Unpublish it "
+                    "or clear its lessons from this slot before deleting the slot."
+                )
+
+            TimeSlot.objects.get(id=slot_id).delete()
             return JsonResponse({'status': 'success', 'message': 'Time slot permanently deleted.'})
+        except PermissionDenied as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=409)
         except Exception as e:
             return JsonResponse({'status': 'error', 'message': str(e)})
 
@@ -1296,6 +1325,13 @@ def api_auto_generate_timetable(request, timetable_id):
 
     try:
         timetable = Timetable.objects.get(id=timetable_id)
+
+        # A live (Published) timetable is only ever changed by the reviewed publish flow -- refuse
+        # before even queuing a generation run. generate_timetable_task re-checks this itself right
+        # before it writes, since dispatch is async and status could change in between.
+        with transaction.atomic():
+            refuse_if_timetable_is_live(timetable_id=timetable.id)
+
         year_ctx = timetable.academic_year or AcademicYear.objects.filter(is_active=True).first()
         term_ctx = timetable.term or ExamTerm.objects.filter(is_active=True).first()
 
@@ -1347,6 +1383,8 @@ def api_auto_generate_timetable(request, timetable_id):
 
     except Timetable.DoesNotExist:
         return JsonResponse({'status': 'error', 'message': 'Timetable not found.'})
+    except PermissionDenied as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=409)
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': f"Engine Abort: {str(e)}"}, status=500)
 
@@ -1881,21 +1919,24 @@ def api_clear_grid(request, timetable_id):
         stream_id = request.GET.get('stream_id')
         query = LessonAllocation.objects.filter(timetable_id=timetable_id)
 
-        if stream_id:
-            # 1. Verify stream exists and is not soft-deleted using .live manager
-            stream_obj = ClassStream.live.get(id=stream_id)
+        with transaction.atomic():
+            refuse_if_timetable_is_live(timetable_id=timetable_id)
 
-            # 2. Filter allocations specifically for this class stream
-            query = query.filter(class_stream_id=stream_id)
-            deleted_count, _ = query.delete()
+            if stream_id:
+                # 1. Verify stream exists and is not soft-deleted using .live manager
+                stream_obj = ClassStream.live.get(id=stream_id)
 
-            stream_display = f"{stream_obj.grade.name} {stream_obj.name}" if hasattr(stream_obj,
-                                                                                     'grade') else stream_obj.name
-            msg = f"Successfully cleared {deleted_count} lesson allocation(s) for {stream_display}."
-        else:
-            # Global wipe across all streams in this timetable
-            deleted_count, _ = query.delete()
-            msg = f"Entire timetable grid cleared ({deleted_count} total lessons removed across all streams)."
+                # 2. Filter allocations specifically for this class stream
+                query = query.filter(class_stream_id=stream_id)
+                deleted_count, _ = query.delete()
+
+                stream_display = f"{stream_obj.grade.name} {stream_obj.name}" if hasattr(stream_obj,
+                                                                                         'grade') else stream_obj.name
+                msg = f"Successfully cleared {deleted_count} lesson allocation(s) for {stream_display}."
+            else:
+                # Global wipe across all streams in this timetable
+                deleted_count, _ = query.delete()
+                msg = f"Entire timetable grid cleared ({deleted_count} total lessons removed across all streams)."
 
         write_audit_log(
             operator_id=request.user.id if request.user.is_authenticated else None,
@@ -1908,6 +1949,8 @@ def api_clear_grid(request, timetable_id):
     except ClassStream.DoesNotExist:
         return JsonResponse({'status': 'error', 'message': 'Target class stream not found or has been deleted.'},
                             status=404)
+    except PermissionDenied as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=409)
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': f"Failed to clear grid: {str(e)}"}, status=500)
 
@@ -2490,6 +2533,16 @@ def api_update_timetable_status(request, timetable_id):
         data = json.loads(request.body)
         timetable = Timetable.objects.get(id=timetable_id)
         prior_status = timetable.status
+
+        # Validate BEFORE any transition logic runs -- an unrecognized status (wrong case, null,
+        # an unrelated string) must be a clean 400, not a silent no-op (e.g. lowercase 'published'
+        # sailing past the Draft->Published refusal below and getting saved verbatim) or a 500
+        # (e.g. None failing the NOT NULL constraint on save).
+        if 'status' in data and data.get('status') not in ('Draft', 'Published'):
+            return JsonResponse({
+                'status': 'error',
+                'message': f"Invalid status {data.get('status')!r}. Must be 'Draft' or 'Published'.",
+            }, status=400)
 
         going_live = data.get('status') == 'Published'
         if going_live:

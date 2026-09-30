@@ -218,6 +218,49 @@ class PublishScopeTests(PublishWorldMixin, TestCase):
         self.assertFalse(LessonAllocation.objects.filter(id=self.lesson.id).exists())
         self.assertEqual(result.sync.ejected_count, 1)
 
+    def test_publishing_a_brand_new_class_places_a_lesson_from_scratch(self):
+        # A second class with a fresh allocation and NOTHING on the grid yet -- the sync must
+        # regenerate/place a lesson from scratch, not swap one in place.
+        from apps.allocations.models import SubjectQuota
+
+        # build_world only creates ONE TimeSlot total, which alone makes every teacher's real
+        # capacity (AllocationValidator._effective_weekly_cap: total slots minus the policy's 10%
+        # buffer) round down to 0 -- a false WEEKLY_CAP_EXCEEDED hard blocker unrelated to what
+        # this test checks. Give the world enough slots that a single extra lesson comfortably
+        # fits within that buffer.
+        for i in range(5):
+            TimeSlot.objects.create(day='Monday', start_time=time(9 + i, 0), end_time=time(9 + i, 40))
+
+        new_stream = ClassStream.objects.create(name='South', grade=self.grade)
+        SubjectQuota.objects.create(
+            grade=self.grade, subject=self.english, total_lessons=1,
+            double_lessons_required=0, remedial_lessons_required=0,
+        )
+        SubjectAllocation.objects.create(
+            classroom=new_stream, subject=self.english, teacher=self.teacher_a,
+            academic_year=self.year, term=self.term, is_active=True,
+        )
+        fingerprint = compute_scope_fingerprint(term_id=self.term.id, year_id=self.year.id, class_ids=[new_stream.id])
+        publish_scope(
+            term_id=self.term.id, year_id=self.year.id, class_ids=[new_stream.id],
+            review_fingerprint=fingerprint, acknowledge_soft=True, operator_id=self.operator.id,
+        )
+        self.assertTrue(
+            LessonAllocation.objects.filter(
+                timetable=self.timetable, class_stream=new_stream,
+                subject=self.english, teacher=self.teacher_a,
+            ).exists()
+        )
+
+    def test_preview_of_an_intentionally_emptied_class_says_it_can_publish(self):
+        self.publish()  # class starts published with a Maths lesson (teacher_b, per build_world)
+        AllocationPublishState.objects.filter(classroom=self.stream).update(is_published=False)
+        self.draft.delete()  # admin cleared the draft entirely -- no allocations left for this class
+
+        preview = preview_publish(term_id=self.term.id, year_id=self.year.id, class_ids=[self.stream.id])
+        self.assertTrue(preview.can_publish)
+        self.assertFalse(any(b.code == 'NOTHING_TO_PUBLISH' for b in preview.blockers))
+
     def test_a_never_allocated_class_still_cannot_be_published(self):
         never_allocated = ClassStream.objects.create(name='Nowhere', grade=self.grade)
         fingerprint = compute_scope_fingerprint(term_id=self.term.id, year_id=self.year.id, class_ids=[never_allocated.id])
