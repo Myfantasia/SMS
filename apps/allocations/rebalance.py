@@ -145,6 +145,20 @@ def propose_rebalance(*, term_id: int, year_id: int, class_ids: Sequence[int]) -
             resolves_blocker_code=blocker.code,
         ))
         teacher_subject_classes.setdefault(winner.id, {}).setdefault(blocker.subject_id, []).append(classroom)
+        # Commit the winner into the validator's LOCAL running state (dry_run=False) -- the exact
+        # same pattern fill_remaining_subjects uses for sequential picks within one call -- so the
+        # NEXT blocker's rank_candidates call correctly sees this proposed-but-uncommitted move as
+        # consumed capacity. Without this, two different blockers that both naturally resolve to
+        # the same best-ranked teacher could each independently look free, letting the proposal
+        # recommend a pair of moves that together breach policy (e.g. both push the same teacher
+        # over max_subjects_per_class or their weekly cap) even though neither looked bad alone.
+        # validator is local to this function call and never persisted or returned, so this only
+        # advances in-memory ranking/hard-check state -- nothing is written to the database, and
+        # propose_rebalance stays genuinely read-only.
+        validator.validate_and_record(
+            teacher=winner, subject=subject_row.subject, target_class=classroom,
+            term_id=term_id, year_id=year_id, dry_run=False,
+        )
         unresolved = [b for b in unresolved if b is not blocker]
 
     return RebalanceProposalDTO(

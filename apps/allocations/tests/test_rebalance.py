@@ -103,6 +103,62 @@ class ProposeRebalanceTests(ProposeRebalanceFixtureMixin, TestCase):
             classroom=self.a, teacher=self.overloaded, is_active=True).count()
         self.assertEqual(still_overloaded, 3)  # nothing persisted
 
+    def test_two_blockers_resolving_to_the_same_teacher_dont_jointly_breach_capacity(self):
+        # Two separate classes (own grade, own two streams -- isolated from self.a/self.grade so
+        # this doesn't interact with the other tests' fixtures), each with its own overloaded
+        # teacher hitting MAX_SUBJECTS_PER_CLASS on the same subject -- Kiswahili, by the same
+        # subject_id-ordering mechanics confirmed in the test above (maths/english/kiswahili
+        # created in that order in build_world, so kiswahili -- the highest subject_id -- is the
+        # one AllocationValidator.validate_and_record HARD-rejects in each class). Only one other
+        # teacher ("rescuer") is qualified for Kiswahili at all, and starts with ZERO class
+        # groups, so either class's blocker alone would propose rescuer as the fix.
+        #
+        # max_total_class_groups is capped at 1 so the two picks can't BOTH be safe: validate_
+        # and_record's own check (school/utils.py) is "len(t_groups_set) + 1 > max_total_class_
+        # groups" -- the FIRST class rescuer picks up is fine (0 + 1 == 1, not > 1), but the
+        # SECOND would be 1 + 1 = 2 > 1. This only self-corrects if propose_rebalance commits the
+        # first pick into the validator's running state (dry_run=False) before scoring the second
+        # blocker -- the fix this test guards against regressing. overloaded_d/overloaded_e are
+        # deliberately also qualified for all three subjects (so they're real candidates too) but
+        # each already holds their OWN class as a seeded group, so the same cap rules them out as
+        # an alternative for the OTHER class regardless -- confirmed by the same validate_and_
+        # record logic, not assumed.
+        grade2 = GradeLevel.objects.create(name='Grade 9', numeric_order=9, curriculum_type='CBC')
+        class_d = ClassStream.objects.create(name='D', grade=grade2)
+        class_e = ClassStream.objects.create(name='E', grade=grade2)
+
+        policy = GlobalAllocationPolicy.load()
+        policy.max_total_class_groups = 1
+        policy.save()
+
+        overloaded_d = self.make_teacher('overloaded_d')
+        overloaded_e = self.make_teacher('overloaded_e')
+        rescuer = self.make_teacher('rescuer')
+        rescuer.qualified_subjects.add(self.kiswahili)
+
+        for classroom, teacher in ((class_d, overloaded_d), (class_e, overloaded_e)):
+            for subject in (self.maths, self.english, self.kiswahili):
+                teacher.qualified_subjects.add(subject)
+                self.allocate(classroom, subject, teacher)
+
+        proposal = propose_rebalance(
+            term_id=self.term.id, year_id=self.year.id, class_ids=[class_d.id, class_e.id],
+        )
+
+        rescuer_moves = [m for m in proposal.moves if m.to_teacher_id == rescuer.id]
+        # The whole point of the fix: rescuer may be proposed for at most ONE of the two classes,
+        # never both -- taking both would jointly breach max_total_class_groups=1.
+        self.assertLessEqual(len({m.classroom_id for m in rescuer_moves}), 1)
+        self.assertEqual(len(rescuer_moves), len({m.classroom_id for m in rescuer_moves}))
+        # And since rescuer is the only teacher qualified for Kiswahili who isn't already pinned
+        # to their own class by the same cap, at least one of the two MAX_SUBJECTS_PER_CLASS
+        # blockers must be left unresolved -- nobody else can safely take it.
+        unresolved_kiswahili = [
+            b for b in proposal.unresolved_blockers
+            if b.code == 'MAX_SUBJECTS_PER_CLASS' and b.subject_id == self.kiswahili.id
+        ]
+        self.assertTrue(len(unresolved_kiswahili) >= 1)
+
     def test_fingerprint_matches_publish_gates_own_fingerprint_for_the_same_scope(self):
         from apps.allocations.publish_gate import compute_scope_fingerprint
 
