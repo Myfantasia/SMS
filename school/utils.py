@@ -495,6 +495,146 @@ def reserve_class_teacher_slot(*, validator, target_class, required_subjects, te
     return None, None
 
 
+def rank_candidates(*, validator, subject, target_class, teacher_qualified_map, active_teachers,
+                     teacher_subject_classes, policy, term_id, year_id):
+    """
+    The shared scorer: every qualified candidate teacher for `subject` in `target_class`, ranked by
+    the same tiered priority tuple fill_remaining_subjects has always used (shared-block continuity,
+    rule warnings, within-grade repetition, cross-grade repetition, real remaining capacity, raw
+    workload, prep-consolidation, total groups). Pure dry-run: scores every candidate via
+    validator.validate_and_record(dry_run=True) and NEVER commits into the validator's running
+    state -- the caller decides whether/what to commit.
+
+    Returns a list of (priority_tuple, teacher, dry_run_warnings) sorted ascending by priority_tuple
+    (best candidate first) -- empty if nobody qualified passes a hard validator check.
+
+    Shared by fill_remaining_subjects (auto-draft/bulk-allocate's "fill an empty slot" case) and
+    apps.allocations.rebalance (rebalance's "find an alternative to an already-assigned teacher"
+    case) -- see docs/superpowers/specs/2026-09-21-teacher-allocation-timetable-settings-design.md
+    section 5's "one shared scorer" requirement.
+    """
+    target_grade_id = target_class.grade_id
+    target_min = getattr(policy, 'min_classes_per_subject', 2)
+    # Prep consolidation only pays for itself when the grade has MORE streams than the
+    # target — e.g. concentrating one teacher onto 2 of 3 streams genuinely spares them a
+    # third prep. When the grade has AT MOST target_min streams, one teacher covering all of
+    # them costs the same number of distinct preps as splitting the streams across several
+    # qualified teachers, so forcing consolidation here only blocks reshuffling for no benefit.
+    enforce_prep = (getattr(policy, 'enforce_prep_consolidation', True)
+                     and validator._grade_stream_count(target_grade_id) > target_min)
+
+    candidates = []  # [(priority_tuple, teacher, dry_run_warnings)]
+    for teacher in active_teachers:
+        if subject.id not in teacher_qualified_map.get(teacher.id, set()):
+            continue
+
+        hard_error, warnings = validator.validate_and_record(
+            teacher=teacher, subject=subject, target_class=target_class,
+            term_id=term_id, year_id=year_id, dry_run=True
+        )
+        if hard_error:
+            continue
+
+        # The "Optimization Notice" (prep-consolidation) warning restates the exact same
+        # signal prep_consolidation_priority already scores further down this tuple — counting
+        # it here too let it sneak back in at a much higher tier than intended. Concretely: a
+        # teacher who happens to already teach this subject in ANOTHER grade (from baseline
+        # data) never trips the notice, while every genuinely fresh candidate does, so ranking
+        # by raw warning count silently favored whoever's cross-grade history cleared the
+        # notice — the exact repetition reshuffling is supposed to catch — regardless of how
+        # many streams of THIS grade's subject they already hold. Real rule warnings (burnout,
+        # cross-grade violation, max-subjects) still count; only this one optimization hint is
+        # excluded from ranking (it's still shown to the admin via `warnings` below).
+        rankable_warning_count = sum(1 for w in warnings if not w.startswith('Optimization Notice'))
+
+        classes_taught_this_subject = teacher_subject_classes.get(teacher.id, {}).get(subject.id, [])
+        grade_streams_count = len([c for c in classes_taught_this_subject if c.grade_id == target_grade_id])
+        # A virtual split group (see api_execute_allocation_splits) is deliberately NOT
+        # part of the shared synchronized session anymore — it exists precisely because one
+        # shared teacher/timeslot stopped covering everyone, so it doesn't get the shared-
+        # block treatment even though its subject is registered in the grade's block.
+        # Reuses validator._is_shared_block (not just a block_map lookup) so PE and any other
+        # allows_multiclass subject rank the same way here as they're actually scored in
+        # validate_and_record — a block_map-only check here previously missed PE (which has
+        # no formal SubjectBlock row), so shared_block_priority never locked it onto one
+        # incumbent teacher for ranking purposes, even though validate_and_record already
+        # treated it as a zero-extra-cost shared session.
+        is_shared_block = (not target_class.is_virtual
+                            and validator._is_shared_block(subject, target_class.grade))
+
+        total_streams_assigned = len(classes_taught_this_subject)
+        prep_consolidation_priority = 1
+        if enforce_prep and 0 < total_streams_assigned < target_min:
+            prep_consolidation_priority = 0
+
+        grade_stream_penalty = 0 if is_shared_block else grade_streams_count
+        # Reshuffle strength: how many streams of THIS subject the teacher already holds in
+        # OTHER grades (e.g. already the Biology teacher for 7N, now being scored for 8N).
+        # grade_stream_penalty above only looks within the target grade (intentionally, since
+        # it cooperates with prep-consolidation there) — this is the separate, always-on
+        # signal that discourages the same teacher becoming "the" pick for a subject across
+        # every grade in the school by default, so reshuffling spreads work across the
+        # qualified pool instead of converging on whoever ranked best once.
+        other_grade_repeat_penalty = 0 if is_shared_block else (total_streams_assigned - grade_streams_count)
+        # Real workload, not just a class-group count: teacher_weekly_lessons already reflects
+        # this teacher's full existing load across every OTHER subject they teach (seeded from
+        # real allocations), so preferring the lower figure here actively spreads the load
+        # across the staff instead of piling more periods onto whoever already ranks best on
+        # the tiers above — this is what keeps one teacher from being quietly overloaded while
+        # others sit idle, which is also what starves the downstream timetable generator of
+        # free slots and forces it into clashes it can't resolve.
+        current_workload = validator.teacher_weekly_lessons.get(teacher.id, 0)
+        # Capacity-aware refinement of current_workload: two teachers can carry the same raw
+        # lesson count but have very different REAL headroom left — e.g. one has structural
+        # blackouts eating into their usable slots. Preferring more remaining headroom (a more
+        # negative value here) spreads load by what a teacher can actually still absorb on the
+        # real timetable grid, not just by a raw count, which is also what keeps the downstream
+        # timetable generator from being handed a teacher who's nominally "light" but has no
+        # real slots left to give.
+        remaining_capacity_penalty = current_workload - validator._effective_weekly_cap(teacher.id)
+        global_workload = len(validator.teacher_total_groups.get(teacher.id, set()))
+
+        # Shared-block continuity: a technical/synchronized-block subject is ONE lesson
+        # every stream in the grade attends together at the same timeslot, so whoever
+        # already has it in this grade is the only physically correct pick for the next
+        # stream too — this is independent of (and takes priority over) prep-consolidation/
+        # reshuffling, which only concerns ordinary, non-synchronized subjects.
+        shared_block_incumbent = validator.shared_subject_teacher.get((target_grade_id, subject.id))
+        shared_block_priority = 0 if (is_shared_block and teacher.id == shared_block_incumbent) else 1
+
+        # No class-teacher boost here on purpose: reserve_class_teacher_slot (called
+        # before this function) already guarantees the class teacher gets one subject in
+        # their own homeroom. Giving them a further priority tier for every OTHER subject
+        # too would stack extra subjects onto them just for being the class teacher, which
+        # isn't a requirement — they should compete for anything beyond their guaranteed
+        # slot on the same footing as everyone else.
+        # Reshuffle signals (grade_stream_penalty, other_grade_repeat_penalty) rank ahead of
+        # raw workload/capacity, not behind it — a lexicographic tuple lets an EARLIER tier
+        # completely override a LATER one, so putting workload first (a prior version of this
+        # code did) let a subject "specialist" who teaches nothing else keep winning every
+        # stream of their one subject on workload alone, since a light OVERALL load doesn't
+        # mean they aren't already repeated on THIS subject — e.g. a teacher already covering
+        # 4 of 5 Biology streams still looks "available" by raw weekly lessons if Biology is
+        # literally the only thing they teach, so nothing ever pushed the picker off them.
+        # Repetition-avoidance has to be checked before availability, not after, for
+        # reshuffling to mean anything. prep_consolidation_priority stays demoted at the
+        # bottom (a soft nudge for otherwise-tied candidates, not a magnet).
+        priority = (
+            shared_block_priority,
+            rankable_warning_count,
+            grade_stream_penalty,
+            other_grade_repeat_penalty,
+            remaining_capacity_penalty,
+            current_workload,
+            prep_consolidation_priority,
+            global_workload,
+        )
+        candidates.append((priority, teacher, warnings))
+
+    candidates.sort(key=lambda c: c[0])
+    return candidates
+
+
 def fill_remaining_subjects(*, validator, target_class, required_subjects, reserved_subject_id,
                              teacher_qualified_map, active_teachers, teacher_subject_classes,
                              policy, term_id, year_id):
@@ -520,114 +660,12 @@ def fill_remaining_subjects(*, validator, target_class, required_subjects, reser
     for subject in required_subjects:
         if subject.id == reserved_subject_id:
             continue
-        candidates = []  # [(priority_tuple, teacher, dry_run_warnings)]
-
-        for teacher in active_teachers:
-            if subject.id not in teacher_qualified_map.get(teacher.id, set()):
-                continue
-
-            hard_error, warnings = validator.validate_and_record(
-                teacher=teacher, subject=subject, target_class=target_class,
-                term_id=term_id, year_id=year_id, dry_run=True
-            )
-            if hard_error:
-                continue
-
-            # The "Optimization Notice" (prep-consolidation) warning restates the exact same
-            # signal prep_consolidation_priority already scores further down this tuple — counting
-            # it here too let it sneak back in at a much higher tier than intended. Concretely: a
-            # teacher who happens to already teach this subject in ANOTHER grade (from baseline
-            # data) never trips the notice, while every genuinely fresh candidate does, so ranking
-            # by raw warning count silently favored whoever's cross-grade history cleared the
-            # notice — the exact repetition reshuffling is supposed to catch — regardless of how
-            # many streams of THIS grade's subject they already hold. Real rule warnings (burnout,
-            # cross-grade violation, max-subjects) still count; only this one optimization hint is
-            # excluded from ranking (it's still shown to the admin via `warnings` below).
-            rankable_warning_count = sum(1 for w in warnings if not w.startswith('Optimization Notice'))
-
-            classes_taught_this_subject = teacher_subject_classes.get(teacher.id, {}).get(subject.id, [])
-            grade_streams_count = len([c for c in classes_taught_this_subject if c.grade_id == target_grade_id])
-            # A virtual split group (see api_execute_allocation_splits) is deliberately NOT
-            # part of the shared synchronized session anymore — it exists precisely because one
-            # shared teacher/timeslot stopped covering everyone, so it doesn't get the shared-
-            # block treatment even though its subject is registered in the grade's block.
-            # Reuses validator._is_shared_block (not just a block_map lookup) so PE and any other
-            # allows_multiclass subject rank the same way here as they're actually scored in
-            # validate_and_record — a block_map-only check here previously missed PE (which has
-            # no formal SubjectBlock row), so shared_block_priority never locked it onto one
-            # incumbent teacher for ranking purposes, even though validate_and_record already
-            # treated it as a zero-extra-cost shared session.
-            is_shared_block = (not target_class.is_virtual
-                                and validator._is_shared_block(subject, target_class.grade))
-
-            total_streams_assigned = len(classes_taught_this_subject)
-            prep_consolidation_priority = 1
-            if enforce_prep and 0 < total_streams_assigned < target_min:
-                prep_consolidation_priority = 0
-
-            grade_stream_penalty = 0 if is_shared_block else grade_streams_count
-            # Reshuffle strength: how many streams of THIS subject the teacher already holds in
-            # OTHER grades (e.g. already the Biology teacher for 7N, now being scored for 8N).
-            # grade_stream_penalty above only looks within the target grade (intentionally, since
-            # it cooperates with prep-consolidation there) — this is the separate, always-on
-            # signal that discourages the same teacher becoming "the" pick for a subject across
-            # every grade in the school by default, so reshuffling spreads work across the
-            # qualified pool instead of converging on whoever ranked best once.
-            other_grade_repeat_penalty = 0 if is_shared_block else (total_streams_assigned - grade_streams_count)
-            # Real workload, not just a class-group count: teacher_weekly_lessons already reflects
-            # this teacher's full existing load across every OTHER subject they teach (seeded from
-            # real allocations), so preferring the lower figure here actively spreads the load
-            # across the staff instead of piling more periods onto whoever already ranks best on
-            # the tiers above — this is what keeps one teacher from being quietly overloaded while
-            # others sit idle, which is also what starves the downstream timetable generator of
-            # free slots and forces it into clashes it can't resolve.
-            current_workload = validator.teacher_weekly_lessons.get(teacher.id, 0)
-            # Capacity-aware refinement of current_workload: two teachers can carry the same raw
-            # lesson count but have very different REAL headroom left — e.g. one has structural
-            # blackouts eating into their usable slots. Preferring more remaining headroom (a more
-            # negative value here) spreads load by what a teacher can actually still absorb on the
-            # real timetable grid, not just by a raw count, which is also what keeps the downstream
-            # timetable generator from being handed a teacher who's nominally "light" but has no
-            # real slots left to give.
-            remaining_capacity_penalty = current_workload - validator._effective_weekly_cap(teacher.id)
-            global_workload = len(validator.teacher_total_groups.get(teacher.id, set()))
-
-            # Shared-block continuity: a technical/synchronized-block subject is ONE lesson
-            # every stream in the grade attends together at the same timeslot, so whoever
-            # already has it in this grade is the only physically correct pick for the next
-            # stream too — this is independent of (and takes priority over) prep-consolidation/
-            # reshuffling, which only concerns ordinary, non-synchronized subjects.
-            shared_block_incumbent = validator.shared_subject_teacher.get((target_grade_id, subject.id))
-            shared_block_priority = 0 if (is_shared_block and teacher.id == shared_block_incumbent) else 1
-
-            # No class-teacher boost here on purpose: reserve_class_teacher_slot (called
-            # before this function) already guarantees the class teacher gets one subject in
-            # their own homeroom. Giving them a further priority tier for every OTHER subject
-            # too would stack extra subjects onto them just for being the class teacher, which
-            # isn't a requirement — they should compete for anything beyond their guaranteed
-            # slot on the same footing as everyone else.
-            # Reshuffle signals (grade_stream_penalty, other_grade_repeat_penalty) rank ahead of
-            # raw workload/capacity, not behind it — a lexicographic tuple lets an EARLIER tier
-            # completely override a LATER one, so putting workload first (a prior version of this
-            # code did) let a subject "specialist" who teaches nothing else keep winning every
-            # stream of their one subject on workload alone, since a light OVERALL load doesn't
-            # mean they aren't already repeated on THIS subject — e.g. a teacher already covering
-            # 4 of 5 Biology streams still looks "available" by raw weekly lessons if Biology is
-            # literally the only thing they teach, so nothing ever pushed the picker off them.
-            # Repetition-avoidance has to be checked before availability, not after, for
-            # reshuffling to mean anything. prep_consolidation_priority stays demoted at the
-            # bottom (a soft nudge for otherwise-tied candidates, not a magnet).
-            priority = (
-                shared_block_priority,
-                rankable_warning_count,
-                grade_stream_penalty,
-                other_grade_repeat_penalty,
-                remaining_capacity_penalty,
-                current_workload,
-                prep_consolidation_priority,
-                global_workload,
-            )
-            candidates.append((priority, teacher, warnings))
+        candidates = rank_candidates(
+            validator=validator, subject=subject, target_class=target_class,
+            teacher_qualified_map=teacher_qualified_map, active_teachers=active_teachers,
+            teacher_subject_classes=teacher_subject_classes, policy=policy,
+            term_id=term_id, year_id=year_id,
+        )
 
         if candidates:
             random.shuffle(candidates)
