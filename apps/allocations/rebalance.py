@@ -4,9 +4,9 @@ the exact same check a publish would run) and, for each HARD blocker that names 
 Auto-Allocate uses (school.utils.rank_candidates) -- propose the best alternative that would
 actually resolve the blocker, or leave it listed as unresolved if nobody qualifies.
 
-Never writes anything. apps.allocations.services.confirm_rebalance (a separate function, added in
-a later task) is the only thing that applies a proposal, and only after re-checking the same
-fingerprint this module computes -- see that function's own docstring for why.
+propose_rebalance itself never writes anything. confirm_rebalance (below, in this same module) is
+the only thing that applies a proposal, and only after re-checking the same fingerprint
+propose_rebalance computes -- see that function's own docstring for why.
 
 school.utils names are imported lazily inside propose_rebalance, matching the existing precedent
 in apps.allocations.publish_gate.review_scope and apps.allocations.services.
@@ -165,3 +165,57 @@ def propose_rebalance(*, term_id: int, year_id: int, class_ids: Sequence[int]) -
         class_ids=ids, fingerprint=review.fingerprint, moves=tuple(moves),
         unresolved_blockers=tuple(unresolved), blockers_before=review.blockers,
     )
+
+
+class StaleProposalError(Exception):
+    pass
+
+
+@dataclass(frozen=True)
+class RebalanceResultDTO:
+    class_ids: Tuple[int, ...]
+    moves_applied: int
+
+
+def confirm_rebalance(
+    *, term_id: int, year_id: int, class_ids: Sequence[int], proposal_fingerprint: str,
+    operator_id: Optional[int],
+) -> RebalanceResultDTO:
+    """Applies a previously-proposed rebalance to the DRAFT only -- no timetable sync, no publish
+    state change (Publish, not Rebalance, is what finalizes a draft -- see publish_gate/orchestration.publish).
+    Re-runs propose_rebalance under lock and compares its fresh fingerprint against the one the
+    admin actually reviewed; a mismatch means the draft changed in between, so this refuses rather
+    than silently applying a stale plan."""
+    from django.db import transaction
+
+    from apps.allocations.services import lock_publish_state
+    from apps.core import services as core_services
+
+    ids = tuple(sorted(set(int(c) for c in class_ids)))
+    with transaction.atomic():
+        for classroom_id in ids:
+            lock_publish_state(classroom_id=classroom_id, term_id=term_id, academic_year_id=year_id)
+
+        fresh = propose_rebalance(term_id=term_id, year_id=year_id, class_ids=ids)
+        if fresh.fingerprint != proposal_fingerprint:
+            raise StaleProposalError(
+                "This draft changed since the rebalance was proposed. Propose it again before confirming."
+            )
+
+        for move in fresh.moves:
+            SubjectAllocation.objects.filter(
+                classroom_id=move.classroom_id, subject_id=move.subject_id,
+                term_id=term_id, academic_year_id=year_id, is_active=True,
+            ).update(teacher_id=move.to_teacher_id)
+
+        core_services.write_audit_log(
+            operator_id=operator_id, action_type='UPDATE', module='AllocationRebalance',
+            description=(
+                f"Rebalanced {len(fresh.moves)} contract(s) across {len(ids)} class(es) "
+                f"(term {term_id}, year {year_id}): "
+                + "; ".join(f"{m.subject_id}@{m.classroom_id} -> teacher {m.to_teacher_id}" for m in fresh.moves)
+                + "."
+            ),
+        )
+
+    return RebalanceResultDTO(class_ids=ids, moves_applied=len(fresh.moves))

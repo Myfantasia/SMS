@@ -166,3 +166,64 @@ class ProposeRebalanceTests(ProposeRebalanceFixtureMixin, TestCase):
         proposal = propose_rebalance(term_id=self.term.id, year_id=self.year.id, class_ids=[self.a.id])
         expected = compute_scope_fingerprint(term_id=self.term.id, year_id=self.year.id, class_ids=[self.a.id])
         self.assertEqual(proposal.fingerprint, expected)
+
+
+class ConfirmRebalanceTests(ProposeRebalanceFixtureMixin, TestCase):
+    def setUp(self):
+        self.build_world()
+        # spare is made qualified for all three subjects (not just maths, which is all
+        # build_world grants it) for the same reason ProposeRebalanceTests's
+        # test_a_teacher_over_the_per_class_subject_limit_gets_a_move_proposed does: validate_
+        # and_record HARD-rejects whichever of these three subjects has the highest subject_id
+        # (here, kiswahili), so spare needs to be a valid alternative for that one specifically,
+        # not just mathematics, for propose_rebalance to find a move at all.
+        for subject in (self.maths, self.english, self.kiswahili):
+            self.overloaded.qualified_subjects.add(subject)
+            self.spare.qualified_subjects.add(subject)
+            self.allocate(self.a, subject, self.overloaded)
+
+    def test_confirm_applies_the_proposed_moves_to_the_draft(self):
+        from apps.allocations.rebalance import confirm_rebalance, propose_rebalance
+
+        proposal = propose_rebalance(term_id=self.term.id, year_id=self.year.id, class_ids=[self.a.id])
+        self.assertTrue(proposal.moves)
+
+        result = confirm_rebalance(
+            term_id=self.term.id, year_id=self.year.id, class_ids=[self.a.id],
+            proposal_fingerprint=proposal.fingerprint, operator_id=None,
+        )
+
+        self.assertEqual(result.moves_applied, len(proposal.moves))
+        for move in proposal.moves:
+            self.assertTrue(SubjectAllocation.objects.filter(
+                classroom_id=move.classroom_id, subject_id=move.subject_id,
+                teacher_id=move.to_teacher_id, is_active=True).exists())
+
+    def test_confirm_never_touches_the_timetable_or_publish_state(self):
+        from apps.allocations.models import AllocationPublishState
+        from apps.allocations.rebalance import confirm_rebalance, propose_rebalance
+
+        proposal = propose_rebalance(term_id=self.term.id, year_id=self.year.id, class_ids=[self.a.id])
+        confirm_rebalance(
+            term_id=self.term.id, year_id=self.year.id, class_ids=[self.a.id],
+            proposal_fingerprint=proposal.fingerprint, operator_id=None,
+        )
+
+        self.assertFalse(AllocationPublishState.objects.filter(
+            classroom=self.a, is_published=True).exists())
+
+    def test_confirm_with_a_stale_fingerprint_is_rejected_and_changes_nothing(self):
+        from apps.allocations.rebalance import StaleProposalError, confirm_rebalance, propose_rebalance
+
+        proposal = propose_rebalance(term_id=self.term.id, year_id=self.year.id, class_ids=[self.a.id])
+        # The draft changes after the proposal was generated.
+        SubjectAllocation.objects.filter(classroom=self.a, subject=self.kiswahili).update(teacher=self.spare)
+
+        with self.assertRaises(StaleProposalError):
+            confirm_rebalance(
+                term_id=self.term.id, year_id=self.year.id, class_ids=[self.a.id],
+                proposal_fingerprint=proposal.fingerprint, operator_id=None,
+            )
+
+        self.assertTrue(SubjectAllocation.objects.filter(
+            classroom=self.a, subject=self.maths, teacher=self.overloaded, is_active=True).exists())
