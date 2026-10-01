@@ -108,16 +108,54 @@ class StudentFeeLedgerEntry(models.Model):
 
 class StudentFeeAdjustment(models.Model):
     """A discount, scholarship, bursary, penalty, or correction applied to a
-    student's fee account — spec section 4.4. A negative/waiving amount
-    (discount, scholarship, bursary) requires approved_by to be set; this is
-    enforced in create_adjustment(), not here, since the model layer can't
-    know who is allowed to approve."""
+    student's fee account — spec section 4.4.
+
+    Two-step approval workflow (spec section 4.10, Task 30): a negative/
+    waiving amount (discount, scholarship, bursary) is created `pending` by
+    create_adjustment() and posts NO ledger entry until a SEPARATE user
+    holding finance.approve_adjustment -- never the requester -- calls
+    decide_adjustment() to approve or reject it. A positive amount skips the
+    workflow entirely: there is nothing to approve, so create_adjustment()
+    self-approves it immediately (status='approved', decided_by=requested_by)
+    exactly as before this feature existed.
+
+    `status` defaults to 'approved' specifically so that the pending
+    migration (run by the user, never by this code -- see
+    docs/superpowers/specs/2026-09-09-finance-subsystem-design.md section 11
+    and this repo's migrations rule) lands every EXISTING row as 'approved':
+    those rows were all created under the old one-step flow and already
+    posted to the ledger immediately, i.e. already effectively approved. New
+    code never relies on this default -- create_adjustment() and
+    decide_adjustment() always pass status explicitly.
+
+    `approved_by` predates this workflow. Rather than rename it or have it
+    mean two different things, it is repurposed narrowly: it is set if and
+    only if a row was approved through an actual decide_adjustment() decision
+    (i.e. a genuine two-person approval of a formerly-pending row), mirroring
+    `decided_by` in that one case. It stays None for 'pending' rows,
+    'rejected' rows, AND for a positive amount's immediate self-approval --
+    because in that last case there was no approval event to record, only a
+    requester who never needed one; `decided_by` already covers "who decided"
+    (including the self-approve case) without overloading `approved_by`'s
+    original, narrower meaning ("the user who approved this waiver"). Any
+    code that reads `approved_by` to mean "this was approved" should check
+    `status == 'approved'` instead; `approved_by` is now a secondary,
+    sometimes-None detail about HOW it got approved, not the source of truth
+    for whether it is approved.
+
+    `decided_by` / `decided_at` / `decision_note` are the authoritative record
+    of ANY decision -- self-approval, formal approval, or rejection."""
     ADJUSTMENT_TYPE_CHOICES = [
         ('discount', 'Discount'),
         ('scholarship', 'Scholarship'),
         ('bursary', 'Bursary'),
         ('penalty', 'Penalty'),
         ('correction', 'Correction'),
+    ]
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
     ]
     student = models.ForeignKey('identity.StudentExtra', on_delete=models.PROTECT, related_name='fee_adjustments')
     category = models.ForeignKey(FeeCategory, on_delete=models.PROTECT, null=True, blank=True, related_name='adjustments')
@@ -126,6 +164,10 @@ class StudentFeeAdjustment(models.Model):
     reason = models.TextField()
     requested_by = models.ForeignKey('auth.User', on_delete=models.PROTECT, related_name='+')
     approved_by = models.ForeignKey('auth.User', on_delete=models.PROTECT, null=True, blank=True, related_name='+')
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='approved', db_index=True)
+    decided_by = models.ForeignKey('auth.User', on_delete=models.PROTECT, null=True, blank=True, related_name='+')
+    decided_at = models.DateTimeField(null=True, blank=True)
+    decision_note = models.TextField(blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

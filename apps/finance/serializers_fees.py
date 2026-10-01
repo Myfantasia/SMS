@@ -1,4 +1,3 @@
-from django.contrib.auth.models import User
 from rest_framework import serializers
 
 from apps.academics.models import AcademicYear, ExamTerm
@@ -7,7 +6,6 @@ from apps.finance.models_fees import (
     StudentFeeAdjustment, StudentFeeLedgerEntry, FeeClearancePolicy, FeeClearanceOverride,
 )
 from apps.identity.models import StudentExtra
-from school.rbac import user_has_permission
 
 # Ledger amounts are 32-bit integer columns and running balances add up, so
 # input is capped well below the limit to keep a typo from overflowing a column.
@@ -104,7 +102,8 @@ class StudentFeeAdjustmentSerializer(serializers.ModelSerializer):
         model = StudentFeeAdjustment
         fields = [
             'id', 'student', 'category', 'adjustment_type', 'amount', 'reason',
-            'requested_by', 'approved_by', 'created_at',
+            'requested_by', 'approved_by', 'status', 'decided_by', 'decided_at',
+            'decision_note', 'created_at',
         ]
         read_only_fields = fields
 
@@ -134,19 +133,16 @@ class AdjustmentCreateSerializer(serializers.Serializer):
     adjustment_type = serializers.ChoiceField(choices=StudentFeeAdjustment.ADJUSTMENT_TYPE_CHOICES)
     amount = serializers.IntegerField(min_value=-MAX_AMOUNT, max_value=MAX_AMOUNT)
     reason = serializers.CharField(max_length=2000)
-    approved_by = serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), required=False, allow_null=True)
 
     def validate_amount(self, value):
         if value == 0:
             raise serializers.ValidationError("Adjustment amount must not be zero.")
         return value
 
-    def validate_approved_by(self, user):
-        """The named approver must be a real, active user who actually holds the
-        approve permission. (Not being the requester is enforced by the service.)"""
-        if user is not None and not (user.is_active and user_has_permission(user, 'finance.approve_adjustment')):
-            raise serializers.ValidationError("The approver must be an active user with the finance.approve_adjustment permission.")
-        return user
+
+class AdjustmentDecisionSerializer(serializers.Serializer):
+    approve = serializers.BooleanField()
+    note = serializers.CharField(required=False, allow_blank=True, default='', max_length=2000)
 
 
 class VoidSerializer(serializers.Serializer):
@@ -170,6 +166,11 @@ class InvoiceListQuerySerializer(PageQuerySerializer):
 
 
 class PaymentListQuerySerializer(PageQuerySerializer):
+    student_id = serializers.IntegerField(min_value=1, required=False)
+
+
+class AdjustmentListQuerySerializer(PageQuerySerializer):
+    status = serializers.ChoiceField(choices=StudentFeeAdjustment.STATUS_CHOICES, required=False)
     student_id = serializers.IntegerField(min_value=1, required=False)
 
 

@@ -51,29 +51,41 @@ def get_credit_balance(student):
     return max(0, -latest_balance) if latest_balance is not None else 0
 
 
-def create_adjustment(*, student, adjustment_type, amount, reason, requested_by, category_id=None, approved_by=None):
-    """Create a StudentFeeAdjustment and post it to the student's ledger.
-    Any negative amount (a discount/scholarship/bursary that waives fees) must
-    carry an approver — this is an audit requirement, not optional, per spec
-    section 4.4. `category_id` (optional) is resolved to the FeeCategory here."""
+def create_adjustment(*, student, adjustment_type, amount, reason, requested_by, category_id=None):
+    """Create a StudentFeeAdjustment. Spec section 4.10 (Task 30): a negative
+    amount (a discount/scholarship/bursary that waives fees) is created
+    `pending` and posts NOTHING to the ledger -- it waits for a separate
+    decide_adjustment() approval. A positive amount (penalty/correction) needs
+    no approval, so it is created `approved` and posted immediately, exactly
+    as before this feature existed; `decided_by` is set to `requested_by`
+    since the "decision" was simply that none was required (see the model
+    docstring for why `approved_by` is deliberately left None in this case).
+    `category_id` (optional) is resolved to the FeeCategory here. The caller's
+    serializer already rejects amount == 0."""
     category = FeeCategory.objects.filter(id=category_id).first() if category_id else None
-    if amount < 0 and approved_by is None:
-        raise ValidationError(
-            f"A negative adjustment ({adjustment_type}) of {amount} requires an approver."
-        )
-    if approved_by is not None and approved_by == requested_by:
-        raise ValidationError(
-            "The approver of a negative adjustment cannot be the same user who requested it."
-        )
     with transaction.atomic():
         # Lock the student row first: the create() below takes FOR KEY SHARE on it
         # via the FK, and post_ledger_entry then wants FOR UPDATE -- taking the
         # stronger lock up front avoids a lock-upgrade deadlock between two
         # concurrent writers for one student.
         student = StudentExtra.objects.select_for_update().get(pk=student.pk)
+        if amount < 0:
+            adjustment = StudentFeeAdjustment.objects.create(
+                student=student, category=category, adjustment_type=adjustment_type,
+                amount=amount, reason=reason, requested_by=requested_by, status='pending',
+            )
+            write_audit_log(
+                operator_id=requested_by.id, action_type='CREATE', module='finance',
+                description=(
+                    f"Requested {adjustment.get_adjustment_type_display()} of {amount} for student "
+                    f"{student.id} (awaiting approval): {reason}"
+                ),
+            )
+            return adjustment
         adjustment = StudentFeeAdjustment.objects.create(
             student=student, category=category, adjustment_type=adjustment_type,
-            amount=amount, reason=reason, requested_by=requested_by, approved_by=approved_by,
+            amount=amount, reason=reason, requested_by=requested_by,
+            status='approved', decided_by=requested_by, decided_at=timezone.now(),
         )
         post_ledger_entry(
             student=student, entry_type='adjustment', amount=amount,
@@ -81,13 +93,81 @@ def create_adjustment(*, student, adjustment_type, amount, reason, requested_by,
             description=f"{adjustment.get_adjustment_type_display()}: {reason}"[:_LEDGER_DESCRIPTION_MAX],
         )
         write_audit_log(
-            operator_id=requested_by.id, action_type='APPROVE' if approved_by else 'CREATE',
-            module='finance',
-            description=(
-                f"{adjustment.get_adjustment_type_display()} of {amount} for student "
-                f"{student.id}: {reason}" + (f" (approved by {approved_by.username})" if approved_by else '')
-            ),
+            operator_id=requested_by.id, action_type='CREATE', module='finance',
+            description=f"{adjustment.get_adjustment_type_display()} of {amount} for student {student.id}: {reason}",
         )
+        return adjustment
+
+
+def decide_adjustment(*, adjustment, decided_by, approve, note=''):
+    """Approve or reject a PENDING StudentFeeAdjustment -- the second step of
+    the two-step waiver-approval workflow create_adjustment() starts for
+    negative/waiving amounts (spec section 4.10, Task 30).
+
+    `decided_by` can never be the user who requested the adjustment -- a
+    requester can never decide their own request. This is checked FIRST and
+    unconditionally, before the permission check, so it is always a
+    ValidationError (never a PermissionDenied) even if the requester happens
+    to also hold finance.approve_adjustment via some other role. `decided_by`
+    must otherwise hold finance.approve_adjustment, checked with
+    apps.identity.services.user_has_permission -- the same plain, non-request-
+    scoped check grant_clearance_override/revoke_clearance_override already
+    use in this file.
+
+    Locks the student row first, then re-reads the adjustment under its own
+    lock (the caller's `adjustment` object may be stale) -- same ordering as
+    create_adjustment/void_payment/void_invoice. A non-pending adjustment
+    (already decided) is refused with a ValidationError: a decision is final.
+
+    Approving posts the ledger entry create_adjustment() withheld and sets
+    `approved_by = decided_by` (see the model docstring for why this is kept
+    separate from `decided_by`). Rejecting posts nothing. Both set
+    decided_by/decided_at/decision_note and are audit-logged, reusing the
+    existing 'APPROVE'/'REJECT' ACTION_CHOICES values (originally written for
+    a different, unrelated pending-account workflow) -- no adjustment-specific
+    choices exist yet and these are conceptually the approve/reject cases
+    those two already describe, the same reasoning void_invoice's docstring
+    gives for reusing 'DELETE'."""
+    if decided_by == adjustment.requested_by:
+        raise ValidationError("The requester of an adjustment cannot decide their own request.")
+    if not user_has_permission(decided_by.id, 'finance.approve_adjustment'):
+        raise PermissionDenied("You do not hold the finance.approve_adjustment permission.")
+    with transaction.atomic():
+        # Lock-first: see create_adjustment.
+        student = StudentExtra.objects.select_for_update().get(pk=adjustment.student_id)
+        # Re-read under the lock: the caller's object may be stale.
+        adjustment = StudentFeeAdjustment.objects.select_for_update().get(pk=adjustment.pk)
+        if adjustment.status != 'pending':
+            raise ValidationError(f"Adjustment {adjustment.pk} has already been decided.")
+        adjustment.decided_by = decided_by
+        adjustment.decided_at = timezone.now()
+        adjustment.decision_note = note
+        if approve:
+            adjustment.status = 'approved'
+            adjustment.approved_by = decided_by
+            adjustment.save(update_fields=['status', 'approved_by', 'decided_by', 'decided_at', 'decision_note'])
+            post_ledger_entry(
+                student=student, entry_type='adjustment', amount=adjustment.amount,
+                reference=adjustment,
+                description=f"{adjustment.get_adjustment_type_display()}: {adjustment.reason}"[:_LEDGER_DESCRIPTION_MAX],
+            )
+            write_audit_log(
+                operator_id=decided_by.id, action_type='APPROVE', module='finance',
+                description=(
+                    f"Approved {adjustment.get_adjustment_type_display()} of {adjustment.amount} for student "
+                    f"{student.id}: {adjustment.reason}" + (f" ({note})" if note else '')
+                ),
+            )
+        else:
+            adjustment.status = 'rejected'
+            adjustment.save(update_fields=['status', 'decided_by', 'decided_at', 'decision_note'])
+            write_audit_log(
+                operator_id=decided_by.id, action_type='REJECT', module='finance',
+                description=(
+                    f"Rejected {adjustment.get_adjustment_type_display()} of {adjustment.amount} for student "
+                    f"{student.id}: {adjustment.reason}" + (f" ({note})" if note else '')
+                ),
+            )
         return adjustment
 
 

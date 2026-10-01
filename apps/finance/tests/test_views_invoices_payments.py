@@ -371,8 +371,7 @@ class AdjustmentAPITests(InvoicePaymentAPITestData):
         return self.call(StudentFeeAdjustmentCreateAPIView, 'post', '/api/finance/adjustments/', user or self.requester, data)
 
     def negative(self, **overrides):
-        payload = {'student': self.student.id, 'adjustment_type': 'scholarship', 'amount': -1000, 'reason': 'merit',
-                   'approved_by': self.approver.id}
+        payload = {'student': self.student.id, 'adjustment_type': 'scholarship', 'amount': -1000, 'reason': 'merit'}
         payload.update(overrides)
         return payload
 
@@ -400,38 +399,25 @@ class AdjustmentAPITests(InvoicePaymentAPITestData):
         response = self.post({'student': self.student.id, 'adjustment_type': 'correction', 'amount': 500, 'reason': 'fix'}, user=approver_only)
         self.assertEqual(response.status_code, 403)
 
-    def test_negative_adjustment_without_approver_returns_400(self):
+    def test_negative_adjustment_needs_no_approver_up_front_and_is_created_pending(self):
+        """Task 30: create_adjustment() no longer takes (or needs) an approver
+        at request time -- a negative amount is created `pending` and posts no
+        ledger entry until a separate decide_adjustment() call (see
+        AdjustmentDecisionAPITests in test_adjustment_approval.py)."""
         response = self.post({'student': self.student.id, 'adjustment_type': 'scholarship', 'amount': -1000, 'reason': 'merit'})
-        self.assertEqual(response.status_code, 400)
-        self.assertIn('approver', response.data['error'])
-        self.assertFalse(StudentFeeAdjustment.objects.exists())
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data['status'], 'pending')
+        self.assertIsNone(response.data['approved_by'])
+        self.assertFalse(StudentFeeLedgerEntry.objects.filter(entry_type='adjustment').exists())
 
-    def test_negative_adjustment_with_a_valid_approver_is_created_with_category(self):
+    def test_negative_adjustment_is_created_pending_with_category(self):
         response = self.post(self.negative(category=self.category.id))
         self.assertEqual(response.status_code, 201)
         adjustment = StudentFeeAdjustment.objects.get()
-        self.assertEqual(adjustment.approved_by, self.approver)
+        self.assertEqual(adjustment.status, 'pending')
+        self.assertIsNone(adjustment.approved_by)
         self.assertEqual(adjustment.requested_by, self.requester)
         self.assertEqual(adjustment.category, self.category)
-
-    def test_approver_who_lacks_the_permission_is_400(self):
-        no_perm = self.make_user('adj_not_an_approver', ['finance.view'])
-        response = self.post(self.negative(approved_by=no_perm.id))
-        self.assertEqual(response.status_code, 400)
-        self.assertIn('approved_by', response.data)
-        self.assertFalse(StudentFeeAdjustment.objects.exists())
-
-    def test_inactive_or_unknown_approver_is_400(self):
-        self.approver.is_active = False
-        self.approver.save()
-        self.assertEqual(self.post(self.negative()).status_code, 400)
-        self.assertEqual(self.post(self.negative(approved_by=99999999)).status_code, 400)
-
-    def test_self_approval_is_a_400(self):
-        response = self.post(self.negative(approved_by=self.finance_user.id), user=self.finance_user)
-        self.assertEqual(response.status_code, 400)
-        self.assertIn('cannot be the same user', response.data['error'])
-        self.assertFalse(StudentFeeAdjustment.objects.exists())
 
     def test_bad_input_is_a_400_not_a_500(self):
         base = {'student': self.student.id, 'adjustment_type': 'correction', 'amount': 500, 'reason': 'fix'}

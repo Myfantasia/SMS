@@ -187,8 +187,8 @@ class ReceiptAdmin(UnfoldModelAdmin):
 
 @admin.register(StudentFeeAdjustment)
 class StudentFeeAdjustmentAdmin(UnfoldModelAdmin):
-    list_display = ['student', 'adjustment_type', 'amount', 'requested_by', 'approved_by', 'created_at']
-    list_filter = ['adjustment_type']
+    list_display = ['student', 'adjustment_type', 'amount', 'status', 'requested_by', 'decided_by', 'decided_at', 'created_at']
+    list_filter = ['adjustment_type', 'status']
     autocomplete_fields = ['student']
     # Created only via create_adjustment() so the ledger stays in sync — no direct add/edit here.
     def has_add_permission(self, request):

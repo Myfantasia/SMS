@@ -15,17 +15,20 @@ from apps.academics.models import GradeLevel, ExamTerm, AcademicYear
 from apps.identity.models import ParentExtra, StudentExtra, TeacherExtra
 from apps.core.services import write_audit_log
 from apps.finance.models_fees import (
-    FeeCategory, FeeStructure, FeeStructureItem, Invoice, Payment, Receipt, StudentFeeItemEnrollment, StudentFeeLedgerEntry,
+    FeeCategory, FeeStructure, FeeStructureItem, Invoice, Payment, Receipt, StudentFeeAdjustment,
+    StudentFeeItemEnrollment, StudentFeeLedgerEntry,
 )
 from apps.finance.serializers_fees import (
     FeeCategorySerializer, FeeStructureSerializer, FeeStructureDetailSerializer,
     InvoiceSerializer, InvoiceDetailSerializer, PaymentSerializer, StudentFeeAdjustmentSerializer,
-    StudentFeeLedgerEntrySerializer, PaymentCreateSerializer, AdjustmentCreateSerializer, VoidSerializer,
+    StudentFeeLedgerEntrySerializer, PaymentCreateSerializer, AdjustmentCreateSerializer,
+    AdjustmentDecisionSerializer, AdjustmentListQuerySerializer, VoidSerializer,
     InvoiceListQuerySerializer, PaymentListQuerySerializer, PageQuerySerializer, FeeClearanceQuerySerializer,
     CollectionsTrendQuerySerializer, ExamTermLookupQuerySerializer, StudentLookupQuerySerializer,
 )
 from apps.finance.services_fees import (
-    record_payment, void_invoice, void_payment, create_adjustment, is_fees_clear, get_credit_balance, is_gate_blocked,
+    record_payment, void_invoice, void_payment, create_adjustment, decide_adjustment,
+    is_fees_clear, get_credit_balance, is_gate_blocked,
 )
 from apps.finance.services_documents import render_invoice_pdf, render_receipt_pdf
 from apps.finance import services_reports
@@ -354,9 +357,11 @@ class VoidPaymentAPIView(APIView):
 
 
 class StudentFeeAdjustmentCreateAPIView(APIView):
-    """`finance.edit` is enough to REQUEST an adjustment. A negative one (a
-    discount/scholarship/bursary) also needs `approved_by`, which must name an
-    active user holding `finance.approve_adjustment` other than the requester."""
+    """`finance.edit` is enough to REQUEST an adjustment. Spec section 4.10
+    (Task 30): a negative one (a discount/scholarship/bursary) is created
+    `pending` and needs a separate decide_adjustment() approval (see
+    AdjustmentDecisionAPIView) before it posts to the ledger; a positive one
+    is approved and posted immediately, same as before this feature existed."""
     authentication_classes = [SessionAuthentication]
     permission_classes = [IsAuthenticated, HasModulePermission]
     rbac_edit_permission = 'finance.edit'
@@ -370,11 +375,59 @@ class StudentFeeAdjustmentCreateAPIView(APIView):
                 student=data.validated_data['student'], adjustment_type=data.validated_data['adjustment_type'],
                 amount=data.validated_data['amount'], reason=data.validated_data['reason'],
                 requested_by=request.user, category_id=category.id if category else None,
-                approved_by=data.validated_data.get('approved_by'),
             )
         except (DjangoValidationError, DjangoPermissionDenied) as exc:
             return _service_error_response(exc)
         return Response(StudentFeeAdjustmentSerializer(adjustment).data, status=status.HTTP_201_CREATED)
+
+
+class AdjustmentListAPIView(APIView):
+    """GET-only list of StudentFeeAdjustment rows, filterable by status and/or
+    student (spec section 4.10, Task 30) -- lets finance staff see what's
+    pending without going through the ledger. `finance.view` gates this, same
+    as every other read-only finance list view."""
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsAuthenticated, HasModulePermission]
+    rbac_view_permission = 'finance.view'
+
+    def get(self, request):
+        query = AdjustmentListQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        adjustments = StudentFeeAdjustment.objects.all()
+        if 'status' in query.validated_data:
+            adjustments = adjustments.filter(status=query.validated_data['status'])
+        if 'student_id' in query.validated_data:
+            adjustments = adjustments.filter(student_id=query.validated_data['student_id'])
+        adjustments = adjustments.order_by('-created_at', '-id')
+        return Response(StudentFeeAdjustmentSerializer(query.slice(adjustments), many=True).data)
+
+
+class AdjustmentDecisionAPIView(APIView):
+    """POST /api/finance/adjustments/<id>/decision/ -- approve or reject a
+    pending adjustment (spec section 4.10, Task 30). Gated on
+    `finance.approve_adjustment`, not `finance.edit`: deciding is a distinct
+    privilege from requesting, mirroring ClearanceOverrideRevokeAPIView's
+    `rbac_edit_permission = 'finance.override_clearance'` convention (Tasks
+    28/29) -- same shape: a POST-only view with ONLY rbac_edit_permission set,
+    using a narrower, action-specific code rather than the blanket finance.edit."""
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsAuthenticated, HasModulePermission]
+    rbac_edit_permission = 'finance.approve_adjustment'
+
+    def post(self, request, adjustment_id):
+        adjustment = StudentFeeAdjustment.objects.filter(id=adjustment_id).first()
+        if adjustment is None:
+            return Response({"error": "Adjustment not found."}, status=status.HTTP_404_NOT_FOUND)
+        data = AdjustmentDecisionSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        try:
+            decided = decide_adjustment(
+                adjustment=adjustment, decided_by=request.user,
+                approve=data.validated_data['approve'], note=data.validated_data['note'],
+            )
+        except (DjangoValidationError, DjangoPermissionDenied) as exc:
+            return _service_error_response(exc)
+        return Response(StudentFeeAdjustmentSerializer(decided).data)
 
 
 def _can_view_student_statement(user, student_id):
