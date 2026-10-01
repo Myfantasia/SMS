@@ -169,9 +169,16 @@ allow_indirect_imports = True
 # ExamTerm, GradeLevel, TeacherExtra, etc.), the same pattern
 # school/tests/base.py's ExamTestDataMixin already uses elsewhere in this
 # repo -- test fixtures need real instances, not DTOs, for realistic data.
+# apps/allocations/rebalance.py's propose_rebalance needs the exact same real
+# TeacherExtra instances as bulk_auto_allocate above, for the same reason:
+# finding an ALTERNATIVE teacher to resolve a blocker means querying every
+# active teacher (and their qualifications) fresh, not just the ones already
+# loaded off existing SubjectAllocation rows -- school.utils.rank_candidates
+# (the shared scorer both callers use) operates on real model instances too.
 ignore_imports =
     apps.allocations.services -> apps.academics.models
     apps.allocations.services -> apps.identity.models
+    apps.allocations.rebalance -> apps.identity.models
     apps.allocations.tests.** -> apps.academics.models
     apps.allocations.tests.** -> apps.identity.models
 source_modules =
