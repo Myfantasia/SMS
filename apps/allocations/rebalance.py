@@ -218,4 +218,18 @@ def confirm_rebalance(
             ),
         )
 
+        from datetime import datetime, timezone
+
+        from apps.identity import services as identity_services
+        from shared.events.allocation_rebalance_events import AllocationRebalancedEvent
+        from shared.events.bus import bus
+
+        teacher_ids = {m.to_teacher_id for m in fresh.moves}
+        event = AllocationRebalancedEvent(
+            term_id=term_id, year_id=year_id, class_ids=ids, moves_applied=len(fresh.moves),
+            teacher_user_ids=identity_services.get_teacher_user_ids(teacher_ids),
+            operator_id=operator_id, occurred_at=datetime.now(timezone.utc),
+        )
+        transaction.on_commit(lambda: bus.publish(event), robust=True)
+
     return RebalanceResultDTO(class_ids=ids, moves_applied=len(fresh.moves))

@@ -5,6 +5,7 @@ from django.test import TestCase
 
 from apps.messaging.models import Notification
 from shared.events.allocation_events import AllocationsPublishedEvent
+from shared.events.allocation_rebalance_events import AllocationRebalancedEvent
 from shared.events.bus import bus
 
 
@@ -39,3 +40,21 @@ class AllocationsPublishedReceiverTests(TestCase):
     def test_no_teachers_and_no_operator_creates_nothing(self):
         bus.publish(self.event(teacher_user_ids=(), published_by_id=None))
         self.assertEqual(Notification.objects.count(), 0)
+
+
+class AllocationRebalancedReceiverTests(TestCase):
+    def setUp(self):
+        self.t1 = User.objects.create_user(username='rb_t1', password='x')
+        self.admin = User.objects.create_user(username='rb_admin', password='x')
+
+    def test_rebalanced_teachers_and_operator_are_notified(self):
+        event = AllocationRebalancedEvent(
+            term_id=1, year_id=1, class_ids=(5,), moves_applied=2,
+            teacher_user_ids=(self.t1.id,), operator_id=self.admin.id,
+            occurred_at=datetime.now(timezone.utc),
+        )
+        bus.publish(event)
+
+        self.assertEqual(Notification.objects.filter(recipient=self.t1).count(), 1)
+        note = Notification.objects.get(recipient=self.admin)
+        self.assertIn('2', note.message)
