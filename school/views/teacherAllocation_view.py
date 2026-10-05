@@ -28,12 +28,15 @@ from apps.allocations.services import lock_publish_state
 from django.shortcuts import get_object_or_404
 from django.http import JsonResponse
 import json
+import logging
 import math
 import random
 from school.decorators import require_permission
 from school.rbac import HasModulePermission
 from school.jobs import dispatch_background_job
 from orchestration.tasks import rollover_allocations_task, bulk_auto_allocate_task
+
+logger = logging.getLogger(__name__)
 
 
 
@@ -592,9 +595,14 @@ class AutoAllocateDraftAPIView(APIView):
             # the rest of the term's saved load), NOT the unsaved draft_allocations computed above.
             # So these blockers show what is already saved for the class, not a prediction of the
             # draft on screen; it does not change "draft" or "timetable_warnings".
-            blockers = [b.to_dict() for b in review_scope(
-                term_id=real_term_id, year_id=real_year_id, class_ids=[real_class_id]
-            ).blockers]
+            # Guarded on its own: a failure here must not turn the draft into a 500.
+            try:
+                blockers = [b.to_dict() for b in review_scope(
+                    term_id=real_term_id, year_id=real_year_id, class_ids=[real_class_id]
+                ).blockers]
+            except Exception:
+                logger.exception("Auto-draft blockers review failed for class %s", real_class_id)
+                blockers = []
 
             return Response({"draft": draft_allocations, "timetable_warnings": timetable_warnings,
                              "blockers": blockers}, status=status.HTTP_200_OK)

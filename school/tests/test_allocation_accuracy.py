@@ -61,9 +61,9 @@ class AllocationMatrixBlockerTests(TestCase):
         self.assertEqual(response.data['blockers'][codes.index('NOTHING_TO_PUBLISH')]['classroom_id'],
                          self.stream.id)
 
-    def test_auto_draft_blockers_reflect_saved_rows_not_the_unsaved_draft(self):
-        # Saving a row for this class clears NOTHING_TO_PUBLISH: blockers are computed from
-        # SAVED allocations, so the view's own unsaved draft never shows up as a blocker source.
+    def test_auto_draft_blockers_clear_once_a_row_is_saved(self):
+        # Saving a row for this class clears NOTHING_TO_PUBLISH. This does not prove the unsaved
+        # draft is excluded from blockers; it only shows blockers track saved rows.
         SubjectAllocation.objects.create(
             classroom=self.stream, subject=self.maths, teacher=self.teacher,
             academic_year=self.year, term=self.term, is_active=True,
@@ -72,6 +72,15 @@ class AllocationMatrixBlockerTests(TestCase):
         self.assertEqual(response.status_code, 200)
         codes = [b['code'] for b in response.data['blockers']]
         self.assertNotIn('NOTHING_TO_PUBLISH', codes)
+
+    def test_auto_draft_survives_review_scope_failure(self):
+        # The blockers review is display-only: if it raises, the draft must still be returned.
+        with mock.patch('school.views.teacherAllocation_view.review_scope',
+                        side_effect=RuntimeError('boom')):
+            response = self._auto_draft()
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('draft', response.data)
+        self.assertEqual(response.data['blockers'], [])
 
     def test_hard_blocker_includes_structured_dto_alongside_existing_error_string(self):
         response = self._post([
