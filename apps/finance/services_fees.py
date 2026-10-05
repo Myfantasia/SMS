@@ -1,15 +1,18 @@
 """Fee-domain business logic. Every function here that touches the ledger runs
 inside transaction.atomic() and locks the affected student's StudentExtra row
 with select_for_update() first, per the Finance Subsystem Design spec section 11."""
+from decimal import Decimal, ROUND_HALF_UP
+
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.contrib.contenttypes.models import ContentType
-from django.db import models, transaction
+from django.db import IntegrityError, models, transaction
 from django.db.models import ProtectedError, Sum
 from django.utils import timezone
 
 from apps.finance.models_fees import (
     StudentFeeLedgerEntry, StudentFeeAdjustment, Invoice, InvoiceLineItem, StudentFeeItemEnrollment,
     Payment, Receipt, InvoiceCreditApplication, FeeCategory, FeeClearancePolicy, FeeClearanceOverride,
+    DiscountType, DiscountRule,
 )
 from apps.finance.services_shared import next_document_number
 from apps.identity.models import StudentExtra
@@ -51,7 +54,8 @@ def get_credit_balance(student):
     return max(0, -latest_balance) if latest_balance is not None else 0
 
 
-def create_adjustment(*, student, adjustment_type, amount, reason, requested_by, category_id=None):
+def create_adjustment(*, student, adjustment_type, amount, reason, requested_by, category_id=None,
+                       discount_type=None, discount_rule=None):
     """Create a StudentFeeAdjustment. Spec section 4.10 (Task 30): a negative
     amount (a discount/scholarship/bursary that waives fees) is created
     `pending` and posts NOTHING to the ledger -- it waits for a separate
@@ -60,7 +64,9 @@ def create_adjustment(*, student, adjustment_type, amount, reason, requested_by,
     as before this feature existed; `decided_by` is set to `requested_by`
     since the "decision" was simply that none was required (see the model
     docstring for why `approved_by` is deliberately left None in this case).
-    `category_id` (optional) is resolved to the FeeCategory here. The caller's
+    `category_id` (optional) is resolved to the FeeCategory here. `discount_type` and
+    `discount_rule` (optional, Task 36) are stored on the row as-is; both default to None,
+    which leaves every existing caller's behaviour unchanged. The caller's
     serializer already rejects amount == 0."""
     category = FeeCategory.objects.filter(id=category_id).first() if category_id else None
     with transaction.atomic():
@@ -73,6 +79,7 @@ def create_adjustment(*, student, adjustment_type, amount, reason, requested_by,
             adjustment = StudentFeeAdjustment.objects.create(
                 student=student, category=category, adjustment_type=adjustment_type,
                 amount=amount, reason=reason, requested_by=requested_by, status='pending',
+                discount_type=discount_type, discount_rule=discount_rule,
             )
             write_audit_log(
                 operator_id=requested_by.id, action_type='CREATE', module='finance',
@@ -86,6 +93,7 @@ def create_adjustment(*, student, adjustment_type, amount, reason, requested_by,
             student=student, category=category, adjustment_type=adjustment_type,
             amount=amount, reason=reason, requested_by=requested_by,
             status='approved', decided_by=requested_by, decided_at=timezone.now(),
+            discount_type=discount_type, discount_rule=discount_rule,
         )
         post_ledger_entry(
             student=student, entry_type='adjustment', amount=amount,
@@ -609,3 +617,257 @@ def is_gate_blocked(*, student_id, gate, term_id=None, academic_year_id=None):
         academic_year_id=academic_year_id if gate == 'promotion' else None,
     ).exists()
     return not has_active_override
+
+
+
+def _save_discount_type(discount_type, *, operator, action_type, changed_fields=()):
+    """Shared write path for create/update. full_clean() runs DiscountType.clean()
+    (the percentage/fixed value rule) and the unique-name check; the IntegrityError
+    catch covers the race where two writers both pass validate_unique()."""
+    try:
+        with transaction.atomic():
+            discount_type.full_clean()
+            discount_type.save()
+            if action_type == 'CREATE':
+                description = (
+                    f"Created discount type '{discount_type.name}' (id {discount_type.id}): "
+                    f"{discount_type.get_kind_display()} {discount_type.value}."
+                )
+            else:
+                description = (
+                    f"Updated discount type '{discount_type.name}' (id {discount_type.id}): "
+                    f"{', '.join(sorted(changed_fields))}."
+                )
+            write_audit_log(operator_id=operator.id, action_type=action_type, module='finance', description=description)
+    except IntegrityError:
+        raise ValidationError({'name': ['A discount type with this name already exists.']})
+    return discount_type
+
+
+def create_discount_type(*, operator, name, kind, value, category=None, active=True):
+    """Spec section 4.12: create a DiscountType. Audited as CREATE in module 'finance'."""
+    discount_type = DiscountType(name=name, kind=kind, value=value, category=category, active=active)
+    return _save_discount_type(discount_type, operator=operator, action_type='CREATE')
+
+
+def update_discount_type(*, operator, discount_type, changes):
+    """Spec section 4.12: update name/kind/value/category/active on an existing
+    DiscountType. Deactivation is just changes={'active': False}; there is no
+    delete. Audited as UPDATE in module 'finance' with the changed field names.
+    A PATCH that changes nothing writes no audit row."""
+    before = {field: getattr(discount_type, field) for field in changes}
+    for field, new_value in changes.items():
+        setattr(discount_type, field, new_value)
+    changed = [field for field in changes if before[field] != getattr(discount_type, field)]
+    if not changed:
+        return discount_type
+    return _save_discount_type(discount_type, operator=operator, action_type='UPDATE', changed_fields=changed)
+
+
+def _check_discount_type_usable(discount_type):
+    if not discount_type.active:
+        raise ValidationError('This discount type is inactive.')
+
+
+def _student_display_name(student):
+    return student.user.get_full_name() or student.user.username
+
+
+def _eligible_students(*, grade_level=None, class_stream=None, student_ids=None):
+    """Students a discount target covers. Same eligibility as invoice generation:
+    active (status=True, not soft-deleted), and for a grade or stream target, placed
+    in a live class stream. Callers pass exactly one of the three targets."""
+    active = StudentExtra.objects.filter(status=True, deleted_at__isnull=True)
+    if grade_level is not None:
+        return active.filter(cl__grade=grade_level, cl__is_deleted=False)
+    if class_stream is not None:
+        return active.filter(cl=class_stream, cl__is_deleted=False)
+    return active.filter(id__in=student_ids)
+
+
+def _resolve_discount_target(*, grade_level=None, class_stream=None, student_ids=None):
+    """Spec section 4.12: a discount rule names EXACTLY one target. Returns the
+    eligible-student queryset, or raises ValidationError for zero/several targets,
+    a deleted class stream, or explicit students that are not eligible."""
+    if sum([grade_level is not None, class_stream is not None, bool(student_ids)]) != 1:
+        raise ValidationError('Choose exactly one target: a grade level, a class stream, or a list of students.')
+    if class_stream is not None and class_stream.is_deleted:
+        raise ValidationError('That class stream has been deleted.')
+    if student_ids:
+        wanted = set(student_ids)
+        found = set(_eligible_students(student_ids=wanted).values_list('id', flat=True))
+        missing = sorted(wanted - found)
+        if missing:
+            raise ValidationError(f"These students are not active and cannot be targeted: {missing}.")
+    return _eligible_students(grade_level=grade_level, class_stream=class_stream, student_ids=student_ids)
+
+
+def _rule_students(rule):
+    """The students a stored rule currently covers, resolved at apply time."""
+    if rule.grade_level_id is not None:
+        return _eligible_students(grade_level=rule.grade_level_id)
+    if rule.class_stream_id is not None:
+        return _eligible_students(class_stream=rule.class_stream_id)
+    return _eligible_students(student_ids=list(rule.students.values_list('id', flat=True)))
+
+
+def _percentage_amounts(*, student_ids, term, percent, category_id):
+    """Spec section 4.12: a percentage discount is resolved to a FIXED signed amount
+    per student: -(percent / 100) x the student's charged total, rounded half-up to
+    whole KES. The charged total is the sum of InvoiceLineItem.amount over the
+    student's NON-VOIDED invoices (invoice.voided_at IS NULL) whose fee structure is
+    for `term`, limited to `category_id` when the discount type is category-scoped.
+    The stored adjustment never changes when later fee edits happen."""
+    line_items = InvoiceLineItem.objects.filter(
+        invoice__student_id__in=student_ids, invoice__voided_at__isnull=True,
+        invoice__fee_structure__term=term,
+    )
+    if category_id is not None:
+        line_items = line_items.filter(category_id=category_id)
+    charged = {
+        row['invoice__student_id']: row['total']
+        for row in line_items.values('invoice__student_id').annotate(total=Sum('amount'))
+    }
+    # Defense in depth: full_clean enforces 0-100 on DiscountType, but objects.create()
+    # bypasses it. A negative or >100 percent would produce a POSITIVE amount, which
+    # create_adjustment would post as approved with no approval step. Refuse outright.
+    if not 0 <= percent <= 100:
+        raise ValidationError(f"A percentage discount must be between 0 and 100 (got {percent}).")
+    amounts = {}
+    for student_id in student_ids:
+        base = charged.get(student_id) or 0
+        waived = (Decimal(base) * Decimal(percent) / Decimal(100)).quantize(Decimal('1'), rounding=ROUND_HALF_UP)
+        amounts[student_id] = -int(waived)
+    return amounts
+
+
+def _discount_amounts(*, discount_type, term, student_ids, amount_override=None):
+    """Signed (negative) amount per student for one discount type. A fixed type uses
+    its value, or `amount_override` when given. A fixed type with value 0 (the seeded
+    waiver types) has no amount of its own, so the admin must supply one. A
+    percentage type cannot take an override."""
+    if discount_type.kind == 'percentage':
+        if amount_override is not None:
+            raise ValidationError('An amount can only be given for a fixed-amount discount type.')
+        return _percentage_amounts(
+            student_ids=student_ids, term=term, percent=discount_type.value,
+            category_id=discount_type.category_id,
+        )
+    fixed = amount_override if amount_override is not None else discount_type.value
+    if fixed <= 0:
+        raise ValidationError('This discount type has no fixed value; specify a positive amount.')
+    return {student_id: -fixed for student_id in student_ids}
+
+
+def preview_discount_rule(*, discount_type, term, grade_level=None, class_stream=None, student_ids=None, amount=None):
+    """Spec section 4.12 (read-only): the students a rule would cover, each with the
+    amount apply would create (negative = waiver; 0 means apply will skip them), and
+    the total of those amounts. Writes nothing."""
+    _check_discount_type_usable(discount_type)
+    students = list(
+        _resolve_discount_target(
+            grade_level=grade_level, class_stream=class_stream, student_ids=student_ids,
+        ).select_related('user').order_by('id')
+    )
+    amounts = _discount_amounts(
+        discount_type=discount_type, term=term, student_ids=[s.id for s in students], amount_override=amount,
+    )
+    rows = [{'id': s.id, 'name': _student_display_name(s), 'amount': amounts[s.id]} for s in students]
+    return {'students': rows, 'count': len(rows), 'total_amount': sum(amounts.values())}
+
+
+def create_discount_rule(*, operator, discount_type, academic_year, term, grade_level=None, class_stream=None, student_ids=None):
+    """Spec section 4.12: store a discount rule. Nothing is discounted until
+    apply_discount_rule() runs. Audited as CREATE in module 'finance'."""
+    if term.academic_year_id != academic_year.id:
+        raise ValidationError('The term does not belong to the chosen academic year.')
+    _check_discount_type_usable(discount_type)
+    _resolve_discount_target(grade_level=grade_level, class_stream=class_stream, student_ids=student_ids)
+    with transaction.atomic():
+        rule = DiscountRule.objects.create(
+            discount_type=discount_type, academic_year=academic_year, term=term,
+            grade_level=grade_level, class_stream=class_stream, active=True, created_by=operator,
+        )
+        if student_ids:
+            rule.students.set(student_ids)
+        if grade_level is not None:
+            target = f"grade {grade_level.name}"
+        elif class_stream is not None:
+            target = f"class {class_stream.name}"
+        else:
+            target = f"{len(set(student_ids))} selected student(s)"
+        write_audit_log(
+            operator_id=operator.id, action_type='CREATE', module='finance',
+            description=f"Created discount rule {rule.id} ('{discount_type.name}', {term.name}) targeting {target}.",
+        )
+    return rule
+
+
+def update_discount_rule(*, operator, rule, changes):
+    """Only `active` can change: deactivate (or reactivate) a rule. Rules are never
+    hard-deleted, and their targets and term stay fixed. Audited as UPDATE."""
+    with transaction.atomic():
+        rule = DiscountRule.objects.select_for_update().get(pk=rule.pk)
+        if 'active' not in changes or changes['active'] == rule.active:
+            return rule
+        rule.active = changes['active']
+        rule.save(update_fields=['active'])
+        write_audit_log(
+            operator_id=operator.id, action_type='UPDATE', module='finance',
+            description=f"{'Activated' if rule.active else 'Deactivated'} discount rule {rule.id}.",
+        )
+    return rule
+
+
+def apply_discount_rule(*, rule, operator, amount=None):
+    """Spec section 4.12: create ONE pending adjustment per targeted student through
+    create_adjustment(). Waivers stay pending until a separate approval, so no ledger
+    row is written here. Idempotent: a student this rule already discounted is
+    skipped, and the partial unique constraint on StudentFeeAdjustment backs that up.
+    Students whose amount resolves to 0 are skipped with a reason. Returns the counts
+    and the skipped students. Lock-first: the rule row is locked, then each student
+    inside create_adjustment, so two applies of one rule run one after the other."""
+    with transaction.atomic():
+        rule = DiscountRule.objects.select_for_update().select_related('discount_type', 'term').get(pk=rule.pk)
+        if not rule.active:
+            raise ValidationError('This discount rule is deactivated.')
+        discount_type = rule.discount_type
+        _check_discount_type_usable(discount_type)
+        students = list(_rule_students(rule).order_by('id'))
+        # Lock every targeted student in id order BEFORE reading their charged totals,
+        # so an invoice void or new invoice for one of them cannot land between the
+        # base read and create_adjustment and leave the waiver sized on a stale base.
+        # Ascending id order means two applies cannot deadlock on these locks.
+        list(StudentExtra.objects.select_for_update().filter(
+            pk__in=[s.id for s in students]).order_by('id').values_list('id', flat=True))
+        already_applied = set(
+            StudentFeeAdjustment.objects.filter(discount_rule=rule).values_list('student_id', flat=True)
+        )
+        amounts = _discount_amounts(
+            discount_type=discount_type, term=rule.term, student_ids=[s.id for s in students], amount_override=amount,
+        )
+        created = 0
+        skipped = []
+        for student in students:
+            if student.id in already_applied:
+                skipped.append({'student_id': student.id, 'reason': 'already_applied'})
+                continue
+            value = amounts[student.id]
+            if value == 0:
+                skipped.append({'student_id': student.id, 'reason': 'zero_amount'})
+                continue
+            create_adjustment(
+                student=student, adjustment_type='discount', amount=value,
+                reason=f"{discount_type.name} ({rule.term.name}), discount rule {rule.id}",
+                requested_by=operator, category_id=discount_type.category_id,
+                discount_type=discount_type, discount_rule=rule,
+            )
+            created += 1
+        write_audit_log(
+            operator_id=operator.id, action_type='CREATE', module='finance',
+            description=(
+                f"Applied discount rule {rule.id} ('{discount_type.name}', {rule.term.name}): "
+                f"{created} created, {len(skipped)} skipped."
+            ),
+        )
+    return {'created_count': created, 'skipped_count': len(skipped), 'skipped': skipped}

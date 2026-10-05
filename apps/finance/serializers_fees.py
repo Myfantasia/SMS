@@ -1,8 +1,8 @@
 from rest_framework import serializers
 
-from apps.academics.models import AcademicYear, ExamTerm
+from apps.academics.models import AcademicYear, ClassStream, ExamTerm, GradeLevel
 from apps.finance.models_fees import (
-    FeeCategory, FeeStructure, FeeStructureItem, Invoice, InvoiceLineItem, Payment,
+    DiscountRule, DiscountType, FeeCategory, FeeStructure, FeeStructureItem, Invoice, InvoiceLineItem, Payment,
     StudentFeeAdjustment, StudentFeeLedgerEntry, FeeClearancePolicy, FeeClearanceOverride,
 )
 from apps.identity.models import StudentExtra
@@ -16,6 +16,63 @@ class FeeCategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = FeeCategory
         fields = ['id', 'name', 'description']
+
+
+class DiscountTypeSerializer(serializers.ModelSerializer):
+    """Value-range rules (percentage 0-100, fixed >= 0) and name uniqueness are
+    enforced in services_fees via DiscountType.full_clean(), so this serializer
+    only handles shape: choices, required fields, blank names, category existence."""
+    class Meta:
+        model = DiscountType
+        fields = ['id', 'name', 'kind', 'value', 'category', 'active']
+
+
+class DiscountTypeListQuerySerializer(serializers.Serializer):
+    active = serializers.BooleanField(required=False)
+
+
+class DiscountRuleSerializer(serializers.ModelSerializer):
+    """Output shape for a discount rule. `student_ids` lists the explicit students
+    (empty for a grade or stream rule); callers prefetch `students` to avoid N+1."""
+    student_ids = serializers.SerializerMethodField()
+
+    class Meta:
+        model = DiscountRule
+        fields = ['id', 'discount_type', 'academic_year', 'term', 'grade_level', 'class_stream',
+                  'student_ids', 'active', 'created_at']
+
+    def get_student_ids(self, obj):
+        return sorted(student.id for student in obj.students.all())
+
+
+class DiscountRuleTargetSerializer(serializers.Serializer):
+    """Shape of the target. Exactly-one-target is enforced in services_fees, not here."""
+    grade_level = serializers.PrimaryKeyRelatedField(queryset=GradeLevel.objects.all(), required=False, allow_null=True)
+    class_stream = serializers.PrimaryKeyRelatedField(queryset=ClassStream.objects.all(), required=False, allow_null=True)
+    student_ids = serializers.ListField(
+        child=serializers.IntegerField(min_value=1), required=False, allow_empty=True, max_length=2000,
+    )
+
+
+class DiscountRuleCreateSerializer(DiscountRuleTargetSerializer):
+    discount_type = serializers.PrimaryKeyRelatedField(queryset=DiscountType.objects.all())
+    academic_year = serializers.PrimaryKeyRelatedField(queryset=AcademicYear.objects.all())
+    term = serializers.PrimaryKeyRelatedField(queryset=ExamTerm.objects.all())
+
+
+class DiscountRulePreviewSerializer(DiscountRuleTargetSerializer):
+    discount_type = serializers.PrimaryKeyRelatedField(queryset=DiscountType.objects.all())
+    term = serializers.PrimaryKeyRelatedField(queryset=ExamTerm.objects.all())
+    amount = serializers.IntegerField(required=False, min_value=1, max_value=MAX_AMOUNT)
+
+
+class DiscountRuleApplySerializer(serializers.Serializer):
+    """`amount` (positive KES) is required for a fixed discount type whose value is 0."""
+    amount = serializers.IntegerField(required=False, min_value=1, max_value=MAX_AMOUNT)
+
+
+class DiscountRulePatchSerializer(serializers.Serializer):
+    active = serializers.BooleanField(required=False)
 
 
 class FeeStructureItemSerializer(serializers.ModelSerializer):

@@ -4,6 +4,7 @@ from unfold.admin import ModelAdmin as UnfoldModelAdmin
 from unfold.admin import TabularInline as UnfoldTabularInline
 
 from apps.finance.models_fees import (
+    DiscountType,
     FeeCategory,
     FeeStructure,
     FeeStructureItem,
@@ -60,6 +61,16 @@ class CashAccountAdmin(UnfoldModelAdmin):
 class FeeCategoryAdmin(UnfoldModelAdmin):
     list_display = ['name', 'description']
     search_fields = ['name']
+
+
+@admin.register(DiscountType)
+class DiscountTypeAdmin(UnfoldModelAdmin):
+    list_display = ['name', 'kind', 'value', 'category', 'active']
+    list_filter = ['kind', 'active']
+    search_fields = ['name']
+    # Never hard-deleted once used: deactivate (active=False) instead.
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 class FeeStructureItemInline(UnfoldTabularInline):

@@ -15,11 +15,14 @@ from apps.academics.models import GradeLevel, ExamTerm, AcademicYear
 from apps.identity.models import ParentExtra, StudentExtra, TeacherExtra
 from apps.core.services import write_audit_log
 from apps.finance.models_fees import (
-    FeeCategory, FeeStructure, FeeStructureItem, Invoice, Payment, Receipt, StudentFeeAdjustment,
-    StudentFeeItemEnrollment, StudentFeeLedgerEntry,
+    DiscountRule, DiscountType, FeeCategory, FeeStructure, FeeStructureItem, Invoice, Payment, Receipt,
+    StudentFeeAdjustment, StudentFeeItemEnrollment, StudentFeeLedgerEntry,
 )
 from apps.finance.serializers_fees import (
     FeeCategorySerializer, FeeStructureSerializer, FeeStructureDetailSerializer,
+    DiscountTypeSerializer, DiscountTypeListQuerySerializer,
+    DiscountRuleSerializer, DiscountRuleCreateSerializer, DiscountRulePreviewSerializer,
+    DiscountRuleApplySerializer, DiscountRulePatchSerializer,
     InvoiceSerializer, InvoiceDetailSerializer, PaymentSerializer, StudentFeeAdjustmentSerializer,
     StudentFeeLedgerEntrySerializer, PaymentCreateSerializer, AdjustmentCreateSerializer,
     AdjustmentDecisionSerializer, AdjustmentListQuerySerializer, VoidSerializer,
@@ -28,7 +31,8 @@ from apps.finance.serializers_fees import (
 )
 from apps.finance.services_fees import (
     record_payment, void_invoice, void_payment, create_adjustment, decide_adjustment,
-    is_fees_clear, get_credit_balance, is_gate_blocked,
+    is_fees_clear, get_credit_balance, is_gate_blocked, create_discount_type, update_discount_type,
+    create_discount_rule, update_discount_rule, preview_discount_rule, apply_discount_rule,
 )
 from apps.finance.services_documents import render_invoice_pdf, render_receipt_pdf
 from apps.finance import services_reports
@@ -146,6 +150,167 @@ class FeeCategoryListCreateAPIView(ListCreateAPIView):
                 module='finance',
                 description=f"Created fee category '{category.name}' (id {category.id}).",
             )
+
+
+class DiscountTypeListCreateAPIView(APIView):
+    """GET lists discount types (active and inactive; ?active=true|false filters).
+    POST creates one. Spec section 4.12. There is deliberately no DELETE: a
+    discount type that has been used must never disappear, so callers deactivate
+    it with PATCH active=false instead."""
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsAuthenticated, HasModulePermission]
+    rbac_view_permission = 'finance.view'
+    rbac_edit_permission = 'finance.edit'
+
+    def get(self, request):
+        query = DiscountTypeListQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        discount_types = DiscountType.objects.select_related('category').order_by('name')
+        # Filter only when ?active= is actually present. DRF's BooleanField treats an
+        # ABSENT key in a QueryDict as False, so checking validated_data alone would
+        # silently narrow an unfiltered GET to inactive rows only.
+        if 'active' in request.query_params:
+            discount_types = discount_types.filter(active=query.validated_data['active'])
+        return Response(DiscountTypeSerializer(discount_types, many=True).data)
+
+    def post(self, request):
+        serializer = DiscountTypeSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            discount_type = create_discount_type(operator=request.user, **serializer.validated_data)
+        except (DjangoValidationError, DjangoPermissionDenied) as exc:
+            return _service_error_response(exc)
+        return Response(DiscountTypeSerializer(discount_type).data, status=status.HTTP_201_CREATED)
+
+
+class DiscountTypeDetailAPIView(APIView):
+    """GET retrieves one discount type; PATCH updates name/kind/value/category/active.
+    No DELETE method exists, so DELETE returns 405 (spec section 4.12)."""
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsAuthenticated, HasModulePermission]
+    rbac_view_permission = 'finance.view'
+    rbac_edit_permission = 'finance.edit'
+
+    def get(self, request, discount_type_id):
+        discount_type = DiscountType.objects.select_related('category').filter(id=discount_type_id).first()
+        if discount_type is None:
+            return Response({"error": "Discount type not found."}, status=status.HTTP_404_NOT_FOUND)
+        return Response(DiscountTypeSerializer(discount_type).data)
+
+    def patch(self, request, discount_type_id):
+        discount_type = DiscountType.objects.select_related('category').filter(id=discount_type_id).first()
+        if discount_type is None:
+            return Response({"error": "Discount type not found."}, status=status.HTTP_404_NOT_FOUND)
+        serializer = DiscountTypeSerializer(discount_type, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        try:
+            updated = update_discount_type(
+                operator=request.user, discount_type=discount_type, changes=serializer.validated_data,
+            )
+        except (DjangoValidationError, DjangoPermissionDenied) as exc:
+            return _service_error_response(exc)
+        return Response(DiscountTypeSerializer(updated).data)
+
+
+class DiscountRuleListCreateAPIView(APIView):
+    """GET lists discount rules (finance.view). POST stores a new rule (finance.edit).
+    Creating a rule discounts nobody: that is apply's job. Spec section 4.12. There is
+    no DELETE; deactivate a rule with PATCH active=false."""
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsAuthenticated, HasModulePermission]
+    rbac_view_permission = 'finance.view'
+    rbac_edit_permission = 'finance.edit'
+
+    def get(self, request):
+        rules = (
+            DiscountRule.objects.select_related('discount_type', 'academic_year', 'term', 'grade_level', 'class_stream')
+            .prefetch_related('students').order_by('-created_at', '-id')
+        )
+        return Response(DiscountRuleSerializer(rules, many=True).data)
+
+    def post(self, request):
+        serializer = DiscountRuleCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        try:
+            rule = create_discount_rule(
+                operator=request.user, discount_type=data['discount_type'], academic_year=data['academic_year'],
+                term=data['term'], grade_level=data.get('grade_level'), class_stream=data.get('class_stream'),
+                student_ids=data.get('student_ids'),
+            )
+        except (DjangoValidationError, DjangoPermissionDenied) as exc:
+            return _service_error_response(exc)
+        return Response(DiscountRuleSerializer(rule).data, status=status.HTTP_201_CREATED)
+
+
+class DiscountRuleDetailAPIView(APIView):
+    """GET retrieves one rule (finance.view). PATCH sets `active` (finance.edit), which
+    is how a rule is deactivated. No DELETE method exists."""
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsAuthenticated, HasModulePermission]
+    rbac_view_permission = 'finance.view'
+    rbac_edit_permission = 'finance.edit'
+
+    def get(self, request, rule_id):
+        rule = DiscountRule.objects.select_related('discount_type', 'academic_year', 'term', 'grade_level', 'class_stream').filter(id=rule_id).first()
+        if rule is None:
+            return Response({"error": "Discount rule not found."}, status=status.HTTP_404_NOT_FOUND)
+        return Response(DiscountRuleSerializer(rule).data)
+
+    def patch(self, request, rule_id):
+        rule = DiscountRule.objects.filter(id=rule_id).first()
+        if rule is None:
+            return Response({"error": "Discount rule not found."}, status=status.HTTP_404_NOT_FOUND)
+        serializer = DiscountRulePatchSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            updated = update_discount_rule(operator=request.user, rule=rule, changes=serializer.validated_data)
+        except (DjangoValidationError, DjangoPermissionDenied) as exc:
+            return _service_error_response(exc)
+        return Response(DiscountRuleSerializer(updated).data)
+
+
+class DiscountRulePreviewAPIView(APIView):
+    """POST /api/finance/discount-rules/preview/ -- read-only. Lists the students a rule
+    would cover, the amount apply would create for each, and the total. Gated on
+    finance.view only, because it writes nothing."""
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsAuthenticated, HasModulePermission]
+    rbac_view_permission = 'finance.view'
+
+    def post(self, request):
+        serializer = DiscountRulePreviewSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        try:
+            preview = preview_discount_rule(
+                discount_type=data['discount_type'], term=data['term'], grade_level=data.get('grade_level'),
+                class_stream=data.get('class_stream'), student_ids=data.get('student_ids'), amount=data.get('amount'),
+            )
+        except (DjangoValidationError, DjangoPermissionDenied) as exc:
+            return _service_error_response(exc)
+        return Response(preview)
+
+
+class DiscountRuleApplyAPIView(APIView):
+    """POST /api/finance/discount-rules/<id>/apply/ -- an explicit admin action. Creates
+    one pending adjustment per targeted student and returns the counts. Repeating it
+    creates nothing new. Gated on finance.edit."""
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsAuthenticated, HasModulePermission]
+    rbac_edit_permission = 'finance.edit'
+
+    def post(self, request, rule_id):
+        rule = DiscountRule.objects.filter(id=rule_id).first()
+        if rule is None:
+            return Response({"error": "Discount rule not found."}, status=status.HTTP_404_NOT_FOUND)
+        serializer = DiscountRuleApplySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            result = apply_discount_rule(rule=rule, operator=request.user, amount=serializer.validated_data.get('amount'))
+        except (DjangoValidationError, DjangoPermissionDenied) as exc:
+            return _service_error_response(exc)
+        return Response(result)
 
 
 class FeeStructureListCreateAPIView(ListCreateAPIView):

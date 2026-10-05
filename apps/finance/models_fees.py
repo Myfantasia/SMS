@@ -3,6 +3,7 @@ per-student ledger. See docs/superpowers/specs/2026-09-09-finance-subsystem-desi
 section 4 for the full design this file implements."""
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ValidationError
 from django.db import models
 
 from apps.finance.models_shared import CashAccount, FinancialRecordImmutableError, ImmutableFinancialRecordMixin
@@ -106,6 +107,82 @@ class StudentFeeLedgerEntry(models.Model):
         return f"{self.student} {self.entry_type} {self.amount} (bal {self.running_balance})"
 
 
+class DiscountType(models.Model):
+    """Admin-editable discount catalogue (spec section 4.12). A row says HOW a
+    waiver is calculated -- a fixed KES amount or a whole-number percentage --
+    and optionally which FeeCategory it applies to (null = all fees). The
+    concrete amount for a given adjustment is supplied per adjustment, so the
+    seeded waiver rows carry value 0 for 'fixed'.
+
+    Never hard-deleted once used: there is no DELETE endpoint and the admin
+    disables delete. Deactivate with active=False instead. The FK from
+    StudentFeeAdjustment is PROTECT as a second line of defence."""
+    KIND_CHOICES = [
+        ('fixed', 'Fixed amount'),
+        ('percentage', 'Percentage'),
+    ]
+    name = models.CharField(max_length=100, unique=True)
+    kind = models.CharField(max_length=10, choices=KIND_CHOICES)
+    value = models.IntegerField(
+        help_text='KES amount for kind=fixed (>= 0); whole-number percent 0-100 for kind=percentage.',
+    )
+    category = models.ForeignKey(
+        FeeCategory, on_delete=models.PROTECT, null=True, blank=True, related_name='discount_types',
+        help_text='Leave empty to apply to all fees.',
+    )
+    active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = 'finance_discounttype'
+
+    def __str__(self):
+        return self.name
+
+    def clean(self):
+        validate_discount_kind_value(self.kind, self.value)
+
+
+def validate_discount_kind_value(kind, value):
+    """Shared rule for DiscountType.value: percentage must be 0-100, fixed must be >= 0."""
+    if kind == 'percentage' and not (0 <= value <= 100):
+        raise ValidationError('A percentage discount must be a whole number from 0 to 100.')
+    if kind == 'fixed' and value < 0:
+        raise ValidationError('A fixed discount must be zero or more (KES).')
+
+
+class DiscountRule(models.Model):
+    """A term-start discount rule (spec section 4.12): "give everyone in Grade 7
+    Term 2 a 10% sibling discount". It names exactly one target -- a grade level,
+    a class stream, or an explicit list of students (`students`) -- and is applied
+    explicitly by an admin via services_fees.apply_discount_rule(), which creates
+    one pending StudentFeeAdjustment per targeted student.
+
+    Exactly-one-target is enforced in the service layer (the M2M cannot be checked
+    by a model constraint). Never hard-deleted once created: deactivate with
+    active=False instead, so the adjustments it produced keep a valid parent."""
+    discount_type = models.ForeignKey(
+        'finance.DiscountType', on_delete=models.PROTECT, related_name='rules',
+    )
+    academic_year = models.ForeignKey('academics.AcademicYear', on_delete=models.PROTECT, related_name='discount_rules')
+    term = models.ForeignKey('academics.ExamTerm', on_delete=models.PROTECT, related_name='discount_rules')
+    grade_level = models.ForeignKey(
+        'academics.GradeLevel', on_delete=models.PROTECT, null=True, blank=True, related_name='discount_rules',
+    )
+    class_stream = models.ForeignKey(
+        'academics.ClassStream', on_delete=models.PROTECT, null=True, blank=True, related_name='discount_rules',
+    )
+    students = models.ManyToManyField('identity.StudentExtra', blank=True, related_name='discount_rules')
+    active = models.BooleanField(default=True, db_index=True)
+    created_by = models.ForeignKey('auth.User', on_delete=models.PROTECT, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'finance_discountrule'
+
+    def __str__(self):
+        return f"{self.discount_type.name} rule for {self.term}"
+
+
 class StudentFeeAdjustment(models.Model):
     """A discount, scholarship, bursary, penalty, or correction applied to a
     student's fee account — spec section 4.4.
@@ -168,10 +245,26 @@ class StudentFeeAdjustment(models.Model):
     decided_by = models.ForeignKey('auth.User', on_delete=models.PROTECT, null=True, blank=True, related_name='+')
     decided_at = models.DateTimeField(null=True, blank=True)
     decision_note = models.TextField(blank=True, default='')
+    # Set when the adjustment came from a DiscountType (Task 35/36). Nullable so existing rows stay valid.
+    discount_type = models.ForeignKey(
+        'finance.DiscountType', on_delete=models.PROTECT, null=True, blank=True, related_name='adjustments',
+    )
+    # Set only when created by apply_discount_rule(). The partial unique constraint below
+    # is the DB-level guarantee that one rule never discounts the same student twice.
+    discount_rule = models.ForeignKey(
+        DiscountRule, on_delete=models.PROTECT, null=True, blank=True, related_name='adjustments',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         db_table = 'finance_studentfeeadjustment'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['discount_rule', 'student'],
+                condition=models.Q(discount_rule__isnull=False),
+                name='uniq_discount_rule_per_student',
+            ),
+        ]
 
 
 class Invoice(ImmutableFinancialRecordMixin, models.Model):

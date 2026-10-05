@@ -9,7 +9,8 @@ from django.urls import path
 
 from apps.finance.views import (
     FinanceOverviewAPI, ActivateFeeStructureAPIView,
-    FeeCategoryListCreateAPIView, FeeStructureListCreateAPIView,
+    FeeCategoryListCreateAPIView, DiscountTypeListCreateAPIView, DiscountTypeDetailAPIView, FeeStructureListCreateAPIView,
+    DiscountRuleListCreateAPIView, DiscountRuleDetailAPIView, DiscountRulePreviewAPIView, DiscountRuleApplyAPIView,
     FeeStructureDetailAPIView, StudentFeeItemEnrollmentSetAPIView,
     InvoiceListAPIView, InvoiceDetailAPIView, PaymentListCreateAPIView, VoidInvoiceAPIView, VoidPaymentAPIView,
     StudentFeeAdjustmentCreateAPIView, AdjustmentListAPIView, AdjustmentDecisionAPIView,
@@ -28,6 +29,12 @@ urlpatterns = [
 urlpatterns += [
     path('api/finance/fee-structures/<int:structure_id>/activate/', ActivateFeeStructureAPIView.as_view(), name='api_activate_fee_structure'),
     path('api/finance/fee-categories/', FeeCategoryListCreateAPIView.as_view(), name='api_fee_categories'),
+    path('api/finance/discount-types/', DiscountTypeListCreateAPIView.as_view(), name='api_discount_types'),
+    path('api/finance/discount-types/<int:discount_type_id>/', DiscountTypeDetailAPIView.as_view(), name='api_discount_type_detail'),
+    path('api/finance/discount-rules/', DiscountRuleListCreateAPIView.as_view(), name='api_discount_rules'),
+    path('api/finance/discount-rules/preview/', DiscountRulePreviewAPIView.as_view(), name='api_discount_rule_preview'),
+    path('api/finance/discount-rules/<int:rule_id>/', DiscountRuleDetailAPIView.as_view(), name='api_discount_rule_detail'),
+    path('api/finance/discount-rules/<int:rule_id>/apply/', DiscountRuleApplyAPIView.as_view(), name='api_discount_rule_apply'),
     path('api/finance/fee-structures/', FeeStructureListCreateAPIView.as_view(), name='api_fee_structures'),
     path('api/finance/fee-structures/<int:structure_id>/', FeeStructureDetailAPIView.as_view(), name='api_fee_structure_detail'),
     path('api/finance/fee-structure-items/<int:item_id>/enrollments/', StudentFeeItemEnrollmentSetAPIView.as_view(), name='api_fee_structure_item_enrollments'),
