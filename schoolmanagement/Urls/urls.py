@@ -31,6 +31,7 @@ from school.views.teacherAllocation_view import AllocationMatrixAPIView, Rollove
     api_execute_allocation_splits, GlobalAllocationPolicyAPIView, api_get_stream_teachers, api_get_teacher_allocations, \
     UnpublishAllocationAPIView
 from school.views.allocation_publish_views import PublishPreviewAPIView, PublishAllocationsAPIView
+from school.views.allocation_rebalance_views import RebalanceProposeAPIView, RebalanceConfirmAPIView
 from school.views.timetable_publish_views import TimetablePublishPreviewAPIView, TimetablePublishAPIView
 
 from school.views.chat_views import ClassParentsAPI
@@ -314,6 +315,8 @@ urlpatterns = [
     path('api/allocations/unpublish/', UnpublishAllocationAPIView.as_view(), name='unpublish_allocation'),
     path('api/allocations/publish/preview/', PublishPreviewAPIView.as_view(), name='allocation_publish_preview'),
     path('api/allocations/publish/', PublishAllocationsAPIView.as_view(), name='allocation_publish'),
+    path('api/allocations/rebalance/propose/', RebalanceProposeAPIView.as_view(), name='allocation_rebalance_propose'),
+    path('api/allocations/rebalance/confirm/', RebalanceConfirmAPIView.as_view(), name='allocation_rebalance_confirm'),
     path('api/timetable/publish/preview/', TimetablePublishPreviewAPIView.as_view(), name='timetable_publish_preview'),
     path('api/timetable/publish/', TimetablePublishAPIView.as_view(), name='timetable_publish'),
     path('api/allocations/splitting-rules/<int:grade_id>/', api_manage_splitting_rules, name='api_manage_splitting_rules'),
