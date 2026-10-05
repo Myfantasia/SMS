@@ -45,6 +45,34 @@ class AllocationMatrixBlockerTests(TestCase):
             'allocations': allocations,
         }, format='json')
 
+    def _auto_draft(self):
+        return self.client.get('/api/allocations/auto-draft/', {
+            'class_id': self.stream.id, 'term_id': self.term.id, 'year_id': self.year.id,
+        })
+
+    def test_auto_draft_response_includes_blockers_for_review(self):
+        # Nothing is saved for this class yet, so review_scope reports NOTHING_TO_PUBLISH.
+        response = self._auto_draft()
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('blockers', response.data)
+        self.assertIsInstance(response.data['blockers'], list)
+        codes = [b['code'] for b in response.data['blockers']]
+        self.assertIn('NOTHING_TO_PUBLISH', codes)
+        self.assertEqual(response.data['blockers'][codes.index('NOTHING_TO_PUBLISH')]['classroom_id'],
+                         self.stream.id)
+
+    def test_auto_draft_blockers_reflect_saved_rows_not_the_unsaved_draft(self):
+        # Saving a row for this class clears NOTHING_TO_PUBLISH: blockers are computed from
+        # SAVED allocations, so the view's own unsaved draft never shows up as a blocker source.
+        SubjectAllocation.objects.create(
+            classroom=self.stream, subject=self.maths, teacher=self.teacher,
+            academic_year=self.year, term=self.term, is_active=True,
+        )
+        response = self._auto_draft()
+        self.assertEqual(response.status_code, 200)
+        codes = [b['code'] for b in response.data['blockers']]
+        self.assertNotIn('NOTHING_TO_PUBLISH', codes)
+
     def test_hard_blocker_includes_structured_dto_alongside_existing_error_string(self):
         response = self._post([
             {'subject_id': self.maths.id, 'teacher_id': self.teacher.id},

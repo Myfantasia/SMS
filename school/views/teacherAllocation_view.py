@@ -23,6 +23,7 @@ from school.utils import build_grade_subject_block_map, get_subject_block_names,
     AllocationValidator, reserve_class_teacher_slot, fill_remaining_subjects, get_cached_unscheduled_errors, \
     get_subjects_with_active_virtual_groups, get_published_classroom_ids, unpublish_allocation
 from apps.allocations.validation import validate_row
+from apps.allocations.publish_gate import review_scope
 from apps.allocations.services import lock_publish_state
 from django.shortcuts import get_object_or_404
 from django.http import JsonResponse
@@ -587,8 +588,16 @@ class AutoAllocateDraftAPIView(APIView):
             if active_timetable:
                 timetable_warnings = get_cached_unscheduled_errors(active_timetable.id, [target_class.name])
 
-            return Response({"draft": draft_allocations, "timetable_warnings": timetable_warnings},
-                             status=status.HTTP_200_OK)
+            # Display-only. review_scope reads the SAVED SubjectAllocation rows for this class (and
+            # the rest of the term's saved load), NOT the unsaved draft_allocations computed above.
+            # So these blockers show what is already saved for the class, not a prediction of the
+            # draft on screen; it does not change "draft" or "timetable_warnings".
+            blockers = [b.to_dict() for b in review_scope(
+                term_id=real_term_id, year_id=real_year_id, class_ids=[real_class_id]
+            ).blockers]
+
+            return Response({"draft": draft_allocations, "timetable_warnings": timetable_warnings,
+                             "blockers": blockers}, status=status.HTTP_200_OK)
 
         except Exception as e:
             return Response({"error": f"Algorithm Error: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
