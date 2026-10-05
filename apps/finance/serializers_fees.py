@@ -187,6 +187,7 @@ class PaymentCreateSerializer(serializers.Serializer):
 class AdjustmentCreateSerializer(serializers.Serializer):
     student = serializers.PrimaryKeyRelatedField(queryset=StudentExtra.objects.all())
     category = serializers.PrimaryKeyRelatedField(queryset=FeeCategory.objects.all(), required=False, allow_null=True)
+    discount_type = serializers.PrimaryKeyRelatedField(queryset=DiscountType.objects.all(), required=False, allow_null=True)
     adjustment_type = serializers.ChoiceField(choices=StudentFeeAdjustment.ADJUSTMENT_TYPE_CHOICES)
     amount = serializers.IntegerField(min_value=-MAX_AMOUNT, max_value=MAX_AMOUNT)
     reason = serializers.CharField(max_length=2000)

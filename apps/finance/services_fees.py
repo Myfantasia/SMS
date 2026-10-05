@@ -69,6 +69,8 @@ def create_adjustment(*, student, adjustment_type, amount, reason, requested_by,
     which leaves every existing caller's behaviour unchanged. The caller's
     serializer already rejects amount == 0."""
     category = FeeCategory.objects.filter(id=category_id).first() if category_id else None
+    if discount_type is not None:
+        _check_discount_type_usable(discount_type)
     with transaction.atomic():
         # Lock the student row first: the create() below takes FOR KEY SHARE on it
         # via the FK, and post_ledger_entry then wants FOR UPDATE -- taking the

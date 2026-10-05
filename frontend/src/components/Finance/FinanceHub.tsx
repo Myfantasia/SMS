@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CircleDollarSign, Banknote, Wallet, TrendingUp, TrendingDown, Search, Users, GraduationCap, PieChart, Layers, FileText, Receipt, PiggyBank, ShieldCheck, ShieldOff, ClipboardCheck, FilePlus } from 'lucide-react';
+import { CircleDollarSign, Banknote, Wallet, TrendingUp, TrendingDown, Search, Users, GraduationCap, PieChart, Layers, FileText, Receipt, PiggyBank, ShieldCheck, ShieldOff, ClipboardCheck, FilePlus, Percent, CalendarClock } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useTheme } from '@mui/material/styles';
 import {
   Switch, TextField, Button, Dialog, DialogTitle, DialogContent, DialogActions,
-  Select, MenuItem, FormControl, InputLabel, Autocomplete, Chip, CircularProgress,
+  Select, MenuItem, FormControl, FormHelperText, InputLabel, Autocomplete, Chip, CircularProgress,
+  Radio, RadioGroup, FormControlLabel,
 } from '@mui/material';
 import toast from 'react-hot-toast';
 import { useNavigate, useOutletContext } from 'react-router-dom';
@@ -15,6 +16,10 @@ import {
   listClearanceOverrides, grantClearanceOverride, revokeClearanceOverride, type ClearanceOverride,
   searchStudents, type StudentLookupOption, listExamTermOptions, type ExamTermOption,
   listAdjustments, decideAdjustment, createAdjustment, listFeeCategories, type FeeCategory, type StudentFeeAdjustment,
+  listGradeLevelOptions, type GradeLevelOption,
+  listDiscountTypes, createDiscountType, updateDiscountType, type DiscountType,
+  listDiscountRules, createDiscountRule, previewDiscountRule, updateDiscountRule, applyDiscountRule,
+  type DiscountRule, type DiscountRuleTarget, type DiscountRulePreview, type DiscountRuleApplyResult,
 } from '../../libs/financeApi';
 import type { DashboardContextType } from '../../layouts/DashboardLayouts';
 import { INCOME_CATEGORIES, EXPENSE_CATEGORIES, MOCK_FINANCE_BREAKDOWN } from './financeCategories';
@@ -477,13 +482,15 @@ function PendingAdjustmentsCard({ permissions, userId, refreshKey, onDecided }: 
 /** Request a fee adjustment (spec 4.10). Gated on finance.edit (matches createAdjustment's
  * backend permission). No approver field: the backend routes negative amounts to pending
  * and positive amounts straight to approved. */
-function RequestAdjustmentCard({ permissions, onSubmitted }: { permissions: string[]; onSubmitted: () => void }) {
+function RequestAdjustmentCard({ permissions, onSubmitted, typesVersion }: { permissions: string[]; onSubmitted: () => void; typesVersion: number }) {
   const canEdit = permissions.includes('finance.edit');
   const [studentQuery, setStudentQuery] = useState('');
   const [studentOptions, setStudentOptions] = useState<StudentLookupOption[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<StudentLookupOption | null>(null);
   const [categories, setCategories] = useState<FeeCategory[]>([]);
   const [categoryId, setCategoryId] = useState<number | ''>('');
+  const [discountTypes, setDiscountTypes] = useState<DiscountType[]>([]);
+  const [discountTypeId, setDiscountTypeId] = useState<number | ''>('');
   const [adjustmentType, setAdjustmentType] = useState<StudentFeeAdjustment['adjustment_type']>('discount');
   const [amountInput, setAmountInput] = useState('');
   const [reason, setReason] = useState('');
@@ -492,7 +499,8 @@ function RequestAdjustmentCard({ permissions, onSubmitted }: { permissions: stri
   useEffect(() => {
     if (!canEdit) return;
     listFeeCategories().then((res) => setCategories(res.data)).catch(() => undefined);
-  }, [canEdit]);
+    listDiscountTypes({ active: true }).then((res) => setDiscountTypes(res.data)).catch(() => undefined);
+  }, [canEdit, typesVersion]);
 
   useEffect(() => {
     const q = studentQuery.trim();
@@ -512,6 +520,7 @@ function RequestAdjustmentCard({ permissions, onSubmitted }: { permissions: stri
     setSelectedStudent(null);
     setStudentQuery('');
     setCategoryId('');
+    setDiscountTypeId('');
     setAdjustmentType('discount');
     setAmountInput('');
     setReason('');
@@ -536,6 +545,7 @@ function RequestAdjustmentCard({ permissions, onSubmitted }: { permissions: stri
       const res = await createAdjustment({
         student: selectedStudent.id,
         category: categoryId === '' ? null : categoryId,
+        discount_type: discountTypeId === '' ? null : discountTypeId,
         adjustment_type: adjustmentType,
         amount,
         reason: reason.trim(),
@@ -598,6 +608,25 @@ function RequestAdjustmentCard({ permissions, onSubmitted }: { permissions: stri
             {categories.map((c) => <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>)}
           </Select>
         </FormControl>
+        <FormControl size="small">
+          <InputLabel id="adjustment-discount-type-label">Discount type (optional)</InputLabel>
+          <Select
+            labelId="adjustment-discount-type-label" label="Discount type (optional)" value={discountTypeId}
+            onChange={(e) => setDiscountTypeId(e.target.value as number | '')}
+          >
+            <MenuItem value="">No discount type</MenuItem>
+            {discountTypes.map((t) => <MenuItem key={t.id} value={t.id}>{t.name}</MenuItem>)}
+          </Select>
+          {discountTypeId !== '' && (() => {
+            const chosen = discountTypes.find((t) => t.id === discountTypeId);
+            if (!chosen) return null;
+            return (
+              <FormHelperText>
+                Type value: {chosen.kind === 'percentage' ? `${Number(chosen.value)}%` : `KES ${Number(chosen.value).toLocaleString()}`}. Enter the amount for this student.
+              </FormHelperText>
+            );
+          })()}
+        </FormControl>
         <TextField
           size="small" type="number" label="Amount (KES)" value={amountInput}
           onChange={(e) => setAmountInput(e.target.value)}
@@ -611,6 +640,649 @@ function RequestAdjustmentCard({ permissions, onSubmitted }: { permissions: stri
       <Button variant="contained" onClick={handleSubmit} disabled={submitting}>
         {submitting ? 'Submitting...' : 'Submit Adjustment'}
       </Button>
+    </div>
+  );
+}
+
+const DISCOUNT_KIND_LABELS: Record<DiscountType['kind'], string> = { fixed: 'Fixed amount', percentage: 'Percentage' };
+
+type RuleTargetKind = 'grade' | 'stream' | 'students';
+
+const formatKes = (value: number | string) => `KES ${Math.abs(Number(value)).toLocaleString()}`;
+
+/** Target fields for a saved rule, sending only the one that is set (the service
+ * rejects a rule with more than one target). */
+function ruleTargetPayload(rule: DiscountRule): DiscountRuleTarget {
+  if (rule.grade_level) return { grade_level: rule.grade_level };
+  if (rule.class_stream) return { class_stream: rule.class_stream };
+  return { student_ids: rule.student_ids };
+}
+
+/** Per-student preview lines. A zero amount means apply will skip that student. */
+function PreviewSummary({ preview }: { preview: DiscountRulePreview }) {
+  return (
+    <div className="space-y-2">
+      <p className="text-sm text-slate-600 dark:text-slate-300">
+        {preview.count} student{preview.count === 1 ? '' : 's'} · total discount {formatKes(preview.total_amount)}
+      </p>
+      {preview.count === 0 ? (
+        <p className="text-sm text-slate-400 dark:text-slate-500">No students match this target.</p>
+      ) : (
+        <div className="max-h-48 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800 rounded-lg border border-slate-100 dark:border-slate-800">
+          {preview.students.map((s) => (
+            <div key={s.id} className="flex items-center justify-between gap-3 px-3 py-1.5 text-sm">
+              <span className="truncate text-slate-700 dark:text-slate-200">{s.name}</span>
+              <span className={`shrink-0 font-semibold ${Number(s.amount) === 0 ? 'text-slate-400 dark:text-slate-500' : 'text-slate-700 dark:text-slate-200'}`}>
+                {Number(s.amount) === 0 ? 'Skipped (no amount)' : formatKes(s.amount)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Admin-defined discount types (spec 4.12). Listing needs finance.view; create and
+ * activate/deactivate need finance.edit, and those controls are not rendered otherwise. */
+function DiscountTypesCard({ permissions, onTypesChanged }: { permissions: string[]; onTypesChanged: () => void }) {
+  const canView = permissions.includes('finance.view');
+  const canEdit = permissions.includes('finance.edit');
+  const [types, setTypes] = useState<DiscountType[]>([]);
+  const [categories, setCategories] = useState<FeeCategory[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [includeInactive, setIncludeInactive] = useState(false);
+  const [refresh, setRefresh] = useState(0);
+  const [name, setName] = useState('');
+  const [kind, setKind] = useState<DiscountType['kind']>('fixed');
+  const [valueInput, setValueInput] = useState('');
+  const [categoryId, setCategoryId] = useState<number | ''>('');
+  const [submitting, setSubmitting] = useState(false);
+  const [togglingId, setTogglingId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!canView) {
+      setLoading(false);
+      return;
+    }
+    let active = true;
+    setLoading(true);
+    listDiscountTypes(includeInactive ? undefined : { active: true })
+      .then((res) => { if (active) setTypes(res.data); })
+      .catch(() => toast.error('Failed to load discount types.'))
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [canView, includeInactive, refresh]);
+
+  useEffect(() => {
+    if (!canView) return;
+    listFeeCategories().then((res) => setCategories(res.data)).catch(() => undefined);
+  }, [canView]);
+
+  if (!canView) return null;
+
+  const categoryNameById = new Map(categories.map((c) => [c.id, c.name]));
+
+  const handleCreate = async () => {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      toast.error('Enter a name for the discount type.');
+      return;
+    }
+    const value = Number(valueInput);
+    if (!valueInput.trim() || !Number.isFinite(value)) {
+      toast.error('Enter a value.');
+      return;
+    }
+    if (kind === 'percentage' && (value < 0 || value > 100)) {
+      toast.error('A percentage must be between 0 and 100.');
+      return;
+    }
+    if (kind === 'fixed' && value < 0) {
+      toast.error('A fixed amount cannot be negative.');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await createDiscountType({ name: trimmed, kind, value, category: categoryId === '' ? null : categoryId });
+      toast.success('Discount type created.');
+      setName('');
+      setValueInput('');
+      setCategoryId('');
+      { setRefresh((n) => n + 1); onTypesChanged(); }
+    } catch (err) {
+      toast.error(extractErrorMessage(err, 'Failed to create the discount type.'));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleToggle = async (row: DiscountType) => {
+    setTogglingId(row.id);
+    try {
+      await updateDiscountType(row.id, { active: !row.active });
+      toast.success(row.active ? 'Discount type deactivated.' : 'Discount type reactivated.');
+      { setRefresh((n) => n + 1); onTypesChanged(); }
+    } catch (err) {
+      toast.error(extractErrorMessage(err, 'Failed to update the discount type.'));
+    } finally {
+      setTogglingId(null);
+    }
+  };
+
+  return (
+    <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm dark:shadow-none space-y-4">
+      <div className="flex items-center gap-3">
+        <div className="p-2.5 rounded-xl text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10">
+          <Percent className="w-5 h-5" strokeWidth={2.5} />
+        </div>
+        <div>
+          <h2 className="text-base font-bold text-slate-800 dark:text-slate-100">Discount Types</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Named discounts the school can grant, as a fixed amount or a percentage of fees.</p>
+        </div>
+      </div>
+
+      {canEdit && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <TextField size="small" label="Name" value={name} onChange={(e) => setName(e.target.value)} />
+          <FormControl size="small">
+            <InputLabel id="discount-kind-label">Kind</InputLabel>
+            <Select
+              labelId="discount-kind-label" label="Kind" value={kind}
+              onChange={(e) => setKind(e.target.value as DiscountType['kind'])}
+            >
+              <MenuItem value="fixed">Fixed amount</MenuItem>
+              <MenuItem value="percentage">Percentage</MenuItem>
+            </Select>
+          </FormControl>
+          <TextField
+            size="small" type="number" label={kind === 'percentage' ? 'Value (%)' : 'Value (KES)'}
+            value={valueInput} onChange={(e) => setValueInput(e.target.value)}
+            helperText={kind === 'percentage' ? 'Between 0 and 100.' : 'Zero or more. Zero means the amount is set per rule.'}
+          />
+          <FormControl size="small">
+            <InputLabel id="discount-category-label">Fee category (optional)</InputLabel>
+            <Select
+              labelId="discount-category-label" label="Fee category (optional)" value={categoryId}
+              onChange={(e) => setCategoryId(e.target.value as number | '')}
+            >
+              <MenuItem value="">All categories</MenuItem>
+              {categories.map((c) => <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>)}
+            </Select>
+          </FormControl>
+          <div className="sm:col-span-2">
+            <Button variant="contained" onClick={handleCreate} disabled={submitting}>
+              {submitting ? 'Creating...' : 'Create Discount Type'}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      <div className="flex items-center justify-between">
+        <span className="text-sm text-slate-600 dark:text-slate-300">Show inactive types</span>
+        <Switch checked={includeInactive} onChange={(e) => setIncludeInactive(e.target.checked)} />
+      </div>
+
+      <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+        {loading ? (
+          <div className="py-6 flex justify-center"><CircularProgress size={24} /></div>
+        ) : types.length === 0 ? (
+          <p className="text-sm text-slate-400 dark:text-slate-500 py-2">No discount types yet.</p>
+        ) : (
+          <div className="divide-y divide-slate-100 dark:divide-slate-800">
+            {types.map((t) => (
+              <div key={t.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3">
+                <div className="min-w-0 space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">{t.name}</span>
+                    <Chip label={DISCOUNT_KIND_LABELS[t.kind]} size="small" variant="outlined" />
+                    <Chip label={t.active ? 'Active' : 'Inactive'} size="small" color={t.active ? 'success' : 'default'} />
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {t.kind === 'percentage' ? `${Number(t.value)}%` : formatKes(t.value)}
+                    {t.category !== null && ` · ${categoryNameById.get(t.category) ?? `Category #${t.category}`}`}
+                  </p>
+                </div>
+                {canEdit && (
+                  <Button
+                    size="small" color={t.active ? 'error' : 'success'}
+                    disabled={togglingId === t.id} onClick={() => handleToggle(t)}
+                  >
+                    {t.active ? 'Deactivate' : 'Reactivate'}
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Preview (finance.view) and, for a finance.edit holder on an active rule, apply. The
+ * preview runs on open and again on "Refresh preview"; Confirm Apply is enabled only when
+ * the preview on screen was made with the same amount that apply will send. */
+function RuleDialog({ rule, mode, typeName, kind, termName, targetLabel, onClose, onApplied }: {
+  rule: DiscountRule; mode: 'preview' | 'apply'; typeName: string; kind: DiscountType['kind'] | undefined;
+  termName: string; targetLabel: string; onClose: () => void; onApplied: () => void;
+}) {
+  const [amountInput, setAmountInput] = useState('');
+  const [preview, setPreview] = useState<{ signature: string; data: DiscountRulePreview } | null>(null);
+  const [previewing, setPreviewing] = useState(false);
+  const [applying, setApplying] = useState(false);
+  const [result, setResult] = useState<DiscountRuleApplyResult | null>(null);
+
+  const amountValue = amountInput.trim() ? Number(amountInput) : undefined;
+  const amountValid = amountValue === undefined || (Number.isInteger(amountValue) && amountValue > 0);
+  const signature = String(amountValue ?? 'default');
+  const previewCurrent = preview !== null && preview.signature === signature;
+
+  const runPreview = async () => {
+    if (!amountValid) {
+      toast.error('Amount must be a positive whole number.');
+      return;
+    }
+    setPreviewing(true);
+    try {
+      const res = await previewDiscountRule({
+        discount_type: rule.discount_type, term: rule.term, ...ruleTargetPayload(rule), amount: amountValue,
+      });
+      setPreview({ signature, data: res.data });
+    } catch (err) {
+      setPreview(null);
+      toast.error(extractErrorMessage(err, 'Failed to preview the rule.'));
+    } finally {
+      setPreviewing(false);
+    }
+  };
+
+  useEffect(() => {
+    runPreview();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleApply = async () => {
+    if (!previewCurrent) return;
+    setApplying(true);
+    try {
+      const res = await applyDiscountRule(rule.id, amountValue);
+      setResult(res.data);
+      toast.success(`Applied: ${res.data.created_count} created, ${res.data.skipped_count} skipped.`);
+      onApplied();
+    } catch (err) {
+      toast.error(extractErrorMessage(err, 'Failed to apply the rule.'));
+    } finally {
+      setApplying(false);
+    }
+  };
+
+  const canConfirm = mode === 'apply' && !result;
+
+  return (
+    <Dialog open onClose={() => (!applying && onClose())} fullWidth maxWidth="sm">
+      <DialogTitle>{mode === 'apply' ? 'Apply discount rule' : 'Preview discount rule'}</DialogTitle>
+      <DialogContent className="space-y-4">
+        <p className="text-sm text-slate-600 dark:text-slate-300">
+          {typeName} · {termName} · {targetLabel}
+        </p>
+        {kind === 'fixed' && (
+          <TextField
+            size="small" type="number" label="Amount (KES, optional)" value={amountInput}
+            onChange={(e) => setAmountInput(e.target.value)}
+            helperText="Optional. Overrides the type's value for this apply. Required when a fixed type has no set value."
+          />
+        )}
+        <div>
+          <Button size="small" onClick={runPreview} disabled={previewing || applying}>Refresh preview</Button>
+        </div>
+        {previewing ? (
+          <div className="py-4 flex justify-center"><CircularProgress size={22} /></div>
+        ) : previewCurrent && preview ? (
+          <PreviewSummary preview={preview.data} />
+        ) : (
+          <p className="text-sm text-slate-400 dark:text-slate-500">Preview not loaded for this amount. Refresh the preview to continue.</p>
+        )}
+        {result && (
+          <div className="rounded-lg bg-emerald-50 dark:bg-emerald-500/10 p-3 text-sm text-emerald-700 dark:text-emerald-400">
+            Created {result.created_count}, skipped {result.skipped_count}. Waivers stay pending until approved.
+          </div>
+        )}
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose} disabled={applying}>{result ? 'Close' : 'Cancel'}</Button>
+        {canConfirm && (
+          <Button
+            variant="contained" color="success"
+            onClick={handleApply} disabled={!previewCurrent || previewing || applying}
+          >
+            {applying ? 'Applying...' : 'Confirm Apply'}
+          </Button>
+        )}
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+/** Term-start discount rules (spec 4.12). Listing and preview need finance.view. Creating
+ * and applying need finance.edit; the create form is not rendered without it, and Apply
+ * is hidden on rows (and in the dialog) for view-only users. Save is enabled only after a
+ * preview of the same form inputs; creating a rule discounts nobody, apply does that. */
+function DiscountRulesCard({ permissions, typesVersion }: { permissions: string[]; typesVersion: number }) {
+  const canView = permissions.includes('finance.view');
+  const canEdit = permissions.includes('finance.edit');
+  const [rules, setRules] = useState<DiscountRule[]>([]);
+  const [types, setTypes] = useState<DiscountType[]>([]);
+  const [terms, setTerms] = useState<ExamTermOption[]>([]);
+  const [grades, setGrades] = useState<GradeLevelOption[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refresh, setRefresh] = useState(0);
+  const [dialog, setDialog] = useState<{ rule: DiscountRule; mode: 'preview' | 'apply' } | null>(null);
+  const [togglingId, setTogglingId] = useState<number | null>(null);
+
+  const [typeId, setTypeId] = useState<number | ''>('');
+  const [termId, setTermId] = useState<number | ''>('');
+  const [targetKind, setTargetKind] = useState<RuleTargetKind>('grade');
+  const [gradeId, setGradeId] = useState<number | ''>('');
+  const [streamInput, setStreamInput] = useState('');
+  const [studentQuery, setStudentQuery] = useState('');
+  const [studentOptions, setStudentOptions] = useState<StudentLookupOption[]>([]);
+  const [students, setStudents] = useState<StudentLookupOption[]>([]);
+  const [amountInput, setAmountInput] = useState('');
+  const [formPreview, setFormPreview] = useState<{ signature: string; data: DiscountRulePreview } | null>(null);
+  const [previewing, setPreviewing] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!canView) {
+      setLoading(false);
+      return;
+    }
+    let active = true;
+    setLoading(true);
+    listDiscountRules()
+      .then((res) => { if (active) setRules(res.data); })
+      .catch(() => toast.error('Failed to load discount rules.'))
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [canView, refresh]);
+
+  useEffect(() => {
+    if (!canView) return;
+    listDiscountTypes().then((res) => setTypes(res.data)).catch(() => undefined);
+    listExamTermOptions().then((res) => setTerms(res.data)).catch(() => undefined);
+    listGradeLevelOptions().then((res) => setGrades(res.data)).catch(() => undefined);
+  }, [canView, refresh, typesVersion]);
+
+  useEffect(() => {
+    const q = studentQuery.trim();
+    if (q.length < 2) {
+      setStudentOptions([]);
+      return;
+    }
+    const handle = setTimeout(() => {
+      searchStudents(q).then((res) => setStudentOptions(res.data)).catch(() => undefined);
+    }, 300);
+    return () => clearTimeout(handle);
+  }, [studentQuery]);
+
+  if (!canView) return null;
+
+  const activeTypes = types.filter((t) => t.active);
+  const typeById = new Map(types.map((t) => [t.id, t]));
+  const termNameById = new Map(terms.map((t) => [t.id, t.name]));
+  const gradeNameById = new Map(grades.map((g) => [g.id, g.name]));
+
+  const describeTarget = (rule: DiscountRule) => {
+    if (rule.grade_level) return gradeNameById.get(rule.grade_level) ?? `Grade #${rule.grade_level}`;
+    if (rule.class_stream) return `Stream #${rule.class_stream}`;
+    const count = rule.student_ids.length;
+    return `${count} student${count === 1 ? '' : 's'}`;
+  };
+
+  // The form's inputs as one string: a preview counts only while this string is unchanged.
+  const formSignature = JSON.stringify({
+    typeId, termId, targetKind, gradeId, stream: streamInput.trim(),
+    students: students.map((s) => s.id).sort((a, b) => a - b), amount: amountInput.trim(),
+  });
+  const formPreviewCurrent = formPreview !== null && formPreview.signature === formSignature;
+
+  const formError = (): string | null => {
+    if (typeId === '') return 'Select a discount type.';
+    if (termId === '') return 'Select a term.';
+    if (targetKind === 'grade' && gradeId === '') return 'Select a grade level.';
+    if (targetKind === 'stream' && (!Number.isInteger(Number(streamInput)) || Number(streamInput) <= 0)) {
+      return 'Enter a class stream id.';
+    }
+    if (targetKind === 'students' && students.length === 0) return 'Select at least one student.';
+    if (amountInput.trim() && !(Number.isInteger(Number(amountInput)) && Number(amountInput) > 0)) {
+      return 'Amount must be a positive whole number.';
+    }
+    return null;
+  };
+
+  const formTarget = (): DiscountRuleTarget => {
+    if (targetKind === 'grade') return { grade_level: Number(gradeId) };
+    if (targetKind === 'stream') return { class_stream: Number(streamInput) };
+    return { student_ids: students.map((s) => s.id) };
+  };
+
+  const resetForm = () => {
+    setTypeId('');
+    setTermId('');
+    setTargetKind('grade');
+    setGradeId('');
+    setStreamInput('');
+    setStudents([]);
+    setStudentQuery('');
+    setAmountInput('');
+    setFormPreview(null);
+  };
+
+  const handleFormPreview = async () => {
+    const error = formError();
+    if (error) {
+      toast.error(error);
+      return;
+    }
+    const signature = formSignature;
+    setPreviewing(true);
+    try {
+      const res = await previewDiscountRule({
+        discount_type: Number(typeId), term: Number(termId), ...formTarget(),
+        amount: amountInput.trim() ? Number(amountInput) : undefined,
+      });
+      setFormPreview({ signature, data: res.data });
+    } catch (err) {
+      setFormPreview(null);
+      toast.error(extractErrorMessage(err, 'Failed to preview the rule.'));
+    } finally {
+      setPreviewing(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!formPreviewCurrent) return;
+    // The academic year comes from the chosen term (ExamTermOption.academic_year_id); the
+    // rule create endpoint requires it and rejects a term from another year.
+    const term = terms.find((t) => t.id === Number(termId));
+    if (!term) return;
+    setSaving(true);
+    try {
+      await createDiscountRule({
+        discount_type: Number(typeId), academic_year: term.academic_year_id, term: term.id, ...formTarget(),
+      });
+      toast.success('Discount rule saved. Apply it from the list when you are ready.');
+      resetForm();
+      setRefresh((n) => n + 1);
+    } catch (err) {
+      toast.error(extractErrorMessage(err, 'Failed to save the rule.'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleToggle = async (rule: DiscountRule) => {
+    setTogglingId(rule.id);
+    try {
+      await updateDiscountRule(rule.id, { active: !rule.active });
+      toast.success(rule.active ? 'Discount rule deactivated.' : 'Discount rule reactivated.');
+      setRefresh((n) => n + 1);
+    } catch (err) {
+      toast.error(extractErrorMessage(err, 'Failed to update the discount rule.'));
+    } finally {
+      setTogglingId(null);
+    }
+  };
+
+  const dialogRule = dialog?.rule ?? null;
+
+  return (
+    <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm dark:shadow-none space-y-4">
+      <div className="flex items-center gap-3">
+        <div className="p-2.5 rounded-xl text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10">
+          <CalendarClock className="w-5 h-5" strokeWidth={2.5} />
+        </div>
+        <div>
+          <h2 className="text-base font-bold text-slate-800 dark:text-slate-100">Term-Start Discount Rules</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Preview who a discount would cover, then apply it. Nothing is discounted until you apply.</p>
+        </div>
+      </div>
+
+      {canEdit && (
+        <div className="rounded-xl border border-slate-100 dark:border-slate-800 p-4 space-y-3">
+          <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">New rule</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <FormControl size="small">
+              <InputLabel id="rule-type-label">Discount type</InputLabel>
+              <Select
+                labelId="rule-type-label" label="Discount type" value={typeId}
+                onChange={(e) => setTypeId(e.target.value as number | '')}
+              >
+                {activeTypes.map((t) => <MenuItem key={t.id} value={t.id}>{t.name}</MenuItem>)}
+              </Select>
+            </FormControl>
+            <FormControl size="small">
+              <InputLabel id="rule-term-label">Term</InputLabel>
+              <Select
+                labelId="rule-term-label" label="Term" value={termId}
+                onChange={(e) => setTermId(e.target.value as number | '')}
+              >
+                {terms.map((t) => <MenuItem key={t.id} value={t.id}>{t.name}</MenuItem>)}
+              </Select>
+            </FormControl>
+            <div className="sm:col-span-2">
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Applies to</p>
+              <RadioGroup row value={targetKind} onChange={(e) => setTargetKind(e.target.value as RuleTargetKind)}>
+                <FormControlLabel value="grade" control={<Radio size="small" />} label="Grade level" />
+                <FormControlLabel value="stream" control={<Radio size="small" />} label="Class stream" />
+                <FormControlLabel value="students" control={<Radio size="small" />} label="Specific students" />
+              </RadioGroup>
+            </div>
+            <div className="sm:col-span-2">
+              {targetKind === 'grade' && (
+                <FormControl size="small" fullWidth>
+                  <InputLabel id="rule-grade-label">Grade level</InputLabel>
+                  <Select
+                    labelId="rule-grade-label" label="Grade level" value={gradeId}
+                    onChange={(e) => setGradeId(e.target.value as number | '')}
+                  >
+                    {grades.map((g) => <MenuItem key={g.id} value={g.id}>{g.name}</MenuItem>)}
+                  </Select>
+                </FormControl>
+              )}
+              {targetKind === 'stream' && (
+                <TextField
+                  size="small" fullWidth type="number" label="Class stream id" value={streamInput}
+                  onChange={(e) => setStreamInput(e.target.value)}
+                  helperText="Enter the stream's id. Finance has no stream lookup yet."
+                />
+              )}
+              {targetKind === 'students' && (
+                <Autocomplete
+                  multiple size="small" options={studentOptions} value={students}
+                  getOptionLabel={(o) => `${o.name} (${o.roll})`}
+                  isOptionEqualToValue={(a, b) => a.id === b.id}
+                  filterSelectedOptions
+                  onChange={(_, value) => setStudents(value)}
+                  inputValue={studentQuery}
+                  onInputChange={(_, value) => setStudentQuery(value)}
+                  renderInput={(params) => <TextField {...params} label="Students" placeholder="Search by name or roll" />}
+                />
+              )}
+            </div>
+            <TextField
+              size="small" type="number" label="Amount (KES, optional)" value={amountInput}
+              onChange={(e) => setAmountInput(e.target.value)}
+              helperText="Optional. Overrides the type's value. Required when a fixed type has no set value."
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button variant="outlined" onClick={handleFormPreview} disabled={previewing || saving}>
+              {previewing ? 'Previewing...' : 'Preview'}
+            </Button>
+            <Button variant="contained" onClick={handleSave} disabled={!formPreviewCurrent || saving || previewing}>
+              {saving ? 'Saving...' : 'Save Rule'}
+            </Button>
+          </div>
+          {formPreview && !formPreviewCurrent && (
+            <p className="text-xs text-amber-600 dark:text-amber-400">The inputs changed since the last preview. Preview again before saving.</p>
+          )}
+          {formPreviewCurrent && formPreview && <PreviewSummary preview={formPreview.data} />}
+        </div>
+      )}
+
+      <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+        {loading ? (
+          <div className="py-6 flex justify-center"><CircularProgress size={24} /></div>
+        ) : rules.length === 0 ? (
+          <p className="text-sm text-slate-400 dark:text-slate-500 py-2">No discount rules yet.</p>
+        ) : (
+          <div className="divide-y divide-slate-100 dark:divide-slate-800">
+            {rules.map((rule) => (
+              <div key={rule.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3">
+                <div className="min-w-0 space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                      {typeById.get(rule.discount_type)?.name ?? `Type #${rule.discount_type}`}
+                    </span>
+                    <Chip label={termNameById.get(rule.term) ?? `Term #${rule.term}`} size="small" variant="outlined" />
+                    <Chip label={rule.active ? 'Active' : 'Inactive'} size="small" color={rule.active ? 'success' : 'default'} />
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {describeTarget(rule)} · created {new Date(rule.created_at).toLocaleDateString()}
+                  </p>
+                </div>
+                <div className="flex gap-2 shrink-0 flex-wrap">
+                  <Button size="small" onClick={() => setDialog({ rule, mode: 'preview' })}>Preview</Button>
+                  {canEdit && rule.active && (
+                    <Button size="small" variant="contained" color="success" onClick={() => setDialog({ rule, mode: 'apply' })}>
+                      Apply
+                    </Button>
+                  )}
+                  {canEdit && (
+                    <Button size="small" disabled={togglingId === rule.id} onClick={() => handleToggle(rule)}>
+                      {rule.active ? 'Deactivate' : 'Reactivate'}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {dialogRule && dialog && (
+        <RuleDialog
+          rule={dialogRule} mode={dialog.mode}
+          typeName={typeById.get(dialogRule.discount_type)?.name ?? `Type #${dialogRule.discount_type}`}
+          kind={typeById.get(dialogRule.discount_type)?.kind}
+          termName={termNameById.get(dialogRule.term) ?? `Term #${dialogRule.term}`}
+          targetLabel={describeTarget(dialogRule)}
+          onClose={() => setDialog(null)}
+          onApplied={() => setRefresh((n) => n + 1)}
+        />
+      )}
     </div>
   );
 }
@@ -676,6 +1348,7 @@ export default function FinanceHub() {
   const [balancesUnavailable, setBalancesUnavailable] = useState(false);
   const [kpiTiles, setKpiTiles] = useState<FeeKpiTiles | null>(null);
   const [adjustmentRefresh, setAdjustmentRefresh] = useState(0);
+  const [typesVersion, setTypesVersion] = useState(0);
 
   useEffect(() => {
     api.get('/api/finance-overview/')
@@ -865,11 +1538,15 @@ export default function FinanceHub() {
             {permissions.includes('finance.override_clearance') && <ClearanceOverridesCard />}
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <RequestAdjustmentCard permissions={permissions} onSubmitted={() => setAdjustmentRefresh((n) => n + 1)} />
+            <RequestAdjustmentCard permissions={permissions} typesVersion={typesVersion} onSubmitted={() => setAdjustmentRefresh((n) => n + 1)} />
             <PendingAdjustmentsCard
               permissions={permissions} userId={userId} refreshKey={adjustmentRefresh}
               onDecided={() => setAdjustmentRefresh((n) => n + 1)}
             />
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <DiscountTypesCard permissions={permissions} onTypesChanged={() => setTypesVersion((n) => n + 1)} />
+            <DiscountRulesCard permissions={permissions} typesVersion={typesVersion} />
           </div>
         </div>
       )}

@@ -172,7 +172,7 @@ export interface StudentFeeAdjustment {
 
 export const createAdjustment = (data: {
   student: number; category?: number | null; adjustment_type: StudentFeeAdjustment['adjustment_type'];
-  amount: number; reason: string;
+  amount: number; reason: string; discount_type?: number | null;
 }) => api.post<StudentFeeAdjustment>('/api/finance/adjustments/', data);
 
 export const listAdjustments = (params?: {
@@ -181,6 +181,67 @@ export const listAdjustments = (params?: {
 
 export const decideAdjustment = (adjustmentId: number, approve: boolean, note?: string) =>
   api.post<StudentFeeAdjustment>(`/api/finance/adjustments/${adjustmentId}/decision/`, { approve, note });
+
+// --- Discount types and term-start discount rules (Tasks 35-37, spec 4.12) ----------------
+
+export interface DiscountType {
+  id: number;
+  name: string;
+  kind: 'fixed' | 'percentage';
+  value: number | string;
+  category: number | null;
+  active: boolean;
+}
+
+export interface DiscountRule {
+  id: number;
+  discount_type: number;
+  academic_year: number;
+  term: number;
+  grade_level: number | null;
+  class_stream: number | null;
+  student_ids: number[];
+  active: boolean;
+  created_at: string;
+}
+
+export interface DiscountRuleTarget {
+  grade_level?: number | null;
+  class_stream?: number | null;
+  student_ids?: number[];
+}
+
+export interface DiscountRulePreview {
+  students: { id: number; name: string; amount: number | string }[];
+  count: number;
+  total_amount: number | string;
+}
+
+export interface DiscountRuleApplyResult {
+  created_count: number;
+  skipped_count: number;
+  skipped: { student_id: number; reason: 'already_applied' | 'zero_amount' }[];
+}
+
+export const listDiscountTypes = (params?: { active?: boolean }) =>
+  api.get<DiscountType[]>('/api/finance/discount-types/', { params });
+export const createDiscountType = (data: {
+  name: string; kind: DiscountType['kind']; value: number; category?: number | null;
+}) => api.post<DiscountType>('/api/finance/discount-types/', data);
+export const updateDiscountType = (discountTypeId: number, patch: Partial<Pick<DiscountType, 'active'>>) =>
+  api.patch<DiscountType>(`/api/finance/discount-types/${discountTypeId}/`, patch);
+
+export const listDiscountRules = () => api.get<DiscountRule[]>('/api/finance/discount-rules/');
+export const createDiscountRule = (data: DiscountRuleTarget & {
+  discount_type: number; academic_year: number; term: number;
+}) => api.post<DiscountRule>('/api/finance/discount-rules/', data);
+export const previewDiscountRule = (data: DiscountRuleTarget & {
+  discount_type: number; term: number; amount?: number;
+}) => api.post<DiscountRulePreview>('/api/finance/discount-rules/preview/', data);
+export const updateDiscountRule = (ruleId: number, patch: Pick<DiscountRule, 'active'>) =>
+  api.patch<DiscountRule>(`/api/finance/discount-rules/${ruleId}/`, patch);
+export const applyDiscountRule = (ruleId: number, amount?: number) =>
+  api.post<DiscountRuleApplyResult>(`/api/finance/discount-rules/${ruleId}/apply/`, amount ? { amount } : {});
 
 // --- Ledger / clearance ------------------------------------------------------------------
 

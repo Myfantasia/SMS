@@ -540,6 +540,7 @@ class StudentFeeAdjustmentCreateAPIView(APIView):
                 student=data.validated_data['student'], adjustment_type=data.validated_data['adjustment_type'],
                 amount=data.validated_data['amount'], reason=data.validated_data['reason'],
                 requested_by=request.user, category_id=category.id if category else None,
+                discount_type=data.validated_data.get('discount_type'),
             )
         except (DjangoValidationError, DjangoPermissionDenied) as exc:
             return _service_error_response(exc)
