@@ -5,7 +5,7 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from apps.academics.models import AcademicYear, ClassStream, ExamTerm, GradeLevel, Subject
-from apps.allocations.models import SubjectAllocation
+from apps.allocations.models import AllocationPublishState, SubjectAllocation
 from apps.identity.models import Permission, TeacherExtra
 
 
@@ -77,6 +77,30 @@ class AllocationRebalanceApiTests(TestCase):
         response = self.client.post('/api/allocations/rebalance/confirm/', self.body(), format='json')
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.data['error'], 'proposal_fingerprint is required.')
+
+    def publish_class(self):
+        AllocationPublishState.objects.update_or_create(
+            classroom=self.stream, term=self.term, academic_year=self.year,
+            defaults={'is_published': True},
+        )
+
+    def test_propose_on_a_published_class_is_a_409_published_scope(self):
+        self.publish_class()
+        response = self.propose()
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.data['code'], 'PUBLISHED_SCOPE')
+
+    def test_confirm_on_a_published_class_is_a_409_and_leaves_the_draft_unchanged(self):
+        fingerprint = self.propose().data['fingerprint']
+        self.publish_class()  # publish lands between propose and confirm
+        before = list(SubjectAllocation.objects.filter(classroom=self.stream).values_list('subject_id', 'teacher_id'))
+        response = self.client.post(
+            '/api/allocations/rebalance/confirm/',
+            self.body(proposal_fingerprint=fingerprint), format='json')
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.data['code'], 'PUBLISHED_SCOPE')
+        after = list(SubjectAllocation.objects.filter(classroom=self.stream).values_list('subject_id', 'teacher_id'))
+        self.assertEqual(before, after)
 
     def test_a_user_without_the_edit_permission_is_refused(self):
         plain = User.objects.create_user(username='rb_plain', password='x')

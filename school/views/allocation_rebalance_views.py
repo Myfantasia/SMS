@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.allocations import publish_gate
-from apps.allocations.rebalance import StaleProposalError, confirm_rebalance, propose_rebalance
+from apps.allocations.rebalance import RebalanceNotAllowedError, StaleProposalError, confirm_rebalance, propose_rebalance
 from school.rbac import HasModulePermission
 
 
@@ -42,7 +42,10 @@ class RebalanceProposeAPIView(APIView):
             term_id, year_id, class_ids = _parse(request.data)
         except ValueError as exc:
             return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
-        proposal = propose_rebalance(term_id=term_id, year_id=year_id, class_ids=class_ids)
+        try:
+            proposal = propose_rebalance(term_id=term_id, year_id=year_id, class_ids=class_ids)
+        except RebalanceNotAllowedError as exc:
+            return Response({'error': str(exc), 'code': exc.code}, status=status.HTTP_409_CONFLICT)
         return Response({
             'class_ids': list(proposal.class_ids), 'fingerprint': proposal.fingerprint,
             'blockers_before': [b.to_dict() for b in proposal.blockers_before],
@@ -71,6 +74,8 @@ class RebalanceConfirmAPIView(APIView):
                 proposal_fingerprint=proposal_fingerprint,
                 operator_id=request.user.id,
             )
+        except RebalanceNotAllowedError as exc:
+            return Response({'error': str(exc), 'code': exc.code}, status=status.HTTP_409_CONFLICT)
         except StaleProposalError as exc:
             return Response({'error': str(exc), 'code': 'STALE_PROPOSAL'}, status=status.HTTP_409_CONFLICT)
         return Response({

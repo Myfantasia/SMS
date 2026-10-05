@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from typing import Optional, Sequence, Tuple
 
 from apps.allocations import publish_gate
-from apps.allocations.models import GlobalAllocationPolicy, SubjectAllocation
+from apps.allocations.models import AllocationPublishState, GlobalAllocationPolicy, SubjectAllocation
 from apps.allocations.services import get_quota_map
 from apps.allocations.validation import BlockerDTO
 
@@ -49,7 +49,23 @@ _FIXABLE_CODES = frozenset({
 })
 
 
+class RebalanceNotAllowedError(Exception):
+    """Rebalance only edits DRAFT allocations. A scope with any published class is refused."""
+    code = 'PUBLISHED_SCOPE'
+
+
+def _assert_no_published_class(*, term_id: int, year_id: int, class_ids: Sequence[int]) -> None:
+    """Read-only check (no lock, no placeholder rows): refuse if any class in scope is published."""
+    if AllocationPublishState.objects.filter(
+        term_id=term_id, academic_year_id=year_id, classroom_id__in=list(class_ids), is_published=True,
+    ).exists():
+        raise RebalanceNotAllowedError(
+            "A class in this scope is published. Rebalance only works on drafts - unpublish it first."
+        )
+
+
 def propose_rebalance(*, term_id: int, year_id: int, class_ids: Sequence[int]) -> RebalanceProposalDTO:
+    _assert_no_published_class(term_id=term_id, year_id=year_id, class_ids=class_ids)
     # NOTE: TeacherExtra is imported lazily here (not just for the school.utils precedent, but
     # because it's a genuine new need) -- see apps/allocations/rebalance's ignore_imports entry
     # in .importlinter, added alongside this module for the same reason apps.allocations.services
@@ -195,6 +211,7 @@ def confirm_rebalance(
     with transaction.atomic():
         for classroom_id in ids:
             lock_publish_state(classroom_id=classroom_id, term_id=term_id, academic_year_id=year_id)
+        _assert_no_published_class(term_id=term_id, year_id=year_id, class_ids=ids)
 
         fresh = propose_rebalance(term_id=term_id, year_id=year_id, class_ids=ids)
         if fresh.fingerprint != proposal_fingerprint:
