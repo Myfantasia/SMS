@@ -62,10 +62,13 @@ class RebalanceConfirmAPIView(APIView):
             term_id, year_id, class_ids = _parse(request.data)
         except ValueError as exc:
             return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        proposal_fingerprint = str(request.data.get('proposal_fingerprint') or '')
+        if not proposal_fingerprint:
+            return Response({'error': 'proposal_fingerprint is required.'}, status=status.HTTP_400_BAD_REQUEST)
         try:
             result = confirm_rebalance(
                 term_id=term_id, year_id=year_id, class_ids=class_ids,
-                proposal_fingerprint=str(request.data.get('proposal_fingerprint') or ''),
+                proposal_fingerprint=proposal_fingerprint,
                 operator_id=request.user.id,
             )
         except StaleProposalError as exc:

@@ -73,6 +73,11 @@ class AllocationRebalanceApiTests(TestCase):
         self.assertEqual(response.status_code, 409)
         self.assertEqual(response.data['code'], 'STALE_PROPOSAL')
 
+    def test_confirm_without_a_fingerprint_is_a_400(self):
+        response = self.client.post('/api/allocations/rebalance/confirm/', self.body(), format='json')
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data['error'], 'proposal_fingerprint is required.')
+
     def test_a_user_without_the_edit_permission_is_refused(self):
         plain = User.objects.create_user(username='rb_plain', password='x')
         client = APIClient()
