@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CircleDollarSign, Banknote, Wallet, TrendingUp, TrendingDown, Search, Users, GraduationCap, PieChart, Layers, FileText, Receipt, PiggyBank, ShieldCheck, ShieldOff } from 'lucide-react';
+import { CircleDollarSign, Banknote, Wallet, TrendingUp, TrendingDown, Search, Users, GraduationCap, PieChart, Layers, FileText, Receipt, PiggyBank, ShieldCheck, ShieldOff, ClipboardCheck, FilePlus } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useTheme } from '@mui/material/styles';
 import {
@@ -14,9 +14,11 @@ import {
   getFeeClearancePolicy, updateFeeClearancePolicy, type FeeClearancePolicy,
   listClearanceOverrides, grantClearanceOverride, revokeClearanceOverride, type ClearanceOverride,
   searchStudents, type StudentLookupOption, listExamTermOptions, type ExamTermOption,
+  listAdjustments, decideAdjustment, createAdjustment, listFeeCategories, type FeeCategory, type StudentFeeAdjustment,
 } from '../../libs/financeApi';
 import type { DashboardContextType } from '../../layouts/DashboardLayouts';
 import { INCOME_CATEGORIES, EXPENSE_CATEGORIES, MOCK_FINANCE_BREAKDOWN } from './financeCategories';
+import { AdjustmentStatusChip } from './AdjustmentStatusChip';
 
 // Both the service-layer 400/403 shape (`{error: "..."}`) and a DRF serializer-validation
 // 400 (`{field: ["..."]}`) are real possibilities from the clearance-policy/override
@@ -341,6 +343,278 @@ function ClearanceOverridesCard() {
   );
 }
 
+const ADJUSTMENT_TYPE_LABELS: Record<StudentFeeAdjustment['adjustment_type'], string> = {
+  discount: 'Discount', scholarship: 'Scholarship', bursary: 'Bursary', penalty: 'Penalty', correction: 'Correction',
+};
+
+/** Pending fee-adjustment approvals queue (spec 4.10). Visible to finance.view, matching the
+ * list endpoint. Approve/Reject are hidden (not disabled) unless the viewer holds
+ * finance.approve_adjustment AND is not the requester -- client-side defense in depth only;
+ * the backend enforces both. The serializer exposes requested_by as a user id only, so the
+ * requester is shown as "Requester #<id>" (no user-name lookup endpoint exists). */
+function PendingAdjustmentsCard({ permissions, userId, refreshKey, onDecided }: {
+  permissions: string[]; userId: number | null; refreshKey: number; onDecided: () => void;
+}) {
+  const canView = permissions.includes('finance.view');
+  const canApprove = permissions.includes('finance.approve_adjustment');
+  const [rows, setRows] = useState<StudentFeeAdjustment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [localRefresh, setLocalRefresh] = useState(0);
+  const [decision, setDecision] = useState<{ row: StudentFeeAdjustment; approve: boolean } | null>(null);
+  const [note, setNote] = useState('');
+  const [deciding, setDeciding] = useState(false);
+
+  useEffect(() => {
+    if (!canView) {
+      setLoading(false);
+      return;
+    }
+    let active = true;
+    setLoading(true);
+    listAdjustments({ status: 'pending' })
+      .then((res) => { if (active) setRows(res.data); })
+      .catch(() => toast.error('Failed to load pending adjustments.'))
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [canView, refreshKey, localRefresh]);
+
+  if (!canView) return null;
+
+  const handleDecide = async () => {
+    if (!decision) return;
+    setDeciding(true);
+    try {
+      await decideAdjustment(decision.row.id, decision.approve, note.trim() || undefined);
+      toast.success(decision.approve ? 'Adjustment approved.' : 'Adjustment rejected.');
+      setDecision(null);
+      setNote('');
+      setLocalRefresh((n) => n + 1);
+      onDecided();
+    } catch (err) {
+      toast.error(extractErrorMessage(err, 'Failed to record the decision.'));
+      // A 400 usually means someone already decided this row -- refresh so it drops off.
+      setLocalRefresh((n) => n + 1);
+    } finally {
+      setDeciding(false);
+    }
+  };
+
+  return (
+    <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm dark:shadow-none space-y-4">
+      <div className="flex items-center gap-3">
+        <div className="p-2.5 rounded-xl text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-500/10">
+          <ClipboardCheck className="w-5 h-5" strokeWidth={2.5} />
+        </div>
+        <div>
+          <h2 className="text-base font-bold text-slate-800 dark:text-slate-100">Pending Approvals</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Fee adjustments waiting for a second person to approve or reject them.</p>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="py-6 flex justify-center"><CircularProgress size={24} /></div>
+      ) : rows.length === 0 ? (
+        <p className="text-sm text-slate-400 dark:text-slate-500 py-2">No adjustments awaiting approval.</p>
+      ) : (
+        <div className="divide-y divide-slate-100 dark:divide-slate-800">
+          {rows.map((row) => (
+            <div key={row.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3">
+              <div className="min-w-0 space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">Student #{row.student}</span>
+                  <Chip label={ADJUSTMENT_TYPE_LABELS[row.adjustment_type]} size="small" variant="outlined" />
+                  <AdjustmentStatusChip status={row.status} />
+                </div>
+                <p className="text-sm text-slate-600 dark:text-slate-300">
+                  KES {Number(row.amount).toLocaleString()} — {row.reason}
+                </p>
+                <p className="text-xs text-slate-400 dark:text-slate-500">
+                  Requester #{row.requested_by} · {new Date(row.created_at).toLocaleDateString()}
+                </p>
+              </div>
+              {canApprove && userId !== null && row.requested_by !== userId && (
+                <div className="flex gap-2 shrink-0">
+                  <Button size="small" color="error" onClick={() => { setNote(''); setDecision({ row, approve: false }); }}>
+                    Reject
+                  </Button>
+                  <Button size="small" variant="contained" color="success" onClick={() => { setNote(''); setDecision({ row, approve: true }); }}>
+                    Approve
+                  </Button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      <Dialog open={!!decision} onClose={() => (!deciding && setDecision(null))}>
+        <DialogTitle>{decision?.approve ? 'Approve adjustment' : 'Reject adjustment'}</DialogTitle>
+        <DialogContent>
+          {decision && (
+            <p className="text-sm text-slate-600 dark:text-slate-300 mb-3">
+              Student #{decision.row.student} · KES {Number(decision.row.amount).toLocaleString()} — {decision.row.reason}
+            </p>
+          )}
+          <TextField
+            fullWidth multiline minRows={2} label="Note (optional)" value={note}
+            onChange={(e) => setNote(e.target.value)} autoFocus
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDecision(null)} disabled={deciding}>Cancel</Button>
+          <Button
+            variant="contained" color={decision?.approve ? 'success' : 'error'}
+            onClick={handleDecide} disabled={deciding}
+          >
+            {deciding ? 'Saving...' : decision?.approve ? 'Confirm Approve' : 'Confirm Reject'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </div>
+  );
+}
+
+/** Request a fee adjustment (spec 4.10). Gated on finance.edit (matches createAdjustment's
+ * backend permission). No approver field: the backend routes negative amounts to pending
+ * and positive amounts straight to approved. */
+function RequestAdjustmentCard({ permissions, onSubmitted }: { permissions: string[]; onSubmitted: () => void }) {
+  const canEdit = permissions.includes('finance.edit');
+  const [studentQuery, setStudentQuery] = useState('');
+  const [studentOptions, setStudentOptions] = useState<StudentLookupOption[]>([]);
+  const [selectedStudent, setSelectedStudent] = useState<StudentLookupOption | null>(null);
+  const [categories, setCategories] = useState<FeeCategory[]>([]);
+  const [categoryId, setCategoryId] = useState<number | ''>('');
+  const [adjustmentType, setAdjustmentType] = useState<StudentFeeAdjustment['adjustment_type']>('discount');
+  const [amountInput, setAmountInput] = useState('');
+  const [reason, setReason] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!canEdit) return;
+    listFeeCategories().then((res) => setCategories(res.data)).catch(() => undefined);
+  }, [canEdit]);
+
+  useEffect(() => {
+    const q = studentQuery.trim();
+    if (q.length < 2) {
+      setStudentOptions([]);
+      return;
+    }
+    const handle = setTimeout(() => {
+      searchStudents(q).then((res) => setStudentOptions(res.data)).catch(() => undefined);
+    }, 300);
+    return () => clearTimeout(handle);
+  }, [studentQuery]);
+
+  if (!canEdit) return null;
+
+  const resetForm = () => {
+    setSelectedStudent(null);
+    setStudentQuery('');
+    setCategoryId('');
+    setAdjustmentType('discount');
+    setAmountInput('');
+    setReason('');
+  };
+
+  const handleSubmit = async () => {
+    if (!selectedStudent) {
+      toast.error('Select a student.');
+      return;
+    }
+    const amount = Number(amountInput);
+    if (!amountInput.trim() || !Number.isFinite(amount) || amount === 0) {
+      toast.error('Enter a non-zero amount.');
+      return;
+    }
+    if (!reason.trim()) {
+      toast.error('A reason is required.');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const res = await createAdjustment({
+        student: selectedStudent.id,
+        category: categoryId === '' ? null : categoryId,
+        adjustment_type: adjustmentType,
+        amount,
+        reason: reason.trim(),
+      });
+      if (res.data.status === 'pending') {
+        toast.success('Adjustment submitted. It is awaiting approval.');
+      } else {
+        toast.success('Adjustment posted.');
+      }
+      resetForm();
+      onSubmitted();
+    } catch (err) {
+      toast.error(extractErrorMessage(err, 'Failed to submit the adjustment.'));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm dark:shadow-none space-y-4">
+      <div className="flex items-center gap-3">
+        <div className="p-2.5 rounded-xl text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-500/10">
+          <FilePlus className="w-5 h-5" strokeWidth={2.5} />
+        </div>
+        <div>
+          <h2 className="text-base font-bold text-slate-800 dark:text-slate-100">Request Fee Adjustment</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Discounts, scholarships, bursaries, penalties or corrections on a student's account.</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <Autocomplete
+          size="small"
+          options={studentOptions}
+          getOptionLabel={(o) => `${o.name} (${o.roll})`}
+          value={selectedStudent}
+          onChange={(_, value) => setSelectedStudent(value)}
+          inputValue={studentQuery}
+          onInputChange={(_, value) => setStudentQuery(value)}
+          renderInput={(params) => <TextField {...params} label="Student" placeholder="Search by name or roll" />}
+        />
+        <FormControl size="small">
+          <InputLabel id="adjustment-type-label">Adjustment type</InputLabel>
+          <Select
+            labelId="adjustment-type-label" label="Adjustment type" value={adjustmentType}
+            onChange={(e) => setAdjustmentType(e.target.value as StudentFeeAdjustment['adjustment_type'])}
+          >
+            {(Object.keys(ADJUSTMENT_TYPE_LABELS) as StudentFeeAdjustment['adjustment_type'][]).map((t) => (
+              <MenuItem key={t} value={t}>{ADJUSTMENT_TYPE_LABELS[t]}</MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+        <FormControl size="small">
+          <InputLabel id="adjustment-category-label">Fee category (optional)</InputLabel>
+          <Select
+            labelId="adjustment-category-label" label="Fee category (optional)" value={categoryId}
+            onChange={(e) => setCategoryId(e.target.value as number | '')}
+          >
+            <MenuItem value="">All categories</MenuItem>
+            {categories.map((c) => <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>)}
+          </Select>
+        </FormControl>
+        <TextField
+          size="small" type="number" label="Amount (KES)" value={amountInput}
+          onChange={(e) => setAmountInput(e.target.value)}
+          helperText="Negative amounts need approval before they post."
+        />
+        <TextField
+          size="small" label="Reason (required)" value={reason} className="sm:col-span-2"
+          onChange={(e) => setReason(e.target.value)}
+        />
+      </div>
+      <Button variant="contained" onClick={handleSubmit} disabled={submitting}>
+        {submitting ? 'Submitting...' : 'Submit Adjustment'}
+      </Button>
+    </div>
+  );
+}
+
 interface StudentFeeRow {
   id: number;
   name: string;
@@ -389,7 +663,7 @@ function BreakdownChart({ categories, amounts, color }: { categories: typeof INC
 
 export default function FinanceHub() {
   const navigate = useNavigate();
-  const { permissions } = useOutletContext<DashboardContextType>();
+  const { permissions, userId } = useOutletContext<DashboardContextType>();
   // Role-appropriate base path — this component is mounted under both
   // /admin-dashboard and /staff-dashboard (Finance Officers use the latter).
   const basePath = '/' + (window.location.pathname.split('/')[1] || 'admin-dashboard');
@@ -401,6 +675,7 @@ export default function FinanceHub() {
   const [balancesLoaded, setBalancesLoaded] = useState(false);
   const [balancesUnavailable, setBalancesUnavailable] = useState(false);
   const [kpiTiles, setKpiTiles] = useState<FeeKpiTiles | null>(null);
+  const [adjustmentRefresh, setAdjustmentRefresh] = useState(0);
 
   useEffect(() => {
     api.get('/api/finance-overview/')
@@ -584,9 +859,18 @@ export default function FinanceHub() {
       )}
 
       {activeTab === 'fees' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <FeeClearancePolicyCard permissions={permissions} />
-          {permissions.includes('finance.override_clearance') && <ClearanceOverridesCard />}
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <FeeClearancePolicyCard permissions={permissions} />
+            {permissions.includes('finance.override_clearance') && <ClearanceOverridesCard />}
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <RequestAdjustmentCard permissions={permissions} onSubmitted={() => setAdjustmentRefresh((n) => n + 1)} />
+            <PendingAdjustmentsCard
+              permissions={permissions} userId={userId} refreshKey={adjustmentRefresh}
+              onDecided={() => setAdjustmentRefresh((n) => n + 1)}
+            />
+          </div>
         </div>
       )}
 

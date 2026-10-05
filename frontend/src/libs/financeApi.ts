@@ -163,13 +163,24 @@ export interface StudentFeeAdjustment {
   reason: string;
   requested_by: number;
   approved_by: number | null;
+  status: 'pending' | 'approved' | 'rejected';
+  decided_by: number | null;
+  decided_at: string | null;
+  decision_note: string;
   created_at: string;
 }
 
 export const createAdjustment = (data: {
   student: number; category?: number | null; adjustment_type: StudentFeeAdjustment['adjustment_type'];
-  amount: number; reason: string; approved_by?: number | null;
+  amount: number; reason: string;
 }) => api.post<StudentFeeAdjustment>('/api/finance/adjustments/', data);
+
+export const listAdjustments = (params?: {
+  status?: StudentFeeAdjustment['status']; student_id?: number; limit?: number; offset?: number;
+}) => api.get<StudentFeeAdjustment[]>('/api/finance/adjustments/list/', { params });
+
+export const decideAdjustment = (adjustmentId: number, approve: boolean, note?: string) =>
+  api.post<StudentFeeAdjustment>(`/api/finance/adjustments/${adjustmentId}/decision/`, { approve, note });
 
 // --- Ledger / clearance ------------------------------------------------------------------
 
