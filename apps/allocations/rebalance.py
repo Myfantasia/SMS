@@ -11,6 +11,7 @@ propose_rebalance computes -- see that function's own docstring for why.
 school.utils names are imported lazily inside propose_rebalance, matching the existing precedent
 in apps.allocations.publish_gate.review_scope and apps.allocations.services.
 """
+import hashlib
 from dataclasses import dataclass
 from typing import Optional, Sequence, Tuple
 
@@ -64,6 +65,17 @@ def _assert_no_published_class(*, term_id: int, year_id: int, class_ids: Sequenc
         )
 
 
+def rebalance_fingerprint(scope_fingerprint: str, moves: Sequence["RebalanceMoveDTO"]) -> str:
+    """Binds a proposal to BOTH the scope's saved rows (publish_gate.compute_scope_fingerprint) and
+    the exact moves the admin reviewed, so confirm can never apply a move the dialog did not show.
+    Moves are canonicalised (sorted; a missing from-teacher sorts first) so order never matters."""
+    canonical = sorted(
+        ((m.classroom_id, m.subject_id, m.from_teacher_id, m.to_teacher_id) for m in moves),
+        key=lambda t: (t[0], t[1], -1 if t[2] is None else t[2], t[3]),
+    )
+    return hashlib.sha256(repr((scope_fingerprint, canonical)).encode('utf-8')).hexdigest()
+
+
 def propose_rebalance(*, term_id: int, year_id: int, class_ids: Sequence[int]) -> RebalanceProposalDTO:
     _assert_no_published_class(term_id=term_id, year_id=year_id, class_ids=class_ids)
     # NOTE: TeacherExtra is imported lazily here (not just for the school.utils precedent, but
@@ -90,7 +102,7 @@ def propose_rebalance(*, term_id: int, year_id: int, class_ids: Sequence[int]) -
 
     if not fixable:
         return RebalanceProposalDTO(
-            class_ids=ids, fingerprint=review.fingerprint, moves=(),
+            class_ids=ids, fingerprint=rebalance_fingerprint(review.fingerprint, ()), moves=(),
             unresolved_blockers=tuple(unresolved), blockers_before=review.blockers,
         )
 
@@ -123,9 +135,9 @@ def propose_rebalance(*, term_id: int, year_id: int, class_ids: Sequence[int]) -
     teacher_qualified_map = {}
     for row in TeacherExtra.objects.filter(
         status=True, qualified_subjects__id__in=qualified_subject_ids,
-    ).values('id', 'qualified_subjects__id'):
+    ).order_by('id').values('id', 'qualified_subjects__id'):
         teacher_qualified_map.setdefault(row['id'], set()).add(row['qualified_subjects__id'])
-    active_teachers = list(TeacherExtra.objects.filter(status=True))
+    active_teachers = list(TeacherExtra.objects.filter(status=True).order_by('id'))
 
     teacher_subject_classes = {}
     for r in list(outside_scope_rows) + [
@@ -178,7 +190,7 @@ def propose_rebalance(*, term_id: int, year_id: int, class_ids: Sequence[int]) -
         unresolved = [b for b in unresolved if b is not blocker]
 
     return RebalanceProposalDTO(
-        class_ids=ids, fingerprint=review.fingerprint, moves=tuple(moves),
+        class_ids=ids, fingerprint=rebalance_fingerprint(review.fingerprint, moves), moves=tuple(moves),
         unresolved_blockers=tuple(unresolved), blockers_before=review.blockers,
     )
 
@@ -219,6 +231,10 @@ def confirm_rebalance(
                 "This draft changed since the rebalance was proposed. Propose it again before confirming."
             )
 
+        if not fresh.moves:
+            # Nothing to apply: no draft write, no audit row, no notification.
+            return RebalanceResultDTO(class_ids=ids, moves_applied=0)
+
         for move in fresh.moves:
             SubjectAllocation.objects.filter(
                 classroom_id=move.classroom_id, subject_id=move.subject_id,
@@ -241,7 +257,10 @@ def confirm_rebalance(
         from shared.events.allocation_rebalance_events import AllocationRebalancedEvent
         from shared.events.bus import bus
 
-        teacher_ids = {m.to_teacher_id for m in fresh.moves}
+        # Both the gaining and the losing teacher are notified: the one who loses a class needs to know too.
+        teacher_ids = {m.to_teacher_id for m in fresh.moves} | {
+            m.from_teacher_id for m in fresh.moves if m.from_teacher_id is not None
+        }
         event = AllocationRebalancedEvent(
             term_id=term_id, year_id=year_id, class_ids=ids, moves_applied=len(fresh.moves),
             teacher_user_ids=identity_services.get_teacher_user_ids(teacher_ids),

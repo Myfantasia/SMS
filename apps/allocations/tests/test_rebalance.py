@@ -159,13 +159,45 @@ class ProposeRebalanceTests(ProposeRebalanceFixtureMixin, TestCase):
         ]
         self.assertTrue(len(unresolved_kiswahili) >= 1)
 
-    def test_fingerprint_matches_publish_gates_own_fingerprint_for_the_same_scope(self):
+    def test_fingerprint_is_the_scope_fingerprint_bound_to_the_proposed_moves(self):
         from apps.allocations.publish_gate import compute_scope_fingerprint
+        from apps.allocations.rebalance import rebalance_fingerprint
 
         self.allocate(self.a, self.maths, self.spare)
         proposal = propose_rebalance(term_id=self.term.id, year_id=self.year.id, class_ids=[self.a.id])
-        expected = compute_scope_fingerprint(term_id=self.term.id, year_id=self.year.id, class_ids=[self.a.id])
-        self.assertEqual(proposal.fingerprint, expected)
+        scope_fp = compute_scope_fingerprint(term_id=self.term.id, year_id=self.year.id, class_ids=[self.a.id])
+        self.assertEqual(proposal.fingerprint, rebalance_fingerprint(scope_fp, proposal.moves))
+        self.assertNotEqual(proposal.fingerprint, scope_fp)  # the moves are part of the token now
+
+    def test_fingerprint_changes_when_the_proposed_moves_change(self):
+        from apps.allocations.rebalance import RebalanceMoveDTO, rebalance_fingerprint
+
+        def move(to_teacher_id):
+            return RebalanceMoveDTO(
+                classroom_id=self.a.id, subject_id=self.kiswahili.id, from_teacher_id=self.overloaded.id,
+                to_teacher_id=to_teacher_id, reason='x', resolves_blocker_code='MAX_SUBJECTS_PER_CLASS',
+            )
+
+        self.assertNotEqual(rebalance_fingerprint('scope', [move(1)]), rebalance_fingerprint('scope', [move(2)]))
+        self.assertNotEqual(rebalance_fingerprint('scope', [move(1)]), rebalance_fingerprint('scope', []))
+
+    def test_fingerprint_ignores_the_order_of_the_moves(self):
+        from apps.allocations.rebalance import RebalanceMoveDTO, rebalance_fingerprint
+
+        def move(subject_id):
+            return RebalanceMoveDTO(
+                classroom_id=self.a.id, subject_id=subject_id, from_teacher_id=self.overloaded.id,
+                to_teacher_id=self.spare.id, reason='x', resolves_blocker_code='MAX_SUBJECTS_PER_CLASS',
+            )
+
+        forward = [move(self.maths.id), move(self.english.id)]
+        self.assertEqual(rebalance_fingerprint('scope', forward),
+                         rebalance_fingerprint('scope', list(reversed(forward))))
+
+    def test_fingerprint_changes_when_the_scope_changes(self):
+        from apps.allocations.rebalance import rebalance_fingerprint
+
+        self.assertNotEqual(rebalance_fingerprint('scope-a', []), rebalance_fingerprint('scope-b', []))
 
 
 class ConfirmRebalanceTests(ProposeRebalanceFixtureMixin, TestCase):
@@ -227,3 +259,63 @@ class ConfirmRebalanceTests(ProposeRebalanceFixtureMixin, TestCase):
 
         self.assertTrue(SubjectAllocation.objects.filter(
             classroom=self.a, subject=self.maths, teacher=self.overloaded, is_active=True).exists())
+
+    def test_confirm_with_the_old_token_after_the_candidates_change_is_stale(self):
+        from apps.allocations.rebalance import StaleProposalError, confirm_rebalance, propose_rebalance
+
+        proposal = propose_rebalance(term_id=self.term.id, year_id=self.year.id, class_ids=[self.a.id])
+        self.assertTrue(proposal.moves)
+        # Same draft rows (scope fingerprint unchanged), but spare is no longer qualified for
+        # Kiswahili, so the fresh proposal would have no move at all.
+        self.spare.qualified_subjects.remove(self.kiswahili)
+        self.assertEqual(propose_rebalance(
+            term_id=self.term.id, year_id=self.year.id, class_ids=[self.a.id]).moves, ())
+
+        with self.assertRaises(StaleProposalError):
+            confirm_rebalance(
+                term_id=self.term.id, year_id=self.year.id, class_ids=[self.a.id],
+                proposal_fingerprint=proposal.fingerprint, operator_id=None,
+            )
+        self.assertTrue(SubjectAllocation.objects.filter(
+            classroom=self.a, subject=self.kiswahili, teacher=self.overloaded, is_active=True).exists())
+
+    def test_the_losing_teacher_is_in_the_rebalanced_event(self):
+        from unittest import mock
+
+        from apps.allocations.rebalance import confirm_rebalance, propose_rebalance
+        from shared.events.bus import bus
+
+        proposal = propose_rebalance(term_id=self.term.id, year_id=self.year.id, class_ids=[self.a.id])
+        with mock.patch.object(bus, 'publish') as publish, self.captureOnCommitCallbacks(execute=True):
+            confirm_rebalance(
+                term_id=self.term.id, year_id=self.year.id, class_ids=[self.a.id],
+                proposal_fingerprint=proposal.fingerprint, operator_id=None,
+            )
+
+        event = publish.call_args.args[0]
+        self.assertIn(self.overloaded.user_id, event.teacher_user_ids)  # the teacher who loses the class
+        self.assertIn(self.spare.user_id, event.teacher_user_ids)       # the teacher who gains it
+
+    def test_confirm_with_no_moves_returns_zero_and_writes_no_audit_or_event(self):
+        from unittest import mock
+
+        from apps.allocations.rebalance import confirm_rebalance, propose_rebalance
+        from shared.events.bus import bus
+
+        # Nobody qualified for Kiswahili -> the blocker stays unresolved and nothing is proposed.
+        self.spare.qualified_subjects.remove(self.kiswahili)
+        proposal = propose_rebalance(term_id=self.term.id, year_id=self.year.id, class_ids=[self.a.id])
+        self.assertEqual(proposal.moves, ())
+
+        with mock.patch('apps.core.services.write_audit_log') as audit, \
+                mock.patch.object(bus, 'publish') as publish, \
+                self.captureOnCommitCallbacks(execute=True):
+            result = confirm_rebalance(
+                term_id=self.term.id, year_id=self.year.id, class_ids=[self.a.id],
+                proposal_fingerprint=proposal.fingerprint, operator_id=None,
+            )
+
+        self.assertEqual(result.moves_applied, 0)
+        audit.assert_not_called()
+        publish.assert_not_called()
+

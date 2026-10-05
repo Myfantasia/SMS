@@ -73,6 +73,15 @@ class AllocationRebalanceApiTests(TestCase):
         self.assertEqual(response.status_code, 409)
         self.assertEqual(response.data['code'], 'STALE_PROPOSAL')
 
+    def test_confirm_with_the_old_token_after_the_moves_change_is_a_409_stale(self):
+        fingerprint = self.propose().data['fingerprint']
+        self.spare.qualified_subjects.remove(self.kiswahili)  # draft rows unchanged, but the move is gone
+        response = self.client.post(
+            '/api/allocations/rebalance/confirm/',
+            self.body(proposal_fingerprint=fingerprint), format='json')
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.data['code'], 'STALE_PROPOSAL')
+
     def test_confirm_without_a_fingerprint_is_a_400(self):
         response = self.client.post('/api/allocations/rebalance/confirm/', self.body(), format='json')
         self.assertEqual(response.status_code, 400)
