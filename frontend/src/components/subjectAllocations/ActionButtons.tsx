@@ -7,6 +7,7 @@ import type { MatrixRow } from '../../libs/types';
 import api from '../../libs/axiosInstance';
 import { pollJob } from '../../libs/pollJob';
 import PublishReviewModal from './PublishReviewModal';
+import RebalanceModal from './RebalanceModal';
 
 interface BulkAllocateResult {
   message: string;
@@ -73,6 +74,9 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
 
   // Publishing is a separate, reviewed step (see PublishReviewModal) — saving only stores a draft.
   const [showPublishReview, setShowPublishReview] = useState(false);
+
+  // Rebalance proposes teacher swaps for current blockers; nothing is saved until confirmed in the modal.
+  const [showRebalance, setShowRebalance] = useState(false);
 
   // Revert Confirmation States
   const [showRevertConfirm, setShowRevertConfirm] = useState(false);
@@ -394,6 +398,14 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
                 <Send className="w-4 h-4" />
                 <span>Review &amp; Publish</span>
               </button>
+              <button
+                onClick={() => setShowRebalance(true)}
+                disabled={!isContextReady || isBusy}
+                className="flex items-center gap-2 px-4 py-2 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 text-sm font-bold rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
+                title="Find current problems and propose teacher swaps to fix them — nothing is saved until you confirm"
+              >
+                <span>Rebalance</span>
+              </button>
             </div>
           )}
 
@@ -595,6 +607,18 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
         gradeName={gradeName}
         classDisplayName={classDisplayName}
         onPublished={onRefresh}
+      />
+
+      <RebalanceModal
+        open={showRebalance}
+        onClose={() => setShowRebalance(false)}
+        termId={termId}
+        yearId={yearId}
+        classId={classId}
+        gradeId={gradeId}
+        gradeName={gradeName}
+        classDisplayName={classDisplayName}
+        onConfirmed={onRefresh}
       />
 
       {/* --- REVERT CONFIRMATION MODAL --- */}
