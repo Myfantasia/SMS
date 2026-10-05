@@ -249,7 +249,7 @@ class DiscountRuleApplyTests(DiscountRuleTestData):
 
         self.assertEqual(response.data['created_count'], 2)
         self.assertEqual(response.data['skipped_count'], 1)
-        self.assertEqual(response.data['skipped'], [{'student_id': voided_student.id, 'reason': 'zero_amount'}])
+        self.assertEqual(response.data['skipped'], [{'student_id': voided_student.id, 'reason': 'no_invoice_for_term'}])
         self.assertFalse(StudentFeeAdjustment.objects.filter(discount_rule=rule, student=voided_student).exists())
 
     def test_fixed_zero_value_type_needs_an_amount(self):

@@ -88,8 +88,17 @@ def api_purge_trash_item(request, entity_type, pk):
     label = config.label_fn(instance)
 
     from apps.core.services import write_audit_log
+    from apps.core.trash import PurgeSkipped
     if config.purge_fn:
-        config.purge_fn(instance)
+        result = config.purge_fn(instance)
+        if isinstance(result, PurgeSkipped):
+            if result.reason == 'has_financial_records':
+                return JsonResponse({
+                    'status': 'error',
+                    'message': f"{label} has fee or payment records and cannot be permanently purged. "
+                               "Their financial history must be kept.",
+                }, status=409)
+            return JsonResponse({'status': 'error', 'message': f"{label} cannot be purged right now."}, status=409)
     else:
         instance.delete()
     write_audit_log(

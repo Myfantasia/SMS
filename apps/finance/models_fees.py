@@ -254,6 +254,13 @@ class StudentFeeAdjustment(models.Model):
     discount_rule = models.ForeignKey(
         DiscountRule, on_delete=models.PROTECT, null=True, blank=True, related_name='adjustments',
     )
+    # The invoice this adjustment (typically a waiver) belongs to. Set by create_adjustment(invoice=...)
+    # and by apply_discount_rule(). Voiding that invoice reverses an approved waiver and rejects a
+    # pending one, so a voided invoice's discount never survives as credit. Declared as a string because
+    # Invoice is defined further down this module.
+    invoice = models.ForeignKey(
+        'finance.Invoice', on_delete=models.PROTECT, null=True, blank=True, related_name='adjustments',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

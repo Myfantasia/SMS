@@ -38,7 +38,6 @@ from apps.finance.services_documents import render_invoice_pdf, render_receipt_p
 from apps.finance import services_reports
 from school.rbac import HasModulePermission, user_has_permission
 from school.jobs import dispatch_background_job
-from orchestration.tasks import generate_invoices_for_structure_task
 
 
 def _is_admin(user):
@@ -113,10 +112,20 @@ class ActivateFeeStructureAPIView(APIView):
         fee_structure = FeeStructure.objects.filter(id=structure_id).first()
         if fee_structure is None:
             return Response({"error": "Fee structure not found."}, status=status.HTTP_404_NOT_FOUND)
+        # A structure with no line items would generate zero-total invoices that can never
+        # be paid off, so refuse activation until at least one item exists.
+        if not fee_structure.items.exists():
+            return Response(
+                {"error": "A fee structure needs at least one line item before it can be activated."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         # Scoped per fee structure — a double-submit on the same structure shares
         # one lock rather than racing to generate duplicate invoices.
         lock_key = f"finance_generate_invoices_lock_structure_{structure_id}"
+
+        # Lazy import: orchestration sits above every app layer, so no app may import it at module level.
+        from orchestration.tasks import generate_invoices_for_structure_task
 
         job, error_response = dispatch_background_job(
             job_type='generate_invoices_for_structure',
@@ -127,8 +136,13 @@ class ActivateFeeStructureAPIView(APIView):
         if error_response is not None:
             return error_response
 
-        fee_structure.status = 'active'
-        fee_structure.save(update_fields=['status'])
+        with transaction.atomic():
+            fee_structure.status = 'active'
+            fee_structure.save(update_fields=['status'])
+            write_audit_log(
+                operator_id=request.user.id, action_type='UPDATE', module='finance',
+                description=f"Activated fee structure '{fee_structure.name}' (id {fee_structure.id})",
+            )
 
         return Response({"status": "queued", "job_id": str(job.id)}, status=status.HTTP_202_ACCEPTED)
 

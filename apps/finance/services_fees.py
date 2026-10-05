@@ -54,8 +54,19 @@ def get_credit_balance(student):
     return max(0, -latest_balance) if latest_balance is not None else 0
 
 
+def _check_adjustment_invoice(*, invoice, student):
+    """An adjustment may only be attached to an invoice of the same student that is
+    not voided. Called with the student row already locked; void_invoice takes that
+    same lock first, so the voided check cannot race a concurrent void."""
+    if invoice.student_id != student.id:
+        raise ValidationError("The invoice does not belong to this student.")
+    voided_at = Invoice.objects.filter(pk=invoice.pk).values_list('voided_at', flat=True).first()
+    if voided_at is not None:
+        raise ValidationError("Cannot attach an adjustment to a voided invoice.")
+
+
 def create_adjustment(*, student, adjustment_type, amount, reason, requested_by, category_id=None,
-                       discount_type=None, discount_rule=None):
+                       discount_type=None, discount_rule=None, invoice=None):
     """Create a StudentFeeAdjustment. Spec section 4.10 (Task 30): a negative
     amount (a discount/scholarship/bursary that waives fees) is created
     `pending` and posts NOTHING to the ledger -- it waits for a separate
@@ -66,7 +77,9 @@ def create_adjustment(*, student, adjustment_type, amount, reason, requested_by,
     docstring for why `approved_by` is deliberately left None in this case).
     `category_id` (optional) is resolved to the FeeCategory here. `discount_type` and
     `discount_rule` (optional, Task 36) are stored on the row as-is; both default to None,
-    which leaves every existing caller's behaviour unchanged. The caller's
+    which leaves every existing caller's behaviour unchanged. `invoice` (optional)
+    links the adjustment to one of the student's non-voided invoices; see
+    void_invoice for what happens to it if that invoice is voided later. The caller's
     serializer already rejects amount == 0."""
     category = FeeCategory.objects.filter(id=category_id).first() if category_id else None
     if discount_type is not None:
@@ -77,11 +90,13 @@ def create_adjustment(*, student, adjustment_type, amount, reason, requested_by,
         # stronger lock up front avoids a lock-upgrade deadlock between two
         # concurrent writers for one student.
         student = StudentExtra.objects.select_for_update().get(pk=student.pk)
+        if invoice is not None:
+            _check_adjustment_invoice(invoice=invoice, student=student)
         if amount < 0:
             adjustment = StudentFeeAdjustment.objects.create(
                 student=student, category=category, adjustment_type=adjustment_type,
                 amount=amount, reason=reason, requested_by=requested_by, status='pending',
-                discount_type=discount_type, discount_rule=discount_rule,
+                discount_type=discount_type, discount_rule=discount_rule, invoice=invoice,
             )
             write_audit_log(
                 operator_id=requested_by.id, action_type='CREATE', module='finance',
@@ -95,7 +110,7 @@ def create_adjustment(*, student, adjustment_type, amount, reason, requested_by,
             student=student, category=category, adjustment_type=adjustment_type,
             amount=amount, reason=reason, requested_by=requested_by,
             status='approved', decided_by=requested_by, decided_at=timezone.now(),
-            discount_type=discount_type, discount_rule=discount_rule,
+            discount_type=discount_type, discount_rule=discount_rule, invoice=invoice,
         )
         post_ledger_entry(
             student=student, entry_type='adjustment', amount=amount,
@@ -149,6 +164,13 @@ def decide_adjustment(*, adjustment, decided_by, approve, note=''):
         adjustment = StudentFeeAdjustment.objects.select_for_update().get(pk=adjustment.pk)
         if adjustment.status != 'pending':
             raise ValidationError(f"Adjustment {adjustment.pk} has already been decided.")
+        # Defensive: void_invoice rejects pending waivers on the invoice it voids, so this
+        # only matters if a row was left pending by a race. Never approve a waiver whose
+        # invoice is void -- that would be a credit for a bill that no longer exists.
+        if approve and adjustment.invoice_id is not None:
+            voided_at = Invoice.objects.filter(pk=adjustment.invoice_id).values_list('voided_at', flat=True).first()
+            if voided_at is not None:
+                raise ValidationError("Cannot approve an adjustment whose invoice has been voided.")
         adjustment.decided_by = decided_by
         adjustment.decided_at = timezone.now()
         adjustment.decision_note = note
@@ -354,6 +376,37 @@ def void_invoice(*, invoice, voided_by, reason):
             operator_id=voided_by.id, action_type='DELETE', module='finance',
             description=f"Voided invoice {invoice.invoice_number} ({invoice.total}): {reason}",
         )
+        # The student is not billed for a voided invoice, so no waiver tied to it may
+        # outlive it as credit: an approved one is reversed on the ledger, a pending one
+        # is rejected (never approved later). Rows already rejected are left alone.
+        now = timezone.now()
+        for adjustment in StudentFeeAdjustment.objects.select_for_update().filter(invoice=invoice).order_by('id'):
+            if adjustment.status == 'approved':
+                post_ledger_entry(
+                    student=student, entry_type='adjustment', amount=-adjustment.amount,
+                    reference=adjustment,
+                    description=f"Reversal of waiver on voided invoice {invoice.invoice_number}"[:_LEDGER_DESCRIPTION_MAX],
+                )
+                write_audit_log(
+                    operator_id=voided_by.id, action_type='CREATE', module='finance',
+                    description=(
+                        f"Reversed {adjustment.get_adjustment_type_display()} of {adjustment.amount} for student "
+                        f"{student.id}: invoice {invoice.invoice_number} was voided."
+                    ),
+                )
+            elif adjustment.status == 'pending':
+                adjustment.status = 'rejected'
+                adjustment.decided_by = voided_by
+                adjustment.decided_at = now
+                adjustment.decision_note = 'Invoice voided'
+                adjustment.save(update_fields=['status', 'decided_by', 'decided_at', 'decision_note'])
+                write_audit_log(
+                    operator_id=voided_by.id, action_type='REJECT', module='finance',
+                    description=(
+                        f"Rejected {adjustment.get_adjustment_type_display()} of {adjustment.amount} for student "
+                        f"{student.id}: invoice {invoice.invoice_number} was voided."
+                    ),
+                )
         return invoice
 
 
@@ -848,11 +901,24 @@ def apply_discount_rule(*, rule, operator, amount=None):
         amounts = _discount_amounts(
             discount_type=discount_type, term=rule.term, student_ids=[s.id for s in students], amount_override=amount,
         )
+        # Each student's waiver attaches to their most recent non-voided invoice for this
+        # rule's term. A student with none is skipped rather than given an unattached waiver.
+        term_invoice = {}
+        for invoice in (
+            Invoice.objects.filter(
+                student_id__in=[s.id for s in students], fee_structure__term=rule.term, voided_at__isnull=True,
+            ).order_by('student_id', '-issued_at', '-id')
+        ):
+            term_invoice.setdefault(invoice.student_id, invoice)
         created = 0
         skipped = []
         for student in students:
             if student.id in already_applied:
                 skipped.append({'student_id': student.id, 'reason': 'already_applied'})
+                continue
+            invoice = term_invoice.get(student.id)
+            if invoice is None:
+                skipped.append({'student_id': student.id, 'reason': 'no_invoice_for_term'})
                 continue
             value = amounts[student.id]
             if value == 0:
@@ -862,7 +928,7 @@ def apply_discount_rule(*, rule, operator, amount=None):
                 student=student, adjustment_type='discount', amount=value,
                 reason=f"{discount_type.name} ({rule.term.name}), discount rule {rule.id}",
                 requested_by=operator, category_id=discount_type.category_id,
-                discount_type=discount_type, discount_rule=rule,
+                discount_type=discount_type, discount_rule=rule, invoice=invoice,
             )
             created += 1
         write_audit_log(

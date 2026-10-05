@@ -1,4 +1,4 @@
-from django.db import models
+from django.db import connection, models
 from django.test import TestCase
 from apps.finance.models_shared import (
     CashAccount, DocumentSequenceCounter,
@@ -18,6 +18,21 @@ class DummyImmutable(ImmutableFinancialRecordMixin, models.Model):
 
 
 class ImmutableFinancialRecordMixinTests(TestCase):
+    # DummyImmutable is test-only and deliberately has no migration (the project
+    # never adds test-only tables to finance's permanent migration history), so
+    # its table is created here for the duration of this class and dropped after.
+    @classmethod
+    def setUpClass(cls):
+        with connection.schema_editor() as editor:
+            editor.create_model(DummyImmutable)
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        with connection.schema_editor() as editor:
+            editor.delete_model(DummyImmutable)
+
     def test_protected_field_cannot_change_after_creation(self):
         obj = DummyImmutable.objects.create(amount=100)
         obj.amount = 200

@@ -19,8 +19,14 @@ type = layers
 # elsewhere in this file. Tracked, not a design change: the inline belongs
 # conceptually to students, but Django's admin API ties it to the parent
 # model's ModelAdmin, which lives with StudentExtra in identity.
+# apps.finance.views -> orchestration.tasks: finance's invoice-generation endpoint dispatches
+# generate_invoices_for_structure_task onto the bulk_ops queue. The import is lazy (inside
+# ActivateFeeStructureAPIView.post) so it does not load at app start, but import-linter still
+# sees it, and dispatch_background_job needs the task object. Tracked: replace with a
+# by-name dispatch (or move the dispatch behind a service that orchestration owns).
 ignore_imports =
     apps.identity.admin -> apps.students.models
+    apps.finance.views -> orchestration.tasks
 layers =
     orchestration
     apps.analytics
@@ -268,8 +274,25 @@ allow_indirect_imports = True
 # step 1 deliberately kept finance's internals unchanged) and only became a
 # detectable cross-app model import once identity relocated in step 9.
 # Tracked as the same future DTO-ification pass, not fixed here.
+# Academics/identity model imports below are the same class of exception, each for a
+# stated reason:
+#   - views.py: report and lookup views run filtered/ordered/aggregated querysets over
+#     GradeLevel, ExamTerm, AcademicYear, StudentExtra, TeacherExtra and ParentExtra that
+#     services.py does not expose as DTOs. Rewriting them is a data-layer change, not an import fix.
+#   - serializers_fees.py: DRF PrimaryKeyRelatedField needs a real queryset (model class).
+#   - services_fees.py: select_for_update() row locks on StudentExtra, the lock-first ordering
+#     every ledger write depends on; identity.services has no lock-returning function.
+#   - tests: fixtures build real academics/identity rows directly (GradeLevel, ExamTerm,
+#     StudentExtra...). Routing them through services would mean rewriting ~25 test modules;
+#     tests are not a production dependency, so this is a wildcard exception, not a per-line one.
 ignore_imports =
     apps.finance.views -> apps.identity.models
+    apps.finance.views -> apps.academics.models
+    apps.finance.serializers_fees -> apps.academics.models
+    apps.finance.serializers_fees -> apps.identity.models
+    apps.finance.services_fees -> apps.identity.models
+    apps.finance.tests.* -> apps.academics.models
+    apps.finance.tests.* -> apps.identity.models
 source_modules =
     apps.finance
 forbidden_modules =

@@ -160,7 +160,7 @@ class StudentFeeAdjustmentSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'student', 'category', 'adjustment_type', 'amount', 'reason',
             'requested_by', 'approved_by', 'status', 'decided_by', 'decided_at',
-            'decision_note', 'created_at',
+            'decision_note', 'created_at', 'invoice',
         ]
         read_only_fields = fields
 
