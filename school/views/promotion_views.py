@@ -20,10 +20,23 @@ from apps.identity.models import StudentExtra
 from apps.students.models import NationalExamRecord, StudentPathwaySelection, PromotionEvent
 from apps.core.services import write_audit_log
 from apps.academics.models import ClassStream
-from school.rbac import HasModulePermission, is_class_teacher_of_student
+from school.rbac import HasModulePermission, is_class_teacher_of_student, user_has_permission
 from school.views.subject_views import _approve_combo_subjects, _ensure_core_mathematics, _is_admin
 from school.jobs import dispatch_background_job
 from orchestration.tasks import promote_students_task
+
+
+PROMOTION_PERMISSION = 'promotion.manage'
+
+
+def _has_promotion_authority(user):
+    """School-wide promotion powers (whole-grade/whole-school runs, un-finalizing a term,
+    promoting or reverting any student): administrators, or anyone an admin has granted the
+    `promotion.manage` permission -- e.g. a Registrar on the staff dashboard. Replaces the bare
+    `_is_admin` checks that used to sit inside each endpoint and blocked such users even when
+    they held results.edit. A class teacher's power over their own stream is separate and
+    unchanged (see the class-teacher branches below)."""
+    return _is_admin(user) or user_has_permission(user, PROMOTION_PERMISSION)
 
 
 def _determine_transition(grade):
@@ -253,7 +266,7 @@ class FinalizeTermAPIView(APIView):
     last finalize, unless the requester is a superuser (see _can_still_correct)."""
     permission_classes = [IsAuthenticated, HasModulePermission]
     authentication_classes = [SessionAuthentication]
-    rbac_edit_permission = 'results.edit'
+    rbac_edit_permission = ('results.edit', PROMOTION_PERMISSION)
 
     def post(self, request, term_id):
         try:
@@ -264,9 +277,9 @@ class FinalizeTermAPIView(APIView):
         finalized = bool(request.data.get('finalized', True))
 
         if not finalized:
-            if not _is_admin(request.user):
+            if not _has_promotion_authority(request.user):
                 return Response(
-                    {"error": "Only Administrators can un-finalize a term."}, status=status.HTTP_403_FORBIDDEN,
+                    {"error": "Only Administrators, or users granted promotion.manage, can un-finalize a term."}, status=status.HTTP_403_FORBIDDEN,
                 )
             if not _can_still_correct(request.user, term.results_finalized_at):
                 return Response(
@@ -291,7 +304,7 @@ class RecordNationalExamAPIView(APIView):
     (placement school for KJSEA, university/institution for KCSE)."""
     permission_classes = [IsAuthenticated, HasModulePermission]
     authentication_classes = [SessionAuthentication]
-    rbac_edit_permission = 'results.edit'
+    rbac_edit_permission = ('results.edit', PROMOTION_PERMISSION)
 
     def post(self, request, student_id):
         try:
@@ -331,7 +344,7 @@ class PromoteStudentsAPIView(APIView):
     so this is on-demand, mirroring BulkGenerateTermResultsAPIView's exact pattern)."""
     permission_classes = [IsAuthenticated, HasModulePermission]
     authentication_classes = [SessionAuthentication]
-    rbac_edit_permission = 'results.edit'
+    rbac_edit_permission = ('results.edit', PROMOTION_PERMISSION)
 
     def post(self, request):
         academic_year_id = request.data.get('academic_year_id')
@@ -342,7 +355,7 @@ class PromoteStudentsAPIView(APIView):
             return Response({"error": "academic_year_id is mandatory."}, status=status.HTTP_400_BAD_REQUEST)
 
         user = request.user
-        if not _is_admin(user):
+        if not _has_promotion_authority(user):
             if not stream_id:
                 return Response(
                     {"error": "Only Administrators can run a whole-grade or whole-school promotion. "
@@ -390,7 +403,7 @@ class PromotionReadinessAPIView(APIView):
     can never show a different picture than what running promotion will do."""
     permission_classes = [IsAuthenticated, HasModulePermission]
     authentication_classes = [SessionAuthentication]
-    rbac_view_permission = 'results.view'
+    rbac_view_permission = ('results.view', PROMOTION_PERMISSION)
 
     def get(self, request):
         academic_year_id = request.query_params.get('academic_year_id')
@@ -454,7 +467,7 @@ class PromotionPrerequisitesAPIView(APIView):
     """
     permission_classes = [IsAuthenticated, HasModulePermission]
     authentication_classes = [SessionAuthentication]
-    rbac_view_permission = 'results.view'
+    rbac_view_permission = ('results.view', PROMOTION_PERMISSION)
 
     def get(self, request):
         academic_year_id = request.query_params.get('academic_year_id')
@@ -545,7 +558,7 @@ class PromoteSingleStudentAPIView(APIView):
     path which can span a whole school and goes through the background job queue."""
     permission_classes = [IsAuthenticated, HasModulePermission]
     authentication_classes = [SessionAuthentication]
-    rbac_edit_permission = 'results.edit'
+    rbac_edit_permission = ('results.edit', PROMOTION_PERMISSION)
 
     def post(self, request, student_id):
         user = request.user
@@ -561,7 +574,7 @@ class PromoteSingleStudentAPIView(APIView):
         except StudentExtra.DoesNotExist:
             return Response({"error": "Student not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        if not (_is_admin(user) or is_class_teacher_of_student(user, student)):
+        if not (_has_promotion_authority(user) or is_class_teacher_of_student(user, student)):
             return Response(
                 {"error": "Only Administrators, or this student's own class teacher, can promote them."},
                 status=status.HTTP_403_FORBIDDEN,
@@ -587,7 +600,7 @@ class PromotionRevertAPIView(APIView):
     """
     permission_classes = [IsAuthenticated, HasModulePermission]
     authentication_classes = [SessionAuthentication]
-    rbac_edit_permission = 'results.edit'
+    rbac_edit_permission = ('results.edit', PROMOTION_PERMISSION)
 
     def post(self, request, event_id):
         user = request.user
@@ -602,8 +615,8 @@ class PromotionRevertAPIView(APIView):
         if event.reverted_at is not None:
             return Response({"error": "This promotion was already reverted."}, status=status.HTTP_400_BAD_REQUEST)
 
-        if not _is_admin(user):
-            return Response({"error": "Only Administrators can revert a promotion."}, status=status.HTTP_403_FORBIDDEN)
+        if not _has_promotion_authority(user):
+            return Response({"error": "Only Administrators, or users granted promotion.manage, can revert a promotion."}, status=status.HTTP_403_FORBIDDEN)
         if not _can_still_correct(user, event.performed_at):
             return Response(
                 {"error": "The 12-hour window to revert this promotion has passed. "
@@ -660,7 +673,7 @@ class PromotionEventsAPIView(APIView):
     the requesting user may revert it right now (see _can_still_correct)."""
     permission_classes = [IsAuthenticated, HasModulePermission]
     authentication_classes = [SessionAuthentication]
-    rbac_view_permission = 'results.view'
+    rbac_view_permission = ('results.view', PROMOTION_PERMISSION)
 
     def get(self, request):
         student_id = request.query_params.get('student_id')
@@ -680,7 +693,7 @@ class PromotionEventsAPIView(APIView):
         for event in events:
             can_revert = (
                 event.reverted_at is None
-                and _is_admin(user)
+                and _has_promotion_authority(user)
                 and _can_still_correct(user, event.performed_at)
             )
             rows.append({
