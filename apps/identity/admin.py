@@ -14,7 +14,7 @@ from apps.identity.models import AdminExtra, StudentExtra, TeacherExtra, StaffEx
 from apps.students.models import StudentSubjectEnrollment
 from apps.core.services import write_audit_log
 from apps.core.trash import soft_delete
-from school.rbac import invalidate_user_permission_cache
+from school.rbac import announce_permissions_changed
 
 
 # --- 1. ADMIN INLINE SETUP ---
@@ -192,11 +192,13 @@ class RoleAdmin(ModelAdmin):
         )
 
     def save_related(self, request, form, formsets, change):
-        # The permissions M2M is written here, after save_model -- invalidate the cache
-        # for every current holder, since their effective permission set may have changed.
+        # The permissions M2M is written here, after save_model -- every current holder's
+        # effective permission set may have changed, so refresh their cache AND push a live
+        # update to their open dashboard (same announce_permissions_changed the React Roles &
+        # Permissions page uses via RoleViewSet -- Django admin is the superuser's equal-reach
+        # back-channel into every feature per Hard Rule #10, so it must behave the same way).
         super().save_related(request, form, formsets, change)
-        for user_id in UserRole.objects.filter(role=form.instance).values_list('user_id', flat=True):
-            invalidate_user_permission_cache(user_id)
+        announce_permissions_changed(UserRole.objects.filter(role=form.instance).values_list('user_id', flat=True))
 
     def delete_model(self, request, obj):
         # soft_delete() already calls write_audit_log(action_type='DELETE') internally --
@@ -207,8 +209,7 @@ class RoleAdmin(ModelAdmin):
             obj, operator=request.user, module='RBAC',
             description=f"Deleted role '{role_name}' via Django admin.",
         )
-        for user_id in affected_user_ids:
-            invalidate_user_permission_cache(user_id)
+        announce_permissions_changed(affected_user_ids)
 
     def delete_queryset(self, request, queryset):
         # Bulk "Delete selected" action -- route each object through the same guarded
@@ -232,7 +233,7 @@ class UserRoleAdmin(ModelAdmin):
 
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
-        invalidate_user_permission_cache(obj.user_id)
+        announce_permissions_changed([obj.user_id])
         write_audit_log(
             operator_id=request.user.id,
             action_type='UPDATE' if change else 'CREATE',
@@ -245,7 +246,7 @@ class UserRoleAdmin(ModelAdmin):
         role_name = obj.role.name
         username = obj.user.username
         super().delete_model(request, obj)
-        invalidate_user_permission_cache(user_id)
+        announce_permissions_changed([user_id])
         write_audit_log(
             operator_id=request.user.id,
             action_type='DELETE',
