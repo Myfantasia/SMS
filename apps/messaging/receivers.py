@@ -6,7 +6,7 @@ which is the single most common first mistake when adding signals to a
 codebase (this one) that has never used them before.
 """
 from shared.events.bus import bus
-from shared.events.types import BackgroundJobCompletedEvent, ExamResultsPublishedEvent
+from shared.events.types import BackgroundJobCompletedEvent, ExamResultsPublishedEvent, PermissionsChangedEvent
 
 from . import services
 
@@ -54,3 +54,10 @@ def handle_exam_results_published(event: ExamResultsPublishedEvent) -> None:
         message=f"Exam event {event.exam_event_id} results were {action} for term {event.term_id}.",
         action_url="/admin-dashboard/exams",
     )
+
+
+@bus.subscribe(PermissionsChangedEvent)
+def handle_permissions_changed(event: PermissionsChangedEvent) -> None:
+    """Relay to each affected user's live inbox connection so their dashboard re-reads its
+    permissions. See services.notify_permissions_changed for why this is best-effort."""
+    services.notify_permissions_changed(user_ids=event.user_ids)

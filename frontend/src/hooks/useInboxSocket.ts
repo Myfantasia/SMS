@@ -58,6 +58,10 @@ export function useInboxSocket(enabled: boolean, onUpdate: (event: InboxUpdateEv
         const data = JSON.parse(event.data);
         if (data.type === 'inbox.update') {
           onUpdateRef.current(data as InboxUpdateEvent);
+        } else if (data.type === 'permissions.changed') {
+          // An admin changed this user's roles: tell the dashboard layout (which owns the
+          // permission list) to re-read it. A window event keeps this hook decoupled from it.
+          window.dispatchEvent(new Event('sms:permissions-changed'));
         }
       };
 

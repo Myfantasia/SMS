@@ -18,11 +18,17 @@ Track B step 3: Notification (and the rest of this app's models) physically
 relocated to apps/messaging/models.py -- function bodies below now import
 from there directly.
 """
+import logging
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional, Sequence
 
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
+
 from apps.messaging.models import Notification
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -34,6 +40,23 @@ class NotificationDTO:
     is_read: bool
     action_url: Optional[str]
     created_at: datetime
+
+
+def notify_permissions_changed(*, user_ids: Sequence[int]) -> None:
+    """Tell each user's open dashboard to re-read its permissions.
+
+    Sent to the same per-user group the chat sidebar already listens on
+    (`inbox_{user_id}`, see school/consumers/inbox_consumer.py). Best-effort by design: a
+    dead channel layer must never fail the admin action that triggered it -- the dashboard
+    also re-checks on tab focus and on a timer, so it still catches up without this push.
+    """
+    try:
+        layer = get_channel_layer()
+        send = async_to_sync(layer.group_send)
+        for user_id in user_ids:
+            send(f"inbox_{user_id}", {'type': 'permissions.changed'})
+    except Exception:
+        logger.warning("Could not push permissions-changed to live connections", exc_info=True)
 
 
 def create_notification(*, recipient_id: int, title: str, message: str, action_url: Optional[str] = None) -> NotificationDTO:

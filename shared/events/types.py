@@ -33,6 +33,18 @@ class ExamResultsPublishedEvent:
 
 
 @dataclass(frozen=True)
+class PermissionsChangedEvent:
+    """Published whenever what a user is allowed to do has changed (a role was assigned to
+    or removed from them, or a role they hold had its permissions edited/deleted).
+
+    `messaging` relays it to each affected user's live inbox connection so their open
+    dashboard can re-read its permissions and redraw the sidebar, home cards and page
+    controls without a reload. Carries IDs only, like every event here.
+    """
+    user_ids: tuple
+
+
+@dataclass(frozen=True)
 class BackgroundJobCompletedEvent:
     """Published when a long-running Celery job (timetable generation,
     allocation rollover, bulk auto-allocate, bulk term-result compilation)

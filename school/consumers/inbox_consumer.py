@@ -30,3 +30,10 @@ class InboxConsumer(AsyncJsonWebsocketConsumer):
 
     async def inbox_update(self, event):
         await self.send_json(event)
+
+    async def permissions_changed(self, event):
+        # Pushed when an admin changes this user's roles/permissions (see
+        # school.rbac.announce_permissions_changed). The dashboard responds by re-reading its
+        # permissions, so no payload is needed -- and none is sent, so a stale message can
+        # never carry stale permission data.
+        await self.send_json({'type': 'permissions.changed'})

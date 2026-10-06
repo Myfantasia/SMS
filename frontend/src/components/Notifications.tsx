@@ -111,7 +111,12 @@ export default function NotificationBell({ role }: NotificationBellProps) {
             }
           })
           .catch((err) => console.error("Failed to fetch teacher actions", err));
-      } else if (role === 'student' || role === 'parent') {
+        // Real notifications too -- e.g. a teacher granted leave.approve is told about new leave
+        // requests, and everyone is told when their own leave is decided.
+        api.get('/api/core/notifications/')
+          .then((res) => setRealNotifications(res.data.results))
+          .catch((err) => console.error("Failed to fetch notifications", err));
+      } else if (role === 'student' || role === 'parent' || role === 'staff') {
         // Real, backend-driven notifications (e.g. "Report Card Published") — replaces the
         // previous hardcoded placeholder counts for these two roles.
         api.get('/api/core/notifications/')
@@ -146,9 +151,10 @@ export default function NotificationBell({ role }: NotificationBellProps) {
   // Calculate the total notifications based dynamically on the role
   let totalNotifications = 0;
   if (role === 'admin') totalNotifications = pendingData.total_pending + unreadRealNotifications.length;
-  if (role === 'teacher') totalNotifications = teacherActions.pending_assignments + teacherActions.pending_exams + teacherActions.pending_leaves;
+  if (role === 'teacher') totalNotifications = teacherActions.pending_assignments + teacherActions.pending_exams + teacherActions.pending_leaves + unreadRealNotifications.length;
   if (role === 'student') totalNotifications = studentActions.due_assignments + unreadRealNotifications.length;
   if (role === 'parent') totalNotifications = parentActions.fee_reminders + unreadRealNotifications.length;
+  if (role === 'staff') totalNotifications = unreadRealNotifications.length;
 
   // Red is reserved for genuinely time-sensitive items (leave/timetable clashes needing
   // a decision); everything else is informational and reads as amber instead of always-red.
@@ -183,7 +189,7 @@ export default function NotificationBell({ role }: NotificationBellProps) {
       <div className="absolute top-12 right-0 w-72 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl dark:shadow-none rounded-xl flex flex-col z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150 origin-top-right">
         <div className="bg-slate-50 dark:bg-slate-800/60 px-4 py-3 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
           <span className="font-bold text-slate-700 dark:text-slate-100 text-sm">Action Required</span>
-          {(role === 'admin' || role === 'student' || role === 'parent') && unreadRealNotifications.length > 0 && (
+          {(role === 'admin' || role === 'student' || role === 'parent' || role === 'staff' || role === 'teacher') && unreadRealNotifications.length > 0 && (
             <button type="button" onClick={markAllRead} className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300">
               Mark all read
             </button>
@@ -380,6 +386,23 @@ export default function NotificationBell({ role }: NotificationBellProps) {
               ))}
             </>
           )}
+
+          {/* ========================================== */}
+          {/* 5. STAFF (and teacher) — real notifications: leave requests/decisions, background jobs, ... */}
+          {/* ========================================== */}
+          {(role === 'staff' || role === 'teacher') && realNotifications.map((n) => (
+            <div
+              key={n.id}
+              onClick={() => !n.is_read && markNotificationRead(n.id)}
+              className={`px-4 py-3 border-b border-slate-50 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors flex items-start gap-3 cursor-pointer ${!n.is_read ? 'bg-emerald-50/40 dark:bg-emerald-500/10' : ''}`}
+            >
+              <div className="bg-emerald-100 dark:bg-emerald-500/20 p-2 rounded-full mt-1"><Bell className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /></div>
+              <div>
+                <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{n.title}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{n.message}</p>
+              </div>
+            </div>
+          ))}
 
           {totalNotifications === 0 && (
             <div className="px-4 py-6 text-center text-sm text-slate-500 dark:text-slate-400">
