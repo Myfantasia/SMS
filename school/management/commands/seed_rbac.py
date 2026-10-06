@@ -45,6 +45,11 @@ PERMISSIONS = [
     ('assignments.edit', 'Create/grade assignments', 'Assignments'),
 
     ('finance.view', 'View fees & salary overview', 'Finance'),
+    ('finance.edit', 'Create and edit fee structures', 'Finance'),
+    ('finance.record_payment', 'Record a payment against a student fee account', 'Finance'),
+    ('finance.void', 'Void an invoice or payment', 'Finance'),
+    ('finance.approve_adjustment', 'Approve a discount, scholarship, bursary, or penalty', 'Finance'),
+    ('finance.override_clearance', 'Let a student through the fee-clearance gate despite an unpaid balance', 'Finance'),
 
     ('timetable.view', 'View the timetable', 'Timetable'),
     ('timetable.edit', 'Build/edit the timetable', 'Timetable'),
@@ -95,6 +100,11 @@ TEACHER_PERMISSIONS = [
     'classes.view',
     # Not granted: events.edit/notices.edit (posting is admin-only today via IsAdminForWrite,
     # this preserves that), finance.view, allocations.*, chat.manage.
+]
+
+FINANCE_OFFICER_PERMISSIONS = [
+    'finance.view', 'finance.edit', 'finance.record_payment', 'finance.void', 'finance.approve_adjustment',
+    'finance.override_clearance',
 ]
 
 ROLE_GROUP_SOURCE = {
@@ -201,6 +211,23 @@ class Command(BaseCommand):
                 teacher_role.save(update_fields=['is_system_role'])
             roles_by_name['Teacher'] = teacher_role
             self.stdout.write(f"  {'created' if created else 'updated'}: Teacher -> {TEACHER_PERMISSIONS}")
+
+        # Finance Officer is also seeded by populate_demo_staff (rank 6, no school, not a system
+        # role) and may since have been edited in admin -- so look it up by name only and never
+        # touch an existing row's fields; only a fresh create uses those same defaults.
+        if dry_run:
+            fo_exists = Role.objects.filter(name='Finance Officer').exists()
+            self.stdout.write(f"  {'exists' if fo_exists else '[DRY RUN] would create'}: Finance Officer -> +{FINANCE_OFFICER_PERMISSIONS}")
+        else:
+            finance_officer_role = Role.objects.filter(name='Finance Officer').first()
+            created = finance_officer_role is None
+            if created:
+                finance_officer_role = Role.objects.create(
+                    name='Finance Officer', description='Fees, salaries, and financial oversight', rank=6,
+                )
+            # add(), not set(): keeps any permissions already granted to an existing role.
+            finance_officer_role.permissions.add(*[permissions_by_code[c] for c in FINANCE_OFFICER_PERMISSIONS])
+            self.stdout.write(f"  {'created' if created else 'updated'}: Finance Officer -> +{FINANCE_OFFICER_PERMISSIONS}")
 
         self.stdout.write("\nRole assignments (from existing Groups):")
         assigned_count = 0

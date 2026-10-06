@@ -1,8 +1,14 @@
 import axios from 'axios';
 import { clearActivity, SIGN_IN_URL } from './sessionExpiry';
 
+// Reused by other frontend modules (e.g. financeApi.ts's PDF download links) that need
+// to build an absolute backend URL outside of an axios call — see this file's own
+// baseURL comment below for why the origin is hardcoded rather than relying on the Vite
+// dev proxy.
+export const API_BASE_URL = 'http://localhost:8000';
+
 const api = axios.create({
-  baseURL: 'http://localhost:8000', // Points to your Django backend
+  baseURL: API_BASE_URL, // Points to your Django backend
   withCredentials: true,            // This is the magic key for Django Auth!
   xsrfCookieName: 'csrftoken',      // The name of the cookie Django sets
   xsrfHeaderName: 'X-CSRFToken',

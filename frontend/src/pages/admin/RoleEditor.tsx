@@ -32,8 +32,8 @@ interface Role {
 // too so picking a template also proposes a sensible starting rank, not just permissions.
 const ROLE_TEMPLATES: { name: string; description: string; permissions: string[]; rank: number }[] = [
   { name: 'Secretary', description: 'Front-office administrative support', permissions: ['classes.view', 'attendance.view', 'notices.edit', 'events.edit'], rank: 6 },
-  { name: 'Finance Officer', description: 'Fees, salaries, and financial oversight', permissions: ['finance.view'], rank: 6 },
-  { name: 'Accountant', description: 'Fees, salaries, and financial oversight', permissions: ['finance.view'], rank: 6 },
+  { name: 'Finance Officer', description: 'Fees, salaries, and financial oversight', permissions: ['finance.view', 'finance.edit', 'finance.record_payment', 'finance.void', 'finance.approve_adjustment', 'finance.override_clearance'], rank: 6 },
+  { name: 'Accountant', description: 'Fees, salaries, and financial oversight', permissions: ['finance.view', 'finance.edit', 'finance.record_payment', 'finance.void', 'finance.approve_adjustment', 'finance.override_clearance'], rank: 6 },
   { name: 'Exam Officer', description: 'Coordinates exam scheduling and results processing', permissions: ['exams.view', 'exams.edit', 'results.view', 'results.edit'], rank: 3 },
   { name: 'Marks Entry Clerk', description: 'Enters exam marks only — cannot change exam terms, events, or grading rules', permissions: ['exams.view', 'exams.marks'], rank: 7 },
   { name: 'Registrar', description: 'Manages student enrollment, transfers, and status', permissions: ['classes.view', 'classes.enrollment'], rank: 6 },

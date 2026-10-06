@@ -18,3 +18,45 @@ logs/
 
 # Local git worktrees used to isolate a plan's work from other concurrent sessions on this repo.
 .worktrees/
+
+# Personal IDE workspace config — local paths/DB-connection metadata, not project code.
+.idea/
+
+# User-uploaded media (student profile pictures, notice attachments, etc.) — real personal
+# content that should never be committed to the repo.
+media/
+
+# One-off personal/local admin script, not part of the app.
+add_teachers.py
+
+# Any env-file variant (.env.local, .env.production, frontend/.env, ...) — only the template is committable.
+.env.*
+!.env.example
+
+# Private keys, certificates and cloud/service credentials.
+*.pem
+*.key
+*.p12
+*.pfx
+*credentials*.json
+*service-account*.json
+*serviceAccount*.json
+
+# Database files, dumps and backups — contain real student/staff/financial records.
+*.sqlite3
+*.dump
+*.sql
+*.bak
+db_backups/
+backups/
+
+# Per-machine Claude Code settings (local paths, permission grants).
+.claude/settings.local.json
+
+# AI-assistant working files (plans, specs, skills, agent config) — local tooling, not project code.
+docs/superpowers/
+.claude/
+CLAUDE.md
+AGENTS.md
+GEMINI.md
+.mcp.json

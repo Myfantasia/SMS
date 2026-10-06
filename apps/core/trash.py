@@ -7,6 +7,7 @@ views (school/views/trash_views.py) and the auto-purge sweep
 """
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any, Callable, Optional
@@ -16,7 +17,21 @@ from django.utils import timezone
 
 from apps.core.services import write_audit_log
 
+logger = logging.getLogger(__name__)
+
 AUTO_PURGE_AFTER = timedelta(days=20)
+
+
+class PurgeSkipped:
+    """Falsy return value from a purge_fn that kept the row on purpose. `reason` is a
+    short machine-readable code (e.g. 'has_financial_records'). Callers test with
+    isinstance(), since ordinary purge_fns return None."""
+
+    def __init__(self, reason: str):
+        self.reason = reason
+
+    def __bool__(self) -> bool:
+        return False
 
 
 @dataclass(frozen=True)
@@ -27,7 +42,8 @@ class TrashEntityConfig:
     flag_false: Any           # value meaning "live"
     auto_purge: bool          # False for ClassStream, Subject
     label_fn: Callable[[Any], str]
-    purge_fn: Optional[Callable[[Any], None]] = None  # None => instance.delete()
+    # None => instance.delete(). May return PurgeSkipped to keep the row (see class docstring).
+    purge_fn: Optional[Callable[[Any], Any]] = None
 
 
 TRASH_REGISTRY: dict[str, TrashEntityConfig] = {}
@@ -88,7 +104,12 @@ def purge_expired_trash(entity_type: Optional[str] = None) -> int:
         for instance in expired:
             label = config.label_fn(instance)
             if config.purge_fn:
-                config.purge_fn(instance)
+                result = config.purge_fn(instance)
+                if isinstance(result, PurgeSkipped):
+                    # Kept on purpose (e.g. finance history protects the row). Logged, not
+                    # raised, so one such row cannot abort the whole sweep.
+                    logger.warning("Auto-purge skipped %s (%s): %s", et, label, result.reason)
+                    continue
             else:
                 instance.delete()
             write_audit_log(

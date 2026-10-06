@@ -112,6 +112,7 @@ export const NAV_SECTIONS: NavSection[] = [
 
       { icon: CircleDollarSign, label: 'Fees & Salary', href: '/admin-dashboard/finance', visible: ['admin'],
         permission: 'finance.view', alsoFor: ['teacher', 'staff'], description: 'View fee collection and salary overview.' },
+      { icon: CircleDollarSign, label: 'My Fees', href: '/admin-dashboard/fees', visible: ['student', 'parent'], description: 'Your fee statement and balance.' },
     ],
   },
   {

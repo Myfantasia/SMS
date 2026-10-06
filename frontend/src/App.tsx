@@ -80,6 +80,10 @@ import AssignSubjectsPage from './components/action routes/AssignSubjectsPage';
 import LeaveRequestsHub from './components/leave/LeaveRequestsHub';
 import ApproveLeaves from './components/leave/ApproveLeaves';
 import FinanceHub from './components/Finance/FinanceHub';
+import FeeStructuresPage from './components/Finance/FeeStructuresPage';
+import InvoicesPage from './components/Finance/InvoicesPage';
+import PaymentsPage from './components/Finance/PaymentsPage';
+import StudentFeeStatementPage, { ParentFeeStatementPage } from './components/Finance/StudentFeeStatementPage';
 import ContentHub from './components/content/ContentHub';
 import Trash from './pages/admin/Trash';
 import RequirePermission from './components/common/RequirePermission';
@@ -224,7 +228,10 @@ export default function App() {
             <Route path="assignments/edit/:id" element={<EditAssignment role="admin" />} />
 
             {/* --- FINANCE: FEES & SALARY OVERVIEW --- */}
-            <Route path="finance" element={<FinanceHub />} />
+            <Route path="finance" element={<RequirePermission code="finance.view"><FinanceHub /></RequirePermission>} />
+            <Route path="finance/fee-structures" element={<RequirePermission code="finance.view"><FeeStructuresPage /></RequirePermission>} />
+            <Route path="finance/invoices" element={<RequirePermission code="finance.view"><InvoicesPage /></RequirePermission>} />
+            <Route path="finance/payments" element={<RequirePermission code="finance.view"><PaymentsPage /></RequirePermission>} />
 
             {/* --- NEW: MESSAGING ROUTE --- */}
             <Route path="messages" element={<ChatDashboard />} />
@@ -309,6 +316,7 @@ export default function App() {
             <Route path="events" element={<EventsHub role="student" />} />
             <Route path="notices" element={<NoticesHub role="student" />} />
             <Route path="tasks" element={<StudentTasks />} />
+            <Route path="fees" element={<StudentFeeStatementPage />} />
 
             <Route path="assignments" element={<StudentAssignments />} />
             <Route path="assignments/:id/take" element={<AssignmentTaker />} />
@@ -330,6 +338,7 @@ export default function App() {
 
             <Route path="assignments" element={<ParentAssignments />} />
             <Route path="assignments/:id/review" element={<AssignmentReview role="parent" />} />
+            <Route path="fees" element={<ParentFeeStatementPage />} />
           </Route>
 
           {/* STAFF ROUTE GROUP — non-teaching staff (librarian, finance officer, secretary, etc).
@@ -368,6 +377,9 @@ export default function App() {
             <Route path="results" element={<RequirePermission code="results.view"><ResultsRoute /></RequirePermission>} />
             <Route path="assignments" element={<RequirePermission code="assignments.view"><AssignmentsRoute /></RequirePermission>} />
             <Route path="allocations" element={<RequirePermission code="allocations.view"><AllocationDashboard /></RequirePermission>} />
+            <Route path="finance/fee-structures" element={<RequirePermission code="finance.view"><FeeStructuresPage /></RequirePermission>} />
+            <Route path="finance/invoices" element={<RequirePermission code="finance.view"><InvoicesPage /></RequirePermission>} />
+            <Route path="finance/payments" element={<RequirePermission code="finance.view"><PaymentsPage /></RequirePermission>} />
 
             <Route path=":userType/view/:id" element={<RequirePermission code="users.view"><ViewProfile /></RequirePermission>} />
             <Route path=":userType/edit/:id" element={<RequirePermission code="users.edit"><EditProfile /></RequirePermission>} />

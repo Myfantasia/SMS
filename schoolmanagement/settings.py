@@ -399,6 +399,7 @@ CELERY_TASK_ROUTES = {
     'orchestration.tasks.bulk_auto_allocate_task': {'queue': 'bulk_ops'},
     'orchestration.tasks.bulk_generate_term_results_task': {'queue': 'bulk_ops'},
     'orchestration.tasks.promote_students_task': {'queue': 'bulk_ops'},
+    'orchestration.tasks.generate_invoices_for_structure_task': {'queue': 'bulk_ops'},
 }
 # If the worker process dies mid-task (OOM kill, deploy restart, crash), acks_late means
 # Redis re-delivers the message to another worker instead of silently losing it. Safe to

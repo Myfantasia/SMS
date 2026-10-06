@@ -13,7 +13,7 @@ interface Student {
     name: string;
     roll: string;
     enrollment_state: string;
-    fee_balance?: number;
+    fee_balance?: number | null;
     subjects_assigned?: boolean;
     last_changed?: string;
     enrollment_notes?: string;
@@ -278,9 +278,13 @@ const fetchClassData = useCallback(async () => {
                                 <td className="p-4">{student.roll}</td>
                                 <td className="p-4">{getStatusBadge(student.enrollment_state)}</td>
                                 <td className="p-4">
-                                    <span className={(student.fee_balance || 0) > 0 ? 'text-red-600 dark:text-red-400 font-medium' : 'text-emerald-600 dark:text-emerald-400'}>
-                                        KES {(student.fee_balance || 0).toLocaleString()}
-                                    </span>
+                                    {student.fee_balance == null ? (
+                                        <span className="text-slate-400 dark:text-slate-500" title="Fee balances are visible to finance staff only">—</span>
+                                    ) : (
+                                        <span className={student.fee_balance > 0 ? 'text-red-600 dark:text-red-400 font-medium' : 'text-emerald-600 dark:text-emerald-400'}>
+                                            KES {student.fee_balance.toLocaleString()}
+                                        </span>
+                                    )}
                                 </td>
                                 {activeTab === 'active' && (
                                     <td className="p-4 text-center">
@@ -324,6 +328,12 @@ const fetchClassData = useCallback(async () => {
                                         <p className="font-bold">Outstanding Balance: KES {(targetStudent.fee_balance || 0).toLocaleString()}</p>
                                         <p>Please ensure clearance before processing external transfers or expulsions.</p>
                                     </div>
+                                </div>
+                            )}
+                            {targetStudent.fee_balance == null && (
+                                <div className="bg-slate-100 dark:bg-slate-700/40 border border-slate-200 dark:border-slate-600 rounded-lg p-4 flex gap-3 text-slate-700 dark:text-slate-300">
+                                    <AlertCircle className="w-5 h-5 shrink-0 text-slate-500 dark:text-slate-400" />
+                                    <p className="text-sm">Fee clearance status isn't visible to you. Confirm with the finance office before external transfers or expulsions.</p>
                                 </div>
                             )}
 

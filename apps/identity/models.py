@@ -553,9 +553,18 @@ class UserRole(models.Model):
 
 
 def _purge_student(extra):
-    if extra.profile_pic:
-        extra.profile_pic.delete(save=False)
-    extra.user.delete()
+    from django.db.models import ProtectedError
+    from apps.core.trash import PurgeSkipped
+    pic = extra.profile_pic
+    try:
+        # Delete the account first: a PROTECT reference (finance fee history) makes this
+        # raise before anything is removed, so the profile picture is kept too.
+        extra.user.delete()
+    except ProtectedError:
+        return PurgeSkipped('has_financial_records')
+    if pic:
+        pic.delete(save=False)
+    return None
 
 
 def _purge_teacher(extra):

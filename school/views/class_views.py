@@ -11,13 +11,14 @@ from apps.academics.models import ClassStream, Subject, GradeLevel, \
 from apps.allocations.models import SubjectQuota
 from apps.students.models import StudentSubjectEnrollment, StudentPathwaySelection
 from apps.core.services import write_audit_log
+from apps.finance.models_fees import StudentFeeLedgerEntry
 from django.db import transaction
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from django.db.models import Q
 from school.decorators import require_permission
-from school.rbac import HasModulePermission, assert_curriculum_editable
+from school.rbac import HasModulePermission, assert_curriculum_editable, user_has_permission
 
 
 
@@ -527,6 +528,19 @@ def api_class_enrollments(request, stream_id):
                 enrollment_state__in=['Active', 'Suspended']
             ).select_related('user')
 
+            # Fee balances are finance data: callers without finance.view (e.g. teachers, who
+            # hold classes.view) get None instead of a number.
+            can_see_fees = user_has_permission(request.user, 'finance.view')
+
+            # One query for every active student's current balance instead of N+1 —
+            # same "latest ledger entry per student" pattern as apps/finance/services_reports.py.
+            # Ledger amounts are signed, so an overpaid student shows a negative balance (credit).
+            balances = dict(
+                StudentFeeLedgerEntry.objects.filter(student__in=active_students)
+                .order_by('student_id', '-id').distinct('student_id')
+                .values_list('student_id', 'running_balance')
+            )
+
             active_data = []
             for s in active_students:
                 active_data.append({
@@ -537,8 +551,8 @@ def api_class_enrollments(request, stream_id):
                     'last_changed': s.last_enrollment_change.strftime(
                         '%d %b %Y') if s.last_enrollment_change else "N/A",
 
+                    'fee_balance': balances.get(s.id, 0) if can_see_fees else None,
                     # --- MOCK DATA FOR FUTURE INTEGRATION ---
-                    'fee_balance': 15000 if s.id % 2 == 0 else 0,
                     'subjects_assigned': True if s.id % 3 != 0 else False
                 })
 
@@ -551,6 +565,12 @@ def api_class_enrollments(request, stream_id):
                 enrollment_notes__icontains=stream.name
             ).select_related('user')
 
+            exited_balances = dict(
+                StudentFeeLedgerEntry.objects.filter(student__in=exited_students)
+                .order_by('student_id', '-id').distinct('student_id')
+                .values_list('student_id', 'running_balance')
+            )
+
             exited_data = []
             for s in exited_students:
                 exited_data.append({
@@ -558,7 +578,7 @@ def api_class_enrollments(request, stream_id):
                     'name': s.get_name,
                     'roll': s.roll,
                     'enrollment_state': s.enrollment_state,
-                    'fee_balance': 0,  # Mock handling for exited users
+                    'fee_balance': exited_balances.get(s.id, 0) if can_see_fees else None,
                     'enrollment_notes': s.enrollment_notes
                 })
 
