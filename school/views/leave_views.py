@@ -155,7 +155,24 @@ class TeacherLeaveViewSet(viewsets.ModelViewSet):
         if (named_teacher or named_staff) and self._can_edit_broadly(user):
             if named_teacher and named_staff:
                 raise ValidationError("A leave request belongs to one applicant: a teacher or a staff member, not both.")
-            serializer.save(status=self.request.data.get('status', 'Pending'))
+            requested = self.request.data.get('status', 'Pending')
+            if requested not in ('Pending', 'Approved', 'Rejected'):
+                raise ValidationError({"status": "Choose Pending, Approved or Rejected."})
+            if requested != 'Pending':
+                # Recording an already-decided leave IS a decision, so it must pass the same
+                # rules as deciding it. Without this, a leave.edit-only user could create an
+                # already-approved request for someone else and skip the approval step.
+                applicant_user = (named_teacher or named_staff).user
+                allowed, reason = can_decide_leave(
+                    decider_user_id=user.id,
+                    decider_is_admin=_is_admin(user),
+                    decider_can_approve=user_has_permission(user, 'leave.approve'),
+                    applicant_user_id=applicant_user.id,
+                    applicant_can_approve=user_has_permission(applicant_user, 'leave.approve'),
+                )
+                if not allowed:
+                    raise PermissionDenied(reason)
+            serializer.save(status=requested)
             return
 
         if _is_admin(user) and not _has_applicant_profile(user):

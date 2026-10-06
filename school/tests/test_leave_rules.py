@@ -182,6 +182,35 @@ class LeaveApiTests(TestCase):
         from apps.staff.models import TeacherLeave
         self.assertEqual(TeacherLeave.objects.get(pk=leave_id).status, 'Pending')
 
+    def test_an_approver_cannot_reassign_a_request_to_themselves_to_approve_it(self):
+        # Regression (security review): the decision is authorised against the applicant on the
+        # stored request, so the same PATCH must not be able to move the request onto the approver.
+        from apps.staff.models import TeacherLeave
+        leave_id = self._apply(self.staff_a).data['id']
+        self._client(self.approver1).patch(
+            f'{self.URL}{leave_id}/', {'status': 'Approved', 'staff': self.approver1_profile.id}, format='json')
+        self.assertEqual(TeacherLeave.objects.get(pk=leave_id).staff_id, self.staff_a_profile.id)
+
+    def test_recording_an_approved_leave_for_someone_else_needs_decision_rights(self):
+        # Regression (security review): on-behalf creation used to save any status unchecked, so a
+        # leave.edit-only user could create an already-approved request and skip approval.
+        from apps.identity.models import Permission, Role, StaffExtra, UserRole
+        from apps.staff.models import TeacherLeave
+        editor = User.objects.create_user(username='lv_editor', password='x')
+        StaffExtra.objects.create(user=editor, status=True)
+        role, _ = Role.objects.get_or_create(name='Leave Editor Test')
+        role.permissions.add(*[Permission.objects.get_or_create(code=c, defaults={'label': c, 'module': 'Leave'})[0]
+                               for c in ('leave.view', 'leave.edit')])
+        UserRole.objects.get_or_create(user=editor, role=role)
+        payload = {**self.PAYLOAD, 'staff': self.staff_a_profile.id, 'status': 'Approved'}
+        resp = self._client(editor).post(self.URL, payload, format='json')
+        self.assertEqual(resp.status_code, 403)
+        self.assertFalse(TeacherLeave.objects.filter(staff=self.staff_a_profile, status='Approved').exists())
+
+    def test_an_admin_can_record_an_already_approved_leave_for_someone(self):
+        payload = {**self.PAYLOAD, 'staff': self.staff_a_profile.id, 'status': 'Approved'}
+        self.assertEqual(self._client(self.admin).post(self.URL, payload, format='json').status_code, 201)
+
     def test_an_approver_cannot_assign_a_relief_teacher_without_timetable_rights(self):
         leave_id = self._apply(self.teacher_user).data['id']
         resp = self._decide(self.approver1, leave_id, relief_teacher_id=self.teacher.id)
