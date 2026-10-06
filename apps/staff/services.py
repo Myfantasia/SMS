@@ -108,3 +108,31 @@ def is_teacher_on_leave(*, teacher_id: int, on_date: date) -> bool:
     return TeacherLeave.objects.filter(
         teacher_id=teacher_id, status='Approved', start_date__lte=on_date, end_date__gte=on_date,
     ).exists()
+
+
+def can_decide_leave(
+    *,
+    decider_user_id: int,
+    decider_is_admin: bool,
+    decider_can_approve: bool,
+    applicant_user_id: int,
+    applicant_can_approve: bool,
+) -> "tuple[bool, str]":
+    """Who may approve or reject a leave request. Returns (allowed, reason-if-not).
+
+    The rules (set by the school, 2026-09-21):
+      * Only an admin, or someone granted the `leave.approve` permission, may decide.
+      * Nobody decides their own request -- not even an admin.
+      * An approver's OWN leave (the applicant holds `leave.approve`) is decided by an admin only,
+        so approvers can't sign each other off.
+      * Approvers may decide both teacher and staff requests.
+    Pure function of plain values (no ORM/User objects) so every branch is trivially testable;
+    the caller works out the booleans from the request and the leave row.
+    """
+    if not (decider_is_admin or decider_can_approve):
+        return False, "You do not have permission to approve or reject leave."
+    if decider_user_id == applicant_user_id:
+        return False, "You cannot approve or reject your own leave request."
+    if applicant_can_approve and not decider_is_admin:
+        return False, "Leave requested by an approver can only be decided by an administrator."
+    return True, ""

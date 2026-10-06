@@ -1,6 +1,10 @@
+from django.db import transaction
 from django.http import JsonResponse
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import BasePermission
+
+from shared.events.bus import bus
+from shared.events.types import PermissionsChangedEvent
 
 from apps.identity.services import (
     invalidate_user_permission_cache as _invalidate_user_permission_cache,
@@ -15,6 +19,23 @@ from apps.identity.services import (
 def invalidate_user_permission_cache(user_id):
     """Call after a per-user Role assignment changes."""
     _invalidate_user_permission_cache(user_id)
+
+
+def announce_permissions_changed(user_ids):
+    """Call after ANYTHING that changes what these users may do (role assigned/removed, a
+    role's permissions edited, a role deleted).
+
+    Clears each user's cached permission set immediately (so the server enforces the new
+    rules on their very next request instead of after the 90s cache TTL), then -- once the
+    surrounding transaction commits -- announces the change so their open dashboard can
+    re-read its permissions and redraw without a reload. See PermissionsChangedEvent.
+    """
+    ids = tuple(sorted({int(uid) for uid in user_ids}))
+    if not ids:
+        return
+    for uid in ids:
+        _invalidate_user_permission_cache(uid)
+    transaction.on_commit(lambda: bus.publish(PermissionsChangedEvent(user_ids=ids)))
 
 
 def get_user_permission_codes(user):

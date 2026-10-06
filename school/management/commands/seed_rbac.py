@@ -62,6 +62,8 @@ PERMISSIONS = [
 
     ('audit.view', 'View the system-wide audit log (all modules, including RBAC changes)', 'Audit'),
 
+    ('promotion.manage', 'School-wide student promotion: whole-grade/school runs, finalize terms, record national exams, promote or revert any student', 'Promotion'),
+
     ('users.view', 'View the user directory, pending approvals, and dashboard stats', 'Users'),
     ('users.approve', 'Approve or reject pending account applications (any user type)', 'Users'),
     ('users.edit', 'Edit user profile data (students, teachers, parents)', 'Users'),

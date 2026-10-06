@@ -12,7 +12,7 @@ from rest_framework.views import APIView
 from apps.core.services import write_audit_log
 from apps.identity.models import Permission, Role, UserRole
 from school.permissions import IsApprovedAdmin
-from school.rbac import HasModulePermission, invalidate_user_permission_cache, validate_permission_delegation, validate_rank_authority
+from school.rbac import HasModulePermission, announce_permissions_changed, validate_permission_delegation, validate_rank_authority
 from school.serializers.rbac_serializers import PermissionSerializer, RoleSerializer
 
 
@@ -111,6 +111,9 @@ class RoleViewSet(viewsets.ModelViewSet):
         with transaction.atomic():
             role = serializer.save()
             new_codes = set(role.permissions.values_list('code', flat=True))
+            # A role edit changes what every holder may do -- refresh their cached permissions
+            # and tell their open dashboards (previously holders waited out the 90s cache TTL).
+            announce_permissions_changed(role.user_assignments.values_list('user_id', flat=True))
 
             added = sorted(new_codes - old_codes)
             removed = sorted(old_codes - new_codes)
@@ -149,8 +152,7 @@ class RoleViewSet(viewsets.ModelViewSet):
                     f" — previously assigned to: {', '.join(affected_users)}." if affected_users else "."
                 ),
             )
-            for uid in affected_user_ids:
-                invalidate_user_permission_cache(uid)
+            announce_permissions_changed(affected_user_ids)
 
 
 class UserRoleAssignmentAPIView(APIView):
@@ -214,7 +216,7 @@ class UserRoleAssignmentAPIView(APIView):
         with transaction.atomic():
             _, created = UserRole.objects.get_or_create(user=user, role=role)
             if created:
-                invalidate_user_permission_cache(user.id)
+                announce_permissions_changed([user.id])
                 write_audit_log(
                     operator_id=request.user.id,
                     action_type='CREATE',
@@ -248,7 +250,7 @@ class UserRoleAssignmentAPIView(APIView):
         with transaction.atomic():
             deleted_count, _ = UserRole.objects.filter(user_id=user_id, role_id=role_id).delete()
             if deleted_count:
-                invalidate_user_permission_cache(user_id)
+                announce_permissions_changed([user_id])
                 user = User.objects.filter(id=user_id).first()
                 write_audit_log(
                     operator_id=request.user.id,

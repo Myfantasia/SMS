@@ -6,6 +6,7 @@ from django.urls import reverse
 from apps.core.models import SystemAuditLog
 from apps.identity.models import Permission, Role, UserRole
 from apps.identity.services import get_user_permission_codes
+from school.tests.test_permissions_changed_push import _EventCollector
 
 
 class RoleAdminTests(TestCase):
@@ -43,6 +44,24 @@ class RoleAdminTests(TestCase):
         self.assertEqual(response.status_code, 302, response.content)
         self.assertIn('finance.view', get_user_permission_codes(user.id))
 
+    def test_editing_a_roles_permissions_via_django_admin_pushes_the_live_update_too(self):
+        # The React Roles & Permissions page pushes a live permissions.changed event (see
+        # test_permissions_changed_push.py); Django admin is the superuser's equal-reach
+        # back-channel per Hard Rule #10, so an edit made here must reach an affected user's
+        # open dashboard the same way -- not just eventually via the cache/poll fallback.
+        role = Role.objects.create(name='Custom Role 2', rank=6)
+        user = User.objects.create_user(username='holder2', password='x')
+        UserRole.objects.create(user=user, role=role)
+
+        with _EventCollector() as collector, self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                reverse('admin:identity_role_change', args=[role.id]),
+                {'name': 'Custom Role 2', 'description': '', 'rank': 6,
+                 'permissions': [self.finance_view.id]},
+            )
+        self.assertEqual(response.status_code, 302, response.content)
+        self.assertEqual({uid for e in collector.events for uid in e.user_ids}, {user.id})
+
     def test_admin_role_cannot_be_renamed(self):
         admin_role = Role.objects.create(name='Admin', rank=1, is_system_role=True)
         response = self.client.get(reverse('admin:identity_role_change', args=[admin_role.id]))
@@ -70,6 +89,16 @@ class RoleAdminTests(TestCase):
         self.assertTrue(role.is_deleted)
         self.assertNotIn('finance.view', get_user_permission_codes(user.id))
 
+    def test_deleting_a_role_via_django_admin_pushes_the_live_update(self):
+        role = Role.objects.create(name='Temp Role 2', rank=6)
+        user = User.objects.create_user(username='temp_holder2', password='x')
+        UserRole.objects.create(user=user, role=role)
+
+        with _EventCollector() as collector, self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(reverse('admin:identity_role_delete', args=[role.id]), {'post': 'yes'})
+        self.assertEqual(response.status_code, 302, response.content)
+        self.assertEqual({uid for e in collector.events for uid in e.user_ids}, {user.id})
+
 
 class UserRoleAdminTests(TestCase):
     def setUp(self):
@@ -96,6 +125,14 @@ class UserRoleAdminTests(TestCase):
             module='RBAC', action_type='CREATE',
             description__icontains='new_bursar').exists())
 
+    def test_assigning_a_role_via_django_admin_pushes_the_live_update(self):
+        with _EventCollector() as collector, self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(reverse('admin:identity_userrole_add'), {
+                'user': self.target_user.id, 'role': self.role.id,
+            })
+        self.assertEqual(response.status_code, 302, response.content)
+        self.assertEqual({uid for e in collector.events for uid in e.user_ids}, {self.target_user.id})
+
     def test_removing_a_role_revokes_immediate_access_and_logs_it(self):
         user_role = UserRole.objects.create(user=self.target_user, role=self.role)
         self.assertIn('finance.view', get_user_permission_codes(self.target_user.id))
@@ -108,3 +145,12 @@ class UserRoleAdminTests(TestCase):
         self.assertTrue(SystemAuditLog.objects.filter(
             module='RBAC', action_type='DELETE',
             description__icontains='new_bursar').exists())
+
+    def test_removing_a_role_via_django_admin_pushes_the_live_update(self):
+        user_role = UserRole.objects.create(user=self.target_user, role=self.role)
+
+        with _EventCollector() as collector, self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                reverse('admin:identity_userrole_delete', args=[user_role.id]), {'post': 'yes'})
+        self.assertEqual(response.status_code, 302, response.content)
+        self.assertEqual({uid for e in collector.events for uid in e.user_ids}, {self.target_user.id})

@@ -52,9 +52,17 @@ class NotificationAdmin(ModelAdmin):
 
 @admin.register(TeacherLeave)
 class TeacherLeaveAdmin(ModelAdmin):
-    list_display = ('teacher', 'leave_type', 'start_date', 'end_date', 'status', 'is_long_term')
+    list_display = ('applicant_display', 'applicant_type', 'leave_type', 'start_date', 'end_date', 'status', 'is_long_term')
     list_filter = ('status', 'leave_type')
-    search_fields = ('teacher__user__first_name', 'teacher__user__last_name')
+    search_fields = (
+        'teacher__user__first_name', 'teacher__user__last_name',
+        'staff__user__first_name', 'staff__user__last_name',
+    )
+
+    def applicant_display(self, obj):
+        applicant = obj.applicant
+        return applicant.get_name if applicant else '-'
+    applicant_display.short_description = 'Applicant'
 
     def is_long_term(self, obj):
         return obj.is_long_term

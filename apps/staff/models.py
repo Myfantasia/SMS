@@ -43,7 +43,12 @@ class TeacherLeave(models.Model):
         ('Rejected', 'Rejected')
     ]
 
-    teacher = models.ForeignKey('identity.TeacherExtra', on_delete=models.CASCADE, related_name='leaves')
+    # Exactly one applicant is set: a teacher OR a non-teaching staff member (both may apply for
+    # leave). Enforced by `clean()` and by the CheckConstraint in Meta. The historical field name
+    # `teacher` is kept so existing rows, the timetable substitution logic and every teacher-only
+    # caller keep working unchanged; staff requests simply leave it NULL.
+    teacher = models.ForeignKey('identity.TeacherExtra', on_delete=models.CASCADE, related_name='leaves', null=True, blank=True)
+    staff = models.ForeignKey('identity.StaffExtra', on_delete=models.CASCADE, related_name='leaves', null=True, blank=True)
     leave_type = models.CharField(max_length=20, choices=LEAVE_TYPE_CHOICES, db_index=True)
     start_date = models.DateField(help_text="First day of leave.")
     end_date = models.DateField(help_text="Last day of leave (inclusive).")
@@ -58,11 +63,36 @@ class TeacherLeave(models.Model):
     class Meta:
         db_table = 'school_teacherleave'
         ordering = ['-start_date']
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(teacher__isnull=False, staff__isnull=True)
+                    | models.Q(teacher__isnull=True, staff__isnull=False)
+                ),
+                name='teacherleave_exactly_one_applicant',
+            ),
+        ]
+
+    @property
+    def applicant(self):
+        """The TeacherExtra or StaffExtra this request belongs to."""
+        return self.teacher if self.teacher_id else self.staff
+
+    @property
+    def applicant_type(self):
+        return 'teacher' if self.teacher_id else 'staff'
+
+    @property
+    def applicant_user(self):
+        applicant = self.applicant
+        return applicant.user if applicant else None
 
     def clean(self):
         # Validation Guard: Prevent chronologically backwards dates
         if self.start_date and self.end_date and self.start_date > self.end_date:
             raise ValidationError("Configuration Error: Start date cannot be after the end date.")
+        if bool(self.teacher_id) == bool(self.staff_id):
+            raise ValidationError("A leave request must belong to exactly one applicant: a teacher or a staff member.")
 
     def save(self, *args, **kwargs):
         self.full_clean()
@@ -76,7 +106,9 @@ class TeacherLeave(models.Model):
         return False
 
     def __str__(self):
-        return f"{self.teacher.get_name} - {self.leave_type} ({self.start_date} to {self.end_date}) [{self.status}]"
+        applicant = self.applicant
+        name = applicant.get_name if applicant else "Unknown applicant"
+        return f"{name} - {self.leave_type} ({self.start_date} to {self.end_date}) [{self.status}]"
 
 
 def _register_leave_trash():
