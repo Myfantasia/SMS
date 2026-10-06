@@ -1,7 +1,10 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useOutletContext } from 'react-router-dom';
+import type { DashboardContextType } from '../../layouts/DashboardLayouts';
 import { ShieldCheck, Loader2, CheckCircle2, XCircle, UserCheck2, History } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../libs/axiosInstance';
+import { useAccess } from '../../libs/permissions';
 import type { TeacherLeaveRequest, LeaveStats, EligibleReliefTeacher } from '../../libs/types';
 import LeaveStatCards from './LeaveStatCards';
 import LeaveRequestCard from './LeaveRequestCard';
@@ -12,17 +15,19 @@ const EMPTY_STATS: LeaveStats = { pending: 0, approved: 0, rejected: 0, total: 0
 interface DecisionRowProps {
   leave: TeacherLeaveRequest;
   reliefTeachers: EligibleReliefTeacher[];
+  /** Relief cover reshuffles the timetable, so only admins / timetable editors may attach it. */
+  canAssignRelief: boolean;
   onDecide: (leave: TeacherLeaveRequest, status: 'Approved' | 'Rejected', reliefTeacherId?: number) => void;
   isBusy: boolean;
 }
 
-function DecisionRow({ leave, reliefTeachers, onDecide, isBusy }: DecisionRowProps) {
+function DecisionRow({ leave, reliefTeachers, canAssignRelief, onDecide, isBusy }: DecisionRowProps) {
   const [reliefTeacherId, setReliefTeacherId] = useState<string>('');
   const eligibleRelief = reliefTeachers.filter((t) => t.id !== leave.teacher);
 
   return (
     <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-      {leave.is_long_term && (
+      {leave.is_long_term && leave.applicant_type === 'teacher' && canAssignRelief && (
         <div className="flex-1">
           <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
             Relief Teacher (optional)
@@ -59,6 +64,13 @@ function DecisionRow({ leave, reliefTeachers, onDecide, isBusy }: DecisionRowPro
 }
 
 export default function ApproveLeaves() {
+  const { role, can } = useAccess();
+  const { userId } = useOutletContext<DashboardContextType>();
+  // Admins and holders of leave.approve decide; anyone else who reaches this page (e.g. staff with
+  // leave.view) gets a read-only view. The server enforces the same rules.
+  const isAdmin = role === 'admin';
+  const canDecide = isAdmin || can('leave.approve');
+  const canAssignRelief = isAdmin || can('timetable.edit');
   const [leaves, setLeaves] = useState<TeacherLeaveRequest[]>([]);
   const [stats, setStats] = useState<LeaveStats>(EMPTY_STATS);
   const [reliefTeachers, setReliefTeachers] = useState<EligibleReliefTeacher[]>([]);
@@ -85,6 +97,7 @@ export default function ApproveLeaves() {
 
   useEffect(() => {
     fetchData();
+    if (!canAssignRelief) return;
     api.get('/api/approved-users/teachers/')
       .then((res) => {
         if (res.data?.status === 'success') {
@@ -92,7 +105,7 @@ export default function ApproveLeaves() {
         }
       })
       .catch((err) => console.error('Failed to fetch teacher directory for relief assignment', err));
-  }, [fetchData]);
+  }, [fetchData, canAssignRelief]);
 
   const pendingLeaves = useMemo(() => leaves.filter((l) => l.status === 'Pending'), [leaves]);
   const decidedLeaves = useMemo(
@@ -107,18 +120,40 @@ export default function ApproveLeaves() {
         status,
         ...(reliefTeacherId ? { relief_teacher_id: reliefTeacherId } : {}),
       });
+      const name = leave.applicant_name || leave.teacher_name;
       toast.success(
         status === 'Approved'
-          ? `${leave.teacher_name}'s leave has been approved.`
-          : `${leave.teacher_name}'s leave has been rejected.`
+          ? `${name}'s leave has been approved.`
+          : `${name}'s leave has been rejected.`
       );
       fetchData();
     } catch (error) {
       console.error('Error deciding on leave request:', error);
-      toast.error('Failed to record your decision. Please try again.');
+      // The server explains refusals (your own request, an approver's request, missing rights).
+      const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      toast.error(detail || 'Failed to record your decision. Please try again.');
     } finally {
       setBusyId(null);
     }
+  };
+
+  // What sits under a pending request: decision buttons, or the reason there aren't any.
+  const decisionFooter = (leave: TeacherLeaveRequest) => {
+    const note = (text: string) => (
+      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 italic">{text}</p>
+    );
+    if (!canDecide) return note('View only — you can see this request but not decide it.');
+    if (leave.applicant_user_id === userId) return note('This is your own request — an administrator will decide it.');
+    if (leave.applicant_is_approver && !isAdmin) return note("This approver's request must be decided by an administrator.");
+    return (
+      <DecisionRow
+        leave={leave}
+        reliefTeachers={reliefTeachers}
+        canAssignRelief={canAssignRelief}
+        onDecide={handleDecide}
+        isBusy={busyId === leave.id}
+      />
+    );
   };
 
   return (
@@ -170,14 +205,7 @@ export default function ApproveLeaves() {
                 key={leave.id}
                 leave={leave}
                 showTeacherName
-                footer={
-                  <DecisionRow
-                    leave={leave}
-                    reliefTeachers={reliefTeachers}
-                    onDecide={handleDecide}
-                    isBusy={busyId === leave.id}
-                  />
-                }
+                footer={decisionFooter(leave)}
               />
             ))}
           </div>

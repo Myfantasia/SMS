@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useAccess } from '../../libs/permissions';
 import { ArrowLeft, Phone, Mail, MapPin, BookOpen, Layers, Star, Edit, ShieldAlert, UserX, Heart, Users, ShieldCheck, Wallet, Hash, Calendar, IdCard } from 'lucide-react';
 import api from '../../libs/axiosInstance';
 
@@ -66,7 +67,11 @@ export default function ViewProfile() {
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  const isAdmin = window.location.pathname.includes('admin-dashboard');
+  // Governed by the same codes the API enforces (users.edit on the edit endpoint, rbac.manage on roles),
+  // so it holds for any dashboard whose user was granted them -- not just /admin-dashboard.
+  const { can } = useAccess();
+  const canEditUsers = can('users.edit');
+  const canManageRoles = can('rbac.manage');
   const basePath = '/' + (window.location.pathname.split('/')[1] || 'admin-dashboard');
 
 useEffect(() => {
@@ -138,7 +143,7 @@ useEffect(() => {
         <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
           <ArrowLeft className="w-4 h-4" /> Back to Directory
         </button>
-        {isAdmin && (
+        {canEditUsers && (
           <button
             onClick={() => navigate(`${basePath}/${userType}/edit/${id}`)}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 hover:-translate-y-0.5 hover:shadow-md transition-all shadow-sm"
@@ -395,7 +400,7 @@ useEffect(() => {
                 No roles currently granted. {profile.requested_role && `They applied requesting "${profile.requested_role}".`}
               </p>
             )}
-            {isAdmin && (
+            {canManageRoles && (
               <Link
                 to={`${basePath}/roles-permissions`}
                 className="inline-flex items-center gap-1.5 mt-3 text-sm text-blue-600 dark:text-blue-400 font-medium hover:underline"

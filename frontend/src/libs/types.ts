@@ -246,7 +246,15 @@ export type LeaveType = 'Casual' | 'Sick' | 'Maternity' | 'Seminar' | 'Compassio
 
 export interface TeacherLeaveRequest {
   id: number;
-  teacher: number;
+  // A request belongs to a teacher OR a staff member; the other is null.
+  teacher: number | null;
+  staff: number | null;
+  applicant_name: string;
+  applicant_type: 'teacher' | 'staff';
+  applicant_user_id: number | null;
+  /** True when the applicant holds leave.approve, so only an administrator may decide it. */
+  applicant_is_approver: boolean;
+  /** Kept for older screens; same value as applicant_name. */
   teacher_name: string;
   leave_type: LeaveType;
   leave_type_display: string;

@@ -4,12 +4,20 @@ import ClassPerformanceSummary from './ClassPerformanceSummary';
 import StudentReportCardViewer from './StudentReportCardViewer';
 import ResultsAnalytics from './ResultAnalytics';
 import PromotionPanel from './PromotionPanel';
+import { useAccess } from '../../libs/permissions';
 
 interface ResultsHubProps {
   role: 'admin' | 'teacher' | 'student' | 'parent';
 }
 
 export default function ResultsHub({ role }: ResultsHubProps) {
+  // The Promotion tab is for admins and for anyone an admin granted promotion.manage (e.g. a
+  // Registrar on the staff dashboard) -- not for whoever happens to be passed role="admin".
+  // The admin dashboard is checked by layout role as well so an admin keeps the tab even before
+  // `seed_rbac` has been re-run to add the new code to the Admin role.
+  const { role: dashboardRole, can } = useAccess();
+  const canPromote = dashboardRole === 'admin' || can('promotion.manage');
+
   // We use tabs to keep the UI clean and focused
   const [activeTab, setActiveTab] = useState<'performance' | 'reports' | 'analytics' | 'promotion'>('performance');
 
@@ -40,7 +48,7 @@ export default function ResultsHub({ role }: ResultsHubProps) {
     { id: 'performance' as const, label: 'Class Performance', icon: BarChart3 },
     { id: 'reports' as const, label: 'Student Report Cards', icon: FileText },
     { id: 'analytics' as const, label: 'School Analytics', icon: TrendingUp },
-    ...(role === 'admin' ? [{ id: 'promotion' as const, label: 'Promotion', icon: Award }] : []),
+    ...(canPromote ? [{ id: 'promotion' as const, label: 'Promotion', icon: Award }] : []),
   ];
 
   // Admin & Teacher View
@@ -99,7 +107,7 @@ export default function ResultsHub({ role }: ResultsHubProps) {
           </div>
         )}
 
-        {activeTab === 'promotion' && role === 'admin' && (
+        {activeTab === 'promotion' && canPromote && (
           <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm dark:shadow-none border border-slate-100 dark:border-slate-700">
             <PromotionPanel />
           </div>

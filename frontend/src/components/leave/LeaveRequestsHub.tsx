@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAccess } from '../../libs/permissions';
 import { CalendarClock, Plus, Loader2, Search, ShieldCheck } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../libs/axiosInstance';
@@ -9,13 +10,19 @@ import LeaveRequestCard from './LeaveRequestCard';
 import ApplyLeaveModal from './ApplyLeaveModal';
 
 interface LeaveRequestsHubProps {
-  role: 'admin' | 'teacher';
+  // 'admin' = the directory of every request; 'teacher' and 'staff' = your own leave (apply, edit,
+  // cancel), plus a link to review others' requests if you were granted that.
+  role: 'admin' | 'teacher' | 'staff';
 }
 
 const EMPTY_STATS: LeaveStats = { pending: 0, approved: 0, rejected: 0, total: 0 };
 
 export default function LeaveRequestsHub({ role }: LeaveRequestsHubProps) {
   const navigate = useNavigate();
+  const { can } = useAccess();
+  const isApplicant = role !== 'admin';
+  // Who can open the review page from here: approvers, and (as before) staff granted leave.view.
+  const canReview = isApplicant && (can('leave.approve') || (role === 'staff' && can('leave.view')));
   const [leaves, setLeaves] = useState<TeacherLeaveRequest[]>([]);
   const [stats, setStats] = useState<LeaveStats>(EMPTY_STATS);
   const [isLoading, setIsLoading] = useState(true);
@@ -29,8 +36,8 @@ export default function LeaveRequestsHub({ role }: LeaveRequestsHubProps) {
     setIsLoading(true);
     try {
       const [leavesRes, statsRes] = await Promise.all([
-        api.get('/api/core/leaves/'),
-        api.get('/api/core/leaves/stats/'),
+        api.get('/api/core/leaves/', { params: isApplicant ? { mine: 1 } : undefined }),
+        api.get('/api/core/leaves/stats/', { params: isApplicant ? { mine: 1 } : undefined }),
       ]);
       setLeaves(leavesRes.data);
       setStats(statsRes.data);
@@ -40,7 +47,7 @@ export default function LeaveRequestsHub({ role }: LeaveRequestsHubProps) {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [isApplicant]);
 
   useEffect(() => {
     fetchData();
@@ -100,7 +107,7 @@ export default function LeaveRequestsHub({ role }: LeaveRequestsHubProps) {
     return leaves.filter((leave) => {
       const matchesStatus = statusFilter === 'All' || leave.status === statusFilter;
       const matchesSearch = !searchQuery.trim()
-        || leave.teacher_name.toLowerCase().includes(searchQuery.trim().toLowerCase())
+        || (leave.applicant_name || leave.teacher_name || '').toLowerCase().includes(searchQuery.trim().toLowerCase())
         || leave.leave_type_display.toLowerCase().includes(searchQuery.trim().toLowerCase());
       return matchesStatus && matchesSearch;
     });
@@ -119,7 +126,7 @@ export default function LeaveRequestsHub({ role }: LeaveRequestsHubProps) {
             </h1>
             <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5">
               {role === 'admin'
-                ? 'A live record of every leave application submitted across the school.'
+                ? 'A live record of every leave application submitted by teachers and staff across the school.'
                 : 'Apply for leave and track the status of every application you have submitted.'}
             </p>
           </div>
@@ -134,7 +141,15 @@ export default function LeaveRequestsHub({ role }: LeaveRequestsHubProps) {
               <ShieldCheck className="w-4 h-4" /> Review {stats.pending} Pending
             </button>
           )}
-          {role === 'teacher' && (
+          {canReview && (
+            <button
+              onClick={() => navigate(`/${role}-dashboard/leave-requests/review`)}
+              className="flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-semibold rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition-all text-sm"
+            >
+              <ShieldCheck className="w-4 h-4" /> Review requests
+            </button>
+          )}
+          {isApplicant && (
             <button
               onClick={handleOpenApply}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-all shadow-sm dark:shadow-none"
@@ -154,7 +169,7 @@ export default function LeaveRequestsHub({ role }: LeaveRequestsHubProps) {
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
           <input
             type="text"
-            placeholder={role === 'admin' ? 'Search by teacher or leave type...' : 'Search by leave type...'}
+            placeholder={role === 'admin' ? 'Search by name or leave type...' : 'Search by leave type...'}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-9 pr-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 outline-none text-sm bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200"
@@ -191,14 +206,14 @@ export default function LeaveRequestsHub({ role }: LeaveRequestsHubProps) {
               key={leave.id}
               leave={leave}
               showTeacherName={role === 'admin'}
-              onEdit={role === 'teacher' ? handleEdit : undefined}
-              onCancel={role === 'teacher' ? handleCancel : undefined}
+              onEdit={isApplicant ? handleEdit : undefined}
+              onCancel={isApplicant ? handleCancel : undefined}
             />
           ))}
         </div>
       )}
 
-      {role === 'teacher' && (
+      {isApplicant && (
         <ApplyLeaveModal
           isOpen={isModalOpen}
           onClose={handleCloseModal}

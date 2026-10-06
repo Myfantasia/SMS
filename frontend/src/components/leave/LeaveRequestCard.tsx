@@ -38,7 +38,8 @@ export default function LeaveRequestCard({ leave, showTeacherName, onEdit, onCan
 
           {showTeacherName && (
             <p className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1.5">
-              <User className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" /> {leave.teacher_name}
+              <User className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" /> {leave.applicant_name || leave.teacher_name}
+              <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">{leave.applicant_type}</span>
             </p>
           )}
 

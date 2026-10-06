@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useAccess } from '../../libs/permissions';
 import { ArrowLeft, BookOpen, Users, BarChart3, GraduationCap, Search } from 'lucide-react';
 import api from '../../libs/axiosInstance';
 
@@ -35,7 +36,8 @@ export default function ViewSubject() {
   const [studentSearch, setStudentSearch] = useState('');
 
   // ✅ RBAC PATH RESOLVER: Controls local view layout visibility options
-  const isAdmin = window.location.pathname.includes('admin-dashboard');
+  const { can } = useAccess();
+  const canEditSubjects = can('curriculum.edit');
   const basePath = '/' + (window.location.pathname.split('/')[1] || 'admin-dashboard');
 
 useEffect(() => {
@@ -138,8 +140,8 @@ useEffect(() => {
             <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
               <Users className="w-5 h-5 text-blue-600 dark:text-blue-400" /> Teaching Staff Pool
             </h3>
-            {/* ✅ RBAC BUTTON INTERCEPT: Hides staff allocation management panel if user is an instructor */}
-            {isAdmin && (
+            {/* Hidden unless the user holds curriculum.edit (the code the edit endpoint requires) */}
+            {canEditSubjects && (
               <button
                 onClick={() => navigate(`${basePath}/subjects/edit/${subject.id}`)}
                 className="text-sm text-blue-600 dark:text-blue-400 font-medium hover:underline"

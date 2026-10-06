@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Outlet } from 'react-router-dom';
 import { ThemeProvider } from '@mui/material/styles';
 import { School, X } from 'lucide-react';
@@ -64,6 +64,58 @@ export default function DashboardLayout({ role }: LayoutProps) {
 
     return () => { cancelled = true; };
   }, []);
+
+  // 1b. LIVE PERMISSIONS — an admin can change this user's roles while their dashboard is open.
+  // The server pushes a "permissions changed" message over the user's inbox connection (see
+  // hooks/useInboxSocket.ts, which re-broadcasts it as a window event); as a fallback for a
+  // dropped connection we also re-read when the tab regains focus and once a minute while it is
+  // visible. Everything downstream (sidebar, home cards, page controls, route guards) reads
+  // `permissions` from here, so they all adapt with no reload. Student and parent accounts hold
+  // no RBAC roles, so they skip this. The server enforces permissions regardless of what this
+  // screen currently shows.
+  const permissionsRef = useRef<string[]>([]);
+  const lastRefreshRef = useRef(0);
+  useEffect(() => { permissionsRef.current = permissions; }, [permissions]);
+
+  useEffect(() => {
+    if (authStatus !== 'authorized' || role === 'student' || role === 'parent') return;
+    let cancelled = false;
+
+    const refresh = () => {
+      lastRefreshRef.current = Date.now();
+      api.get('/api/my-profile/')
+        .then((res) => {
+          const data = res.data?.data;
+          if (cancelled || !data) return;
+          const next: string[] = data.permissions || [];
+          const prev = permissionsRef.current;
+          const unchanged = prev.length === next.length && prev.every((code) => next.includes(code));
+          if (!unchanged) {
+            setPermissions(next);
+            toast('Your access was updated.', { icon: '🔄', id: 'permissions-updated' });
+          }
+          setIsClassTeacher(!!data.is_class_teacher);
+          setRequiresPathwayChoice(!!data.requires_pathway_choice);
+        })
+        .catch(() => { /* transient: keep the current view; the next trigger retries */ });
+    };
+    const refreshIfStale = () => {
+      if (document.visibilityState === 'visible' && Date.now() - lastRefreshRef.current > 10_000) refresh();
+    };
+
+    window.addEventListener('sms:permissions-changed', refresh);
+    window.addEventListener('focus', refreshIfStale);
+    document.addEventListener('visibilitychange', refreshIfStale);
+    const intervalId = setInterval(refreshIfStale, 60_000);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener('sms:permissions-changed', refresh);
+      window.removeEventListener('focus', refreshIfStale);
+      document.removeEventListener('visibilitychange', refreshIfStale);
+      clearInterval(intervalId);
+    };
+  }, [authStatus, role]);
 
   useEffect(() => {
     if (authStatus === 'denied') {

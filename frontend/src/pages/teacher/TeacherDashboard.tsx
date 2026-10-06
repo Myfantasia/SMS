@@ -4,7 +4,9 @@ import {
     AlertCircle, Clock, BookOpen, User,
     FileEdit, MoreVertical, Bell, PlusCircle, ClipboardCheck
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useOutletContext } from 'react-router-dom';
+import type { DashboardContextType } from '../../layouts/DashboardLayouts';
+import { getGrantedModules } from '../../libs/navCatalog';
 import api from '../../libs/axiosInstance';
 
 // --- TYPESCRIPT INTERFACES (Matches TeacherDashboardOverviewAPI payload) ---
@@ -68,6 +70,10 @@ function isSessionActiveNow(start: string, end: string): boolean {
 
 export default function TeacherDashboard() {
     const navigate = useNavigate();
+    const { permissions } = useOutletContext<DashboardContextType>();
+    // Modules a teacher only has because an admin gave them an extra role (Fees, Allocations, ...);
+    // everything in the default teacher sidebar is excluded. Updates live with the permissions.
+    const roleAddedModules = getGrantedModules('teacher', permissions).filter((m) => m.addedByRole);
     const [data, setData] = useState<DashboardData | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(false);
@@ -191,6 +197,38 @@ export default function TeacherDashboard() {
                                 <Zap className="w-3.5 h-3.5" /> Submit today's register
                             </button>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {/* ==========================================
+                ADDED BY YOUR ROLE — only shown when an admin has granted this teacher an extra
+                role beyond the default Teacher set. Sourced from libs/navCatalog.ts.
+            ========================================== */}
+            {roleAddedModules.length > 0 && (
+                <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm dark:shadow-none border border-slate-100 dark:border-slate-700 p-5">
+                    <p className="text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-3">Added by your role</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {roleAddedModules.map(({ item, canEdit }) => (
+                            <button
+                                key={`${item.label}-${item.href}`}
+                                onClick={() => navigate(item.href.replace('/admin-dashboard', '/teacher-dashboard'))}
+                                className="text-left flex items-start gap-3 p-3 rounded-xl border border-slate-100 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-500/40 transition"
+                            >
+                                <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                                    <item.icon className="w-4 h-4" />
+                                </div>
+                                <div className="min-w-0">
+                                    <p className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                                        {item.label}
+                                        {item.editCode && (
+                                            <span className="ml-2 text-[10px] font-bold uppercase text-slate-400 dark:text-slate-500">{canEdit ? 'Can edit' : 'View only'}</span>
+                                        )}
+                                    </p>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">{item.description}</p>
+                                </div>
+                            </button>
+                        ))}
                     </div>
                 </div>
             )}

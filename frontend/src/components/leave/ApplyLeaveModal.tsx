@@ -1,3 +1,4 @@
+import { useAccess } from '../../libs/permissions';
 import { useState, useEffect } from 'react';
 import { X, CalendarDays, AlignLeft, Tag, Info } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -20,6 +21,7 @@ const LEAVE_TYPE_OPTIONS: { value: LeaveType; label: string }[] = [
 ];
 
 export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, initialData }: ApplyLeaveModalProps) {
+  const { role } = useAccess();
   const [leaveType, setLeaveType] = useState<LeaveType>('Casual');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -144,7 +146,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, initialDat
               <Info className="w-4 h-4 mt-0.5 shrink-0" />
               <span>
                 {durationDays} day{durationDays === 1 ? '' : 's'} requested.
-                {isLongTerm && ' This qualifies as long-term leave — the admin may assign a relief teacher to cover your workload upon approval.'}
+                {isLongTerm && (role === 'staff' ? ' This qualifies as long-term leave.' : ' This qualifies as long-term leave — the admin may assign a relief teacher to cover your workload upon approval.')}
               </span>
             </div>
           )}

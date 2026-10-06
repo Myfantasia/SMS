@@ -82,6 +82,8 @@ import ApproveLeaves from './components/leave/ApproveLeaves';
 import FinanceHub from './components/Finance/FinanceHub';
 import ContentHub from './components/content/ContentHub';
 import Trash from './pages/admin/Trash';
+import RequirePermission from './components/common/RequirePermission';
+import { NoticesRoute, EventsRoute, AttendanceRoute, ExamsRoute, AssignmentsRoute, ResultsRoute } from './components/common/PermissionRoutes';
 
 
 export default function App() {
@@ -234,7 +236,11 @@ export default function App() {
             <Route path="trash" element={<Trash />} />
           </Route>
 
-          {/* TEACHER ROUTE GROUP */}
+          {/* TEACHER ROUTE GROUP — permission-driven: a teacher gets the default Teacher role's
+              permissions plus whatever extra roles an admin assigns, and every route below is
+              only reachable while the matching code is held (RequirePermission), so the page set
+              follows the user's own permissions and updates live when an admin changes them.
+              The sidebar/home cards come from libs/navCatalog.ts. */}
           <Route path="/teacher-dashboard/*" element={<DashboardLayout role="teacher" />}>
             <Route index element={<TeacherDashboard />} />
             <Route path="messages" element={<ChatDashboard />} />
@@ -244,39 +250,46 @@ export default function App() {
             <Route path="teachers" element={<UserDirectory userType="teachers" />} />
             <Route path="students" element={<UserDirectory userType="students" />} />
             <Route path="parents" element={<UserDirectory userType="parents" />} />
-            
-            {/* ✅ CLASSES MATRIX ROUTES ADDED FOR THE TEACHER Portal */}
-            <Route path="classes" element={<ClassesPage />} />
-            <Route path="curriculum" element={<CurriculumHub />} />
-            <Route path="classes/view/:id" element={<ViewClass />} />
+
+            {/* CLASSES MATRIX ROUTES FOR THE TEACHER PORTAL */}
+            <Route path="classes" element={<RequirePermission code="classes.view"><ClassesPage /></RequirePermission>} />
+            <Route path="curriculum" element={<RequirePermission code="curriculum.view"><CurriculumHub /></RequirePermission>} />
+            <Route path="classes/view/:id" element={<RequirePermission code="classes.view"><ViewClass /></RequirePermission>} />
             <Route path="classes/assign-subjects/:gradeId/:studentId" element={<AssignSubjectsPage />} />
-            
-            <Route path="timetable" element={<TimetableManager />} />
+
+            <Route path="timetable" element={<RequirePermission code="timetable.view"><TimetableManager /></RequirePermission>} />
             <Route path=":userType/view/:id" element={<ViewProfile />} />
 
-            <Route path="subjects" element={<SubjectsPage />} />
-            <Route path="subjects/view/:id" element={<ViewSubject />} />
+            <Route path="subjects" element={<RequirePermission code="curriculum.view"><SubjectsPage /></RequirePermission>} />
+            <Route path="subjects/view/:id" element={<RequirePermission code="curriculum.view"><ViewSubject /></RequirePermission>} />
 
-            {/* --- ADD THE ATTENDANCE ROUTE HERE --- */}
-            <Route path="attendance" element={<AttendanceHub role='teacher' />} />
+            {/* Routes a teacher only reaches when an extra role grants the matching permission. */}
+            <Route path="classes/edit/:id" element={<RequirePermission code="classes.edit"><EditClass /></RequirePermission>} />
+            <Route path="subjects/edit/:id" element={<RequirePermission code="curriculum.edit"><EditSubject /></RequirePermission>} />
+            <Route path=":userType/edit/:id" element={<RequirePermission code="users.edit"><EditProfile /></RequirePermission>} />
+            <Route path="allocations" element={<RequirePermission code="allocations.view"><AllocationDashboard /></RequirePermission>} />
+            <Route path="finance" element={<RequirePermission code="finance.view"><FinanceHub /></RequirePermission>} />
 
-            <Route path="assignments" element={<AssignmentsHub role="teacher" />} />
-            <Route path="assignments/create" element={<AssignmentCreator role="teacher" />} />
-            <Route path="assignments/edit/:id" element={<EditAssignment role="teacher" />} />
-            <Route path="assignments/:id/submissions" element={<SubmissionManager role="teacher" />} />
+            <Route path="attendance" element={<RequirePermission code="attendance.view"><AttendanceHub role='teacher' /></RequirePermission>} />
 
-            <Route path="results" element={<ResultsHub role="teacher" />} />
+            <Route path="assignments" element={<RequirePermission code="assignments.view"><AssignmentsHub role="teacher" /></RequirePermission>} />
+            <Route path="assignments/create" element={<RequirePermission code="assignments.edit"><AssignmentCreator role="teacher" /></RequirePermission>} />
+            <Route path="assignments/edit/:id" element={<RequirePermission code="assignments.edit"><EditAssignment role="teacher" /></RequirePermission>} />
+            <Route path="assignments/:id/submissions" element={<RequirePermission code="assignments.edit"><SubmissionManager role="teacher" /></RequirePermission>} />
 
-            <Route path="exams" element={<ExamsHub role="teacher" />} />
+            <Route path="results" element={<RequirePermission code="results.view"><ResultsHub role="teacher" /></RequirePermission>} />
 
-            <Route path="events" element={<EventsHub role="teacher" />} />
+            <Route path="exams" element={<RequirePermission code="exams.view"><ExamsHub role="teacher" /></RequirePermission>} />
 
-            <Route path="notices" element={<NoticesHub role="teacher" />} />
+            <Route path="events" element={<EventsRoute />} />
 
-            {/* --- LEAVE MANAGEMENT: APPLY & TRACK --- */}
+            <Route path="notices" element={<NoticesRoute />} />
+
+            {/* LEAVE MANAGEMENT: APPLY & TRACK your own; review others' only if granted leave.approve */}
             <Route path="leave-requests" element={<LeaveRequestsHub role="teacher" />} />
+            <Route path="leave-requests/review" element={<RequirePermission code="leave.approve"><ApproveLeaves /></RequirePermission>} />
 
-            {/* --- PATHWAY REQUESTS: class teachers decide requests from their own classes --- */}
+            {/* PATHWAY REQUESTS: class teachers decide requests from their own classes */}
             <Route path="pathway-requests" element={<PathwayRequestsHub role="teacher" />} />
           </Route>
 
@@ -319,34 +332,45 @@ export default function App() {
             <Route path="assignments/:id/review" element={<AssignmentReview role="parent" />} />
           </Route>
 
-          {/* STAFF ROUTE GROUP — non-teaching staff (librarian, finance officer, secretary,
-              etc). Unlike the other four groups, Staff has no fixed capability set: every
-              route below is reachable only if the sidebar (permission-driven, see Menu.tsx)
-              actually links to it, and every underlying API call is gated server-side by the
-              RBAC permission code the admin assigned via Roles & Permissions — the "admin"
-              role prop passed to these shared components just selects the fuller manage-UI
-              variant where one exists; it does not grant access on its own. */}
+          {/* STAFF ROUTE GROUP — non-teaching staff (librarian, finance officer, secretary, etc).
+              Staff have no fixed capability set: an admin assigns roles (Roles & Permissions) and
+              every route below is reachable only while the matching permission code is held
+              (RequirePermission) — so two staff members see different pages, and a page
+              disappears (and the user is moved home) the moment its permission is removed. The
+              sidebar and home cards come from libs/navCatalog.ts, and every API call is also gated
+              server-side by the same code. A page that has an admin/manage variant derives it from
+              the *edit* code, not from which dashboard it is in. */}
           <Route path="/staff-dashboard/*" element={<DashboardLayout role="staff" />}>
             <Route index element={<StaffDashboard />} />
             <Route path="messages" element={<ChatDashboard />} />
             <Route path="profile" element={<TeacherProfile />} />
             <Route path="search" element={<SearchResults />} />
 
-            <Route path="finance" element={<FinanceHub />} />
-            <Route path="notices" element={<NoticesHub role="admin" />} />
-            <Route path="events" element={<EventsHub role="admin" />} />
-            <Route path="leave-requests" element={<LeaveRequestsHub role="admin" />} />
-            <Route path="classes" element={<ClassesPage />} />
-            <Route path="classes/view/:id" element={<ViewClass />} />
-            <Route path="curriculum" element={<CurriculumHub />} />
-            <Route path="timetable" element={<TimetableManager />} />
-            <Route path="attendance" element={<AttendanceHub role="admin" />} />
-            <Route path="exams" element={<ExamsHub role="admin" />} />
-            <Route path="results" element={<ResultsHub role="admin" />} />
-            <Route path="assignments" element={<AssignmentsHub role="admin" />} />
-            <Route path="allocations" element={<AllocationDashboard />} />
+            <Route path="finance" element={<RequirePermission code="finance.view"><FinanceHub /></RequirePermission>} />
+            <Route path="notices" element={<RequirePermission code="notices.edit"><NoticesRoute /></RequirePermission>} />
+            <Route path="events" element={<RequirePermission code="events.edit"><EventsRoute /></RequirePermission>} />
+            {/* Every staff member can apply for their own leave (no permission); reviewing others' is granted. */}
+            <Route path="leave-requests" element={<LeaveRequestsHub role="staff" />} />
+            <Route path="leave-requests/review" element={<RequirePermission code={['leave.view', 'leave.approve']}><ApproveLeaves /></RequirePermission>} />
+            <Route path="classes" element={<RequirePermission code="classes.view"><ClassesPage /></RequirePermission>} />
+            <Route path="classes/view/:id" element={<RequirePermission code="classes.view"><ViewClass /></RequirePermission>} />
+            <Route path="classes/edit/:id" element={<RequirePermission code="classes.edit"><EditClass /></RequirePermission>} />
+            <Route path="subjects" element={<RequirePermission code="curriculum.view"><SubjectsPage /></RequirePermission>} />
+            <Route path="subjects/view/:id" element={<RequirePermission code="curriculum.view"><ViewSubject /></RequirePermission>} />
+            <Route path="subjects/edit/:id" element={<RequirePermission code="curriculum.edit"><EditSubject /></RequirePermission>} />
+            <Route path="curriculum" element={<RequirePermission code="curriculum.view"><CurriculumHub /></RequirePermission>} />
+            <Route path="timetable" element={<RequirePermission code="timetable.view"><TimetableManager /></RequirePermission>} />
+            {/* Each hub derives its own admin-vs-teacher variant from the matching *.edit code
+                (see PermissionRoutes.tsx), so a staff member with only *.view never sees manage
+                controls the server would reject. */}
+            <Route path="attendance" element={<RequirePermission code="attendance.view"><AttendanceRoute /></RequirePermission>} />
+            <Route path="exams" element={<RequirePermission code="exams.view"><ExamsRoute /></RequirePermission>} />
+            <Route path="results" element={<RequirePermission code="results.view"><ResultsRoute /></RequirePermission>} />
+            <Route path="assignments" element={<RequirePermission code="assignments.view"><AssignmentsRoute /></RequirePermission>} />
+            <Route path="allocations" element={<RequirePermission code="allocations.view"><AllocationDashboard /></RequirePermission>} />
 
-            <Route path=":userType/view/:id" element={<ViewProfile />} />
+            <Route path=":userType/view/:id" element={<RequirePermission code="users.view"><ViewProfile /></RequirePermission>} />
+            <Route path=":userType/edit/:id" element={<RequirePermission code="users.edit"><EditProfile /></RequirePermission>} />
           </Route>
 
           {/* Catch-all route to prevent 404 errors */}

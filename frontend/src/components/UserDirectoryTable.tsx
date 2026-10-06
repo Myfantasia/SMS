@@ -4,6 +4,7 @@ import { Eye, Edit, Trash2, AlertTriangle, X, Search, Users as UsersIcon, Star, 
 import { toast } from 'react-hot-toast';
 import api from '../libs/axiosInstance';
 import AddUserModal from './AddUserModal';
+import { useAccess } from '../libs/permissions';
 
 
 type EnrollmentState = 'Active' | 'Suspended' | 'Expelled' | 'Transferred';
@@ -100,6 +101,13 @@ const AVATAR_COLOR: Record<UserDirectoryTableProps['userType'], string> = {
 export default function UserDirectoryTable({ userType }: UserDirectoryTableProps) {
   // --- SECURE RBAC: Pull the role from the DashboardLayout ---
   const { role } = useOutletContext<{ role: string }>();
+  // Management controls follow the permission the matching backend endpoint actually requires
+  // (see school/views/views.py), not literally being on the admin dashboard -- so a teacher or
+  // staff member granted the code in the future gets the same controls an admin does today.
+  const { can } = useAccess();
+  const canEditUsers = can('users.edit');
+  const canDeleteUsers = can('users.delete');
+  const canAddUsers = can('users.approve');
 
   // --- STRICT RBAC VIEW LOGIC ---
   // Admins view everyone. Teachers ONLY view Students.
@@ -366,23 +374,23 @@ export default function UserDirectoryTable({ userType }: UserDirectoryTableProps
             </Link>
           )}
 
-          {role === 'admin' && (
-            <>
-              <Link
-                to={`/admin-dashboard/${userType}/edit/${user.id}`}
-                title="Edit"
-                className="w-8 h-8 flex items-center justify-center rounded-full bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-500/20 hover:-translate-y-0.5 hover:shadow-sm transition-all"
-              >
-                <Edit className="w-4 h-4" />
-              </Link>
-              <button
-                onClick={() => confirmDelete(user.id, user.name)}
-                title="Delete"
-                className="w-8 h-8 flex items-center justify-center rounded-full bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/20 hover:-translate-y-0.5 hover:shadow-sm transition-all"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </>
+          {canEditUsers && (
+            <Link
+              to={`/${role}-dashboard/${userType}/edit/${user.id}`}
+              title="Edit"
+              className="w-8 h-8 flex items-center justify-center rounded-full bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-500/20 hover:-translate-y-0.5 hover:shadow-sm transition-all"
+            >
+              <Edit className="w-4 h-4" />
+            </Link>
+          )}
+          {canDeleteUsers && (
+            <button
+              onClick={() => confirmDelete(user.id, user.name)}
+              title="Delete"
+              className="w-8 h-8 flex items-center justify-center rounded-full bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/20 hover:-translate-y-0.5 hover:shadow-sm transition-all"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
           )}
 
         </div>
@@ -424,7 +432,7 @@ export default function UserDirectoryTable({ userType }: UserDirectoryTableProps
           )}
         </div>
         <div className="flex items-center gap-2">
-          {role === 'admin' && (
+          {canAddUsers && (
             <button
               type="button"
               onClick={() => setIsAddModalOpen(true)}
@@ -604,9 +612,9 @@ export default function UserDirectoryTable({ userType }: UserDirectoryTableProps
           pagination controls when the flat list spans more than one page. Rendered whenever
           either is relevant, so it still appears for a non-admin viewer with a paginated
           list, or for an admin viewing a single-page/grouped list. */}
-      {(role === 'admin' || (groupMode === 'none' && filteredUsers.length > 0 && totalPages > 1)) && (
+      {(canAddUsers || (groupMode === 'none' && filteredUsers.length > 0 && totalPages > 1)) && (
         <div className="sm:hidden flex items-center justify-between gap-3 px-5 py-3 border-t border-slate-100 dark:border-slate-700">
-          {role === 'admin' && (
+          {canAddUsers && (
             <button
               type="button"
               onClick={() => setIsAddModalOpen(true)}

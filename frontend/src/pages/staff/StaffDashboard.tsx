@@ -1,32 +1,16 @@
 import { useEffect, useState } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
-import {
-  Briefcase, BookMarked, CheckSquare, Calendar, Megaphone, CalendarClock,
-  Award, FileSignature, FileEdit, CircleDollarSign, CalendarDays,
-  ClipboardList, Layers, MessagesSquare, ChevronRight, Sparkles,
-} from 'lucide-react';
+import { Briefcase, ChevronRight, Sparkles } from 'lucide-react';
 import type { DashboardContextType } from '../../layouts/DashboardLayouts';
+import { getGrantedModules } from '../../libs/navCatalog';
 import api from '../../libs/axiosInstance';
 
-// Staff accounts carry zero fixed capabilities of their own — everything shown here is
-// derived from whatever Role(s) an admin assigned via Roles & Permissions. This is the
-// launcher a Librarian, Finance Officer, Secretary, etc. land on after login: only the
-// modules their assigned permission codes actually unlock.
-const MODULES: { code: string; icon: typeof Briefcase; label: string; description: string; href: string }[] = [
-  { code: 'finance.view', icon: CircleDollarSign, label: 'Fees & Salary', description: 'View fee collection and salary overview.', href: '/staff-dashboard/finance' },
-  { code: 'notices.edit', icon: Megaphone, label: 'Notices', description: 'Post and manage school notices.', href: '/staff-dashboard/notices' },
-  { code: 'events.edit', icon: Calendar, label: 'Events', description: 'Post and manage school events.', href: '/staff-dashboard/events' },
-  { code: 'leave.view', icon: CalendarClock, label: 'Leave Requests', description: 'Review and manage staff leave requests.', href: '/staff-dashboard/leave-requests' },
-  { code: 'classes.view', icon: Layers, label: 'Classes', description: 'View class, stream, and enrollment records.', href: '/staff-dashboard/classes' },
-  { code: 'curriculum.view', icon: BookMarked, label: 'Curriculum', description: 'View curriculum structure and pathways.', href: '/staff-dashboard/curriculum' },
-  { code: 'timetable.view', icon: CalendarDays, label: 'Timetable', description: 'View the master school timetable.', href: '/staff-dashboard/timetable' },
-  { code: 'attendance.view', icon: CheckSquare, label: 'Attendance', description: 'View attendance registers.', href: '/staff-dashboard/attendance' },
-  { code: 'exams.view', icon: FileSignature, label: 'Exams', description: 'View exam setup and marks entry data.', href: '/staff-dashboard/exams' },
-  { code: 'results.view', icon: Award, label: 'Results', description: 'View exam results and analytics.', href: '/staff-dashboard/results' },
-  { code: 'assignments.view', icon: FileEdit, label: 'Assignments', description: 'View assignment management data.', href: '/staff-dashboard/assignments' },
-  { code: 'allocations.view', icon: ClipboardList, label: 'Allocations', description: 'View subject-teacher allocations.', href: '/staff-dashboard/allocations' },
-  { code: 'chat.manage', icon: MessagesSquare, label: 'Chat Admin Tools', description: 'Audit log, broadcasts, and parent cohorts.', href: '/staff-dashboard/messages' },
-];
+// Staff accounts carry zero fixed capabilities of their own — everything shown here is derived
+// from whatever Role(s) an admin assigned via Roles & Permissions. This is the launcher a
+// Librarian, Finance Officer, Secretary, etc. land on after login: only the modules their
+// assigned permission codes actually unlock. The module list itself lives in libs/navCatalog.ts
+// (shared with the sidebar), so a new module shows up here automatically, and because the layout
+// keeps `permissions` current, cards appear and disappear live when an admin changes the roles.
 
 interface Profile {
   first_name: string;
@@ -45,7 +29,9 @@ export default function StaffDashboard() {
       .catch(() => {});
   }, []);
 
-  const unlockedModules = MODULES.filter((m) => permissions.includes(m.code));
+  const unlockedModules = getGrantedModules('staff', permissions);
+  // Cards that came from an assigned role (as opposed to baseline ones like My Leave).
+  const hasRoleModules = unlockedModules.some((m) => !!m.item.permission);
 
   return (
     <div className="max-w-6xl mx-auto space-y-8">
@@ -63,31 +49,46 @@ export default function StaffDashboard() {
         </div>
       </div>
 
-      {unlockedModules.length === 0 ? (
-        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm dark:shadow-none border border-slate-100 dark:border-slate-700 p-10 text-center space-y-3">
-          <Sparkles className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto" />
-          <h2 className="text-lg font-bold text-slate-700 dark:text-slate-200">No modules assigned yet</h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto">
-            Your account is approved, but an administrator hasn't assigned you a Role yet.
-            Once they do — from Roles &amp; Permissions — the modules it grants will appear here automatically.
-          </p>
+      {!hasRoleModules && (
+        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm dark:shadow-none border border-slate-100 dark:border-slate-700 p-6 flex items-start gap-4">
+          <Sparkles className="w-6 h-6 text-slate-300 dark:text-slate-600 shrink-0 mt-0.5" />
+          <div>
+            <h2 className="text-base font-bold text-slate-700 dark:text-slate-200">No modules assigned yet</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-xl">
+              Your account is approved, but an administrator hasn't assigned you a Role yet.
+              Once they do — from Roles &amp; Permissions — the modules it grants will appear here automatically.
+            </p>
+          </div>
         </div>
-      ) : (
+      )}
+
+      {unlockedModules.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {unlockedModules.map((m) => (
+          {unlockedModules.map(({ item, canEdit }) => (
             <button
-              key={m.code}
-              onClick={() => navigate(m.href)}
+              key={`${item.label}-${item.href}`}
+              onClick={() => navigate(item.href.replace('/admin-dashboard', '/staff-dashboard'))}
               className="text-left bg-white dark:bg-slate-900 rounded-2xl shadow-sm dark:shadow-none border border-slate-100 dark:border-slate-700 p-5 hover:border-blue-300 dark:hover:border-blue-500/40 hover:shadow-md dark:hover:shadow-none transition group"
             >
               <div className="flex items-start justify-between">
                 <div className="p-2.5 rounded-xl bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 mb-4">
-                  <m.icon className="w-5 h-5" />
+                  <item.icon className="w-5 h-5" />
                 </div>
                 <ChevronRight className="w-4 h-4 text-slate-300 dark:text-slate-600 group-hover:text-blue-500 dark:group-hover:text-blue-400 transition" />
               </div>
-              <h3 className="font-bold text-slate-800 dark:text-slate-100">{m.label}</h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{m.description}</p>
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold text-slate-800 dark:text-slate-100">{item.label}</h3>
+                {item.editCode && (
+                  <span className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${
+                    canEdit
+                      ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
+                  }`}>
+                    {canEdit ? 'Can edit' : 'View only'}
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{item.description}</p>
             </button>
           ))}
         </div>

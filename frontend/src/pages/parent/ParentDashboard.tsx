@@ -19,6 +19,8 @@ interface ChildOverview {
   class_name: string;
   fee: number | null;
   attendance: { present: number; total: number; percentage: number | null };
+  enrollment_state: string;
+  graduation_destination: string | null;
 }
 
 interface ParentNotice {
@@ -130,7 +132,17 @@ export default function ParentDashboard() {
                     </div>
                     <div className="min-w-0">
                       <p className="font-bold text-slate-800 dark:text-slate-100 truncate">{child.name}</p>
-                      <p className="text-xs text-slate-400 dark:text-slate-500">{child.class_name} &middot; Roll {child.roll}</p>
+                      {child.enrollment_state === 'Graduated' ? (
+                        <p className="flex items-center gap-1 text-xs font-semibold text-indigo-600 dark:text-indigo-400">
+                          <GraduationCap className="w-3.5 h-3.5 shrink-0" />
+                          Graduated
+                          {child.graduation_destination
+                            ? ` — placed at ${child.graduation_destination}`
+                            : ' — destination not yet recorded'}
+                        </p>
+                      ) : (
+                        <p className="text-xs text-slate-400 dark:text-slate-500">{child.class_name} &middot; Roll {child.roll}</p>
+                      )}
                     </div>
                   </div>
                   <div className="grid grid-cols-2 divide-x divide-slate-50 dark:divide-slate-800">

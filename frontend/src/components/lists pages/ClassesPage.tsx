@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Layers, Eye, Edit, Trash2, X, Search, Users, Star } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useAccess } from '../../libs/permissions';
 import toast from 'react-hot-toast';
 import api from '../../libs/axiosInstance';
 
@@ -25,7 +26,9 @@ export default function ClassesPage() {
   const navigate = useNavigate();
 
   // Environment Path Checks for Conditional Rendering
-  const isAdmin = window.location.pathname.includes('admin-dashboard');
+  // Structural edits are governed by the classes.edit permission (not by which dashboard you're in).
+  const { can } = useAccess();
+  const canEditClasses = can('classes.edit');
   const basePath = '/' + (window.location.pathname.split('/')[1] || 'admin-dashboard');
 
   // Delete Modal States
@@ -201,8 +204,8 @@ export default function ClassesPage() {
                             <Eye className="w-4 h-4" />
                           </button>
 
-                          {/* Role Shield: Only Admins can execute these structural changes */}
-                          {isAdmin && (
+                          {/* Only users holding classes.edit can execute these structural changes */}
+                          {canEditClasses && (
                             <>
                               <button
                                 onClick={() => navigate(`${basePath}/classes/edit/${stream.id}`)}

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { BookOpen, Eye, Edit, Trash2, X, Search, Layers, GraduationCap } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useAccess } from '../../libs/permissions';
 import toast from 'react-hot-toast';
 import api from '../../libs/axiosInstance';
 
@@ -78,7 +79,9 @@ export default function SubjectsPage() {
   const [activeCurriculumId, setActiveCurriculumId] = useState<number | null>(null);
   const [activeTierId, setActiveTierId] = useState<number | null>(null);
 
-  const isAdmin = window.location.pathname.includes('admin-dashboard');
+  // Subject edits are governed by curriculum.edit (the same code the API requires).
+  const { can } = useAccess();
+  const canEditSubjects = can('curriculum.edit');
   const basePath = '/' + (window.location.pathname.split('/')[1] || 'admin-dashboard');
 
   const [subjectToDelete, setSubjectToDelete] = useState<SubjectData | null>(null);
@@ -451,7 +454,7 @@ export default function SubjectsPage() {
                               >
                                 <Eye className="w-4 h-4" />
                               </button>
-                              {isAdmin && (
+                              {canEditSubjects && (
                                 <>
                                   <button
                                     onClick={() => navigate(`${basePath}/subjects/edit/${sub.id}`)}

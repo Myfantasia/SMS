@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useAccess } from '../../libs/permissions';
 import { ArrowLeft, Users, BookOpen, Clock, CalendarDays, GraduationCap, Settings, Star, ClipboardCheck } from 'lucide-react';
 import ManageEnrollments from './ManageEnrollments';
 import ManageCurriculum from './ManageCurriculum';
@@ -53,7 +54,9 @@ export default function ViewClass() {
   const [showEnrollments, setShowEnrollments] = useState(false);
   const [showCurriculum, setShowCurriculum] = useState(false);
 
-  const isAdmin = window.location.pathname.includes('admin-dashboard');
+  const { can, canAny } = useAccess();
+  const canManageClass = canAny('classes.edit', 'classes.enrollment');
+  const canManageTimetable = can('timetable.edit');
   const basePath = '/' + (window.location.pathname.split('/')[1] || 'admin-dashboard');
 
   useEffect(() => {
@@ -228,7 +231,7 @@ export default function ViewClass() {
                   <GraduationCap className="w-5 h-5 text-blue-600 dark:text-blue-400" /> Enrolled Students
                 </h3>
 
-                {isAdmin && (
+                {canManageClass && (
                   <div className="flex gap-2">
                     <button
                       onClick={() => setShowEnrollments(true)}
@@ -252,7 +255,7 @@ export default function ViewClass() {
                     <tr>
                       <th className="px-4 py-3">Admission No.</th>
                       <th className="px-4 py-3">Student Name</th>
-                      {(isAdmin || classData.is_current_user_class_teacher) && (
+                      {(canManageClass || classData.is_current_user_class_teacher) && (
                         <th className="px-4 py-3 text-right">Actions</th>
                       )}
                     </tr>
@@ -263,7 +266,7 @@ export default function ViewClass() {
                         <tr key={student.id} className="hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
                           <td className="px-4 py-3 font-medium text-slate-600 dark:text-slate-300">{student.roll}</td>
                           <td className="px-4 py-3 text-slate-800 dark:text-slate-100 font-semibold">{student.name}</td>
-                          {(isAdmin || classData.is_current_user_class_teacher) && (
+                          {(canManageClass || classData.is_current_user_class_teacher) && (
                             <td className="px-4 py-3 text-right">
                                <button
                                   onClick={() => navigate(`${basePath}/classes/assign-subjects/${classData.grade_id}/${student.id}`, { state: { studentName: student.name } })}
@@ -313,7 +316,7 @@ export default function ViewClass() {
                 No lessons scheduled for this class today.
               </div>
             )}
-            {isAdmin && (
+            {canManageTimetable && (
               <button
                 onClick={() => navigate(`${basePath}/timetable?class=${id}`)}
                 className="w-full mt-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-medium text-sm rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition"
